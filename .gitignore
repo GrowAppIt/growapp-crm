@@ -1,6 +1,6 @@
 # ⚠️ FILE SENSIBILI - NON COMMITTARE MAI
 .env
-js/env.js
+public/js/env.js
 
 # Dependencies
 node_modules/

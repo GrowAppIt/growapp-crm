@@ -2,7 +2,7 @@
 
 /**
  * Script di Build per Vercel
- * Genera js/env.js dalle Environment Variables di Vercel
+ * Genera public/js/env.js dalle Environment Variables di Vercel
  */
 
 const fs = require('fs');
@@ -47,13 +47,13 @@ window.ENV = {
 console.log('✅ Configurazione Firebase caricata da Vercel Environment Variables');
 `;
 
-// Percorso del file di output
-const outputPath = path.join(__dirname, '..', 'js', 'env.js');
+// Percorso del file di output (ora in public/js/)
+const outputPath = path.join(__dirname, '..', 'public', 'js', 'env.js');
 
 // Scrivi il file
 try {
     fs.writeFileSync(outputPath, envContent, 'utf8');
-    console.log('✅ env.js generato con successo');
+    console.log('✅ public/js/env.js generato con successo');
     console.log(`📁 Percorso: ${outputPath}`);
     console.log('\n🚀 Build completato! Firebase configurato correttamente.');
 } catch (error) {
