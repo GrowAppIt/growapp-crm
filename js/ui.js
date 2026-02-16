@@ -1,0 +1,440 @@
+// UI Module - Gestione interfaccia utente
+const UI = {
+    // === NAVIGATION ===
+    showPage(pageName, id = null) {
+        // Verifica accesso alla pagina
+        if (!AuthService.isAuthenticated()) {
+            return;
+        }
+
+        if (!AuthService.canAccessPage(pageName)) {
+            this.showAccessDenied(pageName);
+            return;
+        }
+
+        // Aggiorna menu attivo (solo per pagine principali, non dettagli)
+        if (!pageName.startsWith('dettaglio-')) {
+            document.querySelectorAll('.menu-item').forEach(item => {
+                item.classList.remove('active');
+                if (item.dataset.page === pageName) {
+                    item.classList.add('active');
+                }
+            });
+        }
+
+        // Carica contenuto pagina
+        const mainContent = document.getElementById('mainContent');
+        mainContent.innerHTML = '<div class="loading-spinner"></div>';
+
+        // Chiudi sidebar su mobile
+        this.closeSidebar();
+
+        // Carica pagina specifica
+        switch (pageName) {
+            case 'dashboard':
+                Dashboard.render();
+                break;
+            case 'scadenzario':
+                Scadenzario.render();
+                break;
+            case 'clienti':
+                Clienti.render();
+                break;
+            case 'app':
+                GestioneApp.render();
+                break;
+            case 'task':
+                GestioneTask.render();
+                break;
+            case 'contratti':
+                Contratti.render();
+                break;
+            case 'fatture':
+                Fatture.render();
+                break;
+            case 'report':
+                Report.render();
+                break;
+            case 'impostazioni':
+                Settings.render();
+                break;
+            // Pagine di dettaglio
+            case 'dettaglio-cliente':
+                if (id) DettaglioCliente.render(id);
+                else UI.showPage('clienti');
+                break;
+            case 'dettaglio-contratto':
+                if (id) DettaglioContratto.render(id);
+                else UI.showPage('contratti');
+                break;
+            case 'dettaglio-app':
+                if (id) DettaglioApp.render(id);
+                else UI.showPage('app');
+                break;
+            case 'dettaglio-fattura':
+                if (id) DettaglioFattura.render(id);
+                else UI.showPage('fatture');
+                break;
+            case 'dettaglio-scadenza':
+                if (id) DettaglioScadenza.render(id);
+                else UI.showPage('scadenzario');
+                break;
+            default:
+                mainContent.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-tools"></i>
+                        <h3>Pagina in sviluppo</h3>
+                        <p>Questa funzionalità sarà disponibile a breve</p>
+                    </div>
+                `;
+        }
+    },
+
+    toggleSidebar() {
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('sidebarOverlay');
+        sidebar.classList.toggle('active');
+        overlay.classList.toggle('active');
+    },
+
+    closeSidebar() {
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('sidebarOverlay');
+        sidebar.classList.remove('active');
+        overlay.classList.remove('active');
+    },
+
+    toggleUserMenu() {
+        const userMenu = document.getElementById('userMenu');
+        userMenu.classList.toggle('hidden');
+    },
+
+    closeUserMenu() {
+        const userMenu = document.getElementById('userMenu');
+        userMenu.classList.add('hidden');
+    },
+
+    // === COMPONENTI ===
+    createKPICard(options) {
+        const { icon, iconClass, label, value, onclick } = options;
+        const clickAttr = onclick ? `onclick="${onclick}"` : '';
+
+        return `
+            <div class="kpi-card" ${clickAttr}>
+                <div class="kpi-icon ${iconClass}">
+                    <i class="fas fa-${icon}"></i>
+                </div>
+                <div class="kpi-content">
+                    <div class="kpi-label">${label}</div>
+                    <div class="kpi-value">${value}</div>
+                </div>
+            </div>
+        `;
+    },
+
+    createListItem(options) {
+        const { title, subtitle, badge, badgeClass, icon, onclick } = options;
+        const clickAttr = onclick ? `onclick="${onclick}"` : '';
+        const iconHTML = icon ? `<i class="fas fa-${icon}"></i>` : '';
+        const badgeHTML = badge ? `<span class="badge ${badgeClass}">${badge}</span>` : '';
+
+        return `
+            <div class="list-item" ${clickAttr}>
+                ${iconHTML}
+                <div class="list-item-content">
+                    <div class="list-item-title">${title}</div>
+                    <div class="list-item-meta">${subtitle}</div>
+                </div>
+                <div class="list-item-action">
+                    ${badgeHTML}
+                    <i class="fas fa-chevron-right"></i>
+                </div>
+            </div>
+        `;
+    },
+
+    createCard(options) {
+        const { title, subtitle, content, actions } = options;
+        const subtitleHTML = subtitle ? `<div class="card-subtitle">${subtitle}</div>` : '';
+        const actionsHTML = actions ? `<div class="card-actions">${actions}</div>` : '';
+
+        return `
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">${title}</h2>
+                    ${subtitleHTML}
+                </div>
+                <div class="card-body">
+                    ${content}
+                </div>
+                ${actionsHTML}
+            </div>
+        `;
+    },
+
+    createEmptyState(options) {
+        const { icon, title, subtitle } = options;
+        return `
+            <div class="empty-state">
+                <i class="fas fa-${icon}"></i>
+                <h3>${title}</h3>
+                <p>${subtitle}</p>
+            </div>
+        `;
+    },
+
+    // === NOTIFICHE ===
+    showNotification(message, type = 'info') {
+        // TODO: Implementare sistema notifiche toast
+    },
+
+    showError(message) {
+        this.showNotification(message, 'error');
+    },
+
+    showSuccess(message) {
+        this.showNotification(message, 'success');
+    },
+
+    // === UTILITY ===
+    showLoading() {
+        document.getElementById('loading').classList.remove('hidden');
+    },
+
+    hideLoading() {
+        document.getElementById('loading').classList.add('hidden');
+    },
+
+    async setUserInfo(name, role) {
+        // Aggiorna nome utente
+        document.getElementById('userName').textContent = name;
+
+        // Aggiorna nome nell'header
+        const userHeaderName = document.getElementById('userHeaderName');
+        if (userHeaderName) userHeaderName.textContent = name;
+
+        // Carica foto profilo dall'utente Firebase
+        const userData = await AuthService.getCurrentUserData();
+        const photoURL = userData?.photoURL || null;
+
+        // Aggiorna avatar nell'header
+        const userHeaderAvatar = document.getElementById('userHeaderAvatar');
+        if (userHeaderAvatar) {
+            if (photoURL) {
+                userHeaderAvatar.innerHTML = `<img src="${photoURL}" alt="${name}" style="width: 100%; height: 100%; object-fit: cover;">`;
+            } else {
+                // Mostra iniziali
+                const initials = this.getInitials(name);
+                userHeaderAvatar.innerHTML = `<span style="font-weight: 700; font-size: 1rem;">${initials}</span>`;
+            }
+        }
+
+        // Aggiorna avatar nel menu dropdown
+        const userMenuAvatar = document.getElementById('userMenuAvatar');
+        if (userMenuAvatar) {
+            if (photoURL) {
+                userMenuAvatar.innerHTML = `<img src="${photoURL}" alt="${name}" style="width: 100%; height: 100%; object-fit: cover;">`;
+            } else {
+                // Mostra iniziali
+                const initials = this.getInitials(name);
+                userMenuAvatar.innerHTML = `<span style="font-weight: 700; font-size: 1.5rem;">${initials}</span>`;
+            }
+        }
+
+        // Inizializza menu basato su permessi
+        this.initializeMenuByPermissions();
+    },
+
+    getInitials(fullName) {
+        if (!fullName) return 'U';
+        const parts = fullName.split(' ').filter(p => p.length > 0);
+        if (parts.length === 0) return 'U';
+        if (parts.length === 1) return parts[0].charAt(0).toUpperCase();
+        return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
+    },
+
+    async showProfileSettings() {
+        const userData = await AuthService.getCurrentUserData();
+        const currentPhotoURL = userData?.photoURL || '';
+
+        const content = `
+            <div class="form-section">
+                <h3><i class="fas fa-camera"></i> Foto Profilo</h3>
+
+                <div style="text-align: center; margin-bottom: 1.5rem;">
+                    <div id="profilePhotoPreview" style="width: 120px; height: 120px; border-radius: 50%; overflow: hidden; margin: 0 auto 1rem; border: 3px solid var(--blu-700); display: flex; align-items: center; justify-content: center; background: var(--grigio-100); color: var(--blu-700); font-size: 3rem;">
+                        ${currentPhotoURL ? `<img src="${currentPhotoURL}" style="width: 100%; height: 100%; object-fit: cover;">` : `<i class="fas fa-user"></i>`}
+                    </div>
+
+                    <input type="hidden" id="photoURL" value="${currentPhotoURL}">
+
+                    <div style="display: flex; gap: 0.5rem; justify-content: center; margin-bottom: 1rem;">
+                        <label for="photoFileInput" class="btn btn-primary btn-sm" style="margin: 0; cursor: pointer;">
+                            <i class="fas fa-upload"></i> Carica Foto
+                        </label>
+                        <input type="file" id="photoFileInput" accept="image/*" style="display: none;" onchange="UI.handleProfilePhotoUpload(event)">
+
+                        <button type="button" class="btn btn-outline btn-sm" onclick="UI.removeProfilePhoto()">
+                            <i class="fas fa-trash"></i> Rimuovi
+                        </button>
+                    </div>
+
+                    <small style="color: var(--grigio-500); display: block;">
+                        <i class="fas fa-info-circle"></i> Formati: JPG, PNG, WebP (max 2MB)
+                    </small>
+                </div>
+            </div>
+
+            <div class="form-section" style="margin-top: 2rem;">
+                <h3><i class="fas fa-user"></i> Informazioni Personali</h3>
+                <div class="alert alert-warning" style="margin-bottom: 1rem;">
+                    <i class="fas fa-info-circle"></i> Per modificare nome, cognome, email e ruolo, contatta un Super Amministratore.
+                </div>
+
+                <div class="form-group">
+                    <label>Nome Completo</label>
+                    <input type="text" class="form-control" value="${AuthService.getUserName()}" disabled>
+                </div>
+
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" class="form-control" value="${AuthService.currentUser?.email || ''}" disabled>
+                </div>
+            </div>
+        `;
+
+        FormsManager.showModal(
+            '<i class="fas fa-user-cog"></i> Modifica Profilo',
+            content,
+            async () => {
+                await this.saveProfileSettings();
+            }
+        );
+    },
+
+    previewProfilePhoto() {
+        const photoURL = document.getElementById('photoURL').value.trim();
+        const preview = document.getElementById('profilePhotoPreview');
+
+        if (photoURL) {
+            preview.innerHTML = `<img src="${photoURL}" style="width: 100%; height: 100%; object-fit: cover;" onerror="UI.onProfilePhotoError()">`;
+        } else {
+            preview.innerHTML = `<i class="fas fa-user"></i>`;
+        }
+    },
+
+    onProfilePhotoError() {
+        UI.showError('Impossibile caricare l\'immagine. Verifica che l\'URL sia corretto e punti a un\'immagine valida.');
+        const preview = document.getElementById('profilePhotoPreview');
+        preview.innerHTML = `<i class="fas fa-exclamation-triangle" style="color: var(--rosso-errore);"></i>`;
+    },
+
+    removeProfilePhoto() {
+        document.getElementById('photoURL').value = '';
+        document.getElementById('profilePhotoPreview').innerHTML = `<i class="fas fa-user"></i>`;
+    },
+
+    async handleProfilePhotoUpload(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        // Validazione tipo file
+        if (!file.type.startsWith('image/')) {
+            UI.showError('Seleziona un file immagine valido (JPG, PNG, WebP)');
+            return;
+        }
+
+        // Validazione dimensione (max 2MB)
+        if (file.size > 2 * 1024 * 1024) {
+            UI.showError('L\'immagine è troppo grande. Dimensione massima: 2MB');
+            return;
+        }
+
+        try {
+            // Converti in base64
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const base64 = e.target.result;
+
+                // Aggiorna preview
+                const preview = document.getElementById('profilePhotoPreview');
+                preview.innerHTML = `<img src="${base64}" style="width: 100%; height: 100%; object-fit: cover;">`;
+
+                // Salva base64 nel campo nascosto
+                document.getElementById('photoURL').value = base64;
+
+                UI.showSuccess('Foto caricata! Clicca "Salva Modifiche" per confermare.');
+            };
+
+            reader.onerror = () => {
+                UI.showError('Errore durante il caricamento del file');
+            };
+
+            reader.readAsDataURL(file);
+
+        } catch (error) {
+            console.error('Errore caricamento foto:', error);
+            UI.showError('Errore durante il caricamento: ' + error.message);
+        }
+    },
+
+    async saveProfileSettings() {
+        try {
+            UI.showLoading();
+
+            const photoURL = document.getElementById('photoURL').value.trim();
+
+            // Aggiorna documento utente in Firestore
+            const userId = AuthService.currentUser.uid;
+            await db.collection('utenti').doc(userId).update({
+                photoURL: photoURL || null,
+                dataAggiornamento: firebase.firestore.FieldValue.serverTimestamp()
+            });
+
+            UI.hideLoading();
+            FormsManager.closeModal();
+            UI.showSuccess('Profilo aggiornato con successo!');
+
+            // Ricarica info utente per aggiornare avatar
+            await this.setUserInfo(AuthService.getUserName(), AuthService.getUserRole());
+
+        } catch (error) {
+            console.error('Errore salvataggio profilo:', error);
+            UI.hideLoading();
+            UI.showError('Errore nel salvataggio del profilo: ' + error.message);
+        }
+    },
+
+    // Inizializza menu mostrando solo pagine accessibili
+    initializeMenuByPermissions() {
+        const menuItems = document.querySelectorAll('.menu-item');
+        menuItems.forEach(item => {
+            const pageName = item.dataset.page;
+            if (pageName && !AuthService.canAccessPage(pageName)) {
+                item.style.display = 'none';
+            } else {
+                item.style.display = 'flex';
+            }
+        });
+    },
+
+    // Mostra schermata accesso negato
+    showAccessDenied(pageName) {
+        const mainContent = document.getElementById('mainContent');
+        mainContent.innerHTML = `
+            <div class="empty-state" style="padding: 3rem;">
+                <i class="fas fa-lock fa-3x" style="color: var(--rosso); opacity: 0.5;"></i>
+                <h3 style="color: var(--rosso); margin-top: 1.5rem;">Accesso Negato</h3>
+                <p style="color: var(--grigio-600); margin-top: 1rem;">
+                    Non hai i permessi necessari per accedere a questa sezione.
+                </p>
+                <p style="color: var(--grigio-500); font-size: 0.9rem; margin-top: 0.5rem;">
+                    Ruolo attuale: <strong>${AuthService.getUserRoleLabel()}</strong>
+                </p>
+                <button class="btn btn-primary" onclick="UI.showPage('dashboard')" style="margin-top: 2rem;">
+                    <i class="fas fa-home"></i> Torna alla Dashboard
+                </button>
+            </div>
+        `;
+    }
+};

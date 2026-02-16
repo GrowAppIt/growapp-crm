@@ -1,0 +1,33 @@
+{
+  "name": "crm-comune-digital",
+  "version": "1.0.0",
+  "description": "Sistema di gestione completo per amministrare clienti, contratti, app e fatture dei Comuni",
+  "main": "index.html",
+  "scripts": {
+    "dev": "python3 -m http.server 8080",
+    "start": "python3 -m http.server 8080",
+    "build": "node scripts/generate-env.js",
+    "vercel-build": "npm run build",
+    "deploy": "vercel --prod",
+    "deploy:preview": "vercel"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/TUO-USERNAME/crm-comune-digital.git"
+  },
+  "keywords": [
+    "crm",
+    "comune",
+    "gestionale",
+    "fatturazione",
+    "firebase"
+  ],
+  "author": "Growapp S.r.l.",
+  "license": "UNLICENSED",
+  "private": true,
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "devDependencies": {},
+  "dependencies": {}
+}

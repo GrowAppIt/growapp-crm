@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CRM Comune.Digital</title>
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
+
+    <!-- Font Titillium Web -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Titillium+Web:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+    <!-- SheetJS for Excel Export -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+
+    <!-- html2canvas e jsPDF per Biglietto da Visita -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <!-- Loading Screen -->
+    <div id="loading" class="loading-screen">
+        <div class="loading-spinner"></div>
+        <p>Caricamento...</p>
+    </div>
+
+    <!-- Login Screen -->
+    <div id="loginScreen" class="login-screen hidden">
+        <div class="login-container">
+            <div class="login-header">
+                <h1>CRM Comune.Digital</h1>
+                <p>Gestione Clienti e Fatturazione</p>
+            </div>
+            <form id="loginForm" class="login-form">
+                <div class="form-group">
+                    <label for="email"><i class="fas fa-envelope"></i> Email</label>
+                    <input type="email" id="email" required placeholder="tua@email.com">
+                </div>
+                <div class="form-group">
+                    <label for="password"><i class="fas fa-lock"></i> Password</label>
+                    <input type="password" id="password" required placeholder="••••••••">
+                </div>
+                <button type="submit" class="btn btn-primary btn-block">
+                    <i class="fas fa-sign-in-alt"></i> Accedi
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Main App -->
+    <div id="app" class="app hidden">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="header-content">
+                <button class="menu-toggle" id="menuToggle">
+                    <i class="fas fa-bars"></i>
+                </button>
+                <img src="img/logo.png" alt="Comune.Digital" class="app-logo" style="height: 110px; max-width: 600px; object-fit: contain; filter: brightness(1.1);">
+                <div style="display: flex; align-items: center; gap: 1rem;">
+                    <!-- Pulsante Notifiche -->
+                    <button class="notification-toggle" id="notificationToggle" style="position: relative; background: none; border: none; color: white; font-size: 1.5rem; cursor: pointer;">
+                        <i class="fas fa-bell"></i>
+                        <span id="notificationBadge" class="notification-badge hidden" style="position: absolute; top: -5px; right: -5px; background: var(--rosso-errore); color: white; border-radius: 50%; width: 20px; height: 20px; font-size: 0.75rem; font-weight: 700; display: flex; align-items: center; justify-content: center;">0</span>
+                    </button>
+
+                    <!-- Profilo Utente con Foto -->
+                    <button class="user-menu-toggle" id="userMenuToggle" style="display: flex; align-items: center; gap: 0.75rem; background: rgba(255,255,255,0.1); padding: 0.5rem 1rem; border-radius: 25px; border: none; cursor: pointer; transition: background 0.2s;">
+                        <div id="userHeaderAvatar" style="width: 40px; height: 40px; border-radius: 50%; overflow: hidden; border: 2px solid white; display: flex; align-items: center; justify-content: center; background: white; color: var(--blu-700); font-size: 1.25rem;">
+                            <i class="fas fa-user"></i>
+                        </div>
+                        <div id="userHeaderInfo" style="text-align: left; max-width: 150px;">
+                            <span id="userHeaderName" style="color: white; font-size: 0.875rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Utente</span>
+                        </div>
+                        <i class="fas fa-chevron-down" style="color: white; font-size: 0.75rem;"></i>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Sidebar -->
+        <nav class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <h2>Menu</h2>
+                <button class="sidebar-close" id="sidebarClose">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <ul class="sidebar-menu">
+                <!-- Dashboard -->
+                <li class="menu-item active" data-page="dashboard">
+                    <i class="fas fa-home"></i> <span>Dashboard</span>
+                </li>
+                <li class="menu-item" data-page="report">
+                    <i class="fas fa-chart-bar"></i> <span>Report</span>
+                </li>
+
+                <!-- Sezione Amministrativa -->
+                <li style="padding: 1rem 1.5rem; margin-top: 1rem; font-size: 0.75rem; font-weight: 700; color: var(--grigio-500); text-transform: uppercase; letter-spacing: 0.05em;">
+                    <i class="fas fa-briefcase"></i> Amministrativa
+                </li>
+                <li class="menu-item" data-page="scadenzario">
+                    <i class="fas fa-calendar-alt"></i> <span>Scadenzario</span>
+                </li>
+                <li class="menu-item" data-page="clienti">
+                    <i class="fas fa-users"></i> <span>Clienti</span>
+                </li>
+                <li class="menu-item" data-page="contratti">
+                    <i class="fas fa-file-contract"></i> <span>Contratti</span>
+                </li>
+                <li class="menu-item" data-page="fatture">
+                    <i class="fas fa-file-invoice"></i> <span>Fatture</span>
+                </li>
+
+                <!-- Sezione Tecnica -->
+                <li style="padding: 1rem 1.5rem; margin-top: 1rem; font-size: 0.75rem; font-weight: 700; color: var(--grigio-500); text-transform: uppercase; letter-spacing: 0.05em; border-top: 1px solid var(--grigio-300);">
+                    <i class="fas fa-code"></i> Tecnica
+                </li>
+                <li class="menu-item" data-page="app">
+                    <i class="fas fa-mobile-alt"></i> <span>App</span>
+                </li>
+                <li class="menu-item" data-page="task">
+                    <i class="fas fa-tasks"></i> <span>Task</span>
+                </li>
+
+                <!-- Impostazioni (separata) -->
+                <li class="menu-item" data-page="impostazioni" style="border-top: 1px solid var(--grigio-300); margin-top: 1rem; padding-top: 1rem;">
+                    <i class="fas fa-cog"></i> <span>Impostazioni</span>
+                </li>
+            </ul>
+            <div class="sidebar-footer">
+                <button class="btn btn-secondary btn-block" id="logoutBtn">
+                    <i class="fas fa-sign-out-alt"></i> Esci
+                </button>
+            </div>
+        </nav>
+
+        <!-- Sidebar Overlay -->
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+        <!-- Main Content -->
+        <main class="main-content" id="mainContent">
+            <!-- Pages will be loaded here dynamically -->
+        </main>
+
+        <!-- Notification Dropdown -->
+        <div class="notification-dropdown hidden" id="notificationDropdown" style="position: fixed; top: 70px; right: 80px; width: 380px; max-height: 500px; background: white; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); z-index: 1000; overflow: hidden;">
+            <div style="padding: 1rem; border-bottom: 2px solid var(--grigio-300); display: flex; justify-content: space-between; align-items: center; background: var(--blu-700); color: white;">
+                <h3 style="margin: 0; font-size: 1.125rem; font-weight: 700;">
+                    <i class="fas fa-bell"></i> Notifiche
+                </h3>
+                <button onclick="NotificationUI.markAllAsRead()" style="background: rgba(255,255,255,0.2); border: none; padding: 0.25rem 0.75rem; border-radius: 6px; color: white; font-size: 0.875rem; cursor: pointer; font-weight: 600;">
+                    <i class="fas fa-check-double"></i> Segna tutte
+                </button>
+            </div>
+            <div id="notificationList" style="max-height: 400px; overflow-y: auto;">
+                <!-- Notifiche verranno caricate qui -->
+            </div>
+        </div>
+
+        <!-- User Menu -->
+        <div class="user-menu hidden" id="userMenu">
+            <div class="user-menu-header">
+                <div class="user-avatar" id="userMenuAvatar" style="width: 60px; height: 60px; border-radius: 50%; overflow: hidden; border: 3px solid var(--blu-700); display: flex; align-items: center; justify-content: center; background: var(--grigio-100); color: var(--blu-700); font-size: 1.75rem;">
+                    <i class="fas fa-user"></i>
+                </div>
+                <div class="user-info">
+                    <p class="user-name" id="userName">Giancarlo Campisi</p>
+                </div>
+            </div>
+            <ul class="user-menu-list">
+                <li><a href="#" onclick="UI.closeUserMenu(); UI.showProfileSettings(); return false;" style="cursor: pointer;"><i class="fas fa-user-cog"></i> Modifica Profilo</a></li>
+                <li><a href="#" id="logoutLink" style="cursor: pointer;"><i class="fas fa-sign-out-alt"></i> Esci</a></li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+
+    <!-- App Scripts -->
+    <!-- ⚠️ IMPORTANTE: env.js deve essere caricato PRIMA di firebase-config.js -->
+    <script src="js/env.js"></script>
+    <script src="js/firebase-config.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/data-service.js"></script>
+    <script src="js/settings-service.js"></script>
+    <script src="js/task-service.js"></script>
+    <script src="js/notification-service.js"></script>
+    <script src="js/ui.js"></script>
+    <script src="js/forms.js"></script>
+    <script src="js/export.js"></script>
+    <script src="js/utility-sistema-clienti-orfani.js"></script>
+    <script src="js/pages/dashboard.js"></script>
+    <script src="js/pages/scadenzario.js"></script>
+    <script src="js/pages/dettaglio-scadenza.js"></script>
+    <script src="js/pages/clienti.js"></script>
+    <script src="js/pages/dettaglio-cliente.js"></script>
+    <script src="js/pages/fatture.js"></script>
+    <script src="js/pages/dettaglio-fattura.js"></script>
+    <script src="js/pages/report.js"></script>
+    <script src="js/pages/settings.js"></script>
+    <script src="js/pages/gestione-app.js"></script>
+    <script src="js/pages/dettaglio-app.js"></script>
+    <script src="js/pages/gestione-task.js"></script>
+    <script src="js/pages/contratti.js"></script>
+    <script src="js/pages/dettaglio-contratto.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>

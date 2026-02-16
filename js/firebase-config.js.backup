@@ -1,0 +1,22 @@
+// Firebase Configuration
+// IMPORTANTE: Sostituisci questi valori con le tue credenziali Firebase
+
+const firebaseConfig = {
+    apiKey: "AIzaSyBNYb0YNHIhb_g17_ms-A1X0fdwAMn6z24",
+  authDomain: "crm-comunedigital.firebaseapp.com",
+  projectId: "crm-comunedigital",
+  storageBucket: "crm-comunedigital.firebasestorage.app",
+  messagingSenderId: "456757469975",
+  appId: "1:456757469975:web:0645f30c9002975ef24d52"
+};
+
+// Initialize Firebase
+firebase.initializeApp(firebaseConfig);
+
+// Initialize services
+const auth = firebase.auth();
+const db = firebase.firestore();
+
+// Configura persistenza locale
+auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+
