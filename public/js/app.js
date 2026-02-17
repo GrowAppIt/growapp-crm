@@ -16,6 +16,9 @@ const App = {
     },
 
     setupEventListeners() {
+        // 🔗 URL Hash Routing (per deep links da Telegram)
+        window.addEventListener('hashchange', () => this.handleHashChange());
+
         // Login form
         const loginForm = document.getElementById('loginForm');
         if (loginForm) {
@@ -128,8 +131,11 @@ const App = {
         // Verifica task in scadenza (notifiche automatiche)
         TaskService.checkAndNotifyDueTasks();
 
-        // Carica dashboard
-        UI.showPage('dashboard');
+        // Carica pagina iniziale (controlla se c'è un hash nell'URL, altrimenti prima pagina accessibile)
+        if (!this.handleHashChange()) {
+            const firstPage = AuthService.getFirstAccessiblePage();
+            UI.showPage(firstPage);
+        }
     },
 
     onUserLoggedOut() {
@@ -146,6 +152,51 @@ const App = {
         if (loginForm) {
             loginForm.reset();
         }
+    },
+
+    // 🔗 GESTIONE URL HASH (Deep Links)
+    handleHashChange() {
+        const hash = window.location.hash;
+
+        // Se non c'è hash, non fare nulla
+        if (!hash || hash === '#') {
+            return false;
+        }
+
+        // Rimuovi il # iniziale
+        const path = hash.substring(1);
+
+        // Pattern: #/task/{taskId}
+        const taskMatch = path.match(/^\/task\/(.+)$/);
+        if (taskMatch) {
+            const taskId = taskMatch[1];
+            console.log('📱 Deep link rilevato: task', taskId);
+
+            // Vai alla pagina gestione task
+            UI.showPage('task');
+
+            // Mostra messaggio di benvenuto
+            setTimeout(() => {
+                UI.showSuccess(`📱 Hai aperto un link da Telegram!\n\nTask ID: ${taskId}\n\nTrova il task nella lista qui sotto.`);
+            }, 500);
+
+            // Pulisci hash per evitare loop
+            history.replaceState(null, '', window.location.pathname + window.location.search);
+
+            return true;
+        }
+
+        // Pattern: #/gestione-task (generico)
+        const taskPageMatch = path.match(/^\/gestione-task$/);
+        if (taskPageMatch) {
+            UI.showPage('task');
+            history.replaceState(null, '', window.location.pathname + window.location.search);
+            return true;
+        }
+
+        // Altre pagine possono essere aggiunte qui
+
+        return false;
     }
 };
 
@@ -194,9 +245,14 @@ const NotificationUI = {
 
         const result = await NotificationService.getNotifications(10);
 
+        // 🔍 DEBUG: Log per vedere cosa viene restituito
+        console.log('📬 Notifiche caricate:', result);
+
         if (result.success && result.notifications.length > 0) {
             listContainer.innerHTML = result.notifications.map(notif => this.renderNotification(notif)).join('');
         } else {
+            // 🔍 DEBUG: Log se non ci sono notifiche
+            console.log('⚠️ Nessuna notifica trovata. Success:', result.success, 'Count:', result.notifications?.length);
             listContainer.innerHTML = `
                 <div style="padding: 3rem 2rem; text-align: center; color: var(--grigio-500);">
                     <i class="fas fa-bell-slash" style="font-size: 3rem; margin-bottom: 1rem; opacity: 0.3;"></i>
@@ -243,10 +299,16 @@ const NotificationUI = {
         // Chiudi dropdown
         document.getElementById('notificationDropdown').classList.add('hidden');
 
-        // Naviga al task
+        // Naviga al task e aprilo
         if (taskId && taskId !== 'null') {
             UI.showPage('task');
-            // Nota: potremmo aprire direttamente il dettaglio task qui in futuro
+
+            // Attendi che la pagina sia caricata, poi apri il dettaglio
+            setTimeout(() => {
+                if (window.GestioneTask && typeof GestioneTask.viewTaskDetails === 'function') {
+                    GestioneTask.viewTaskDetails(taskId);
+                }
+            }, 500);
         }
 
         // Ricarica badge

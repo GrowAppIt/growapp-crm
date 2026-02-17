@@ -41,6 +41,50 @@ const Clienti = {
                     </div>
                 </div>
 
+                <!-- Ricerca Documenti Globale -->
+                <div class="card" style="margin-bottom: 1.5rem;">
+                    <div class="card-header">
+                        <h3 style="margin: 0; font-weight: 700; color: var(--blu-700);">
+                            <i class="fas fa-search"></i> Ricerca Documenti Clienti
+                        </h3>
+                    </div>
+                    <div style="padding: 1.5rem;">
+                        <div style="position: relative; margin-bottom: 1rem;">
+                            <i class="fas fa-file-search" style="
+                                position: absolute;
+                                left: 1rem;
+                                top: 50%;
+                                transform: translateY(-50%);
+                                color: var(--grigio-500);
+                                font-size: 1.2rem;
+                            "></i>
+                            <input
+                                type="text"
+                                id="searchDocumentiGlobale"
+                                placeholder="🔍 Cerca in tutti i documenti clienti per descrizione o nome file..."
+                                onkeyup="Clienti.searchDocumenti()"
+                                style="
+                                    width: 100%;
+                                    padding: 1rem 1rem 1rem 3rem;
+                                    border: 2px solid var(--grigio-300);
+                                    border-radius: 8px;
+                                    font-family: 'Titillium Web', sans-serif;
+                                    font-size: 1rem;
+                                    transition: all 0.2s;
+                                "
+                                onfocus="this.style.borderColor='var(--blu-500)'"
+                                onblur="this.style.borderColor='var(--grigio-300)'"
+                            >
+                        </div>
+                        <small style="color: var(--grigio-500);">
+                            <i class="fas fa-info-circle"></i> Digita per cercare in tutti i documenti caricati dai clienti
+                        </small>
+
+                        <!-- Risultati Ricerca -->
+                        <div id="documentiSearchResults" style="display: none; margin-top: 1.5rem;"></div>
+                    </div>
+                </div>
+
                 <!-- Filtri -->
                 <div class="filter-bar fade-in">
                     <div class="filter-group">
@@ -223,6 +267,128 @@ const Clienti = {
             console.error('Errore eliminazione cliente:', error);
             UI.hideLoading();
             UI.showError('Errore nell\'eliminazione: ' + error.message);
+        }
+    },
+
+    async searchDocumenti() {
+        const searchInput = document.getElementById('searchDocumentiGlobale');
+        const searchTerm = searchInput.value.toLowerCase().trim();
+        const resultsContainer = document.getElementById('documentiSearchResults');
+
+        // Se il campo è vuoto, nascondi i risultati
+        if (searchTerm === '') {
+            resultsContainer.style.display = 'none';
+            return;
+        }
+
+        // Mostra loading
+        resultsContainer.style.display = 'block';
+        resultsContainer.innerHTML = '<div style="text-align: center; padding: 2rem;"><i class="fas fa-spinner fa-spin" style="font-size: 2rem; color: var(--blu-500);"></i><p style="margin-top: 1rem; color: var(--grigio-600);">Ricerca in corso...</p></div>';
+
+        try {
+            // Cerca in tutti i documenti di tipo "cliente"
+            const documentiSnapshot = await db.collection('documenti')
+                .where('tipo', '==', 'cliente')
+                .get();
+
+            const documenti = [];
+            documentiSnapshot.forEach(doc => {
+                const data = doc.data();
+                documenti.push({ id: doc.id, ...data });
+            });
+
+            // Filtra documenti che matchano la ricerca
+            const risultati = documenti.filter(doc => {
+                const searchText = `${doc.nomeOriginale} ${doc.descrizione}`.toLowerCase();
+                return searchText.includes(searchTerm);
+            });
+
+            // Carica info clienti per i risultati
+            const clientiMap = new Map();
+            for (const doc of risultati) {
+                if (!clientiMap.has(doc.entitaId)) {
+                    try {
+                        const cliente = await DataService.getCliente(doc.entitaId);
+                        if (cliente) {
+                            clientiMap.set(doc.entitaId, cliente);
+                        }
+                    } catch (e) {
+                        console.warn(`Cliente ${doc.entitaId} non trovato`);
+                    }
+                }
+            }
+
+            // Renderizza risultati
+            if (risultati.length === 0) {
+                resultsContainer.innerHTML = `
+                    <div style="text-align: center; padding: 2rem;">
+                        <i class="fas fa-search" style="font-size: 3rem; color: var(--grigio-400); margin-bottom: 1rem;"></i>
+                        <h3 style="color: var(--grigio-600);">Nessun documento trovato</h3>
+                        <p style="color: var(--grigio-500);">Prova con altre parole chiave</p>
+                    </div>
+                `;
+            } else {
+                resultsContainer.innerHTML = `
+                    <div style="border-top: 2px solid var(--grigio-300); padding-top: 1.5rem;">
+                        <h4 style="margin: 0 0 1rem 0; color: var(--blu-700); font-weight: 700;">
+                            <i class="fas fa-check-circle" style="color: var(--verde-700);"></i>
+                            Trovati ${risultati.length} documento${risultati.length !== 1 ? 'i' : ''}
+                        </h4>
+                        <div style="display: grid; gap: 1rem;">
+                            ${risultati.map(doc => {
+                                const cliente = clientiMap.get(doc.entitaId);
+                                return `
+                                    <div style="
+                                        background: white;
+                                        border: 2px solid var(--grigio-300);
+                                        border-radius: 8px;
+                                        padding: 1rem;
+                                        display: grid;
+                                        grid-template-columns: auto 1fr auto;
+                                        gap: 1rem;
+                                        align-items: center;
+                                        transition: all 0.2s;
+                                        cursor: pointer;
+                                    " onmouseover="this.style.borderColor='var(--blu-500)'; this.style.boxShadow='0 4px 12px rgba(20, 82, 132, 0.15)'"
+                                       onmouseout="this.style.borderColor='var(--grigio-300)'; this.style.boxShadow='none'"
+                                       onclick="UI.showPage('dettaglio-cliente', '${doc.entitaId}')">
+
+                                        <i class="${DocumentService.getFileIcon(doc.mimeType)}" style="
+                                            font-size: 2rem;
+                                            color: ${DocumentService.getFileColor(doc.mimeType)};
+                                        "></i>
+
+                                        <div style="min-width: 0;">
+                                            <h5 style="margin: 0 0 0.25rem 0; color: var(--blu-700); font-weight: 700; font-size: 1rem;">
+                                                ${doc.nomeOriginale}
+                                            </h5>
+                                            <p style="margin: 0 0 0.5rem 0; color: var(--grigio-700); font-size: 0.9rem;">
+                                                ${doc.descrizione}
+                                            </p>
+                                            <div style="display: flex; gap: 1rem; flex-wrap: wrap; font-size: 0.85rem; color: var(--grigio-500);">
+                                                <span><i class="fas fa-user"></i> <strong>${cliente ? cliente.ragioneSociale : 'Cliente eliminato'}</strong></span>
+                                                <span><i class="fas fa-hdd"></i> ${DocumentService.formatFileSize(doc.dimensione)}</span>
+                                                <span><i class="fas fa-calendar"></i> ${new Date(doc.dataCaricamento).toLocaleDateString('it-IT')}</span>
+                                            </div>
+                                        </div>
+
+                                        <i class="fas fa-chevron-right" style="color: var(--grigio-400);"></i>
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+        } catch (error) {
+            console.error('Errore ricerca documenti:', error);
+            resultsContainer.innerHTML = `
+                <div style="text-align: center; padding: 2rem;">
+                    <i class="fas fa-exclamation-triangle" style="font-size: 3rem; color: var(--rosso-errore); margin-bottom: 1rem;"></i>
+                    <h3 style="color: var(--rosso-errore);">Errore durante la ricerca</h3>
+                    <p style="color: var(--grigio-500);">${error.message}</p>
+                </div>
+            `;
         }
     }
 };

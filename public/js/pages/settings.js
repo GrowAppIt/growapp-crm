@@ -27,24 +27,31 @@ const Settings = {
                     display: flex;
                     gap: 0.5rem;
                 ">
+                    ${AuthService.hasPermission('manage_settings') ? `
                     <button
                         class="settings-tab ${this.currentTab === 'dashboard' ? 'active' : ''}"
                         onclick="Settings.switchTab('dashboard')"
                     >
                         <i class="fas fa-chart-line"></i> Dashboard
                     </button>
+                    ` : ''}
+                    ${AuthService.hasPermission('view_company_info') ? `
                     <button
                         class="settings-tab ${this.currentTab === 'azienda' ? 'active' : ''}"
                         onclick="Settings.switchTab('azienda')"
                     >
                         <i class="fas fa-building"></i> Growapp S.r.l.
                     </button>
+                    ` : ''}
+                    ${AuthService.hasPermission('manage_business_card') ? `
                     <button
                         class="settings-tab ${this.currentTab === 'biglietto' ? 'active' : ''}"
                         onclick="Settings.switchTab('biglietto')"
                     >
                         <i class="fas fa-id-card"></i> Biglietto da Visita
                     </button>
+                    ` : ''}
+                    ${AuthService.hasPermission('manage_settings') ? `
                     <button
                         class="settings-tab ${this.currentTab === 'sistema' ? 'active' : ''}"
                         onclick="Settings.switchTab('sistema')"
@@ -57,6 +64,7 @@ const Settings = {
                     >
                         <i class="fas fa-database"></i> Gestione Dati
                     </button>
+                    ` : ''}
                     ${AuthService.hasPermission('manage_users') ? `
                     <button
                         class="settings-tab ${this.currentTab === 'utenti' ? 'active' : ''}"
@@ -327,9 +335,11 @@ const Settings = {
 
                     <!-- Action Buttons -->
                     <div style="text-align: center; margin-top: 2rem; display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
+                        ${AuthService.hasPermission('manage_settings') ? `
                         <button onclick="Settings.toggleGrowappEdit()" class="btn" style="background: white; color: var(--blu-700); font-weight: 700; padding: 0.875rem 2rem; font-size: 1rem; box-shadow: 0 4px 12px rgba(0,0,0,0.2);">
                             <i class="fas fa-edit"></i> Modifica Dati
                         </button>
+                        ` : ''}
                         <button onclick="Settings.screenshotAzienda()" class="btn" style="background: rgba(255,255,255,0.2); color: white; font-weight: 700; padding: 0.875rem 2rem; font-size: 1rem; border: 2px solid white;">
                             <i class="fas fa-camera"></i> Crea Screenshot
                         </button>
@@ -337,9 +347,11 @@ const Settings = {
                 </div>
             </div>
 
+            ${AuthService.hasPermission('manage_settings') ? `
             <div style="text-align: center; margin-top: 1.5rem; color: var(--grigio-500); font-size: 0.875rem;">
                 <i class="fas fa-info-circle"></i> Tutti i campi sono personalizzabili tramite il pulsante "Modifica Dati"
             </div>
+            ` : ''}
         `;
     },
 
@@ -903,6 +915,20 @@ const Settings = {
                             ${isEdit ? '<small style="color: var(--grigio-600); font-size: 0.875rem;">Email non modificabile</small>' : ''}
                         </div>
 
+                        <!-- 📱 Telegram Username (nuovo!) -->
+                        <div style="margin-bottom: 1.5rem;">
+                            <label style="display: block; font-weight: 600; color: var(--grigio-900); margin-bottom: 0.5rem;">
+                                <i class="fab fa-telegram" style="color: #0088cc;"></i> Username Telegram
+                            </label>
+                            <input type="text" id="userTelegram"
+                                   value="${isEdit && utente.telegramUsername ? utente.telegramUsername : ''}"
+                                   placeholder="Es: @nomeutente"
+                                   style="width: 100%; padding: 0.75rem; border: 1px solid var(--grigio-300); border-radius: 6px; font-size: 1rem;">
+                            <small style="color: var(--grigio-600); font-size: 0.875rem;">
+                                <i class="fas fa-info-circle"></i> Necessario per ricevere notifiche Telegram sui task urgenti
+                            </small>
+                        </div>
+
                         <!-- Password (solo creazione) -->
                         ${!isEdit ? `
                             <div style="margin-bottom: 1.5rem;">
@@ -1058,6 +1084,7 @@ const Settings = {
             const password = !isEdit ? document.getElementById('userPassword').value : null;
             const ruolo = document.getElementById('userRuolo').value;
             const stato = document.getElementById('userStato').value;
+            const telegramUsername = document.getElementById('userTelegram').value.trim();
 
             // Validazione
             if (!nome || !cognome || !email || !ruolo) {
@@ -1079,6 +1106,7 @@ const Settings = {
                     cognome: cognome,
                     ruolo: ruolo,
                     stato: stato,
+                    telegramUsername: telegramUsername || null,
                     updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
                     updatedBy: AuthService.getUserId()
                 });
@@ -1164,6 +1192,7 @@ const Settings = {
                     email: email,
                     ruolo: ruolo,
                     stato: stato,
+                    telegramUsername: telegramUsername || null,
                     createdAt: firebase.firestore.FieldValue.serverTimestamp(),
                     createdBy: AuthService.getUserId(),
                     lastLogin: null

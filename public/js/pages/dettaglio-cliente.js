@@ -9,11 +9,12 @@ const DettaglioCliente = {
         UI.showLoading();
 
         try {
-            // Carica dati cliente, fatture e contratti
-            const [cliente, fatture, contratti] = await Promise.all([
+            // Carica dati cliente, fatture, contratti e documenti
+            const [cliente, fatture, contratti, documenti] = await Promise.all([
                 DataService.getCliente(clienteId),
                 DataService.getFattureCliente(clienteId),
-                DataService.getContrattiCliente(clienteId)
+                DataService.getContrattiCliente(clienteId),
+                DocumentService.getDocumenti('cliente', clienteId)
             ]);
 
             if (!cliente) {
@@ -59,6 +60,9 @@ const DettaglioCliente = {
                         <button class="tab-btn" data-tab="contratti" onclick="DettaglioCliente.switchTab('contratti')">
                             <i class="fas fa-file-contract"></i> Contratti (${contratti.length})
                         </button>
+                        <button class="tab-btn" data-tab="documenti" onclick="DettaglioCliente.switchTab('documenti')">
+                            <i class="fas fa-folder-open"></i> Documenti (${documenti.length})
+                        </button>
                         <button class="tab-btn" data-tab="note" onclick="DettaglioCliente.switchTab('note')">
                             <i class="fas fa-sticky-note"></i> Note
                         </button>
@@ -67,7 +71,7 @@ const DettaglioCliente = {
 
                 <!-- Tab Content -->
                 <div id="tabContent">
-                    ${this.renderTabContent(cliente, fatture, contratti)}
+                    ${this.renderTabContent(cliente, fatture, contratti, documenti)}
                 </div>
             `;
 
@@ -93,16 +97,17 @@ const DettaglioCliente = {
     },
 
     async reloadTabContent() {
-        const [cliente, fatture, contratti] = await Promise.all([
+        const [cliente, fatture, contratti, documenti] = await Promise.all([
             DataService.getCliente(this.clienteId),
             DataService.getFattureCliente(this.clienteId),
-            DataService.getContrattiCliente(this.clienteId)
+            DataService.getContrattiCliente(this.clienteId),
+            DocumentService.getDocumenti('cliente', this.clienteId)
         ]);
 
-        document.getElementById('tabContent').innerHTML = this.renderTabContent(cliente, fatture, contratti);
+        document.getElementById('tabContent').innerHTML = this.renderTabContent(cliente, fatture, contratti, documenti);
     },
 
-    renderTabContent(cliente, fatture, contratti = []) {
+    renderTabContent(cliente, fatture, contratti = [], documenti = []) {
         switch(this.activeTab) {
             case 'anagrafica':
                 return this.renderAnagrafica(cliente);
@@ -110,6 +115,8 @@ const DettaglioCliente = {
                 return this.renderFatture(fatture);
             case 'contratti':
                 return this.renderContratti(contratti);
+            case 'documenti':
+                return this.renderDocumenti(documenti);
             case 'note':
                 return this.renderNote(cliente);
             default:
@@ -361,6 +368,243 @@ const DettaglioCliente = {
                 </div>
             </div>
         `;
+    },
+
+    renderDocumenti(documenti) {
+        return `
+            <div class="card">
+                <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                    <h2 class="card-title">
+                        <i class="fas fa-folder-open"></i> Documenti Cliente
+                    </h2>
+                    <button class="btn btn-primary" onclick="DettaglioCliente.showUploadDocumento()">
+                        <i class="fas fa-upload"></i> Carica Documento
+                    </button>
+                </div>
+
+                ${documenti.length === 0 ? `
+                    <div class="empty-state">
+                        <i class="fas fa-folder-open"></i>
+                        <h3>Nessun documento caricato</h3>
+                        <p>Carica documenti amministrativi, contabili o altro per questo cliente</p>
+                    </div>
+                ` : `
+                    <div class="documenti-list" style="display: grid; gap: 1rem; padding: 1.5rem;">
+                        ${documenti.map(doc => `
+                            <div class="documento-item" style="
+                                background: white;
+                                border: 2px solid var(--grigio-300);
+                                border-radius: 8px;
+                                padding: 1.5rem;
+                                display: grid;
+                                grid-template-columns: auto 1fr auto;
+                                gap: 1.5rem;
+                                align-items: start;
+                                transition: all 0.2s;
+                            " onmouseover="this.style.borderColor='var(--blu-500)'" onmouseout="this.style.borderColor='var(--grigio-300)'">
+
+                                <!-- Icona file -->
+                                <div style="
+                                    width: 60px;
+                                    height: 60px;
+                                    background: var(--grigio-100);
+                                    border-radius: 8px;
+                                    display: flex;
+                                    align-items: center;
+                                    justify-content: center;
+                                ">
+                                    <i class="${DocumentService.getFileIcon(doc.mimeType)}" style="
+                                        font-size: 2rem;
+                                        color: ${DocumentService.getFileColor(doc.mimeType)};
+                                    "></i>
+                                </div>
+
+                                <!-- Info documento -->
+                                <div style="min-width: 0;">
+                                    <h4 style="
+                                        margin: 0 0 0.5rem 0;
+                                        color: var(--blu-700);
+                                        font-weight: 700;
+                                        font-size: 1.1rem;
+                                        word-break: break-word;
+                                    ">
+                                        ${doc.nomeOriginale}
+                                    </h4>
+
+                                    <p style="
+                                        margin: 0 0 0.75rem 0;
+                                        color: var(--grigio-700);
+                                        line-height: 1.5;
+                                    ">
+                                        ${doc.descrizione}
+                                    </p>
+
+                                    <div style="
+                                        display: flex;
+                                        gap: 1.5rem;
+                                        flex-wrap: wrap;
+                                        font-size: 0.9rem;
+                                        color: var(--grigio-500);
+                                    ">
+                                        <span>
+                                            <i class="fas fa-hdd"></i> ${DocumentService.formatFileSize(doc.dimensione)}
+                                        </span>
+                                        <span>
+                                            <i class="fas fa-calendar"></i> ${new Date(doc.dataCaricamento).toLocaleDateString('it-IT')}
+                                        </span>
+                                        <span>
+                                            <i class="fas fa-user"></i> ${doc.caricatoDaNome}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <!-- Azioni -->
+                                <div style="display: flex; gap: 0.5rem; flex-direction: column;">
+                                    <button class="btn btn-primary" onclick="DettaglioCliente.downloadDocumento('${doc.downloadUrl}', '${doc.nomeOriginale}')" style="
+                                        white-space: nowrap;
+                                        padding: 0.5rem 1rem;
+                                    ">
+                                        <i class="fas fa-download"></i> Scarica
+                                    </button>
+                                    <button class="btn btn-danger" onclick="DettaglioCliente.deleteDocumento('${doc.id}', '${doc.storagePath}', '${doc.nomeOriginale}')" style="
+                                        white-space: nowrap;
+                                        padding: 0.5rem 1rem;
+                                    ">
+                                        <i class="fas fa-trash"></i> Elimina
+                                    </button>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `}
+            </div>
+        `;
+    },
+
+    async showUploadDocumento() {
+        await UI.showModal({
+            title: '<i class="fas fa-upload"></i> Carica Documento Cliente',
+            content: `
+                <form id="uploadDocumentoForm">
+                    <div style="margin-bottom: 1.5rem;">
+                        <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--grigio-700);">
+                            📄 File (PDF o Immagini, max 10MB)
+                        </label>
+                        <input type="file" id="fileInput" accept=".pdf,.jpg,.jpeg,.png" required style="
+                            width: 100%;
+                            padding: 0.75rem;
+                            border: 2px dashed var(--blu-500);
+                            border-radius: 8px;
+                            background: var(--blu-100);
+                            cursor: pointer;
+                        ">
+                        <small style="color: var(--grigio-500); display: block; margin-top: 0.5rem;">
+                            Tipi ammessi: PDF, JPG, PNG - Dimensione massima: 10MB
+                        </small>
+                    </div>
+
+                    <div style="margin-bottom: 1.5rem;">
+                        <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--grigio-700);">
+                            📝 Descrizione *
+                        </label>
+                        <textarea id="descrizioneInput" rows="3" required placeholder="Es: Contratto firmato, Fattura 2024, Documento identità..." style="
+                            width: 100%;
+                            padding: 0.75rem;
+                            border: 2px solid var(--grigio-300);
+                            border-radius: 8px;
+                            font-family: 'Titillium Web', sans-serif;
+                            resize: vertical;
+                        "></textarea>
+                    </div>
+                </form>
+            `,
+            confirmText: 'Carica',
+            cancelText: 'Annulla',
+            onConfirm: async () => {
+                // Raccogli dati PRIMA che il modal si chiuda
+                const fileInput = document.getElementById('fileInput');
+                const descrizioneInput = document.getElementById('descrizioneInput');
+
+                const file = fileInput.files[0];
+                const descrizione = descrizioneInput.value.trim();
+
+                if (!file) {
+                    UI.showError('Seleziona un file da caricare');
+                    return false;  // Non chiudere il modal
+                }
+
+                if (!descrizione) {
+                    UI.showError('Inserisci una descrizione per il documento');
+                    return false;  // Non chiudere il modal
+                }
+
+                // Mostra loading sul pulsante
+                const confirmBtn = document.getElementById('modalConfirmBtn');
+                const originalHTML = confirmBtn.innerHTML;
+                confirmBtn.disabled = true;
+                confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Caricamento...';
+
+                try {
+                    await DocumentService.uploadDocumento(file, 'cliente', this.clienteId, descrizione);
+                    await this.reloadTabContent('documenti');
+                    return true;  // Chiudi il modal
+                } catch (error) {
+                    // Ripristina pulsante in caso di errore
+                    confirmBtn.disabled = false;
+                    confirmBtn.innerHTML = originalHTML;
+                    UI.showError(error.message || 'Errore durante il caricamento del documento');
+                    return false;  // Non chiudere il modal in caso di errore
+                }
+            }
+        });
+    },
+
+    downloadDocumento(url, nomeFile) {
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = nomeFile;
+        a.target = '_blank';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+    },
+
+    async deleteDocumento(documentoId, storagePath, nomeFile) {
+        const conferma = await UI.showModal({
+            title: '<i class="fas fa-exclamation-triangle"></i> Conferma Eliminazione',
+            content: `
+                <div style="text-align: center;">
+                    <p style="font-size: 1.1rem; margin-bottom: 1rem;">
+                        Sei sicuro di voler eliminare questo documento?
+                    </p>
+                    <p style="
+                        background: var(--grigio-100);
+                        padding: 1rem;
+                        border-radius: 8px;
+                        font-weight: 600;
+                        color: var(--blu-700);
+                        word-break: break-word;
+                    ">
+                        ${nomeFile}
+                    </p>
+                    <p style="color: var(--rosso-errore); font-weight: 600; margin-top: 1rem;">
+                        ⚠️ Questa azione non può essere annullata
+                    </p>
+                </div>
+            `,
+            confirmText: 'Sì, elimina',
+            cancelText: 'Annulla',
+            confirmClass: 'btn-danger'
+        });
+
+        if (conferma) {
+            try {
+                await DocumentService.deleteDocumento(documentoId, storagePath);
+                await this.reloadTabContent('documenti');
+            } catch (error) {
+                UI.showError(error.message || 'Errore durante l\'eliminazione del documento');
+            }
+        }
     },
 
     editCliente() {

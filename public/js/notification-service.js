@@ -7,7 +7,8 @@ const NotificationService = {
         TASK_DUE_SOON: 'task_due_soon',
         TASK_OVERDUE: 'task_overdue',
         TASK_TAKEN: 'task_taken',
-        TASK_REASSIGNED: 'task_reassigned'
+        TASK_REASSIGNED: 'task_reassigned',
+        NEW_COMMENT: 'new_comment'
     },
 
     /**
@@ -230,7 +231,8 @@ const NotificationService = {
             [this.TYPES.TASK_DUE_SOON]: 'fa-clock',
             [this.TYPES.TASK_OVERDUE]: 'fa-exclamation-triangle',
             [this.TYPES.TASK_TAKEN]: 'fa-hand-paper',
-            [this.TYPES.TASK_REASSIGNED]: 'fa-user-edit'
+            [this.TYPES.TASK_REASSIGNED]: 'fa-user-edit',
+            [this.TYPES.NEW_COMMENT]: 'fa-comment'
         };
         return icons[type] || 'fa-bell';
     },
@@ -245,7 +247,8 @@ const NotificationService = {
             [this.TYPES.TASK_DUE_SOON]: '#FFCC00',
             [this.TYPES.TASK_OVERDUE]: 'var(--rosso-errore)',
             [this.TYPES.TASK_TAKEN]: 'var(--verde-500)',
-            [this.TYPES.TASK_REASSIGNED]: 'var(--blu-500)'
+            [this.TYPES.TASK_REASSIGNED]: 'var(--blu-500)',
+            [this.TYPES.NEW_COMMENT]: 'var(--verde-700)'
         };
         return colors[type] || 'var(--grigio-600)';
     }

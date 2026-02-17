@@ -30,25 +30,37 @@ const AuthService = {
         ADMIN: [
             'view_all_data', 'manage_users', 'manage_clients', 'manage_contracts',
             'manage_apps', 'manage_invoices', 'manage_payments', 'view_reports',
-            'export_data', 'manage_settings', 'view_audit'
+            'export_data', 'manage_settings', 'view_audit',
+            'view_dev_tasks', 'manage_dev_tasks', // ✅ Aggiunto accesso TASK
+            'view_company_info' // ✅ Può vedere card Growapp (ma non modificare)
         ],
         CTO: [
             'view_all_data', 'manage_apps', 'manage_dev_tasks', 'view_dev_tasks',
-            'manage_app_content', 'view_reports', 'manage_clients', 'manage_contracts'
+            'manage_app_content', 'view_reports', 'manage_clients', 'manage_contracts',
+            'view_company_info', 'manage_business_card' // ✅ Può vedere Growapp + modificare biglietto
         ],
         SVILUPPATORE: [
-            'view_dev_tasks', 'manage_app_content', 'view_apps'
+            'view_dev_tasks', 'manage_app_content', 'view_apps',
+            'view_clients', // ✅ Aggiunto accesso CLIENTI
+            'view_company_info', 'manage_business_card' // ✅ Impostazioni base
         ],
         AGENTE: [
             'view_own_data', 'view_clients', 'view_contracts', 'view_apps',
-            'view_invoices', 'manage_clients', 'manage_contracts'
+            'view_invoices', 'manage_clients', 'manage_contracts',
+            'view_company_info', 'manage_business_card' // ✅ Impostazioni base
         ],
         CONTENT_MANAGER: [
-            'view_all_data', 'manage_app_content', 'view_apps', 'manage_apps'
+            'view_all_data', 'manage_app_content', 'view_apps', 'manage_apps',
+            'view_clients', // ✅ Aggiunto CLIENTI
+            'view_dev_tasks', 'manage_dev_tasks', // ✅ Aggiunto TASK
+            'view_company_info', 'manage_business_card' // ✅ Impostazioni base
         ],
         CONTABILE: [
             'view_all_data', 'manage_invoices', 'manage_payments', 'view_reports',
-            'export_data', 'view_clients', 'view_contracts'
+            'export_data', 'view_clients', 'view_contracts',
+            'view_apps', // ✅ Aggiunto APP
+            'view_dev_tasks', // ✅ Aggiunto TASK
+            'view_company_info', 'manage_business_card' // ✅ Impostazioni base
         ]
     },
 
@@ -203,13 +215,28 @@ const AuthService = {
             'scadenzario': ['*', 'view_all_data', 'manage_payments', 'view_own_data'],
             'dettaglio-scadenza': ['*', 'view_all_data', 'manage_payments', 'view_own_data'],
             'report': ['*', 'view_reports', 'view_all_data'],
-            'impostazioni': ['*', 'manage_settings', 'manage_users']
+            'impostazioni': ['*', 'manage_settings', 'manage_users', 'view_company_info', 'manage_business_card'] // ✅ Tutti possono vedere Impostazioni (almeno le card base)
         };
 
         const requiredPermissions = pagePermissions[pageName] || [];
         const hasAccess = requiredPermissions.length === 0 || requiredPermissions.some(perm => this.hasPermission(perm));
 
         return hasAccess;
+    },
+
+    // 🏠 Ottiene la prima pagina accessibile per l'utente corrente (per redirect al login)
+    getFirstAccessiblePage() {
+        // Ordine di preferenza delle pagine
+        const pageOrder = ['dashboard', 'task', 'app', 'clienti', 'contratti', 'fatture', 'scadenzario', 'report', 'impostazioni'];
+
+        for (const page of pageOrder) {
+            if (this.canAccessPage(page)) {
+                return page;
+            }
+        }
+
+        // Fallback: se non ha accesso a nulla (non dovrebbe mai succedere)
+        return 'dashboard';
     },
 
     // Observer per stato autenticazione

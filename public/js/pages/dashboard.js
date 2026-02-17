@@ -4,21 +4,43 @@ const Dashboard = {
         UI.showLoading();
 
         try {
-            // Carica dati
+            // Carica dati base
             const stats = await DataService.getStatistiche();
-            const scadenzeScadute = await DataService.getScadenzeScadute();
-            const scadenzeImminenti = await DataService.getScadenzeImminenti(30);
-            const contrattiInScadenza = await DataService.getContrattiInScadenza(60);
-            const fattureInScadenza = await DataService.getFattureInScadenza(30);
-            const clienti = await DataService.getClienti();
-            const fatture = await DataService.getFatture();
-            const fattureScadute = await DataService.getFattureScadute();
+
+            // Carica dati in base ai permessi
+            const scadenzeScadute = AuthService.hasPermission('manage_payments') || AuthService.hasPermission('view_all_data')
+                ? await DataService.getScadenzeScadute()
+                : [];
+            const scadenzeImminenti = AuthService.hasPermission('manage_payments') || AuthService.hasPermission('view_all_data')
+                ? await DataService.getScadenzeImminenti(30)
+                : [];
+            const contrattiInScadenza = AuthService.hasPermission('manage_contracts') || AuthService.hasPermission('view_contracts') || AuthService.hasPermission('view_all_data')
+                ? await DataService.getContrattiInScadenza(60)
+                : [];
+            const fattureInScadenza = AuthService.hasPermission('manage_invoices') || AuthService.hasPermission('view_invoices') || AuthService.hasPermission('view_all_data')
+                ? await DataService.getFattureInScadenza(30)
+                : [];
+            const clienti = AuthService.hasPermission('view_clients') || AuthService.hasPermission('manage_clients') || AuthService.hasPermission('view_all_data')
+                ? await DataService.getClienti()
+                : [];
+            const fatture = AuthService.hasPermission('manage_invoices') || AuthService.hasPermission('view_invoices') || AuthService.hasPermission('view_all_data')
+                ? await DataService.getFatture()
+                : [];
+            const fattureScadute = AuthService.hasPermission('manage_invoices') || AuthService.hasPermission('view_invoices') || AuthService.hasPermission('view_all_data')
+                ? await DataService.getFattureScadute()
+                : [];
 
             // NUOVI DATI per widget aggiuntivi
-            const app = await DataService.getApps();
-            const tasksResult = await TaskService.getAllTasks({ limit: 100 });
+            const app = AuthService.hasPermission('view_apps') || AuthService.hasPermission('manage_apps') || AuthService.hasPermission('manage_app_content') || AuthService.hasPermission('view_all_data')
+                ? await DataService.getApps()
+                : [];
+            const tasksResult = AuthService.hasPermission('view_dev_tasks') || AuthService.hasPermission('manage_dev_tasks') || AuthService.hasPermission('view_all_data')
+                ? await TaskService.getAllTasks({ limit: 100 })
+                : { tasks: [] };
             const tasks = tasksResult.tasks || [];
-            const contrattiTutti = await DataService.getContratti();
+            const contrattiTutti = AuthService.hasPermission('manage_contracts') || AuthService.hasPermission('view_contracts') || AuthService.hasPermission('view_all_data')
+                ? await DataService.getContratti()
+                : [];
 
             // Get enabled widgets
             const enabledWidgets = SettingsService.getEnabledWidgets();
@@ -70,7 +92,27 @@ const Dashboard = {
     async renderEnabledWidgets(widgets, data) {
         let html = '';
 
+        // Mappa permessi richiesti per ogni widget
+        const widgetPermissions = {
+            'statistiche': ['*'], // Sempre visibile, si adatta ai permessi
+            'scadenzeImminenti': ['manage_payments', 'view_all_data'],
+            'fattureNonPagate': ['manage_invoices', 'view_invoices', 'view_all_data'],
+            'contrattiInScadenza': ['manage_contracts', 'view_contracts', 'view_all_data'],
+            'andamentoMensile': ['view_all_data'], // Richiede molti dati
+            'statoApp': ['view_apps', 'manage_apps', 'manage_app_content', 'view_all_data'],
+            'topClienti': ['manage_invoices', 'view_invoices', 'view_clients', 'manage_clients', 'view_all_data'],
+            'ultimiClienti': ['view_clients', 'manage_clients', 'view_all_data']
+        };
+
         for (const widget of widgets) {
+            // Verifica se l'utente ha i permessi per vedere questo widget
+            const requiredPerms = widgetPermissions[widget.id] || [];
+            const hasPermission = requiredPerms.some(perm => AuthService.hasPermission(perm));
+
+            if (!hasPermission) {
+                continue; // Salta questo widget
+            }
+
             switch (widget.id) {
                 case 'statistiche':
                     html += this.renderStatisticheKPI(data.stats, data.scadenzeScadute, data.contrattiTutti, data.fattureScadute, data.tasks);
@@ -104,7 +146,7 @@ const Dashboard = {
             }
         }
 
-        return html || '<div class="empty-state"><p>Nessun widget abilitato. <a href="#" onclick="UI.showPage(\'impostazioni\')">Personalizza dashboard</a></p></div>';
+        return html || '<div class="empty-state"><p>Nessun widget disponibile con i tuoi permessi. <a href="#" onclick="UI.showPage(\'impostazioni\')">Personalizza dashboard</a></p></div>';
     },
 
     renderStatistiche(stats, scadenzeScadute, scadenzeImminenti, contrattiInScadenza) {
@@ -769,36 +811,66 @@ const Dashboard = {
             (t.priorita === 'ALTA' || t.priorita === 'URGENTE')
         ).length;
 
+        // Costruisci KPI in base ai permessi
+        let kpiCards = [];
+
+        // Scadenze Critiche - visibile se può gestire pagamenti o vedere tutto
+        if (AuthService.hasPermission('manage_payments') || AuthService.hasPermission('view_all_data')) {
+            kpiCards.push(UI.createKPICard({
+                icon: 'exclamation-triangle',
+                iconClass: 'critical',
+                label: 'Scadenze Critiche',
+                value: scadenzeScadute.length,
+                onclick: 'UI.showPage("scadenzario")'
+            }));
+        }
+
+        // Rinnovi Sospesi - visibile se può gestire contratti
+        if (AuthService.hasPermission('manage_contracts') || AuthService.hasPermission('view_contracts') || AuthService.hasPermission('view_all_data')) {
+            kpiCards.push(UI.createKPICard({
+                icon: 'sync-alt',
+                iconClass: 'warning',
+                label: 'Rinnovi Sospesi',
+                value: rinnoviSospesi,
+                onclick: 'UI.showPage("contratti")'
+            }));
+        }
+
+        // Fatturato Scaduto - visibile se può gestire fatture
+        if (AuthService.hasPermission('manage_invoices') || AuthService.hasPermission('view_invoices') || AuthService.hasPermission('view_all_data')) {
+            kpiCards.push(UI.createKPICard({
+                icon: 'euro-sign',
+                iconClass: 'danger',
+                label: 'Fatturato Scaduto',
+                value: DataService.formatCurrency(fatturatoScaduto),
+                onclick: 'UI.showPage("scadenzario")'
+            }));
+        }
+
+        // Task Urgenti - visibile se può vedere task
+        if (AuthService.hasPermission('view_dev_tasks') || AuthService.hasPermission('manage_dev_tasks') || AuthService.hasPermission('view_all_data')) {
+            kpiCards.push(UI.createKPICard({
+                icon: 'tasks',
+                iconClass: 'info',
+                label: 'Task Urgenti',
+                value: taskUrgenti,
+                onclick: 'UI.showPage("task")'
+            }));
+        }
+
+        // Se non ci sono KPI da mostrare, mostra messaggio
+        if (kpiCards.length === 0) {
+            return `
+                <div class="empty-state">
+                    <i class="fas fa-chart-line"></i>
+                    <p>Nessuna statistica disponibile con i tuoi permessi</p>
+                </div>
+            `;
+        }
+
         return `
             <div class="kpi-grid fade-in">
-                ${UI.createKPICard({
-                    icon: 'exclamation-triangle',
-                    iconClass: 'critical',
-                    label: 'Scadenze Critiche',
-                    value: scadenzeScadute.length,
-                    onclick: 'UI.showPage("scadenzario")'
-                })}
-                ${UI.createKPICard({
-                    icon: 'sync-alt',
-                    iconClass: 'warning',
-                    label: 'Rinnovi Sospesi',
-                    value: rinnoviSospesi,
-                    onclick: 'UI.showPage("contratti")'
-                })}
-                ${UI.createKPICard({
-                    icon: 'euro-sign',
-                    iconClass: 'danger',
-                    label: 'Fatturato Scaduto',
-                    value: DataService.formatCurrency(fatturatoScaduto),
-                    onclick: 'UI.showPage("scadenzario")'
-                })}
-                ${UI.createKPICard({
-                    icon: 'tasks',
-                    iconClass: 'info',
-                    label: 'Task Urgenti',
-                    value: taskUrgenti,
-                    onclick: 'UI.showPage("task")'
-                })}
+                ${kpiCards.join('')}
             </div>
         `;
     },

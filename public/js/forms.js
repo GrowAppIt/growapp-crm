@@ -796,20 +796,39 @@ const FormsManager = {
 
             <div style="margin-bottom: 1.5rem;">
                 <h3 style="font-size: 1.1rem; font-weight: 700; color: var(--blu-700); margin-bottom: 0.5rem;">
-                    ⚙️ Funzionalità
+                    ⚙️ Funzionalità e Scadenze
                 </h3>
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem;">
-                    <div class="form-group">
-                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
-                            <input type="checkbox" name="hasGruppoTelegram" value="true" ${app.hasGruppoTelegram ? 'checked' : ''} style="width: 20px; height: 20px;">
-                            <span>Gruppo Telegram</span>
-                        </label>
+                <div style="margin-bottom: 1rem;">
+                    <h4 style="font-size: 0.95rem; font-weight: 600; color: var(--grigio-700); margin-bottom: 0.75rem;">
+                        Funzionalità Attive
+                    </h4>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem;">
+                        <div class="form-group">
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                <input type="checkbox" name="hasGruppoTelegram" value="true" ${app.hasGruppoTelegram ? 'checked' : ''} style="width: 20px; height: 20px;">
+                                <span>Gruppo Telegram</span>
+                            </label>
+                        </div>
+                        <div class="form-group">
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                <input type="checkbox" name="hasAvvisiFlash" value="true" ${app.hasAvvisiFlash ? 'checked' : ''} style="width: 20px; height: 20px;">
+                                <span>Avvisi Flash</span>
+                            </label>
+                        </div>
                     </div>
-                    <div class="form-group">
-                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
-                            <input type="checkbox" name="hasAvvisiFlash" value="true" ${app.hasAvvisiFlash ? 'checked' : ''} style="width: 20px; height: 20px;">
-                            <span>Avvisi Flash</span>
-                        </label>
+                </div>
+                <div style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 2px solid var(--grigio-300);">
+                    <h4 style="font-size: 0.95rem; font-weight: 600; color: var(--giallo-avviso); margin-bottom: 0.75rem;">
+                        ⚠️ Scadenze e Alert (Alert 3 giorni prima)
+                    </h4>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem;">
+                        ${this.createFormField('📅 Ultima Data Raccolta Differenziata', 'ultimaDataRaccoltaDifferenziata', 'date', app.ultimaDataRaccoltaDifferenziata?.split('T')[0], { placeholder: 'Data aggiornamento' })}
+                        ${this.createFormField('💊 Ultima Data Farmacie di Turno', 'ultimaDataFarmacieTurno', 'date', app.ultimaDataFarmacieTurno?.split('T')[0], { placeholder: 'Data aggiornamento' })}
+                        ${this.createFormField('🍎 Scadenza Certificato Apple', 'scadenzaCertificatoApple', 'date', app.scadenzaCertificatoApple?.split('T')[0], { placeholder: 'Data scadenza' })}
+                        ${this.createFormField('📌 Altra Scadenza', 'altraScadenzaData', 'date', app.altraScadenzaData?.split('T')[0], { placeholder: 'Data scadenza' })}
+                    </div>
+                    <div style="margin-top: 1rem;">
+                        ${this.createFormField('Note Altra Scadenza', 'altraScadenzaNote', 'textarea', app.altraScadenzaNote, { placeholder: 'Descrizione altra scadenza...', rows: 2 })}
                     </div>
                 </div>
             </div>
@@ -823,6 +842,34 @@ const FormsManager = {
                     ${this.createFormField('Data Rilevamento Downloads', 'dataRilevamentoDownloads', 'date', app.dataRilevamentoDownloads?.split('T')[0])}
                     ${this.createFormField('Numero Notifiche', 'numNotifiche', 'number', app.numNotifiche || 0)}
                     ${this.createFormField('Data Rilevamento Notifiche', 'dataRilevamentoNotifiche', 'date', app.dataRilevamentoNotifiche?.split('T')[0])}
+                </div>
+            </div>
+
+            <div style="margin-bottom: 1.5rem;">
+                <h3 style="font-size: 1.1rem; font-weight: 700; color: var(--blu-700); margin-bottom: 0.5rem;">
+                    ✅ Controllo Qualità
+                </h3>
+                <div style="background: var(--grigio-100); padding: 1.5rem; border-radius: 8px; border-left: 4px solid var(--blu-700);">
+                    <p style="font-size: 0.875rem; color: var(--grigio-700); margin-bottom: 1rem;">
+                        <i class="fas fa-info-circle"></i> Se passa più di 1 mese dall'ultimo controllo, apparirà un avviso
+                    </p>
+                    <div style="display: grid; gap: 1rem;">
+                        ${this.createFormField('📅 Data Ultimo Controllo', 'dataUltimoControlloQualita', 'date', app.dataUltimoControlloQualita?.split('T')[0], { placeholder: 'Data controllo' })}
+                        ${this.createFormField('📋 Risultati Controllo / Note', 'noteControlloQualita', 'textarea', app.noteControlloQualita, { placeholder: 'Descrivi cosa è stato controllato e cosa non andava...', rows: 3 })}
+                    </div>
+                    <div style="margin-top: 1rem; padding-top: 1rem; border-top: 2px solid var(--grigio-300);">
+                        <label style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer; background: white; padding: 1rem; border-radius: 8px; border: 2px solid var(--rosso-errore);">
+                            <input type="checkbox" name="controlloQualitaNegativo" value="true" ${app.controlloQualitaNegativo ? 'checked' : ''} style="width: 20px; height: 20px;">
+                            <div>
+                                <span style="font-weight: 700; color: var(--rosso-errore); font-size: 1rem;">
+                                    <i class="fas fa-times-circle"></i> Esito Controllo NEGATIVO
+                                </span>
+                                <div style="font-size: 0.875rem; color: var(--grigio-600); margin-top: 0.25rem;">
+                                    Seleziona se il controllo ha rilevato problemi critici. Apparirà un badge rosso "QA KO" nella lista app.
+                                </div>
+                            </div>
+                        </label>
+                    </div>
                 </div>
             </div>
 
@@ -841,9 +888,10 @@ const FormsManager = {
             async () => {
                 const data = this.getFormData();
 
-                // Converti checkbox in boolean
+                // Converti checkbox in boolean (SEMPRE includi i valori, anche se false)
                 data.hasGruppoTelegram = data.hasGruppoTelegram === 'true';
                 data.hasAvvisiFlash = data.hasAvvisiFlash === 'true';
+                data.controlloQualitaNegativo = data.controlloQualitaNegativo === 'true';
 
                 // Converti numeri
                 data.numDownloads = parseInt(data.numDownloads) || 0;
@@ -854,8 +902,27 @@ const FormsManager = {
                     data.clientePaganteId = null;
                     data.tipoPagamento = null;
                     data.gestione = null;
+                    data.agente = data.agente || null;
                 }
                 // Altrimenti usa i valori scelti dall'utente nel form
+
+                // Assicura che i campi scadenze siano sempre presenti (anche se vuoti)
+                data.ultimaDataRaccoltaDifferenziata = data.ultimaDataRaccoltaDifferenziata || null;
+                data.ultimaDataFarmacieTurno = data.ultimaDataFarmacieTurno || null;
+                data.scadenzaCertificatoApple = data.scadenzaCertificatoApple || null;
+                data.altraScadenzaData = data.altraScadenzaData || null;
+                data.altraScadenzaNote = data.altraScadenzaNote || null;
+
+                // Assicura che i campi controllo qualità siano sempre presenti
+                data.dataUltimoControlloQualita = data.dataUltimoControlloQualita || null;
+                data.noteControlloQualita = data.noteControlloQualita || null;
+
+                // Se la data controllo qualità è cambiata, salva automaticamente chi l'ha aggiornata
+                if (data.dataUltimoControlloQualita && data.dataUltimoControlloQualita !== app.dataUltimoControlloQualita?.split('T')[0]) {
+                    data.controlloQualitaDa = AuthService.getUserId();
+                    data.controlloQualitaDaNome = AuthService.getUserName();
+                    data.controlloQualitaDataAggiornamento = new Date().toISOString();
+                }
 
                 await DataService.updateApp(app.id, data);
                 UI.showSuccess('App aggiornata con successo!');
@@ -941,20 +1008,39 @@ const FormsManager = {
 
             <div style="margin-bottom: 1.5rem;">
                 <h3 style="font-size: 1.1rem; font-weight: 700; color: var(--blu-700); margin-bottom: 0.5rem;">
-                    ⚙️ Funzionalità
+                    ⚙️ Funzionalità e Scadenze
                 </h3>
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem;">
-                    <div class="form-group">
-                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
-                            <input type="checkbox" name="hasGruppoTelegram" value="true" style="width: 20px; height: 20px;">
-                            <span>Gruppo Telegram</span>
-                        </label>
+                <div style="margin-bottom: 1rem;">
+                    <h4 style="font-size: 0.95rem; font-weight: 600; color: var(--grigio-700); margin-bottom: 0.75rem;">
+                        Funzionalità Attive
+                    </h4>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem;">
+                        <div class="form-group">
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                <input type="checkbox" name="hasGruppoTelegram" value="true" style="width: 20px; height: 20px;">
+                                <span>Gruppo Telegram</span>
+                            </label>
+                        </div>
+                        <div class="form-group">
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                <input type="checkbox" name="hasAvvisiFlash" value="true" style="width: 20px; height: 20px;">
+                                <span>Avvisi Flash</span>
+                            </label>
+                        </div>
                     </div>
-                    <div class="form-group">
-                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
-                            <input type="checkbox" name="hasAvvisiFlash" value="true" style="width: 20px; height: 20px;">
-                            <span>Avvisi Flash</span>
-                        </label>
+                </div>
+                <div style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 2px solid var(--grigio-300);">
+                    <h4 style="font-size: 0.95rem; font-weight: 600; color: var(--giallo-avviso); margin-bottom: 0.75rem;">
+                        ⚠️ Scadenze e Alert (Alert 3 giorni prima)
+                    </h4>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem;">
+                        ${this.createFormField('📅 Ultima Data Raccolta Differenziata', 'ultimaDataRaccoltaDifferenziata', 'date', '', { placeholder: 'Data aggiornamento' })}
+                        ${this.createFormField('💊 Ultima Data Farmacie di Turno', 'ultimaDataFarmacieTurno', 'date', '', { placeholder: 'Data aggiornamento' })}
+                        ${this.createFormField('🍎 Scadenza Certificato Apple', 'scadenzaCertificatoApple', 'date', '', { placeholder: 'Data scadenza' })}
+                        ${this.createFormField('📌 Altra Scadenza', 'altraScadenzaData', 'date', '', { placeholder: 'Data scadenza' })}
+                    </div>
+                    <div style="margin-top: 1rem;">
+                        ${this.createFormField('Note Altra Scadenza', 'altraScadenzaNote', 'textarea', '', { placeholder: 'Descrizione altra scadenza...', rows: 2 })}
                     </div>
                 </div>
             </div>
@@ -968,6 +1054,34 @@ const FormsManager = {
                     ${this.createFormField('Data Rilevamento Downloads', 'dataRilevamentoDownloads', 'date', '')}
                     ${this.createFormField('Numero Notifiche', 'numNotifiche', 'number', '0', { placeholder: '0' })}
                     ${this.createFormField('Data Rilevamento Notifiche', 'dataRilevamentoNotifiche', 'date', '')}
+                </div>
+            </div>
+
+            <div style="margin-bottom: 1.5rem;">
+                <h3 style="font-size: 1.1rem; font-weight: 700; color: var(--blu-700); margin-bottom: 0.5rem;">
+                    ✅ Controllo Qualità
+                </h3>
+                <div style="background: var(--grigio-100); padding: 1.5rem; border-radius: 8px; border-left: 4px solid var(--blu-700);">
+                    <p style="font-size: 0.875rem; color: var(--grigio-700); margin-bottom: 1rem;">
+                        <i class="fas fa-info-circle"></i> Se passa più di 1 mese dall'ultimo controllo, apparirà un avviso
+                    </p>
+                    <div style="display: grid; gap: 1rem;">
+                        ${this.createFormField('📅 Data Ultimo Controllo', 'dataUltimoControlloQualita', 'date', '', { placeholder: 'Data controllo' })}
+                        ${this.createFormField('📋 Risultati Controllo / Note', 'noteControlloQualita', 'textarea', '', { placeholder: 'Descrivi cosa è stato controllato e cosa non andava...', rows: 3 })}
+                    </div>
+                    <div style="margin-top: 1rem; padding-top: 1rem; border-top: 2px solid var(--grigio-300);">
+                        <label style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer; background: white; padding: 1rem; border-radius: 8px; border: 2px solid var(--rosso-errore);">
+                            <input type="checkbox" name="controlloQualitaNegativo" value="true" style="width: 20px; height: 20px;">
+                            <div>
+                                <span style="font-weight: 700; color: var(--rosso-errore); font-size: 1rem;">
+                                    <i class="fas fa-times-circle"></i> Esito Controllo NEGATIVO
+                                </span>
+                                <div style="font-size: 0.875rem; color: var(--grigio-600); margin-top: 0.25rem;">
+                                    Seleziona se il controllo ha rilevato problemi critici. Apparirà un badge rosso "QA KO" nella lista app.
+                                </div>
+                            </div>
+                        </label>
+                    </div>
                 </div>
             </div>
 
@@ -989,6 +1103,7 @@ const FormsManager = {
                 // Converti checkbox in boolean
                 data.hasGruppoTelegram = data.hasGruppoTelegram === 'true';
                 data.hasAvvisiFlash = data.hasAvvisiFlash === 'true';
+                data.controlloQualitaNegativo = data.controlloQualitaNegativo === 'true';
 
                 // Converti numeri
                 data.numDownloads = parseInt(data.numDownloads) || 0;
@@ -1001,6 +1116,13 @@ const FormsManager = {
                     data.gestione = null;
                 }
                 // Altrimenti usa i valori scelti dall'utente nel form
+
+                // Se è stata inserita una data controllo qualità, salva chi l'ha creata
+                if (data.dataUltimoControlloQualita) {
+                    data.controlloQualitaDa = AuthService.getUserId();
+                    data.controlloQualitaDaNome = AuthService.getUserName();
+                    data.controlloQualitaDataAggiornamento = new Date().toISOString();
+                }
 
                 const newId = await DataService.createApp(data);
                 UI.showSuccess('App creata con successo!');

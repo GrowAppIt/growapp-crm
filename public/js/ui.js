@@ -436,5 +436,128 @@ const UI = {
                 </button>
             </div>
         `;
+    },
+
+    // Mostra modal con conferma/annulla
+    showModal(options) {
+        return new Promise((resolve) => {
+            const {
+                title,
+                content,
+                confirmText = 'Conferma',
+                cancelText = 'Annulla',
+                confirmClass = 'btn-primary',
+                onConfirm = null  // Callback chiamata PRIMA di chiudere il modal
+            } = options;
+
+            // Rimuovi modal esistente
+            const existingModal = document.getElementById('customModal');
+            if (existingModal) existingModal.remove();
+
+            const modal = document.createElement('div');
+            modal.id = 'customModal';
+            modal.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: rgba(0, 0, 0, 0.5);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                z-index: 10000;
+                padding: 1rem;
+            `;
+
+            modal.innerHTML = `
+                <div class="modal-content" style="
+                    background: white;
+                    border-radius: 12px;
+                    max-width: 600px;
+                    width: 100%;
+                    max-height: 90vh;
+                    overflow-y: auto;
+                    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+                ">
+                    <div class="modal-header" style="
+                        padding: 1.5rem;
+                        border-bottom: 2px solid var(--grigio-300);
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                    ">
+                        <h2 style="
+                            font-size: 1.5rem;
+                            font-weight: 700;
+                            color: var(--blu-700);
+                            margin: 0;
+                        ">${title}</h2>
+                        <button onclick="document.getElementById('customModal').remove()" style="
+                            background: none;
+                            border: none;
+                            font-size: 1.5rem;
+                            cursor: pointer;
+                            color: var(--grigio-500);
+                            padding: 0;
+                            width: 32px;
+                            height: 32px;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                        ">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <div class="modal-body" style="padding: 1.5rem;">
+                        ${content}
+                    </div>
+                    <div class="modal-footer" style="
+                        padding: 1.5rem;
+                        border-top: 2px solid var(--grigio-300);
+                        display: flex;
+                        gap: 1rem;
+                        justify-content: flex-end;
+                    ">
+                        <button id="modalCancelBtn" class="btn btn-secondary">
+                            <i class="fas fa-times"></i> ${cancelText}
+                        </button>
+                        <button id="modalConfirmBtn" class="btn ${confirmClass}">
+                            <i class="fas fa-check"></i> ${confirmText}
+                        </button>
+                    </div>
+                </div>
+            `;
+
+            document.body.appendChild(modal);
+
+            // Event listeners
+            const confirmBtn = document.getElementById('modalConfirmBtn');
+            const cancelBtn = document.getElementById('modalCancelBtn');
+
+            confirmBtn.onclick = async () => {
+                // Se c'è una callback onConfirm, chiamala PRIMA di chiudere
+                if (onConfirm) {
+                    const result = await onConfirm();
+                    // Se onConfirm restituisce false, non chiudere il modal
+                    if (result === false) return;
+                }
+                modal.remove();
+                resolve(true);
+            };
+
+            cancelBtn.onclick = () => {
+                modal.remove();
+                resolve(false);
+            };
+
+            // Chiudi cliccando fuori
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    modal.remove();
+                    resolve(false);
+                }
+            });
+        });
     }
 };

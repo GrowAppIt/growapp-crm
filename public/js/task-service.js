@@ -58,6 +58,9 @@ const TaskService = {
                 stato: taskData.stato || this.STATI.TODO,
                 priorita: taskData.priorita || this.PRIORITA.MEDIA,
 
+                // Archiviazione (di default: non archiviato)
+                archiviato: false,
+
                 // Assegnazione MULTIPLA (array)
                 // Gestione retrocompatibilità: accetta sia assegnatiA (array) che assegnatoA (singolo)
                 assegnatiA: (() => {
@@ -95,7 +98,7 @@ const TaskService = {
                 note: taskData.note || '',
                 storia: [
                     {
-                        timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                        timestamp: new Date(),
                         utente: AuthService.getUserName(),
                         azione: 'Creato',
                         dettagli: (() => {
@@ -151,7 +154,7 @@ const TaskService = {
 
             // Aggiungi entry nella storia se ci sono modifiche significative
             const storiaEntry = {
-                timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                timestamp: new Date(),
                 utente: AuthService.getUserName(),
                 azione: 'Modificato',
                 dettagli: this.getUpdateDetails(currentTask, updates)
@@ -243,7 +246,59 @@ const TaskService = {
     },
 
     /**
-     * Elimina un task
+     * Archivia un task (lo nasconde ma lo mantiene nel database)
+     */
+    async archiveTask(taskId) {
+        try {
+            const taskRef = db.collection('tasks').doc(taskId);
+            const taskDoc = await taskRef.get();
+
+            if (!taskDoc.exists) {
+                throw new Error('Task non trovato');
+            }
+
+            await taskRef.update({
+                archiviato: true,
+                archiviatoIl: new Date(),
+                archiviatioDa: AuthService.getUserId(),
+                archiviatoDaNome: AuthService.getUserName()
+            });
+
+            return { success: true };
+        } catch (error) {
+            console.error('❌ Errore archiviazione task:', error);
+            return { success: false, error: error.message };
+        }
+    },
+
+    /**
+     * Ripristina un task archiviato
+     */
+    async restoreTask(taskId) {
+        try {
+            const taskRef = db.collection('tasks').doc(taskId);
+            const taskDoc = await taskRef.get();
+
+            if (!taskDoc.exists) {
+                throw new Error('Task non trovato');
+            }
+
+            await taskRef.update({
+                archiviato: false,
+                ripristinatoIl: new Date(),
+                ripristinatoDa: AuthService.getUserId(),
+                ripristinatoDaNome: AuthService.getUserName()
+            });
+
+            return { success: true };
+        } catch (error) {
+            console.error('❌ Errore ripristino task:', error);
+            return { success: false, error: error.message };
+        }
+    },
+
+    /**
+     * Elimina un task (DEFINITIVO)
      */
     async deleteTask(taskId) {
         try {
@@ -278,10 +333,22 @@ const TaskService = {
      * Ottiene tutti i task (con filtri opzionali)
      * filtri.appId - cerca task che contengono questo appId nell'array appIds
      * filtri.includeGeneric - se true, include anche i task generici (appIds vuoto)
+     * filtri.includiArchiviati - se true, include anche i task archiviati (default: false)
+     * filtri.soloArchiviati - se true, mostra SOLO i task archiviati
      */
     async getTasks(filtri = {}) {
         try {
             let query = db.collection('tasks');
+
+            // 🗄️ FILTRO ARCHIVIAZIONE (nuovo!)
+            if (filtri.soloArchiviati) {
+                // Mostra SOLO task archiviati
+                query = query.where('archiviato', '==', true);
+            } else if (!filtri.includiArchiviati) {
+                // Di default, escludi task archiviati
+                query = query.where('archiviato', '==', false);
+            }
+            // Se includiArchiviati è true, non aggiungiamo nessun filtro (mostra tutti)
 
             // Filtro per app (usa array-contains per cercare nell'array appIds)
             if (filtri.appId) {
@@ -384,7 +451,8 @@ const TaskService = {
                 query = query.where('stato', '==', filtri.stato);
             }
             if (filtri.assegnatoA) {
-                query = query.where('assegnatoA', '==', filtri.assegnatoA);
+                // Usa array-contains per cercare nell'array assegnatiA
+                query = query.where('assegnatiA', 'array-contains', filtri.assegnatoA);
             }
             if (filtri.priorita) {
                 query = query.where('priorita', '==', filtri.priorita);
@@ -585,7 +653,7 @@ const TaskService = {
 
             // Aggiungi evento alla storia
             const storiaEntry = {
-                timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                timestamp: new Date(),
                 utente: userName,
                 azione: 'Preso in carico',
                 dettagli: `${userName} si è preso il task`
@@ -636,7 +704,7 @@ const TaskService = {
             const oldAssegnatiA = task.assegnatiA || [];
 
             const storiaEntry = {
-                timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                timestamp: new Date(),
                 utente: AuthService.getUserName(),
                 azione: 'Riassegnato',
                 dettagli: userNames.length > 0
@@ -698,7 +766,7 @@ const TaskService = {
             assegnatiANomi.push(userName);
 
             const storiaEntry = {
-                timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                timestamp: new Date(),
                 utente: AuthService.getUserName(),
                 azione: 'Aggiunto assegnato',
                 dettagli: `${userName} aggiunto al task`
@@ -825,7 +893,7 @@ const TaskService = {
             assegnatiANomi.splice(index, 1);
 
             const storiaEntry = {
-                timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                timestamp: new Date(),
                 utente: AuthService.getUserName(),
                 azione: 'Rimosso assegnato',
                 dettagli: `${removedName} rimosso dal task`

@@ -4,6 +4,7 @@ const DettaglioApp = {
     app: null,
     currentTab: 'info',
     tasks: [],
+    documenti: [],
 
     async render(appId) {
         this.appId = appId;
@@ -11,10 +12,11 @@ const DettaglioApp = {
         UI.showLoading();
 
         try {
-            const [app, clienti, tasksResult] = await Promise.all([
+            const [app, clienti, tasksResult, documenti] = await Promise.all([
                 DataService.getApp(appId),
                 DataService.getClienti(),
-                TaskService.getTasksByApp(appId)
+                TaskService.getTasksByApp(appId),
+                DocumentService.getDocumenti('app', appId)
             ]);
 
             if (!app) {
@@ -25,6 +27,7 @@ const DettaglioApp = {
 
             this.app = app;
             this.tasks = tasksResult.success ? tasksResult.tasks : [];
+            this.documenti = documenti;
 
             const clientePagante = app.clientePaganteId
                 ? clienti.find(c => c.id === app.clientePaganteId)
@@ -107,6 +110,16 @@ const DettaglioApp = {
                     <i class="fas fa-tasks"></i> Task
                     ${totalActive > 0 ? `<span style="background: var(--verde-700); color: white; border-radius: 12px; padding: 0.125rem 0.5rem; font-size: 0.75rem; margin-left: 0.5rem; font-weight: 700;">${totalActive}</span>` : ''}
                 </button>
+                <button
+                    class="tab-button ${this.currentTab === 'documenti' ? 'active' : ''}"
+                    onclick="DettaglioApp.switchTab('documenti')"
+                    style="padding: 1rem 1.5rem; border: none; background: ${this.currentTab === 'documenti' ? 'var(--blu-100)' : 'transparent'};
+                           color: ${this.currentTab === 'documenti' ? 'var(--blu-700)' : 'var(--grigio-600)'};
+                           font-weight: ${this.currentTab === 'documenti' ? '700' : '600'}; cursor: pointer;
+                           border-bottom: 3px solid ${this.currentTab === 'documenti' ? 'var(--blu-700)' : 'transparent'};
+                           transition: all 0.2s;">
+                    <i class="fas fa-folder-open"></i> Documenti (${this.documenti.length})
+                </button>
             </div>
         `;
     },
@@ -120,11 +133,14 @@ const DettaglioApp = {
                     ${this.renderPubblicazioneStore(app)}
                     ${this.renderFunzionalita(app)}
                     ${this.renderMetriche(app)}
+                    ${this.renderControlloQualita(app)}
                     ${this.renderNote(app)}
                 </div>
             `;
         } else if (this.currentTab === 'task') {
             return this.renderTaskTab();
+        } else if (this.currentTab === 'documenti') {
+            return this.renderDocumenti();
         }
     },
 
@@ -437,26 +453,119 @@ const DettaglioApp = {
     },
 
     renderFunzionalita(app) {
+        // Calcola scadenze in alert (3 giorni prima)
+        const oggi = new Date();
+        oggi.setHours(0, 0, 0, 0);
+        const tre_giorni = new Date(oggi);
+        tre_giorni.setDate(oggi.getDate() + 3);
+
+        const scadenze = [];
+
+        if (app.ultimaDataRaccoltaDifferenziata) {
+            const data = new Date(app.ultimaDataRaccoltaDifferenziata);
+            data.setHours(0, 0, 0, 0);
+            if (data >= oggi && data <= tre_giorni) {
+                scadenze.push({ tipo: '📅 Raccolta Differenziata', data: app.ultimaDataRaccoltaDifferenziata, isScaduta: data < oggi });
+            }
+        }
+
+        if (app.ultimaDataFarmacieTurno) {
+            const data = new Date(app.ultimaDataFarmacieTurno);
+            data.setHours(0, 0, 0, 0);
+            if (data >= oggi && data <= tre_giorni) {
+                scadenze.push({ tipo: '💊 Farmacie di Turno', data: app.ultimaDataFarmacieTurno, isScaduta: data < oggi });
+            }
+        }
+
+        if (app.scadenzaCertificatoApple) {
+            const data = new Date(app.scadenzaCertificatoApple);
+            data.setHours(0, 0, 0, 0);
+            if (data >= oggi && data <= tre_giorni) {
+                scadenze.push({ tipo: '🍎 Certificato Apple', data: app.scadenzaCertificatoApple, isScaduta: data < oggi });
+            }
+        }
+
+        if (app.altraScadenzaData) {
+            const data = new Date(app.altraScadenzaData);
+            data.setHours(0, 0, 0, 0);
+            if (data >= oggi && data <= tre_giorni) {
+                scadenze.push({ tipo: '📌 ' + (app.altraScadenzaNote || 'Altra Scadenza'), data: app.altraScadenzaData, isScaduta: data < oggi });
+            }
+        }
+
         return `
             <div class="card">
                 <div class="card-header">
                     <h2 class="card-title">
-                        <i class="fas fa-cogs"></i> Funzionalità
+                        <i class="fas fa-cogs"></i> Funzionalità e Scadenze
+                        ${scadenze.length > 0 ? `<span class="badge" style="background: var(--rosso-errore); color: white; font-size: 0.75rem; padding: 0.25rem 0.5rem; border-radius: 12px; margin-left: 0.5rem;">${scadenze.length} Alert</span>` : ''}
                     </h2>
                 </div>
                 <div class="card-body">
-                    <div style="display: flex; gap: 2rem; flex-wrap: wrap;">
-                        <div style="display: flex; align-items: center; gap: 0.5rem;">
-                            <i class="fas fa-${app.hasGruppoTelegram ? 'check-circle' : 'times-circle'}"
-                               style="color: var(--${app.hasGruppoTelegram ? 'verde-700' : 'grigio-400'}); font-size: 1.5rem;"></i>
-                            <span style="font-weight: 600;">Gruppo Telegram</span>
-                        </div>
-                        <div style="display: flex; align-items: center; gap: 0.5rem;">
-                            <i class="fas fa-${app.hasAvvisiFlash ? 'check-circle' : 'times-circle'}"
-                               style="color: var(--${app.hasAvvisiFlash ? 'verde-700' : 'grigio-400'}); font-size: 1.5rem;"></i>
-                            <span style="font-weight: 600;">Avvisi Flash</span>
+                    <!-- Funzionalità Attive -->
+                    <div style="margin-bottom: ${app.ultimaDataRaccoltaDifferenziata || app.ultimaDataFarmacieTurno || app.scadenzaCertificatoApple || app.altraScadenzaData ? '1.5rem' : '0'}; padding-bottom: ${app.ultimaDataRaccoltaDifferenziata || app.ultimaDataFarmacieTurno || app.scadenzaCertificatoApple || app.altraScadenzaData ? '1.5rem' : '0'}; border-bottom: ${app.ultimaDataRaccoltaDifferenziata || app.ultimaDataFarmacieTurno || app.scadenzaCertificatoApple || app.altraScadenzaData ? '2px solid var(--grigio-300)' : 'none'};">
+                        <h4 style="font-size: 0.875rem; font-weight: 700; color: var(--grigio-700); margin-bottom: 1rem; text-transform: uppercase; letter-spacing: 0.05em;">Funzionalità Attive</h4>
+                        <div style="display: flex; gap: 2rem; flex-wrap: wrap;">
+                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                <i class="fas fa-${app.hasGruppoTelegram ? 'check-circle' : 'times-circle'}"
+                                   style="color: var(--${app.hasGruppoTelegram ? 'verde-700' : 'grigio-400'}); font-size: 1.5rem;"></i>
+                                <span style="font-weight: 600;">Gruppo Telegram</span>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                <i class="fas fa-${app.hasAvvisiFlash ? 'check-circle' : 'times-circle'}"
+                                   style="color: var(--${app.hasAvvisiFlash ? 'verde-700' : 'grigio-400'}); font-size: 1.5rem;"></i>
+                                <span style="font-weight: 600;">Avvisi Flash</span>
+                            </div>
                         </div>
                     </div>
+
+                    <!-- Scadenze e Alert -->
+                    ${app.ultimaDataRaccoltaDifferenziata || app.ultimaDataFarmacieTurno || app.scadenzaCertificatoApple || app.altraScadenzaData ? `
+                    <div>
+                        <h4 style="font-size: 0.875rem; font-weight: 700; color: var(--giallo-avviso); margin-bottom: 1rem; text-transform: uppercase; letter-spacing: 0.05em;">⚠️ Scadenze e Alert</h4>
+
+                        ${scadenze.length > 0 ? `
+                        <div style="background: linear-gradient(135deg, #FFF3CD 0%, #FFEBCC 100%); border-left: 4px solid var(--giallo-avviso); padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem;">
+                            <div style="font-weight: 700; color: #856404; margin-bottom: 0.5rem;">
+                                <i class="fas fa-exclamation-triangle"></i> Alert Scadenze Imminenti
+                            </div>
+                            ${scadenze.map(s => `
+                                <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0; border-bottom: 1px solid rgba(133, 100, 4, 0.2);">
+                                    <span style="font-weight: 600; color: #856404;">${s.tipo}</span>
+                                    <span style="font-weight: 700; color: var(--rosso-errore);">${DataService.formatDate(s.data)}</span>
+                                </div>
+                            `).join('')}
+                        </div>
+                        ` : ''}
+
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem;">
+                            ${app.ultimaDataRaccoltaDifferenziata ? `
+                            <div class="stat-box" style="background: var(--grigio-100); padding: 1rem; border-radius: 8px;">
+                                <div style="font-size: 0.75rem; color: var(--grigio-500); margin-bottom: 0.25rem; font-weight: 600; text-transform: uppercase;">📅 Raccolta Differenziata</div>
+                                <div style="font-size: 1.125rem; font-weight: 700; color: var(--blu-700);">${DataService.formatDate(app.ultimaDataRaccoltaDifferenziata)}</div>
+                            </div>
+                            ` : ''}
+                            ${app.ultimaDataFarmacieTurno ? `
+                            <div class="stat-box" style="background: var(--grigio-100); padding: 1rem; border-radius: 8px;">
+                                <div style="font-size: 0.75rem; color: var(--grigio-500); margin-bottom: 0.25rem; font-weight: 600; text-transform: uppercase;">💊 Farmacie di Turno</div>
+                                <div style="font-size: 1.125rem; font-weight: 700; color: var(--blu-700);">${DataService.formatDate(app.ultimaDataFarmacieTurno)}</div>
+                            </div>
+                            ` : ''}
+                            ${app.scadenzaCertificatoApple ? `
+                            <div class="stat-box" style="background: var(--grigio-100); padding: 1rem; border-radius: 8px;">
+                                <div style="font-size: 0.75rem; color: var(--grigio-500); margin-bottom: 0.25rem; font-weight: 600; text-transform: uppercase;">🍎 Certificato Apple</div>
+                                <div style="font-size: 1.125rem; font-weight: 700; color: var(--blu-700);">${DataService.formatDate(app.scadenzaCertificatoApple)}</div>
+                            </div>
+                            ` : ''}
+                            ${app.altraScadenzaData ? `
+                            <div class="stat-box" style="background: var(--grigio-100); padding: 1rem; border-radius: 8px;">
+                                <div style="font-size: 0.75rem; color: var(--grigio-500); margin-bottom: 0.25rem; font-weight: 600; text-transform: uppercase;">📌 ${app.altraScadenzaNote || 'Altra Scadenza'}</div>
+                                <div style="font-size: 1.125rem; font-weight: 700; color: var(--blu-700);">${DataService.formatDate(app.altraScadenzaData)}</div>
+                            </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                    ` : ''}
                 </div>
             </div>
         `;
@@ -491,6 +600,109 @@ const DettaglioApp = {
                             </div>
                         </div>
                     </div>
+                </div>
+            </div>
+        `;
+    },
+
+    renderControlloQualita(app) {
+        // Calcola se serve un controllo qualità (più di 1 mese dall'ultimo)
+        let needsCheck = false;
+        let giorniPassati = null;
+
+        if (app.dataUltimoControlloQualita) {
+            const dataControllo = new Date(app.dataUltimoControlloQualita);
+            dataControllo.setHours(0, 0, 0, 0);
+            const oggi = new Date();
+            oggi.setHours(0, 0, 0, 0);
+            const diffTime = oggi - dataControllo;
+            giorniPassati = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+            needsCheck = giorniPassati > 30;
+        } else {
+            // Nessun controllo mai fatto
+            needsCheck = true;
+        }
+
+        return `
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">
+                        <i class="fas fa-clipboard-check"></i> Controllo Qualità
+                        ${app.controlloQualitaNegativo ? `<span class="badge" style="background: var(--rosso-errore); color: white; font-size: 0.75rem; padding: 0.25rem 0.5rem; border-radius: 12px; margin-left: 0.5rem;"><i class="fas fa-times-circle"></i> QA KO</span>` : needsCheck ? `<span class="badge" style="background: var(--giallo-avviso); color: #856404; font-size: 0.75rem; padding: 0.25rem 0.5rem; border-radius: 12px; margin-left: 0.5rem;"><i class="fas fa-info-circle"></i> Controllo necessario</span>` : ''}
+                    </h2>
+                </div>
+                <div class="card-body">
+                    ${app.controlloQualitaNegativo ? `
+                    <div style="background: linear-gradient(135deg, #FFEBEE 0%, #FFCDD2 100%); border-left: 4px solid var(--rosso-errore); padding: 1.5rem; border-radius: 8px; margin-bottom: 1.5rem;">
+                        <div style="display: flex; align-items: center; gap: 1rem;">
+                            <i class="fas fa-times-circle" style="color: var(--rosso-errore); font-size: 2.5rem;"></i>
+                            <div style="flex: 1;">
+                                <div style="font-weight: 700; color: var(--rosso-errore); font-size: 1.25rem; margin-bottom: 0.5rem;">
+                                    <i class="fas fa-exclamation-triangle"></i> CONTROLLO QUALITÀ NEGATIVO
+                                </div>
+                                <div style="font-size: 0.95rem; color: #C62828; line-height: 1.5;">
+                                    Il controllo qualità ha rilevato problemi critici che richiedono attenzione immediata.
+                                    Verificare le note del controllo per i dettagli.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    ` : needsCheck ? `
+                    <div style="background: linear-gradient(135deg, #FFF9E6 0%, #FFF3CD 100%); border-left: 4px solid var(--giallo-avviso); padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem;">
+                        <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
+                            <i class="fas fa-exclamation-triangle" style="color: var(--giallo-avviso); font-size: 1.5rem;"></i>
+                            <div>
+                                <div style="font-weight: 700; color: #856404; font-size: 1rem;">
+                                    ${app.dataUltimoControlloQualita ? `È passato più di 1 mese dall'ultimo controllo` : `Nessun controllo qualità effettuato`}
+                                </div>
+                                <div style="font-size: 0.875rem; color: #856404; margin-top: 0.25rem;">
+                                    ${app.dataUltimoControlloQualita ? `Ultimo controllo: ${DataService.formatDate(app.dataUltimoControlloQualita)} (${giorniPassati} giorni fa)` : `Si consiglia di effettuare un controllo qualità dell'app`}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    ` : ''}
+
+                    ${app.dataUltimoControlloQualita ? `
+                    <div style="display: grid; gap: 1.5rem;">
+                        <div class="stat-box" style="background: var(--${needsCheck ? 'giallo-avviso' : 'verde-100'}); padding: 1.5rem; border-radius: 8px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                                <div style="font-size: 0.75rem; color: var(--grigio-700); font-weight: 600; text-transform: uppercase;">
+                                    📅 Ultimo Controllo
+                                </div>
+                                <span style="background: white; color: var(--blu-700); padding: 0.25rem 0.75rem; border-radius: 12px; font-size: 0.75rem; font-weight: 700;">
+                                    ${giorniPassati} giorni fa
+                                </span>
+                            </div>
+                            <div style="font-size: 1.25rem; font-weight: 700; color: var(--blu-700); margin-bottom: ${app.controlloQualitaDaNome ? '0.75rem' : '0'};">
+                                ${DataService.formatDate(app.dataUltimoControlloQualita)}
+                            </div>
+                            ${app.controlloQualitaDaNome ? `
+                            <div style="font-size: 0.875rem; color: var(--grigio-600); margin-top: 0.5rem; padding-top: 0.75rem; border-top: 1px solid rgba(0,0,0,0.1);">
+                                <i class="fas fa-user-check" style="color: var(--blu-500);"></i>
+                                <strong>Ultima verifica effettuata da:</strong> ${app.controlloQualitaDaNome}
+                            </div>
+                            ` : ''}
+                        </div>
+
+                        ${app.noteControlloQualita ? `
+                        <div style="background: var(--grigio-100); padding: 1.5rem; border-radius: 8px;">
+                            <div style="font-size: 0.75rem; color: var(--grigio-700); font-weight: 600; text-transform: uppercase; margin-bottom: 0.75rem;">
+                                📋 Risultati Controllo
+                            </div>
+                            <div style="color: var(--grigio-900); white-space: pre-wrap; line-height: 1.6;">
+                                ${app.noteControlloQualita}
+                            </div>
+                        </div>
+                        ` : ''}
+                    </div>
+                    ` : `
+                    <div class="empty-state" style="padding: 2rem;">
+                        <i class="fas fa-clipboard-check" style="font-size: 3rem; color: var(--grigio-300); margin-bottom: 1rem;"></i>
+                        <p style="color: var(--grigio-500); margin: 0;">Nessun controllo qualità effettuato</p>
+                        <p style="color: var(--grigio-400); font-size: 0.875rem; margin-top: 0.5rem;">Clicca su Modifica per aggiungere la data del primo controllo</p>
+                    </div>
+                    `}
                 </div>
             </div>
         `;
@@ -554,6 +766,268 @@ const DettaglioApp = {
                 </div>
             </div>
         `;
+    },
+
+    renderDocumenti() {
+        return `
+            <div class="card">
+                <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                    <h2 class="card-title">
+                        <i class="fas fa-folder-open"></i> Documenti App
+                    </h2>
+                    <button class="btn btn-primary" onclick="DettaglioApp.showUploadDocumento()">
+                        <i class="fas fa-upload"></i> Carica Documento
+                    </button>
+                </div>
+
+                ${this.documenti.length === 0 ? `
+                    <div class="empty-state">
+                        <i class="fas fa-folder-open"></i>
+                        <h3>Nessun documento caricato</h3>
+                        <p>Carica documenti tecnici, di gestione o altro per questa app</p>
+                    </div>
+                ` : `
+                    <div class="documenti-list" style="display: grid; gap: 1rem; padding: 1.5rem;">
+                        ${this.documenti.map(doc => `
+                            <div class="documento-item" style="
+                                background: white;
+                                border: 2px solid var(--grigio-300);
+                                border-radius: 8px;
+                                padding: 1.5rem;
+                                display: grid;
+                                grid-template-columns: auto 1fr auto;
+                                gap: 1.5rem;
+                                align-items: start;
+                                transition: all 0.2s;
+                            " onmouseover="this.style.borderColor='var(--blu-500)'" onmouseout="this.style.borderColor='var(--grigio-300)'">
+
+                                <!-- Icona file -->
+                                <div style="
+                                    width: 60px;
+                                    height: 60px;
+                                    background: var(--grigio-100);
+                                    border-radius: 8px;
+                                    display: flex;
+                                    align-items: center;
+                                    justify-content: center;
+                                ">
+                                    <i class="${DocumentService.getFileIcon(doc.mimeType)}" style="
+                                        font-size: 2rem;
+                                        color: ${DocumentService.getFileColor(doc.mimeType)};
+                                    "></i>
+                                </div>
+
+                                <!-- Info documento -->
+                                <div style="min-width: 0;">
+                                    <h4 style="
+                                        margin: 0 0 0.5rem 0;
+                                        color: var(--blu-700);
+                                        font-weight: 700;
+                                        font-size: 1.1rem;
+                                        word-break: break-word;
+                                    ">
+                                        ${doc.nomeOriginale}
+                                    </h4>
+
+                                    <p style="
+                                        margin: 0 0 0.75rem 0;
+                                        color: var(--grigio-700);
+                                        line-height: 1.5;
+                                    ">
+                                        ${doc.descrizione}
+                                    </p>
+
+                                    <div style="
+                                        display: flex;
+                                        gap: 1.5rem;
+                                        flex-wrap: wrap;
+                                        font-size: 0.9rem;
+                                        color: var(--grigio-500);
+                                    ">
+                                        <span>
+                                            <i class="fas fa-hdd"></i> ${DocumentService.formatFileSize(doc.dimensione)}
+                                        </span>
+                                        <span>
+                                            <i class="fas fa-calendar"></i> ${new Date(doc.dataCaricamento).toLocaleDateString('it-IT')}
+                                        </span>
+                                        <span>
+                                            <i class="fas fa-user"></i> ${doc.caricatoDaNome}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <!-- Azioni -->
+                                <div style="display: flex; gap: 0.5rem; flex-direction: column;">
+                                    <button class="btn btn-primary" onclick="DettaglioApp.downloadDocumento('${doc.downloadUrl}', '${doc.nomeOriginale}')" style="
+                                        white-space: nowrap;
+                                        padding: 0.5rem 1rem;
+                                    ">
+                                        <i class="fas fa-download"></i> Scarica
+                                    </button>
+                                    <button class="btn btn-danger" onclick="DettaglioApp.deleteDocumento('${doc.id}', '${doc.storagePath}', '${doc.nomeOriginale}')" style="
+                                        white-space: nowrap;
+                                        padding: 0.5rem 1rem;
+                                    ">
+                                        <i class="fas fa-trash"></i> Elimina
+                                    </button>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `}
+            </div>
+        `;
+    },
+
+    async showUploadDocumento() {
+        await UI.showModal({
+            title: '<i class="fas fa-upload"></i> Carica Documento App',
+            content: `
+                <form id="uploadDocumentoForm">
+                    <div style="margin-bottom: 1.5rem;">
+                        <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--grigio-700);">
+                            📄 File (PDF o Immagini, max 10MB)
+                        </label>
+                        <input type="file" id="fileInput" accept=".pdf,.jpg,.jpeg,.png" required style="
+                            width: 100%;
+                            padding: 0.75rem;
+                            border: 2px dashed var(--blu-500);
+                            border-radius: 8px;
+                            background: var(--blu-100);
+                            cursor: pointer;
+                        ">
+                        <small style="color: var(--grigio-500); display: block; margin-top: 0.5rem;">
+                            Tipi ammessi: PDF, JPG, PNG - Dimensione massima: 10MB
+                        </small>
+                    </div>
+
+                    <div style="margin-bottom: 1.5rem;">
+                        <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--grigio-700);">
+                            📝 Descrizione *
+                        </label>
+                        <textarea id="descrizioneInput" rows="3" required placeholder="Es: Screenshot interfaccia, Documento tecnico, Privacy policy..." style="
+                            width: 100%;
+                            padding: 0.75rem;
+                            border: 2px solid var(--grigio-300);
+                            border-radius: 8px;
+                            font-family: 'Titillium Web', sans-serif;
+                            resize: vertical;
+                        "></textarea>
+                    </div>
+                </form>
+            `,
+            confirmText: 'Carica',
+            cancelText: 'Annulla',
+            onConfirm: async () => {
+                // Raccogli dati PRIMA che il modal si chiuda
+                const fileInput = document.getElementById('fileInput');
+                const descrizioneInput = document.getElementById('descrizioneInput');
+
+                const file = fileInput.files[0];
+                const descrizione = descrizioneInput.value.trim();
+
+                if (!file) {
+                    UI.showError('Seleziona un file da caricare');
+                    return false;  // Non chiudere il modal
+                }
+
+                if (!descrizione) {
+                    UI.showError('Inserisci una descrizione per il documento');
+                    return false;  // Non chiudere il modal
+                }
+
+                // Mostra loading sul pulsante
+                const confirmBtn = document.getElementById('modalConfirmBtn');
+                const originalHTML = confirmBtn.innerHTML;
+                confirmBtn.disabled = true;
+                confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Caricamento...';
+
+                try {
+                    await DocumentService.uploadDocumento(file, 'app', this.appId, descrizione);
+
+                    // Ricarica documenti
+                    this.documenti = await DocumentService.getDocumenti('app', this.appId);
+
+                    // Aggiorna tab content
+                    const tabContent = document.getElementById('tabContent');
+                    tabContent.innerHTML = this.renderDocumenti();
+
+                    // Aggiorna conteggio nel tab
+                    const tabsNav = document.querySelector('[style*="border-bottom"]');
+                    if (tabsNav) {
+                        tabsNav.outerHTML = this.renderTabsNav();
+                    }
+
+                    return true;  // Chiudi il modal
+                } catch (error) {
+                    // Ripristina pulsante in caso di errore
+                    confirmBtn.disabled = false;
+                    confirmBtn.innerHTML = originalHTML;
+                    UI.showError(error.message || 'Errore durante il caricamento del documento');
+                    return false;  // Non chiudere il modal in caso di errore
+                }
+            }
+        });
+    },
+
+    downloadDocumento(url, nomeFile) {
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = nomeFile;
+        a.target = '_blank';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+    },
+
+    async deleteDocumento(documentoId, storagePath, nomeFile) {
+        const conferma = await UI.showModal({
+            title: '<i class="fas fa-exclamation-triangle"></i> Conferma Eliminazione',
+            content: `
+                <div style="text-align: center;">
+                    <p style="font-size: 1.1rem; margin-bottom: 1rem;">
+                        Sei sicuro di voler eliminare questo documento?
+                    </p>
+                    <p style="
+                        background: var(--grigio-100);
+                        padding: 1rem;
+                        border-radius: 8px;
+                        font-weight: 600;
+                        color: var(--blu-700);
+                        word-break: break-word;
+                    ">
+                        ${nomeFile}
+                    </p>
+                    <p style="color: var(--rosso-errore); font-weight: 600; margin-top: 1rem;">
+                        ⚠️ Questa azione non può essere annullata
+                    </p>
+                </div>
+            `,
+            confirmText: 'Sì, elimina',
+            cancelText: 'Annulla',
+            confirmClass: 'btn-danger'
+        });
+
+        if (conferma) {
+            try {
+                await DocumentService.deleteDocumento(documentoId, storagePath);
+
+                // Ricarica documenti
+                this.documenti = await DocumentService.getDocumenti('app', this.appId);
+
+                // Aggiorna tab content
+                const tabContent = document.getElementById('tabContent');
+                tabContent.innerHTML = this.renderDocumenti();
+
+                // Aggiorna conteggio nel tab
+                const tabsNav = document.querySelector('[style*="border-bottom"]');
+                if (tabsNav) {
+                    tabsNav.outerHTML = this.renderTabsNav();
+                }
+            } catch (error) {
+                UI.showError(error.message || 'Errore durante l\'eliminazione del documento');
+            }
+        }
     },
 
     async editApp() {

@@ -3,6 +3,7 @@ const GestioneTask = {
     tasks: [],
     apps: [],
     utenti: [],
+    commentsCounts: {}, // Mappa taskId -> numero commenti
     filtri: {
         appId: null,
         assegnatoA: null,
@@ -23,6 +24,9 @@ const GestioneTask = {
             this.tasks = tasksResult.success ? tasksResult.tasks : [];
             this.apps = apps;
             this.utenti = utenti;
+
+            // Carica conteggi commenti per tutti i task
+            await this.loadAllCommentsCounts();
 
             const mainContent = document.getElementById('mainContent');
             mainContent.innerHTML = `
@@ -80,6 +84,36 @@ const GestioneTask = {
         return `
             <div class="card mb-3">
                 <div class="card-body" style="padding: 1rem;">
+                    <!-- Campo Ricerca Testuale -->
+                    <div style="margin-bottom: 1rem;">
+                        <div style="position: relative;">
+                            <i class="fas fa-search" style="
+                                position: absolute;
+                                left: 1rem;
+                                top: 50%;
+                                transform: translateY(-50%);
+                                color: var(--grigio-500);
+                            "></i>
+                            <input
+                                type="text"
+                                id="searchTask"
+                                placeholder="🔍 Cerca task per titolo o descrizione..."
+                                onkeyup="GestioneTask.applicaFiltri()"
+                                style="
+                                    width: 100%;
+                                    padding: 0.75rem 1rem 0.75rem 2.5rem;
+                                    border: 2px solid var(--grigio-300);
+                                    border-radius: 8px;
+                                    font-family: 'Titillium Web', sans-serif;
+                                    font-size: 1rem;
+                                    transition: all 0.2s;
+                                "
+                                onfocus="this.style.borderColor='var(--blu-500)'"
+                                onblur="this.style.borderColor='var(--grigio-300)'"
+                            >
+                        </div>
+                    </div>
+
                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
                         <!-- Filtro App -->
                         <div>
@@ -124,6 +158,17 @@ const GestioneTask = {
                                 <option value="MEDIA">Media</option>
                                 <option value="BASSA">Bassa</option>
                             </select>
+                        </div>
+
+                        <!-- 🗄️ Checkbox Archiviati -->
+                        <div style="display: flex; align-items: flex-end;">
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; padding: 0.5rem; background: var(--grigio-100); border-radius: 4px; width: 100%;">
+                                <input type="checkbox" id="mostraArchiviati" onchange="GestioneTask.applicaFiltri()"
+                                       style="width: 18px; height: 18px; cursor: pointer;">
+                                <span style="font-size: 0.875rem; font-weight: 600; color: var(--grigio-700);">
+                                    <i class="fas fa-archive"></i> Mostra archiviati
+                                </span>
+                            </label>
                         </div>
 
                         <!-- Pulsante Reset -->
@@ -238,9 +283,17 @@ const GestioneTask = {
                 </div>
 
                 <!-- App collegate -->
-                <div style="display: flex; flex-wrap: wrap; gap: 0.25rem; margin-bottom: 0.75rem;">
+                <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.75rem;">
                     ${appNames.map(nome => `
-                        <span style="background: var(--blu-100); color: var(--blu-700); padding: 0.125rem 0.5rem; border-radius: 4px; font-size: 0.75rem;">
+                        <span style="
+                            background: var(--blu-700);
+                            color: white;
+                            padding: 0.375rem 0.75rem;
+                            border-radius: 6px;
+                            font-size: 0.875rem;
+                            font-weight: 600;
+                            box-shadow: 0 2px 4px rgba(20, 82, 132, 0.2);
+                        ">
                             <i class="fas fa-mobile-alt"></i> ${nome}
                         </span>
                     `).join('')}
@@ -260,16 +313,36 @@ const GestioneTask = {
                         const assegnati = task.assegnatiANomi || (task.assegnatoANome ? [task.assegnatoANome] : []);
                         if (assegnati.length > 0) {
                             return `
-                                <div style="display: flex; align-items: center; gap: 0.5rem;">
-                                    <i class="fas fa-${assegnati.length > 1 ? 'users' : 'user'}" style="width: 14px;"></i>
-                                    <span>${assegnati.join(', ')}</span>
+                                <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+                                    ${assegnati.map(nome => `
+                                        <span style="
+                                            background: var(--verde-700);
+                                            color: white;
+                                            padding: 0.375rem 0.75rem;
+                                            border-radius: 6px;
+                                            font-size: 0.875rem;
+                                            font-weight: 600;
+                                            box-shadow: 0 2px 4px rgba(60, 164, 52, 0.2);
+                                        ">
+                                            <i class="fas fa-user"></i> ${nome}
+                                        </span>
+                                    `).join('')}
                                 </div>
                             `;
                         } else {
                             return `
-                                <div style="display: flex; align-items: center; gap: 0.5rem; color: var(--giallo-avviso);">
-                                    <i class="fas fa-user-slash" style="width: 14px;"></i>
-                                    <span>Non assegnato (pool)</span>
+                                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                    <span style="
+                                        background: var(--giallo-avviso);
+                                        color: var(--grigio-900);
+                                        padding: 0.375rem 0.75rem;
+                                        border-radius: 6px;
+                                        font-size: 0.875rem;
+                                        font-weight: 600;
+                                        box-shadow: 0 2px 4px rgba(255, 204, 0, 0.2);
+                                    ">
+                                        <i class="fas fa-user-slash"></i> Non assegnato (pool)
+                                    </span>
                                 </div>
                             `;
                         }
@@ -285,6 +358,28 @@ const GestioneTask = {
                         <i class="fas fa-clock" style="width: 14px;"></i>
                         <span>Creato ${TaskService.formatDate(task.creatoIl)}</span>
                     </div>
+
+                    <!-- Badge Commenti -->
+                    ${(() => {
+                        const count = this.commentsCounts[task.id] || 0;
+                        return `
+                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                <span style="
+                                    background: var(--verde-700);
+                                    color: white;
+                                    padding: 0.25rem 0.5rem;
+                                    border-radius: 4px;
+                                    font-size: 0.8125rem;
+                                    font-weight: 600;
+                                    display: inline-flex;
+                                    align-items: center;
+                                    gap: 0.375rem;
+                                ">
+                                    <i class="fas fa-comments"></i> ${count} ${count === 1 ? 'commento' : 'commenti'}
+                                </span>
+                            </div>
+                        `;
+                    })()}
                 </div>
 
                 <!-- Azioni -->
@@ -349,8 +444,54 @@ const GestioneTask = {
             `);
         }
 
+        // 📱 PULSANTE "AVVISA CON TELEGRAM" (solo per task URGENTI)
+        if (task.priorita === TaskService.PRIORITA.URGENTE && !task.archiviato) {
+            actions.push(`
+                <button class="btn btn-sm" style="background: #0088cc; color: white; border: none; padding: 0.25rem 0.75rem; font-size: 0.75rem;"
+                        onclick="event.stopPropagation(); GestioneTask.notifyTelegram('${task.id}')">
+                    <i class="fab fa-telegram"></i> Avvisa con Telegram
+                </button>
+            `);
+        }
+
+        // 🗄️ PULSANTI ARCHIVIAZIONE / ELIMINAZIONE (solo per chi può gestire)
+        if (canManage) {
+            // Se il task è archiviato, mostra "Ripristina"
+            if (task.archiviato) {
+                actions.push(`
+                    <button class="btn btn-sm" style="background: var(--verde-500); color: white; border: none; padding: 0.25rem 0.75rem; font-size: 0.75rem;"
+                            onclick="event.stopPropagation(); GestioneTask.restoreTask('${task.id}')">
+                        <i class="fas fa-undo"></i> Ripristina
+                    </button>
+                `);
+            } else {
+                // Se il task NON è archiviato, mostra "Archivia"
+                actions.push(`
+                    <button class="btn btn-sm" style="background: var(--grigio-500); color: white; border: none; padding: 0.25rem 0.75rem; font-size: 0.75rem;"
+                            onclick="event.stopPropagation(); GestioneTask.archiveTask('${task.id}')">
+                        <i class="fas fa-archive"></i> Archivia
+                    </button>
+                `);
+            }
+
+            // Pulsante "Elimina" (sempre disponibile, con conferma)
+            actions.push(`
+                <button class="btn btn-sm" style="background: var(--rosso-errore); color: white; border: none; padding: 0.25rem 0.75rem; font-size: 0.75rem;"
+                        onclick="event.stopPropagation(); GestioneTask.deleteTask('${task.id}')">
+                    <i class="fas fa-trash"></i> Elimina
+                </button>
+            `);
+        }
+
         return actions.length > 0 ? `
-            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; padding-top: 0.5rem; border-top: 1px solid var(--grigio-300);">
+            <div style="
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+                gap: 0.5rem;
+                padding-top: 0.75rem;
+                border-top: 2px solid var(--grigio-200);
+                margin-top: 0.75rem;
+            ">
                 ${actions.join('')}
             </div>
         ` : '';
@@ -386,21 +527,32 @@ const GestioneTask = {
         this.filtri.appId = document.getElementById('filtroApp').value || null;
         this.filtri.assegnatoA = document.getElementById('filtroAssegnatario').value || null;
         this.filtri.priorita = document.getElementById('filtroPriorita').value || null;
+        this.filtri.mostraArchiviati = document.getElementById('mostraArchiviati').checked;
+        this.filtri.searchText = document.getElementById('searchTask').value.toLowerCase().trim() || null;
 
         // Ricarica solo la sezione task
         this.reloadTasks();
     },
 
     resetFiltri() {
-        this.filtri = { appId: null, assegnatoA: null, priorita: null };
+        this.filtri = { appId: null, assegnatoA: null, priorita: null, mostraArchiviati: false, searchText: null };
         document.getElementById('filtroApp').value = '';
         document.getElementById('filtroAssegnatario').value = '';
         document.getElementById('filtroPriorita').value = '';
+        document.getElementById('mostraArchiviati').checked = false;
+        document.getElementById('searchTask').value = '';
         this.reloadTasks();
     },
 
     getTasksFiltrati() {
         let filtered = [...this.tasks];
+
+        // 🗄️ FILTRO ARCHIVIATI (nuovo!)
+        if (!this.filtri.mostraArchiviati) {
+            // Di default, nascondi i task archiviati
+            filtered = filtered.filter(t => !t.archiviato);
+        }
+        // Se mostraArchiviati è true, mostra tutti (anche archiviati)
 
         // Filtro App
         if (this.filtri.appId) {
@@ -416,15 +568,25 @@ const GestioneTask = {
         // Filtro Assegnatario
         if (this.filtri.assegnatoA) {
             if (this.filtri.assegnatoA === '__unassigned__') {
-                filtered = filtered.filter(t => !t.assegnatoA);
+                // Task non assegnati: controllo se array è vuoto o non esiste
+                filtered = filtered.filter(t => !t.assegnatiA || t.assegnatiA.length === 0);
             } else {
-                filtered = filtered.filter(t => t.assegnatoA === this.filtri.assegnatoA);
+                // Task assegnati a un utente specifico: controllo se è nell'array
+                filtered = filtered.filter(t => t.assegnatiA && t.assegnatiA.includes(this.filtri.assegnatoA));
             }
         }
 
         // Filtro Priorità
         if (this.filtri.priorita) {
             filtered = filtered.filter(t => t.priorita === this.filtri.priorita);
+        }
+
+        // 🔍 Filtro Ricerca Testuale
+        if (this.filtri.searchText) {
+            filtered = filtered.filter(t => {
+                const searchableText = `${t.titolo} ${t.descrizione || ''}`.toLowerCase();
+                return searchableText.includes(this.filtri.searchText);
+            });
         }
 
         return filtered;
@@ -676,6 +838,10 @@ const GestioneTask = {
     },
 
     async viewTaskDetails(taskId) {
+        // Reset stato commenti
+        this.commentiCaricati = false;
+        this.commentiAperti = false;
+
         const task = this.tasks.find(t => t.id === taskId);
         if (!task) {
             UI.showError('Task non trovato');
@@ -687,8 +853,7 @@ const GestioneTask = {
         const isOverdue = TaskService.isScaduto(task);
         const isDueSoon = TaskService.isInScadenza(task);
 
-        // Trova nomi app collegat
-e
+        // Trova nomi app collegate
         const appsNomi = (task.appIds || []).map(appId => {
             const app = this.apps.find(a => a.id === appId);
             return app ? app.nome : 'App sconosciuta';
@@ -712,6 +877,25 @@ e
                                 </span>
                                 ${isOverdue ? '<span style="background: var(--rosso-errore); color: white; padding: 0.25rem 0.75rem; border-radius: 4px; font-size: 0.875rem; font-weight: 600;"><i class="fas fa-exclamation-triangle"></i> SCADUTO</span>' : ''}
                                 ${isDueSoon && !isOverdue ? '<span style="background: var(--giallo-avviso); color: #333; padding: 0.25rem 0.75rem; border-radius: 4px; font-size: 0.875rem; font-weight: 600;"><i class="fas fa-clock"></i> IN SCADENZA</span>' : ''}
+
+                                <!-- Badge Discussione -->
+                                <button
+                                    onclick="event.stopPropagation(); GestioneTask.scrollToCommenti('${task.id}')"
+                                    style="
+                                        background: var(--verde-700);
+                                        color: white;
+                                        padding: 0.25rem 0.75rem;
+                                        border-radius: 4px;
+                                        font-size: 0.875rem;
+                                        font-weight: 600;
+                                        border: none;
+                                        cursor: pointer;
+                                        transition: all 0.2s;
+                                    "
+                                    onmouseover="this.style.background='var(--verde-500)'"
+                                    onmouseout="this.style.background='var(--verde-700)'">
+                                    <i class="fas fa-comments"></i> Discussione <span id="badgeCommentiCount">...</span>
+                                </button>
                             </div>
                         </div>
                         <button onclick="document.getElementById('taskDetailModal').remove()" style="background: none; border: none; font-size: 1.5rem; color: var(--grigio-600); cursor: pointer; padding: 0; margin-left: 1rem;">
@@ -835,6 +1019,49 @@ e
                                 </div>
                             </div>
                         ` : ''}
+
+                        <!-- 💬 SEZIONE COMMENTI/DISCUSSIONI -->
+                        <div id="commentiSection" style="margin-top: 1.5rem; border-top: 2px solid var(--grigio-300); padding-top: 1rem;">
+                            <!-- Header espandibile -->
+                            <div onclick="GestioneTask.toggleCommenti('${task.id}')"
+                                 style="display: flex; justify-content: space-between; align-items: center; cursor: pointer; padding: 0.75rem; background: var(--grigio-100); border-radius: 8px; margin-bottom: 1rem;">
+                                <h3 style="font-size: 1.125rem; font-weight: 700; color: var(--blu-700); margin: 0;">
+                                    <i class="fas fa-comments"></i> Discussione
+                                    <span id="commentiCount" style="background: var(--blu-700); color: white; padding: 0.125rem 0.5rem; border-radius: 12px; font-size: 0.875rem; margin-left: 0.5rem;">
+                                        ...
+                                    </span>
+                                </h3>
+                                <i id="commentiToggleIcon" class="fas fa-chevron-down" style="color: var(--blu-700); transition: transform 0.3s;"></i>
+                            </div>
+
+                            <!-- Contenuto commenti (inizialmente nascosto) -->
+                            <div id="commentiContent" style="display: none;">
+                                <!-- Lista commenti -->
+                                <div id="commentiList" style="margin-bottom: 1rem;">
+                                    <div style="text-align: center; padding: 2rem; color: var(--grigio-500);">
+                                        <i class="fas fa-spinner fa-spin" style="font-size: 2rem;"></i>
+                                        <p style="margin-top: 0.5rem;">Caricamento commenti...</p>
+                                    </div>
+                                </div>
+
+                                <!-- Form nuovo commento -->
+                                <div style="background: var(--grigio-100); padding: 1rem; border-radius: 8px;">
+                                    <textarea
+                                        id="nuovoCommentoText"
+                                        placeholder="💬 Scrivi un commento..."
+                                        style="width: 100%; min-height: 80px; padding: 0.75rem; border: 2px solid var(--grigio-300); border-radius: 6px; font-family: inherit; resize: vertical; margin-bottom: 0.75rem;"
+                                    ></textarea>
+                                    <div style="display: flex; justify-content: flex-end;">
+                                        <button
+                                            onclick="GestioneTask.aggiungiCommento('${task.id}')"
+                                            class="btn"
+                                            style="background: var(--verde-700); color: white;">
+                                            <i class="fas fa-paper-plane"></i> Invia commento
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- Footer con azioni -->
@@ -848,6 +1075,9 @@ e
         `;
 
         document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+        // Carica conteggio commenti per il badge
+        this.loadCommentiCount(taskId);
 
         // Chiudi cliccando fuori
         document.getElementById('taskDetailModal').addEventListener('click', (e) => {
@@ -965,6 +1195,460 @@ e
             console.error('Errore riassegnazione:', error);
             UI.showError('Errore riassegnazione task');
             UI.hideLoading();
+        }
+    },
+
+    // 🗄️ ARCHIVIA TASK
+    async archiveTask(taskId) {
+        if (!confirm('Vuoi archiviare questo task?\n\nIl task verrà nascosto dalla vista principale ma rimarrà nel database e potrai ripristinarlo in qualsiasi momento.')) {
+            return;
+        }
+
+        try {
+            UI.showLoading();
+            const result = await TaskService.archiveTask(taskId);
+
+            if (result.success) {
+                UI.showSuccess('Task archiviato con successo!');
+                await this.render();
+            } else {
+                UI.showError('Errore: ' + result.error);
+                UI.hideLoading();
+            }
+        } catch (error) {
+            console.error('Errore archiviazione task:', error);
+            UI.showError('Errore archiviazione task');
+            UI.hideLoading();
+        }
+    },
+
+    // ♻️ RIPRISTINA TASK
+    async restoreTask(taskId) {
+        try {
+            UI.showLoading();
+            const result = await TaskService.restoreTask(taskId);
+
+            if (result.success) {
+                UI.showSuccess('Task ripristinato con successo!');
+                await this.render();
+            } else {
+                UI.showError('Errore: ' + result.error);
+                UI.hideLoading();
+            }
+        } catch (error) {
+            console.error('Errore ripristino task:', error);
+            UI.showError('Errore ripristino task');
+            UI.hideLoading();
+        }
+    },
+
+    // 🗑️ ELIMINA TASK
+    async deleteTask(taskId) {
+        if (!confirm('⚠️ ATTENZIONE!\n\nVuoi eliminare DEFINITIVAMENTE questo task?\n\nQuesta azione NON può essere annullata!\n\nSe non sei sicuro, usa "Archivia" invece di "Elimina".')) {
+            return;
+        }
+
+        // Doppia conferma per sicurezza
+        if (!confirm('Sei ASSOLUTAMENTE SICURO?\n\nIl task verrà eliminato per sempre e non sarà più recuperabile!')) {
+            return;
+        }
+
+        try {
+            UI.showLoading();
+            const result = await TaskService.deleteTask(taskId);
+
+            if (result.success) {
+                UI.showSuccess('Task eliminato definitivamente');
+                await this.render();
+            } else {
+                UI.showError('Errore: ' + result.error);
+                UI.hideLoading();
+            }
+        } catch (error) {
+            console.error('Errore eliminazione task:', error);
+            UI.showError('Errore eliminazione task');
+            UI.hideLoading();
+        }
+    },
+
+    // 📱 NOTIFICA TELEGRAM
+    async notifyTelegram(taskId) {
+        try {
+            UI.showLoading();
+
+            // Carica il task
+            const taskDoc = await db.collection('tasks').doc(taskId).get();
+            if (!taskDoc.exists) {
+                UI.showError('Task non trovato');
+                UI.hideLoading();
+                return;
+            }
+
+            const task = { id: taskDoc.id, ...taskDoc.data() };
+
+            // Genera link diretto al task
+            const taskLink = `https://growapp-crm.vercel.app/#/task/${taskId}`;
+
+            // Genera messaggio Telegram
+            const messaggio = `🚨 *TASK URGENTE* 🚨\n\n` +
+                `📋 *${task.titolo}*\n\n` +
+                (task.descrizione ? `${task.descrizione}\n\n` : '') +
+                `⚠️ Priorità: URGENTE\n` +
+                `📅 Creato: ${task.creatoIl ? new Date(task.creatoIl.seconds * 1000).toLocaleDateString('it-IT') : 'N/A'}\n\n` +
+                `🔗 Apri task: ${taskLink}`;
+
+            // Codifica il messaggio per URL
+            const messaggioCodificato = encodeURIComponent(messaggio);
+
+            // Se il task è assegnato a qualcuno, apri chat con l'utente
+            if (task.assegnatiA && task.assegnatiA.length > 0) {
+                // Carica gli utenti assegnati
+                const utentiPromises = task.assegnatiA.map(uid =>
+                    db.collection('utenti').doc(uid).get()
+                );
+                const utentiDocs = await Promise.all(utentiPromises);
+
+                const utentiConTelegram = utentiDocs
+                    .filter(doc => doc.exists && doc.data().telegramUsername)
+                    .map(doc => ({
+                        nome: doc.data().nome + ' ' + doc.data().cognome,
+                        telegram: doc.data().telegramUsername
+                    }));
+
+                if (utentiConTelegram.length === 0) {
+                    UI.showError('Nessun utente assegnato ha configurato il proprio account Telegram.\n\nVai in Impostazioni → Utenti per aggiungere gli username Telegram.');
+                    UI.hideLoading();
+                    return;
+                }
+
+                // Se c'è un solo utente, apri direttamente la chat
+                if (utentiConTelegram.length === 1) {
+                    const username = utentiConTelegram[0].telegram.replace('@', '');
+                    const telegramUrl = `https://t.me/${username}?text=${messaggioCodificato}`;
+
+                    UI.hideLoading();
+                    window.open(telegramUrl, '_blank');
+                    UI.showSuccess(`Telegram aperto per inviare notifica a ${utentiConTelegram[0].nome}`);
+                } else {
+                    // Più utenti: chiedi quale
+                    const scelta = confirm(
+                        `Il task è assegnato a ${utentiConTelegram.length} persone:\n\n` +
+                        utentiConTelegram.map((u, i) => `${i + 1}. ${u.nome} (${u.telegram})`).join('\n') +
+                        `\n\nVuoi inviare a TUTTI (OK) o scegliere manualmente (Annulla)?`
+                    );
+
+                    UI.hideLoading();
+
+                    if (scelta) {
+                        // Invia a tutti (apri Telegram app con messaggio, l'utente sceglierà)
+                        const telegramUrl = `tg://msg?text=${messaggioCodificato}`;
+                        window.location.href = telegramUrl;
+                        UI.showSuccess('Telegram aperto. Seleziona i destinatari e invia!');
+                    } else {
+                        // Apri Telegram app per scegliere manualmente
+                        const telegramUrl = `tg://msg?text=${messaggioCodificato}`;
+                        window.location.href = telegramUrl;
+                        UI.showSuccess('Telegram aperto. Seleziona il destinatario!');
+                    }
+                }
+            } else {
+                // Task in pool (non assegnato): apri Telegram app direttamente
+                // Usa deep link per aprire l'app invece di andare allo store
+                const telegramUrl = `tg://msg?text=${messaggioCodificato}`;
+
+                UI.hideLoading();
+                window.location.href = telegramUrl; // Usa location.href invece di window.open per deep link
+                UI.showSuccess('Telegram aperto. Seleziona il gruppo Growapp o un destinatario!');
+            }
+
+        } catch (error) {
+            console.error('Errore notifica Telegram:', error);
+            UI.showError('Errore invio notifica Telegram');
+            UI.hideLoading();
+        }
+    },
+
+    // 💬 ========================================
+    // GESTIONE COMMENTI/DISCUSSIONI
+    // ========================================
+
+    commentiCaricati: false,
+    commentiAperti: false,
+
+    /**
+     * Toggle espansione/compressione sezione commenti
+     */
+    async toggleCommenti(taskId) {
+        const content = document.getElementById('commentiContent');
+        const icon = document.getElementById('commentiToggleIcon');
+
+        if (!content || !icon) return;
+
+        this.commentiAperti = !this.commentiAperti;
+
+        if (this.commentiAperti) {
+            // Espandi
+            content.style.display = 'block';
+            icon.style.transform = 'rotate(180deg)';
+
+            // Carica commenti se non già caricati
+            if (!this.commentiCaricati) {
+                await this.caricaCommenti(taskId);
+                this.commentiCaricati = true;
+            }
+        } else {
+            // Comprimi
+            content.style.display = 'none';
+            icon.style.transform = 'rotate(0deg)';
+        }
+    },
+
+    /**
+     * Carica commenti dal database
+     */
+    async caricaCommenti(taskId) {
+        try {
+            const result = await CommentService.getCommentiTask(taskId);
+
+            if (result.success) {
+                this.renderCommenti(result.commenti, taskId);
+            } else {
+                document.getElementById('commentiList').innerHTML = `
+                    <div style="text-align: center; padding: 2rem; color: var(--rosso-errore);">
+                        <i class="fas fa-exclamation-triangle" style="font-size: 2rem;"></i>
+                        <p style="margin-top: 0.5rem;">Errore caricamento commenti</p>
+                    </div>
+                `;
+            }
+
+        } catch (error) {
+            console.error('Errore caricamento commenti:', error);
+            document.getElementById('commentiList').innerHTML = `
+                <div style="text-align: center; padding: 2rem; color: var(--rosso-errore);">
+                    <i class="fas fa-exclamation-triangle" style="font-size: 2rem;"></i>
+                    <p style="margin-top: 0.5rem;">Errore caricamento commenti</p>
+                </div>
+            `;
+        }
+    },
+
+    /**
+     * Renderizza lista commenti
+     */
+    renderCommenti(commenti, taskId) {
+        const commentiList = document.getElementById('commentiList');
+        const commentiCount = document.getElementById('commentiCount');
+
+        // Aggiorna contatore
+        if (commentiCount) {
+            commentiCount.textContent = commenti.length;
+        }
+
+        // Se non ci sono commenti
+        if (commenti.length === 0) {
+            commentiList.innerHTML = `
+                <div style="text-align: center; padding: 2rem; color: var(--grigio-500);">
+                    <i class="fas fa-comments" style="font-size: 2rem; opacity: 0.3;"></i>
+                    <p style="margin-top: 0.5rem;">Nessun commento ancora. Sii il primo a commentare!</p>
+                </div>
+            `;
+            return;
+        }
+
+        // Renderizza commenti
+        const utenteCorrente = AuthService.getUtenteCorrente();
+
+        commentiList.innerHTML = commenti.map(commento => {
+            const isAutore = utenteCorrente && commento.autoreId === utenteCorrente.uid;
+
+            return `
+                <div style="
+                    background: ${isAutore ? 'var(--verde-100)' : 'white'};
+                    border-left: 4px solid ${isAutore ? 'var(--verde-700)' : 'var(--blu-700)'};
+                    padding: 1rem;
+                    border-radius: 6px;
+                    margin-bottom: 1rem;
+                    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+                ">
+                    <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.5rem;">
+                        <div>
+                            <strong style="color: var(--grigio-900); font-size: 0.9375rem;">
+                                <i class="fas fa-user-circle" style="color: ${isAutore ? 'var(--verde-700)' : 'var(--blu-700)'};"></i>
+                                ${commento.autoreNome}
+                                ${isAutore ? '<span style="background: var(--verde-700); color: white; padding: 0.125rem 0.5rem; border-radius: 4px; font-size: 0.75rem; margin-left: 0.5rem;">Tu</span>' : ''}
+                            </strong>
+                            <div style="color: var(--grigio-600); font-size: 0.8125rem; margin-top: 0.25rem;">
+                                <i class="fas fa-clock"></i> ${CommentService.formatDataCommento(commento.creatoIl)}
+                                ${commento.modificato ? '<span style="font-style: italic;"> (modificato)</span>' : ''}
+                            </div>
+                        </div>
+                        ${isAutore ? `
+                            <button
+                                onclick="GestioneTask.eliminaCommento('${commento.id}', '${taskId}')"
+                                style="background: none; border: none; color: var(--rosso-errore); cursor: pointer; padding: 0.25rem 0.5rem; font-size: 0.875rem;"
+                                title="Elimina commento">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        ` : ''}
+                    </div>
+                    <p style="color: var(--grigio-900); line-height: 1.6; white-space: pre-wrap; margin: 0;">
+                        ${commento.testo}
+                    </p>
+                </div>
+            `;
+        }).join('');
+    },
+
+    /**
+     * Aggiunge un nuovo commento
+     */
+    async aggiungiCommento(taskId) {
+        const textarea = document.getElementById('nuovoCommentoText');
+        const testo = textarea.value.trim();
+
+        if (!testo) {
+            UI.showError('Il commento non può essere vuoto');
+            return;
+        }
+
+        UI.showLoading();
+
+        try {
+            const result = await CommentService.aggiungiCommento(taskId, testo);
+
+            if (result.success) {
+                // Crea notifiche per il nuovo commento
+                const utenteCorrente = AuthService.getUtenteCorrente();
+                const autoreNome = `${utenteCorrente.nome} ${utenteCorrente.cognome}`;
+
+                await CommentService.creaNotificheCommento(taskId, result.commentoId, autoreNome);
+
+                // Ricarica commenti
+                await this.caricaCommenti(taskId);
+
+                // Ricarica conteggio nel badge
+                await this.loadCommentiCount(taskId);
+
+                // Pulisci textarea
+                textarea.value = '';
+
+                UI.hideLoading();
+                UI.showSuccess('Commento aggiunto!');
+            } else {
+                UI.showError('Errore: ' + result.error);
+                UI.hideLoading();
+            }
+
+        } catch (error) {
+            console.error('Errore aggiunta commento:', error);
+            UI.showError('Errore aggiunta commento');
+            UI.hideLoading();
+        }
+    },
+
+    /**
+     * Elimina un commento
+     */
+    async eliminaCommento(commentoId, taskId) {
+        if (!confirm('Sei sicuro di voler eliminare questo commento?')) {
+            return;
+        }
+
+        UI.showLoading();
+
+        try {
+            const result = await CommentService.eliminaCommento(commentoId);
+
+            if (result.success) {
+                // Ricarica commenti
+                await this.caricaCommenti(taskId);
+
+                // Ricarica conteggio nel badge
+                await this.loadCommentiCount(taskId);
+
+                UI.hideLoading();
+                UI.showSuccess('Commento eliminato');
+            } else {
+                UI.showError('Errore: ' + result.error);
+                UI.hideLoading();
+            }
+
+        } catch (error) {
+            console.error('Errore eliminazione commento:', error);
+            UI.showError('Errore eliminazione commento');
+            UI.hideLoading();
+        }
+    },
+
+    /**
+     * Scrolla alla sezione commenti ed espandila
+     */
+    async scrollToCommenti(taskId) {
+        // Espandi la sezione se è chiusa
+        if (!this.commentiAperti) {
+            await this.toggleCommenti(taskId);
+        }
+
+        // Scrolla alla sezione commenti
+        setTimeout(() => {
+            const commentiSection = document.getElementById('commentiSection');
+            if (commentiSection) {
+                commentiSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        }, 100);
+    },
+
+    /**
+     * Carica il conteggio commenti e aggiorna i badge
+     */
+    async loadCommentiCount(taskId) {
+        try {
+            const result = await CommentService.getCommentiTask(taskId);
+
+            if (result.success) {
+                const count = result.commenti.length;
+
+                // Aggiorna badge nell'header
+                const badgeHeader = document.getElementById('badgeCommentiCount');
+                if (badgeHeader) {
+                    badgeHeader.textContent = `(${count})`;
+                }
+
+                // Aggiorna badge nella sezione espandibile
+                const badgeSection = document.getElementById('commentiCount');
+                if (badgeSection) {
+                    badgeSection.textContent = count;
+                }
+
+                // Aggiorna anche nella mappa globale
+                this.commentsCounts[taskId] = count;
+            }
+
+        } catch (error) {
+            console.error('Errore caricamento conteggio commenti:', error);
+        }
+    },
+
+    /**
+     * Carica conteggi commenti per tutti i task (in batch)
+     */
+    async loadAllCommentsCounts() {
+        try {
+            // Carica tutti i commenti in una singola query
+            const snapshot = await db.collection('commenti').get();
+
+            // Conta per ogni taskId
+            const counts = {};
+            snapshot.forEach(doc => {
+                const taskId = doc.data().taskId;
+                counts[taskId] = (counts[taskId] || 0) + 1;
+            });
+
+            this.commentsCounts = counts;
+
+        } catch (error) {
+            console.error('Errore caricamento conteggi commenti:', error);
+            this.commentsCounts = {};
         }
     }
 };
