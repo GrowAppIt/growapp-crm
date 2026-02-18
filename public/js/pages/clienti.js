@@ -97,6 +97,11 @@ const Clienti = {
                             <option value="CESSATO">Cessati</option>
                             <option value="DA_DEFINIRE">Da Definire</option>
                         </select>
+                        <select class="filter-select" id="filtroTipo" onchange="Clienti.applyFilters()">
+                            <option value="">Tutti i tipi</option>
+                            <option value="PA">PA - Pubblica Amm.</option>
+                            <option value="PRIVATO">Privati</option>
+                        </select>
                         <select class="filter-select" id="filtroAgente" onchange="Clienti.applyFilters()">
                             <option value="">Tutti gli agenti</option>
                             ${this.renderAgentiOptions(clienti)}
@@ -142,6 +147,8 @@ const Clienti = {
                             <div style="flex: 1;">
                                 <h3 style="font-size: 1rem; font-weight: 600; margin: 0; color: var(--grigio-900);">
                                     ${cliente.ragioneSociale}
+                                    ${cliente.tipo === 'PA' ? '<span style="display:inline-block; background:#0288D1; color:white; font-size:0.65rem; padding:0.1rem 0.35rem; border-radius:3px; font-weight:700; margin-left:0.5rem; vertical-align:middle;">PA</span>' :
+                                      '<span style="display:inline-block; background:#9B9B9B; color:white; font-size:0.65rem; padding:0.1rem 0.35rem; border-radius:3px; font-weight:700; margin-left:0.5rem; vertical-align:middle;">PR</span>'}
                                 </h3>
                                 <div style="font-size: 0.875rem; color: var(--grigio-500); margin-top: 0.25rem;">
                                     ${cliente.provincia || 'N/A'} • ${cliente.agente || 'N/A'} • App: ${statoApp}
@@ -181,6 +188,7 @@ const Clienti = {
         this.filtri.stato = document.getElementById('filtroStato').value;
         this.filtri.agente = document.getElementById('filtroAgente').value;
         this.filtri.search = document.getElementById('searchInput').value.toLowerCase();
+        this.filtri.tipo = document.getElementById('filtroTipo')?.value || '';
 
         DataService.getClienti().then(clienti => {
             let filtrati = clienti;
@@ -191,6 +199,10 @@ const Clienti = {
 
             if (this.filtri.agente) {
                 filtrati = filtrati.filter(c => c.agente === this.filtri.agente);
+            }
+
+            if (this.filtri.tipo) {
+                filtrati = filtrati.filter(c => c.tipo === this.filtri.tipo);
             }
 
             if (this.filtri.search) {

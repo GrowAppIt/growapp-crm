@@ -137,8 +137,17 @@ const DettaglioCliente = {
                         ${this.renderInfoField('Ragione Sociale', cliente.ragioneSociale, 'building')}
                         ${this.renderInfoField('Comune', cliente.comune, 'map-marker-alt')}
                         ${this.renderInfoField('Provincia', cliente.provincia, 'map')}
+                        ${this.renderInfoField('Regione', cliente.regione, 'globe-europe')}
                         ${this.renderInfoField('Indirizzo', cliente.indirizzo, 'home')}
-                        ${this.renderInfoField('Tipo', cliente.tipo, 'tag')}
+                        ${this.renderInfoField('CAP', cliente.cap, 'mail-bulk')}
+                        ${this.renderInfoField('Telefono', cliente.telefono, 'phone')}
+                        ${this.renderInfoField('Email 1', cliente.email, 'envelope')}
+                        ${this.renderInfoField('Email 2', cliente.email2, 'envelope-open')}
+                        ${this.renderInfoField('PEC', cliente.pec, 'certificate')}
+                        ${this.renderInfoField('Codice Fiscale', cliente.codiceFiscale, 'id-card')}
+                        ${this.renderInfoField('Codice SDI', cliente.codiceSdi, 'barcode')}
+                        ${this.renderInfoField('N. Residenti', cliente.numResidenti ? Number(cliente.numResidenti).toLocaleString('it-IT') : null, 'users')}
+                        ${this.renderInfoField('Tipo', cliente.tipo === 'PA' ? '🏛️ Pubblica Amministrazione (PA)' : (cliente.tipo === 'PRIVATO' ? '🏢 Privato (PR)' : (cliente.tipo || 'N/A')), 'tag')}
                         ${this.renderInfoField('Agente', cliente.agente, 'user')}
                         ${this.renderInfoField('Stato Contratto', cliente.statoContratto, 'file-contract')}
                         ${this.renderInfoField('Gestione', cliente.gestione, 'cog')}

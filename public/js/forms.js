@@ -248,6 +248,9 @@ const FormsManager = {
         const data = {};
 
         inputs.forEach(input => {
+            // Salta campi senza name o disabilitati
+            if (!input.name || input.disabled) return;
+
             if (input.type === 'number') {
                 data[input.name] = input.value ? parseFloat(input.value) : null;
             } else if (input.type === 'date') {
@@ -273,9 +276,11 @@ const FormsManager = {
                 ${this.createFormField('Provincia', 'provincia', 'text', cliente.provincia)}
                 ${this.createFormField('Regione', 'regione', 'text', cliente.regione)}
                 ${this.createFormField('Telefono', 'telefono', 'tel', cliente.telefono)}
-                ${this.createFormField('Email', 'email', 'email', cliente.email)}
+                ${this.createFormField('Email 1', 'email', 'email', cliente.email)}
+                ${this.createFormField('Email 2', 'email2', 'email', cliente.email2, { placeholder: 'Email secondaria' })}
                 ${this.createFormField('PEC', 'pec', 'email', cliente.pec)}
                 ${this.createFormField('Codice SDI', 'codiceSdi', 'text', cliente.codiceSdi)}
+                ${this.createFormField('N. Residenti', 'numResidenti', 'number', cliente.numResidenti, { placeholder: 'Numero abitanti' })}
                 ${this.createFormField('Agente', 'agente', 'text', cliente.agente)}
                 ${this.createFormField('Stato Contratto', 'statoContratto', 'select', cliente.statoContratto, {
                     options: [
@@ -323,6 +328,40 @@ const FormsManager = {
     // === FORM NUOVO CLIENTE ===
     async showNuovoCliente() {
         const content = `
+            <!-- 🏛️ Autocomplete Comune -->
+            <div style="margin-bottom: 1.5rem; padding: 1rem; background: var(--verde-100); border-radius: 8px; border: 2px solid var(--verde-300);">
+                <label style="display: block; font-weight: 700; color: var(--verde-900); margin-bottom: 0.5rem;">
+                    <i class="fas fa-magic"></i> Compila automaticamente da database Comuni
+                </label>
+                <div style="position: relative;">
+                    <input
+                        type="text"
+                        id="autocompleteComune"
+                        placeholder="Digita il nome del comune per compilare automaticamente..."
+                        oninput="FormsManager.autocompleteComune(this.value)"
+                        style="width: 100%; padding: 0.75rem 1rem; border: 2px solid var(--verde-700); border-radius: 6px; font-family: inherit; font-size: 1rem;"
+                    >
+                    <div id="autocompleteResults" style="
+                        display: none;
+                        position: absolute;
+                        top: 100%;
+                        left: 0;
+                        right: 0;
+                        background: white;
+                        border: 2px solid var(--verde-700);
+                        border-top: none;
+                        border-radius: 0 0 6px 6px;
+                        max-height: 200px;
+                        overflow-y: auto;
+                        z-index: 1000;
+                        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                    "></div>
+                </div>
+                <small style="color: var(--verde-900); margin-top: 0.25rem; display: block;">
+                    Digita almeno 2 lettere. Seleziona un comune per auto-compilare tutti i campi.
+                </small>
+            </div>
+
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem;">
                 ${this.createFormField('Ragione Sociale', 'ragioneSociale', 'text', '', { required: true, placeholder: 'Nome azienda o ente' })}
                 ${this.createFormField('Partita IVA', 'partitaIva', 'text', '', { placeholder: '12345678901' })}
@@ -333,9 +372,11 @@ const FormsManager = {
                 ${this.createFormField('Provincia', 'provincia', 'text', '', { placeholder: 'UD' })}
                 ${this.createFormField('Regione', 'regione', 'text', '')}
                 ${this.createFormField('Telefono', 'telefono', 'tel', '')}
-                ${this.createFormField('Email', 'email', 'email', '')}
+                ${this.createFormField('Email 1', 'email', 'email', '', { placeholder: 'Email principale' })}
+                ${this.createFormField('Email 2', 'email2', 'email', '', { placeholder: 'Email secondaria (da database comuni)' })}
                 ${this.createFormField('PEC', 'pec', 'email', '')}
                 ${this.createFormField('Codice SDI', 'codiceSdi', 'text', '', { placeholder: 'Codice 7 caratteri' })}
+                ${this.createFormField('N. Residenti', 'numResidenti', 'number', '', { placeholder: 'Numero abitanti' })}
                 ${this.createFormField('Agente', 'agente', 'text', '')}
                 ${this.createFormField('Stato Contratto', 'statoContratto', 'select', 'PROSPECT', {
                     options: [
@@ -374,10 +415,80 @@ const FormsManager = {
                 const data = this.getFormData();
                 const newId = await DataService.createCliente(data);
                 UI.showSuccess('Cliente creato con successo!');
-                // Vai al dettaglio del nuovo cliente
                 DettaglioCliente.render(newId);
             }
         );
+    },
+
+    // 🏛️ AUTOCOMPLETE COMUNE
+    async autocompleteComune(query) {
+        const resultsDiv = document.getElementById('autocompleteResults');
+        if (!resultsDiv) return;
+
+        if (!query || query.length < 2) {
+            resultsDiv.style.display = 'none';
+            return;
+        }
+
+        const risultati = await ComuniService.cerca(query);
+
+        if (risultati.length === 0) {
+            resultsDiv.innerHTML = '<div style="padding: 0.75rem 1rem; color: var(--grigio-500);">Nessun comune trovato</div>';
+            resultsDiv.style.display = 'block';
+            return;
+        }
+
+        resultsDiv.innerHTML = risultati.map(comune => `
+            <div onclick="FormsManager.selezionaComune('${comune.nome.replace(/'/g, "\\'")}')"
+                 style="padding: 0.75rem 1rem; cursor: pointer; border-bottom: 1px solid var(--grigio-200); transition: background 0.2s;"
+                 onmouseover="this.style.background='var(--verde-100)'"
+                 onmouseout="this.style.background='white'">
+                <strong style="color: var(--grigio-900);">${comune.nome}</strong>
+                <span style="color: var(--grigio-600); font-size: 0.875rem;"> - ${comune.provincia}, ${comune.regione}</span>
+                <span style="color: var(--verde-700); font-size: 0.8125rem; float: right;">${comune.numResidenti.toLocaleString('it-IT')} ab.</span>
+            </div>
+        `).join('');
+
+        resultsDiv.style.display = 'block';
+    },
+
+    async selezionaComune(nomeComune) {
+        const comune = await ComuniService.trovaPeNome(nomeComune);
+        if (!comune) return;
+
+        // Compila tutti i campi del form
+        const campi = {
+            ragioneSociale: comune.nome,
+            codiceFiscale: comune.codiceFiscale,
+            indirizzo: comune.indirizzo,
+            cap: comune.cap,
+            comune: comune.nome,
+            provincia: comune.provincia,
+            regione: comune.regione,
+            telefono: comune.telefono,
+            email2: comune.email,
+            pec: comune.pec,
+            codiceSdi: comune.codiceSdi,
+            numResidenti: comune.numResidenti,
+            tipo: 'PA'
+        };
+
+        for (const [campo, valore] of Object.entries(campi)) {
+            const input = document.getElementById(campo);
+            if (input && valore) {
+                input.value = valore;
+                // Trigger change per i select
+                if (input.tagName === 'SELECT') {
+                    input.dispatchEvent(new Event('change'));
+                }
+            }
+        }
+
+        // Chiudi autocomplete
+        document.getElementById('autocompleteResults').style.display = 'none';
+        document.getElementById('autocompleteComune').value = comune.nome;
+
+        UI.showSuccess(`✅ Dati di "${comune.nome}" compilati automaticamente!`);
     },
 
     // === FORM MODIFICA FATTURA ===
@@ -386,8 +497,14 @@ const FormsManager = {
         const clientiSnapshot = await db.collection('clienti').get();
         const clienti = clientiSnapshot.docs.map(doc => ({
             id: doc.id,
-            ragioneSociale: doc.data().ragioneSociale
+            legacyId: doc.data().id || doc.id,
+            ragioneSociale: doc.data().ragioneSociale,
+            tipo: doc.data().tipo || 'PRIVATO'
         })).sort((a, b) => a.ragioneSociale.localeCompare(b.ragioneSociale));
+
+        // Trova il tipo del cliente corrente (cerca per ENTRAMBI gli ID: legacy e Firestore)
+        const clienteCorrente = clienti.find(c => c.legacyId === fattura.clienteId || c.id === fattura.clienteId);
+        const tipoClienteCorrente = fattura.tipoCliente || clienteCorrente?.tipo || 'PRIVATO';
 
         // Carica contratti del cliente corrente
         const contrattiSnapshot = fattura.clienteId
@@ -398,22 +515,36 @@ const FormsManager = {
             numero: doc.data().numeroContratto || 'Senza numero'
         }));
 
+        // Calcola acconto totale se presenti acconti precedenti
+        const accontiEsistenti = fattura.acconti || [];
+        const totaleAcconti = accontiEsistenti.reduce((sum, a) => sum + (a.importo || 0), 0);
+
         const content = `
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem;">
-                ${this.createFormField('Cliente', 'clienteId', 'select', fattura.clienteId, {
-                    required: true,
-                    options: [
-                        { value: '', label: '-- Seleziona cliente --' },
-                        ...clienti.map(c => ({ value: c.id, label: c.ragioneSociale }))
-                    ]
-                })}
+                <div class="form-group" style="margin-bottom: 1rem;">
+                    <label style="display: block; font-size: 0.875rem; font-weight: 600; color: var(--grigio-700); margin-bottom: 0.5rem;">
+                        Cliente <span style="color: #D32F2F;">*</span>
+                    </label>
+                    <select name="clienteId" id="clienteId" required
+                        style="width: 100%; padding: 0.75rem; border: 1px solid var(--grigio-300); border-radius: 8px; font-size: 1rem; font-family: 'Titillium Web', sans-serif;"
+                        onchange="FormsManager.onClienteSelected()">
+                        <option value="">-- Seleziona cliente --</option>
+                        ${clienti.map(c => `<option value="${c.legacyId}" data-tipo="${c.tipo}" ${(c.legacyId === fattura.clienteId || c.id === fattura.clienteId) ? 'selected' : ''}>${c.ragioneSociale} ${c.tipo === 'PA' ? '🏛️' : ''}</option>`).join('')}
+                    </select>
+                    <input type="hidden" id="tipoClienteSelezionato" value="${tipoClienteCorrente}" />
+                    <div id="badgeTipoCliente" style="margin-top: 0.5rem;">
+                        <span class="badge ${tipoClienteCorrente === 'PA' ? 'badge-info' : 'badge-secondary'}" style="font-size: 0.9rem; padding: 0.4rem 0.75rem;">
+                            ${tipoClienteCorrente === 'PA' ? '<i class="fas fa-landmark"></i> Pubblica Amministrazione (PA)' : '<i class="fas fa-building"></i> Privato (PR)'}
+                        </span>
+                    </div>
+                </div>
                 ${contratti.length > 0 ? this.createFormField('Contratto', 'contrattoId', 'select', fattura.contrattoId, {
                     options: [
                         { value: '', label: '-- Nessun contratto --' },
                         ...contratti.map(c => ({ value: c.id, label: c.numero }))
                     ]
                 }) : ''}
-                ${this.createFormField('Numero Fattura', 'numeroFatturaCompleto', 'text', fattura.numeroFatturaCompleto, { required: true })}
+                ${this.createFormField('Numero Fattura Completo', 'numeroFatturaCompleto', 'text', fattura.numeroFatturaCompleto, { required: true, placeholder: 'Es: 2026/001/PA' })}
                 ${this.createFormField('Anno', 'anno', 'number', fattura.anno, { required: true })}
                 ${this.createFormField('Data Emissione', 'dataEmissione', 'date', fattura.dataEmissione?.split('T')[0], { required: true })}
                 ${this.createFormField('Data Scadenza', 'dataScadenza', 'date', fattura.dataScadenza?.split('T')[0])}
@@ -422,18 +553,68 @@ const FormsManager = {
                 ${this.createFormField('Aliquota IVA (%)', 'aliquotaIva', 'number', fattura.aliquotaIva)}
                 ${this.createFormField('Importo IVA', 'importoIva', 'number', fattura.importoIva)}
                 ${this.createFormField('Totale Fattura', 'importoTotale', 'number', fattura.importoTotale, { required: true })}
+                ${this.createFormField('Metodo Pagamento', 'metodoPagamento', 'select', fattura.metodoPagamento || 'BONIFICO', {
+                    options: [
+                        { value: 'BONIFICO', label: 'Bonifico Bancario' },
+                        { value: 'CARTA', label: 'Carta di Credito/Debito' },
+                        { value: 'CONTANTI', label: 'Contanti' },
+                        { value: 'ASSEGNO', label: 'Assegno' },
+                        { value: 'RIBA', label: 'RiBa' },
+                        { value: 'ALTRO', label: 'Altro' }
+                    ]
+                })}
                 ${this.createFormField('Stato Pagamento', 'statoPagamento', 'select', fattura.statoPagamento, {
                     options: [
                         { value: 'NON_PAGATA', label: 'Non Pagata' },
                         { value: 'PAGATA', label: 'Pagata' },
+                        { value: 'PARZIALMENTE_PAGATA', label: 'Parzialmente Pagata (Acconto)' },
                         { value: 'NOTA_CREDITO', label: 'Nota di Credito' },
                         { value: 'RIFIUTATA', label: 'Rifiutata' }
                     ]
                 })}
                 ${this.createFormField('Tipo', 'tipo', 'text', fattura.tipo)}
                 ${this.createFormField('Periodicità', 'periodicita', 'text', fattura.periodicita)}
-                ${this.createFormField('Metodo Pagamento', 'metodoPagamento', 'text', fattura.metodoPagamento)}
             </div>
+
+            <!-- Sezione Acconti -->
+            <div id="sezioneAccontoModifica" style="display: ${fattura.statoPagamento === 'PARZIALMENTE_PAGATA' ? 'block' : 'none'}; margin-top: 1rem; padding: 1rem; background: var(--verde-100); border-left: 4px solid var(--verde-700); border-radius: 8px;">
+                <h3 style="font-size: 1rem; font-weight: 700; color: var(--verde-900); margin-bottom: 0.75rem;">
+                    <i class="fas fa-hand-holding-usd"></i> Gestione Acconti
+                </h3>
+
+                <!-- Acconti esistenti -->
+                ${accontiEsistenti.length > 0 ? `
+                    <div style="margin-bottom: 1rem;">
+                        <h4 style="font-size: 0.875rem; font-weight: 600; color: var(--verde-900); margin-bottom: 0.5rem;">Acconti ricevuti:</h4>
+                        ${accontiEsistenti.map((a, i) => `
+                            <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0.75rem; background: white; border-radius: 6px; margin-bottom: 0.25rem;">
+                                <span style="font-size: 0.875rem; color: var(--grigio-700);">
+                                    <i class="fas fa-check-circle" style="color: var(--verde-700);"></i>
+                                    ${DataService.formatDate(a.data)} — ${a.note || 'Acconto'}
+                                </span>
+                                <strong style="color: var(--verde-900);">${DataService.formatCurrency(a.importo)}</strong>
+                            </div>
+                        `).join('')}
+                        <div style="display: flex; justify-content: space-between; padding: 0.5rem 0.75rem; margin-top: 0.5rem; border-top: 2px solid var(--verde-700);">
+                            <strong style="color: var(--verde-900);">Totale acconti:</strong>
+                            <strong style="color: var(--verde-900);">${DataService.formatCurrency(totaleAcconti)}</strong>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; padding: 0.5rem 0.75rem;">
+                            <strong style="color: #D32F2F;">Saldo residuo:</strong>
+                            <strong style="color: #D32F2F;">${DataService.formatCurrency((fattura.importoTotale || 0) - totaleAcconti)}</strong>
+                        </div>
+                    </div>
+                ` : ''}
+
+                <!-- Nuovo acconto -->
+                <h4 style="font-size: 0.875rem; font-weight: 600; color: var(--verde-900); margin-bottom: 0.5rem;">Registra nuovo acconto:</h4>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+                    ${this.createFormField('Importo Nuovo Acconto', 'nuovoAccontoImporto', 'number', '', { placeholder: '0.00' })}
+                    ${this.createFormField('Data Acconto', 'nuovoAccontoData', 'date', new Date().toISOString().split('T')[0])}
+                    ${this.createFormField('Nota Acconto', 'nuovoAccontoNote', 'text', '', { placeholder: 'Es: Acconto ricevuto' })}
+                </div>
+            </div>
+
             ${this.createFormField('Note', 'note', 'textarea', fattura.note)}
             ${this.createFormField('Note Consolidate', 'noteConsolidate', 'textarea', fattura.noteConsolidate)}
         `;
@@ -443,11 +624,78 @@ const FormsManager = {
             content,
             async () => {
                 const data = this.getFormData();
+
+                // Salva il tipo cliente (PA/PR) nella fattura
+                const tipoClienteEl = document.getElementById('tipoClienteSelezionato');
+                if (tipoClienteEl) {
+                    data.tipoCliente = tipoClienteEl.value === 'PA' ? 'PA' : 'PR';
+                }
+
+                // Gestione nuovo acconto
+                if (data.nuovoAccontoImporto && data.nuovoAccontoImporto > 0) {
+                    const nuovoAcconto = {
+                        importo: data.nuovoAccontoImporto,
+                        data: data.nuovoAccontoData || new Date().toISOString(),
+                        note: data.nuovoAccontoNote || 'Acconto'
+                    };
+
+                    // Aggiungi ai precedenti
+                    data.acconti = [...accontiEsistenti, nuovoAcconto];
+                    const nuovoTotaleAcconti = data.acconti.reduce((sum, a) => sum + (a.importo || 0), 0);
+                    data.saldoResiduo = parseFloat((data.importoTotale - nuovoTotaleAcconti).toFixed(2));
+
+                    // Se il saldo è 0 o negativo, marca come PAGATA
+                    if (data.saldoResiduo <= 0) {
+                        data.statoPagamento = 'PAGATA';
+                        data.saldoResiduo = 0;
+                        data.dataSaldo = data.dataSaldo || new Date().toISOString();
+                    }
+                } else if (fattura.acconti) {
+                    // Mantieni gli acconti esistenti
+                    data.acconti = accontiEsistenti;
+                }
+
+                // Rimuovi campi temporanei nuovo acconto
+                delete data.nuovoAccontoImporto;
+                delete data.nuovoAccontoData;
+                delete data.nuovoAccontoNote;
+
                 await DataService.updateFattura(fattura.id, data);
                 UI.showSuccess('Fattura aggiornata con successo!');
                 DettaglioFattura.render(fattura.id);
             }
         );
+
+        // Listener per mostrare/nascondere sezione acconto
+        setTimeout(() => {
+            const statoSelect = document.getElementById('statoPagamento');
+            const sezioneAcconto = document.getElementById('sezioneAccontoModifica');
+            if (statoSelect && sezioneAcconto) {
+                statoSelect.addEventListener('change', () => {
+                    sezioneAcconto.style.display = statoSelect.value === 'PARZIALMENTE_PAGATA' ? 'block' : 'none';
+                });
+            }
+
+            // Calcolo automatico IVA e totale
+            const imponibileInput = document.getElementById('imponibile');
+            const aliquotaInput = document.getElementById('aliquotaIva');
+            const ivaInput = document.getElementById('importoIva');
+            const totaleInput = document.getElementById('importoTotale');
+
+            const calcolaImporti = () => {
+                const imponibile = parseFloat(imponibileInput?.value) || 0;
+                const aliquota = parseFloat(aliquotaInput?.value) || 0;
+                if (imponibile > 0) {
+                    const iva = parseFloat((imponibile * aliquota / 100).toFixed(2));
+                    const totale = parseFloat((imponibile + iva).toFixed(2));
+                    if (ivaInput) ivaInput.value = iva;
+                    if (totaleInput) totaleInput.value = totale;
+                }
+            };
+
+            if (imponibileInput) imponibileInput.addEventListener('input', calcolaImporti);
+            if (aliquotaInput) aliquotaInput.addEventListener('input', calcolaImporti);
+        }, 100);
     },
 
     // === FORM NUOVA FATTURA ===
@@ -479,43 +727,85 @@ const FormsManager = {
                     >
                         <option value="">-- Seleziona un cliente --</option>
                         ${clienti.map(c =>
-                            `<option value="${c.id}" data-ragione-sociale="${c.ragioneSociale}" data-id-legacy="${c.clienteIdLegacy || c.id}">${c.ragioneSociale} (${c.provincia || 'N/A'})</option>`
+                            `<option value="${c.clienteIdLegacy || c.id}" data-ragione-sociale="${c.ragioneSociale}" data-id-legacy="${c.clienteIdLegacy || c.id}" data-tipo="${c.tipo || 'PRIVATO'}">${c.ragioneSociale} (${c.provincia || 'N/A'}) ${c.tipo === 'PA' ? '🏛️' : ''}</option>`
                         ).join('')}
                     </select>
-                    <input type="hidden" name="clienteIdLegacy" id="clienteIdLegacy" />
                     <input type="hidden" name="clienteRagioneSociale" id="clienteRagioneSociale" />
                 </div>
             `;
         } else {
             // Cliente già selezionato (es. da pagina cliente)
             const cliente = clienti.find(c => c.id === clienteId);
+            const tipoClientePreselezionato = cliente?.tipo || 'PRIVATO';
             clienteSelectHtml = `
-                ${this.createFormField('Cliente', 'clienteRagioneSociale', 'text', cliente?.ragioneSociale || '', { disabled: true })}
+                ${this.createFormField('Cliente', 'clienteRagioneSociale_display', 'text', cliente?.ragioneSociale || '', { disabled: true })}
                 <input type="hidden" name="clienteId" value="${cliente?.clienteIdLegacy || clienteId}" />
+                <input type="hidden" name="clienteRagioneSociale" value="${cliente?.ragioneSociale || ''}" />
+                <input type="hidden" id="tipoClienteSelezionato" value="${tipoClientePreselezionato}" />
+                <div style="margin-bottom: 1rem;">
+                    <span class="badge ${tipoClientePreselezionato === 'PA' ? 'badge-info' : 'badge-secondary'}" style="font-size: 0.9rem; padding: 0.4rem 0.75rem;">
+                        ${tipoClientePreselezionato === 'PA' ? '<i class="fas fa-landmark"></i> Pubblica Amministrazione' : '<i class="fas fa-building"></i> Privato'}
+                    </span>
+                </div>
             `;
         }
 
         const content = `
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem;">
                 ${clienteSelectHtml}
-                ${this.createFormField('Numero Fattura', 'numeroFatturaCompleto', 'text', '', { required: true, placeholder: '2026/001' })}
+                <div class="form-group" style="margin-bottom: 1rem;">
+                    <label style="display: block; font-size: 0.875rem; font-weight: 600; color: var(--grigio-700); margin-bottom: 0.5rem;">
+                        Numero Progressivo <span style="color: #D32F2F;">*</span>
+                    </label>
+                    <input type="text" name="numeroProgressivo" id="numeroProgressivo" required
+                        placeholder="Es: 001, 002..."
+                        oninput="FormsManager.aggiornaNumeroFattura()"
+                        style="width: 100%; padding: 0.75rem; border: 1px solid var(--grigio-300); border-radius: 8px; font-size: 1rem; font-family: 'Titillium Web', sans-serif;"
+                    />
+                    <input type="hidden" name="numeroFatturaCompleto" id="numeroFatturaCompleto" />
+                    <div id="anteprimaNumeroFattura" style="margin-top: 0.5rem; padding: 0.5rem 0.75rem; background: var(--blu-100); border-radius: 6px; font-weight: 700; color: var(--blu-700); font-size: 1.1rem; display: none;">
+                        <i class="fas fa-file-invoice"></i> Numero fattura: <span id="anteprimaNumero"></span>
+                    </div>
+                </div>
                 ${this.createFormField('Anno', 'anno', 'number', new Date().getFullYear(), { required: true })}
                 ${this.createFormField('Data Emissione', 'dataEmissione', 'date', new Date().toISOString().split('T')[0], { required: true })}
                 ${this.createFormField('Data Scadenza', 'dataScadenza', 'date', '')}
                 ${this.createFormField('Imponibile', 'imponibile', 'number', '', { required: true, placeholder: '0.00' })}
                 ${this.createFormField('Aliquota IVA (%)', 'aliquotaIva', 'number', '22', { placeholder: '22' })}
-                ${this.createFormField('Importo IVA', 'importoIva', 'number', '', { placeholder: '0.00' })}
-                ${this.createFormField('Totale Fattura', 'importoTotale', 'number', '', { required: true, placeholder: '0.00' })}
+                ${this.createFormField('Importo IVA', 'importoIva', 'number', '', { placeholder: 'Calcolato auto' })}
+                ${this.createFormField('Totale Fattura', 'importoTotale', 'number', '', { required: true, placeholder: 'Calcolato auto' })}
+                ${this.createFormField('Metodo Pagamento', 'metodoPagamento', 'select', 'BONIFICO', {
+                    options: [
+                        { value: 'BONIFICO', label: 'Bonifico Bancario' },
+                        { value: 'CARTA', label: 'Carta di Credito/Debito' },
+                        { value: 'CONTANTI', label: 'Contanti' },
+                        { value: 'ASSEGNO', label: 'Assegno' },
+                        { value: 'RIBA', label: 'RiBa' },
+                        { value: 'ALTRO', label: 'Altro' }
+                    ]
+                })}
                 ${this.createFormField('Stato Pagamento', 'statoPagamento', 'select', 'NON_PAGATA', {
                     options: [
                         { value: 'NON_PAGATA', label: 'Non Pagata' },
-                        { value: 'PAGATA', label: 'Pagata' }
+                        { value: 'PAGATA', label: 'Pagata' },
+                        { value: 'PARZIALMENTE_PAGATA', label: 'Parzialmente Pagata (Acconto)' }
                     ]
                 })}
                 ${this.createFormField('Tipo', 'tipo', 'text', 'VENDITA')}
                 ${this.createFormField('Periodicità', 'periodicita', 'text', '')}
-                ${this.createFormField('Metodo Pagamento', 'metodoPagamento', 'text', '')}
             </div>
+
+            <!-- Sezione Acconto (visibile solo se stato = PARZIALMENTE_PAGATA) -->
+            <div id="sezioneAcconto" style="display: none; margin-top: 1rem; padding: 1rem; background: var(--verde-100); border-left: 4px solid var(--verde-700); border-radius: 8px;">
+                <h3 style="font-size: 1rem; font-weight: 700; color: var(--verde-900); margin-bottom: 0.75rem;">
+                    <i class="fas fa-hand-holding-usd"></i> Dettagli Acconto
+                </h3>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem;">
+                    ${this.createFormField('Importo Acconto', 'importoAcconto', 'number', '', { placeholder: '0.00' })}
+                    ${this.createFormField('Data Acconto', 'dataAcconto', 'date', new Date().toISOString().split('T')[0])}
+                </div>
+            </div>
+
             ${this.createFormField('Note', 'note', 'textarea', '', { placeholder: 'Note aggiuntive...' })}
         `;
 
@@ -524,11 +814,78 @@ const FormsManager = {
             content,
             async () => {
                 const data = this.getFormData();
+
+                // Rimuovi campi temporanei
+                delete data[''];
+                delete data['clienteRagioneSociale_display'];
+                delete data['numeroProgressivo'];
+
+                // Salva anche il tipo cliente (PA/PR) nella fattura
+                const tipoClienteEl = document.getElementById('tipoClienteSelezionato');
+                if (tipoClienteEl) {
+                    data.tipoCliente = tipoClienteEl.value === 'PA' ? 'PA' : 'PR';
+                }
+
+                // Calcola automaticamente IVA e totale se mancanti
+                if (data.imponibile && !data.importoIva && data.aliquotaIva) {
+                    data.importoIva = parseFloat((data.imponibile * data.aliquotaIva / 100).toFixed(2));
+                }
+                if (data.imponibile && !data.importoTotale) {
+                    data.importoTotale = parseFloat((data.imponibile + (data.importoIva || 0)).toFixed(2));
+                }
+
+                // Gestione acconto
+                if (data.statoPagamento === 'PARZIALMENTE_PAGATA' && data.importoAcconto) {
+                    data.saldoResiduo = parseFloat((data.importoTotale - data.importoAcconto).toFixed(2));
+                    data.acconti = [{
+                        importo: data.importoAcconto,
+                        data: data.dataAcconto || new Date().toISOString(),
+                        note: 'Acconto iniziale'
+                    }];
+                }
+
                 const newId = await DataService.createFattura(data);
                 UI.showSuccess('Fattura creata con successo!');
                 DettaglioFattura.render(newId);
             }
         );
+
+        // Listener per mostrare/nascondere sezione acconto
+        setTimeout(() => {
+            const statoSelect = document.getElementById('statoPagamento');
+            const sezioneAcconto = document.getElementById('sezioneAcconto');
+            if (statoSelect && sezioneAcconto) {
+                statoSelect.addEventListener('change', () => {
+                    sezioneAcconto.style.display = statoSelect.value === 'PARZIALMENTE_PAGATA' ? 'block' : 'none';
+                });
+            }
+
+            // Calcolo automatico IVA e totale quando si compila l'imponibile
+            const imponibileInput = document.getElementById('imponibile');
+            const aliquotaInput = document.getElementById('aliquotaIva');
+            const ivaInput = document.getElementById('importoIva');
+            const totaleInput = document.getElementById('importoTotale');
+
+            const calcolaImporti = () => {
+                const imponibile = parseFloat(imponibileInput?.value) || 0;
+                const aliquota = parseFloat(aliquotaInput?.value) || 0;
+                if (imponibile > 0) {
+                    const iva = parseFloat((imponibile * aliquota / 100).toFixed(2));
+                    const totale = parseFloat((imponibile + iva).toFixed(2));
+                    if (ivaInput) ivaInput.value = iva;
+                    if (totaleInput) totaleInput.value = totale;
+                }
+            };
+
+            if (imponibileInput) imponibileInput.addEventListener('input', calcolaImporti);
+            if (aliquotaInput) aliquotaInput.addEventListener('input', calcolaImporti);
+
+            // Quando cambia l'anno, ricalcola il numero fattura completo
+            const annoInput = document.getElementById('anno');
+            if (annoInput) {
+                annoInput.addEventListener('input', () => FormsManager.aggiornaNumeroFattura());
+            }
+        }, 100);
     },
 
     // === FORM MODIFICA SCADENZA ===
@@ -696,12 +1053,82 @@ const FormsManager = {
             // Popola i campi hidden con i dati del cliente
             const clienteIdLegacy = selectedOption.getAttribute('data-id-legacy');
             const ragioneSociale = selectedOption.getAttribute('data-ragione-sociale');
+            const tipoCliente = selectedOption.getAttribute('data-tipo') || 'PRIVATO';
 
             const hiddenLegacyId = document.getElementById('clienteIdLegacy');
             const hiddenRagioneSociale = document.getElementById('clienteRagioneSociale');
 
             if (hiddenLegacyId) hiddenLegacyId.value = clienteIdLegacy;
             if (hiddenRagioneSociale) hiddenRagioneSociale.value = ragioneSociale;
+
+            // Salva il tipo cliente per la composizione del numero fattura
+            let hiddenTipo = document.getElementById('tipoClienteSelezionato');
+            if (!hiddenTipo) {
+                hiddenTipo = document.createElement('input');
+                hiddenTipo.type = 'hidden';
+                hiddenTipo.id = 'tipoClienteSelezionato';
+                select.parentElement.appendChild(hiddenTipo);
+            }
+            hiddenTipo.value = tipoCliente;
+
+            // Mostra badge tipo cliente
+            let badgeTipo = document.getElementById('badgeTipoCliente');
+            if (!badgeTipo) {
+                badgeTipo = document.createElement('div');
+                badgeTipo.id = 'badgeTipoCliente';
+                badgeTipo.style.cssText = 'margin-top: 0.5rem;';
+                select.parentElement.appendChild(badgeTipo);
+            }
+            badgeTipo.innerHTML = `
+                <span class="badge ${tipoCliente === 'PA' ? 'badge-info' : 'badge-secondary'}" style="font-size: 0.9rem; padding: 0.4rem 0.75rem;">
+                    ${tipoCliente === 'PA' ? '<i class="fas fa-landmark"></i> Pubblica Amministrazione (PA)' : '<i class="fas fa-building"></i> Privato (PR)'}
+                </span>
+            `;
+
+            // Aggiorna automaticamente il numero fattura
+            this.aggiornaNumeroFattura();
+        }
+    },
+
+    // Compone automaticamente il numero fattura nel formato ANNO/NUMERO/PA o ANNO/NUMERO/PR
+    aggiornaNumeroFattura() {
+        const annoInput = document.getElementById('anno');
+        const numInput = document.getElementById('numeroProgressivo');
+        const hiddenNumero = document.getElementById('numeroFatturaCompleto');
+        const anteprimaDiv = document.getElementById('anteprimaNumeroFattura');
+        const anteprimaSpan = document.getElementById('anteprimaNumero');
+        const tipoInput = document.getElementById('tipoClienteSelezionato');
+
+        if (!numInput || !hiddenNumero) return;
+
+        const anno = annoInput?.value || new Date().getFullYear();
+        const numero = numInput.value.trim();
+        const tipo = tipoInput?.value || '';
+
+        if (numero) {
+            // Pad del numero a 3 cifre
+            const numeroPadded = numero.padStart(3, '0');
+            const suffisso = tipo === 'PA' ? 'PA' : (tipo ? 'PR' : '');
+            const numeroCompleto = suffisso ? `${anno}/${numeroPadded}/${suffisso}` : `${anno}/${numeroPadded}`;
+
+            hiddenNumero.value = numeroCompleto;
+
+            if (anteprimaDiv && anteprimaSpan) {
+                anteprimaSpan.textContent = numeroCompleto;
+                anteprimaDiv.style.display = 'block';
+
+                // Colora in base al tipo
+                if (tipo === 'PA') {
+                    anteprimaDiv.style.background = '#E1F5FE';
+                    anteprimaDiv.style.color = '#0288D1';
+                } else {
+                    anteprimaDiv.style.background = 'var(--blu-100)';
+                    anteprimaDiv.style.color = 'var(--blu-700)';
+                }
+            }
+        } else {
+            hiddenNumero.value = '';
+            if (anteprimaDiv) anteprimaDiv.style.display = 'none';
         }
     },
 

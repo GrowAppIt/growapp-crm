@@ -154,7 +154,7 @@ const App = {
         }
     },
 
-    // 🔗 GESTIONE URL HASH (Deep Links)
+    // 🔗 GESTIONE URL HASH (Routing persistente + Deep Links)
     handleHashChange() {
         const hash = window.location.hash;
 
@@ -166,35 +166,58 @@ const App = {
         // Rimuovi il # iniziale
         const path = hash.substring(1);
 
-        // Pattern: #/task/{taskId}
-        const taskMatch = path.match(/^\/task\/(.+)$/);
-        if (taskMatch) {
-            const taskId = taskMatch[1];
-            console.log('📱 Deep link rilevato: task', taskId);
+        // Lista pagine valide (tutte le pagine del CRM)
+        const validPages = [
+            'dashboard', 'scadenzario', 'clienti', 'app', 'task',
+            'contratti', 'fatture', 'report', 'impostazioni',
+            'dettaglio-cliente', 'dettaglio-contratto', 'dettaglio-app',
+            'dettaglio-fattura', 'dettaglio-scadenza'
+        ];
 
-            // Vai alla pagina gestione task
-            UI.showPage('task');
+        // Pattern: #/pagina/id (per pagine dettaglio o deep link task)
+        const pageWithIdMatch = path.match(/^\/([a-z-]+)\/(.+)$/);
+        if (pageWithIdMatch) {
+            const pageName = pageWithIdMatch[1];
+            const id = pageWithIdMatch[2];
 
-            // Mostra messaggio di benvenuto
-            setTimeout(() => {
-                UI.showSuccess(`📱 Hai aperto un link da Telegram!\n\nTask ID: ${taskId}\n\nTrova il task nella lista qui sotto.`);
-            }, 500);
+            // Deep link Telegram per task specifico
+            if (pageName === 'task' && id) {
+                console.log('📱 Deep link rilevato: task', id);
+                UI.showPage('task');
 
-            // Pulisci hash per evitare loop
-            history.replaceState(null, '', window.location.pathname + window.location.search);
+                // Apri dettaglio task dopo il rendering della pagina
+                setTimeout(() => {
+                    if (window.GestioneTask && typeof GestioneTask.viewTaskDetails === 'function') {
+                        GestioneTask.viewTaskDetails(id);
+                    }
+                }, 800);
 
-            return true;
+                return true;
+            }
+
+            // Pagina dettaglio generica (dettaglio-cliente, dettaglio-app, ecc.)
+            if (validPages.includes(pageName)) {
+                UI.showPage(pageName, id);
+                return true;
+            }
         }
 
-        // Pattern: #/gestione-task (generico)
-        const taskPageMatch = path.match(/^\/gestione-task$/);
-        if (taskPageMatch) {
-            UI.showPage('task');
-            history.replaceState(null, '', window.location.pathname + window.location.search);
-            return true;
-        }
+        // Pattern: #/pagina (pagina senza id)
+        const pageMatch = path.match(/^\/([a-z-]+)$/);
+        if (pageMatch) {
+            const pageName = pageMatch[1];
 
-        // Altre pagine possono essere aggiunte qui
+            // Compatibilità vecchio hash
+            if (pageName === 'gestione-task') {
+                UI.showPage('task');
+                return true;
+            }
+
+            if (validPages.includes(pageName)) {
+                UI.showPage(pageName);
+                return true;
+            }
+        }
 
         return false;
     }

@@ -231,6 +231,140 @@ const CommentService = {
     },
 
     /**
+     * 📎 Upload allegato per commento task
+     * Path separato: task-allegati/{taskId}/{timestamp}_{filename}
+     * NON va nei documenti dei clienti
+     */
+    async uploadAllegato(taskId, file) {
+        try {
+            if (!file) throw new Error('Nessun file selezionato');
+
+            // Limite 10 MB
+            const MAX_SIZE = 10 * 1024 * 1024;
+            if (file.size > MAX_SIZE) {
+                throw new Error('Il file è troppo grande (max 10 MB)');
+            }
+
+            // Tipi consentiti: immagini, pdf, doc
+            const tipiConsentiti = [
+                'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+                'application/pdf',
+                'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+            ];
+            if (!tipiConsentiti.includes(file.type)) {
+                throw new Error('Tipo file non supportato. Usa: immagini, PDF o documenti Word.');
+            }
+
+            const timestamp = Date.now();
+            const nomeFile = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+            const storagePath = `task-allegati/${taskId}/${timestamp}_${nomeFile}`;
+
+            const storageRef = firebase.storage().ref(storagePath);
+            const uploadTask = await storageRef.put(file);
+            const downloadURL = await uploadTask.ref.getDownloadURL();
+
+            return {
+                success: true,
+                allegato: {
+                    nome: file.name,
+                    url: downloadURL,
+                    tipo: file.type,
+                    dimensione: file.size,
+                    storagePath: storagePath
+                }
+            };
+
+        } catch (error) {
+            console.error('Errore upload allegato:', error);
+            return {
+                success: false,
+                error: error.message
+            };
+        }
+    },
+
+    /**
+     * 📝 Aggiunge commento con allegati opzionali
+     */
+    async aggiungiCommentoConAllegati(taskId, testo, files = []) {
+        try {
+            const utenteCorrente = AuthService.getUtenteCorrente();
+            if (!utenteCorrente) {
+                throw new Error('Utente non autenticato');
+            }
+
+            // Almeno testo o un file
+            if ((!testo || testo.trim() === '') && files.length === 0) {
+                throw new Error('Inserisci un commento o allega un file');
+            }
+
+            // Upload allegati
+            const allegati = [];
+            for (const file of files) {
+                const result = await this.uploadAllegato(taskId, file);
+                if (result.success) {
+                    allegati.push(result.allegato);
+                } else {
+                    throw new Error(`Errore upload "${file.name}": ${result.error}`);
+                }
+            }
+
+            const nuovoCommento = {
+                taskId: taskId,
+                testo: (testo || '').trim(),
+                autoreId: utenteCorrente.uid,
+                autoreNome: `${utenteCorrente.nome} ${utenteCorrente.cognome}`,
+                creatoIl: firebase.firestore.FieldValue.serverTimestamp(),
+                allegati: allegati
+            };
+
+            const docRef = await db.collection('commenti').add(nuovoCommento);
+
+            return {
+                success: true,
+                commentoId: docRef.id
+            };
+
+        } catch (error) {
+            console.error('Errore aggiunta commento con allegati:', error);
+            return {
+                success: false,
+                error: error.message
+            };
+        }
+    },
+
+    /**
+     * 🗑️ Elimina allegato dallo storage
+     */
+    async eliminaAllegato(storagePath) {
+        try {
+            if (!storagePath) return;
+            const ref = firebase.storage().ref(storagePath);
+            await ref.delete();
+        } catch (error) {
+            console.warn('Allegato non trovato nello storage (già eliminato?):', error.message);
+        }
+    },
+
+    /**
+     * Helper: verifica se un tipo MIME è un'immagine
+     */
+    isImmagine(tipo) {
+        return tipo && tipo.startsWith('image/');
+    },
+
+    /**
+     * Helper: formatta dimensione file
+     */
+    formatDimensione(bytes) {
+        if (!bytes) return '0 B';
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+        return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    },
+
+    /**
      * 🕐 Formatta timestamp per visualizzazione
      */
     formatDataCommento(timestamp) {

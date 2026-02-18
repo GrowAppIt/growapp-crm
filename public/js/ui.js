@@ -1,6 +1,10 @@
 // UI Module - Gestione interfaccia utente
 const UI = {
     // === NAVIGATION ===
+    // Pagina corrente (per routing hash)
+    currentPage: null,
+    currentPageId: null,
+
     showPage(pageName, id = null) {
         // Verifica accesso alla pagina
         if (!AuthService.isAuthenticated()) {
@@ -10,6 +14,16 @@ const UI = {
         if (!AuthService.canAccessPage(pageName)) {
             this.showAccessDenied(pageName);
             return;
+        }
+
+        // Salva pagina corrente
+        this.currentPage = pageName;
+        this.currentPageId = id;
+
+        // Aggiorna hash URL per persistenza al refresh (senza triggerare hashchange)
+        const hashValue = id ? `#/${pageName}/${id}` : `#/${pageName}`;
+        if (window.location.hash !== hashValue) {
+            history.replaceState(null, '', window.location.pathname + window.location.search + hashValue);
         }
 
         // Aggiorna menu attivo (solo per pagine principali, non dettagli)

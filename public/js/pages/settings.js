@@ -65,6 +65,20 @@ const Settings = {
                         <i class="fas fa-database"></i> Gestione Dati
                     </button>
                     ` : ''}
+                    ${AuthService.hasPermission('manage_settings') ? `
+                    <button
+                        class="settings-tab ${this.currentTab === 'bonifica' ? 'active' : ''}"
+                        onclick="Settings.switchTab('bonifica')"
+                    >
+                        <i class="fas fa-wrench"></i> Bonifica Fatture
+                    </button>
+                    <button
+                        class="settings-tab ${this.currentTab === 'unisciClienti' ? 'active' : ''}"
+                        onclick="Settings.switchTab('unisciClienti')"
+                    >
+                        <i class="fas fa-object-group"></i> Unisci Clienti
+                    </button>
+                    ` : ''}
                     ${AuthService.hasPermission('manage_users') ? `
                     <button
                         class="settings-tab ${this.currentTab === 'utenti' ? 'active' : ''}"
@@ -99,6 +113,10 @@ const Settings = {
                 return this.renderSistemaTab();
             case 'dati':
                 return this.renderDatiTab();
+            case 'bonifica':
+                return this.renderBonificaTab();
+            case 'unisciClienti':
+                return this.renderUnisciClientiTab();
             case 'utenti':
                 return this.renderUtentiTab();
             default:
@@ -693,6 +711,35 @@ const Settings = {
                             </button>
                         </div>
 
+                        <!-- 🏛️ Arricchimento Dati Comuni -->
+                        <div style="padding-top: 2rem; border-top: 1px solid var(--grigio-300);">
+                            <h4 style="color: var(--verde-700); margin-bottom: 0.5rem;">
+                                <i class="fas fa-magic"></i> Arricchimento Dati da Database Comuni
+                            </h4>
+                            <p style="color: var(--grigio-500); margin-bottom: 1rem;">
+                                <strong>Compila automaticamente</strong> i campi vuoti dei clienti che corrispondono a un Comune italiano.<br>
+                                Confronta la Ragione Sociale con il database di <strong>7.909 comuni</strong> e importa: Codice Fiscale, Indirizzo, CAP, Provincia, Regione, Telefono, Email 2, PEC, Codice SDI, N. Residenti.<br>
+                                <em>Non sovrascrive i campi già compilati.</em>
+                            </p>
+                            <div id="arricchimentoProgress" style="display: none; margin-bottom: 1rem;">
+                                <div style="background: var(--grigio-200); border-radius: 8px; overflow: hidden; height: 24px; margin-bottom: 0.5rem;">
+                                    <div id="arricchimentoBar" style="background: var(--verde-700); height: 100%; width: 0%; transition: width 0.3s; display: flex; align-items: center; justify-content: center; color: white; font-weight: 700; font-size: 0.875rem;">
+                                        0%
+                                    </div>
+                                </div>
+                                <p id="arricchimentoStatus" style="color: var(--grigio-700); font-size: 0.875rem;"></p>
+                            </div>
+                            <div id="arricchimentoResult" style="margin-bottom: 1rem;"></div>
+                            <button
+                                class="btn"
+                                id="btnArricchimento"
+                                style="background: var(--verde-700); color: white;"
+                                onclick="Settings.avviaArricchimento()"
+                            >
+                                <i class="fas fa-magic"></i> Avvia Arricchimento Massivo
+                            </button>
+                        </div>
+
                         <!-- Statistiche Database -->
                         <div style="padding-top: 2rem; border-top: 1px solid var(--grigio-300);">
                             <h4 style="color: var(--blu-700); margin-bottom: 1rem;">
@@ -1259,6 +1306,629 @@ const Settings = {
             UI.showError('Errore: ' + error.message);
             UI.hideLoading();
         }
+    },
+
+    // === TAB UNISCI CLIENTI DUPLICATI ===
+    renderUnisciClientiTab() {
+        return `
+            <div class="card fade-in">
+                <div class="card-header">
+                    <h2 class="card-title">
+                        <i class="fas fa-object-group"></i> Unisci Clienti Duplicati
+                    </h2>
+                </div>
+                <div style="padding: 1.5rem;">
+                    <div style="padding: 1rem; background: #E1F5FE; border-left: 4px solid #0288D1; border-radius: 8px; margin-bottom: 1.5rem;">
+                        <p style="color: #01579B; margin: 0; font-size: 0.9rem; line-height: 1.6;">
+                            <i class="fas fa-info-circle"></i> Usa questo strumento quando hai <strong>due schede cliente per lo stesso soggetto</strong> (es. nome scritto diversamente).
+                            Scegli quale cliente tenere (il "principale") e quale eliminare (il "duplicato"). Tutte le fatture, i contratti, i documenti e le scadenze del duplicato verranno spostati al principale.
+                        </p>
+                    </div>
+
+                    <!-- Step 1: Cerca duplicati -->
+                    <h3 style="font-size: 1.1rem; font-weight: 700; color: var(--blu-700); margin-bottom: 1rem;">
+                        <i class="fas fa-search"></i> 1. Cerca i due clienti
+                    </h3>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem;">
+                        <!-- Cliente PRINCIPALE (da mantenere) -->
+                        <div style="padding: 1rem; border: 2px solid var(--verde-700); border-radius: 8px; background: var(--verde-100);">
+                            <label style="display: block; font-weight: 700; color: var(--verde-900); margin-bottom: 0.5rem;">
+                                <i class="fas fa-check-circle"></i> Cliente PRINCIPALE (da mantenere)
+                            </label>
+                            <input type="text" id="searchClientePrincipale" placeholder="Cerca per nome..."
+                                oninput="Settings.cercaClienteUnione('principale', this.value)"
+                                style="width: 100%; padding: 0.75rem; border: 1px solid var(--verde-700); border-radius: 6px; font-family: inherit; font-size: 1rem; margin-bottom: 0.5rem;"
+                            />
+                            <div id="risultatiPrincipale" style="max-height: 150px; overflow-y: auto;"></div>
+                            <div id="selezionatoPrincipale" style="display: none; margin-top: 0.5rem;"></div>
+                        </div>
+
+                        <!-- Cliente DUPLICATO (da eliminare) -->
+                        <div style="padding: 1rem; border: 2px solid #D32F2F; border-radius: 8px; background: #FFEBEE;">
+                            <label style="display: block; font-weight: 700; color: #C62828; margin-bottom: 0.5rem;">
+                                <i class="fas fa-times-circle"></i> Cliente DUPLICATO (da eliminare)
+                            </label>
+                            <input type="text" id="searchClienteDuplicato" placeholder="Cerca per nome..."
+                                oninput="Settings.cercaClienteUnione('duplicato', this.value)"
+                                style="width: 100%; padding: 0.75rem; border: 1px solid #D32F2F; border-radius: 6px; font-family: inherit; font-size: 1rem; margin-bottom: 0.5rem;"
+                            />
+                            <div id="risultatiDuplicato" style="max-height: 150px; overflow-y: auto;"></div>
+                            <div id="selezionatoDuplicato" style="display: none; margin-top: 0.5rem;"></div>
+                        </div>
+                    </div>
+
+                    <!-- Step 2: Anteprima -->
+                    <div id="unioneAnteprima" style="display: none;">
+                        <h3 style="font-size: 1.1rem; font-weight: 700; color: var(--blu-700); margin-bottom: 1rem;">
+                            <i class="fas fa-eye"></i> 2. Anteprima dell'unione
+                        </h3>
+                        <div id="unioneDettagli"></div>
+
+                        <div style="margin-top: 1.5rem; padding: 1rem; background: #FFF3E0; border-left: 4px solid #FFCC00; border-radius: 8px;">
+                            <p style="color: #E65100; margin: 0; font-weight: 600;">
+                                <i class="fas fa-exclamation-triangle"></i> Attenzione: il cliente duplicato verrà <strong>eliminato definitivamente</strong> dopo lo spostamento dei dati. Questa operazione non è reversibile.
+                            </p>
+                        </div>
+
+                        <button class="btn btn-success" id="btnEseguiUnione" onclick="Settings.eseguiUnione()" style="margin-top: 1rem;">
+                            <i class="fas fa-play"></i> Esegui Unione
+                        </button>
+                    </div>
+
+                    <div id="unioneProgress" style="display: none;"></div>
+                </div>
+            </div>
+        `;
+    },
+
+    _clientePrincipale: null,
+    _clienteDuplicato: null,
+    _unioneSearchTimeout: null,
+
+    async cercaClienteUnione(tipo, query) {
+        clearTimeout(this._unioneSearchTimeout);
+        this._unioneSearchTimeout = setTimeout(async () => {
+            const resultsDiv = document.getElementById(`risultati${tipo === 'principale' ? 'Principale' : 'Duplicato'}`);
+            if (!query || query.length < 2) {
+                resultsDiv.innerHTML = '';
+                return;
+            }
+
+            const clienti = await DataService.getClienti();
+            const filtrati = clienti.filter(c =>
+                c.ragioneSociale?.toLowerCase().includes(query.toLowerCase())
+            ).slice(0, 10);
+
+            if (filtrati.length === 0) {
+                resultsDiv.innerHTML = '<p style="color: var(--grigio-500); font-size: 0.85rem; padding: 0.5rem;">Nessun risultato</p>';
+                return;
+            }
+
+            resultsDiv.innerHTML = filtrati.map(c => `
+                <div onclick="Settings.selezionaClienteUnione('${tipo}', '${c.id}')"
+                     style="padding: 0.5rem 0.75rem; cursor: pointer; border-bottom: 1px solid var(--grigio-200); font-size: 0.9rem; transition: background 0.2s;"
+                     onmouseover="this.style.background='rgba(0,0,0,0.05)'"
+                     onmouseout="this.style.background='transparent'">
+                    <strong>${c.ragioneSociale}</strong>
+                    <span style="color: var(--grigio-500); font-size: 0.8rem;"> (${c.provincia || 'N/A'}) ${c.tipo === 'PA' ? '🏛️ PA' : ''}</span>
+                </div>
+            `).join('');
+        }, 300);
+    },
+
+    async selezionaClienteUnione(tipo, clienteId) {
+        const cliente = await DataService.getCliente(clienteId);
+        if (!cliente) return;
+
+        // Carica dati associati
+        const fatture = await DataService.getFattureCliente(cliente.clienteIdLegacy || clienteId);
+        const contratti = await DataService.getContrattiCliente(cliente.clienteIdLegacy || clienteId);
+
+        const selDiv = document.getElementById(`selezionato${tipo === 'principale' ? 'Principale' : 'Duplicato'}`);
+        const resultsDiv = document.getElementById(`risultati${tipo === 'principale' ? 'Principale' : 'Duplicato'}`);
+        const searchInput = document.getElementById(`searchCliente${tipo === 'principale' ? 'Principale' : 'Duplicato'}`);
+
+        // Salva il cliente selezionato
+        if (tipo === 'principale') {
+            this._clientePrincipale = { ...cliente, _fatture: fatture, _contratti: contratti };
+        } else {
+            this._clienteDuplicato = { ...cliente, _fatture: fatture, _contratti: contratti };
+        }
+
+        const colore = tipo === 'principale' ? 'var(--verde-700)' : '#D32F2F';
+        selDiv.innerHTML = `
+            <div style="padding: 0.75rem; background: white; border-radius: 6px; border: 1px solid ${colore};">
+                <strong style="color: ${colore}; font-size: 1rem;">${cliente.ragioneSociale}</strong>
+                <div style="font-size: 0.8rem; color: var(--grigio-600); margin-top: 0.25rem;">
+                    ID: ${cliente.clienteIdLegacy || cliente.id}<br/>
+                    Tipo: ${cliente.tipo || 'N/A'} • Provincia: ${cliente.provincia || 'N/A'}<br/>
+                    <strong>${fatture.length} fatture</strong> • <strong>${contratti.length} contratti</strong>
+                </div>
+                <button onclick="Settings.deselezionaClienteUnione('${tipo}')" style="margin-top: 0.5rem; font-size: 0.8rem; color: ${colore}; background: none; border: 1px solid ${colore}; border-radius: 4px; padding: 0.25rem 0.5rem; cursor: pointer;">
+                    <i class="fas fa-times"></i> Cambia
+                </button>
+            </div>
+        `;
+        selDiv.style.display = 'block';
+        resultsDiv.innerHTML = '';
+        searchInput.style.display = 'none';
+
+        // Se entrambi i clienti sono selezionati, mostra anteprima
+        if (this._clientePrincipale && this._clienteDuplicato) {
+            this.mostraAnteprimaUnione();
+        }
+    },
+
+    deselezionaClienteUnione(tipo) {
+        const selDiv = document.getElementById(`selezionato${tipo === 'principale' ? 'Principale' : 'Duplicato'}`);
+        const searchInput = document.getElementById(`searchCliente${tipo === 'principale' ? 'Principale' : 'Duplicato'}`);
+
+        selDiv.style.display = 'none';
+        selDiv.innerHTML = '';
+        searchInput.style.display = 'block';
+        searchInput.value = '';
+
+        if (tipo === 'principale') {
+            this._clientePrincipale = null;
+        } else {
+            this._clienteDuplicato = null;
+        }
+
+        document.getElementById('unioneAnteprima').style.display = 'none';
+    },
+
+    mostraAnteprimaUnione() {
+        const principale = this._clientePrincipale;
+        const duplicato = this._clienteDuplicato;
+
+        if (principale.id === duplicato.id) {
+            UI.showError('Non puoi unire un cliente con se stesso!');
+            return;
+        }
+
+        const dettagliDiv = document.getElementById('unioneDettagli');
+        dettagliDiv.innerHTML = `
+            <div style="display: grid; grid-template-columns: 1fr auto 1fr; gap: 1rem; align-items: start;">
+                <!-- Duplicato (sorgente) -->
+                <div style="padding: 1rem; background: #FFEBEE; border-radius: 8px; border: 2px solid #D32F2F;">
+                    <h4 style="color: #C62828; margin: 0 0 0.75rem 0; font-size: 0.95rem;">
+                        <i class="fas fa-times-circle"></i> DA ELIMINARE
+                    </h4>
+                    <p style="font-weight: 700; margin: 0 0 0.5rem 0;">${duplicato.ragioneSociale}</p>
+                    <p style="font-size: 0.85rem; color: var(--grigio-700); margin: 0;">
+                        ${duplicato._fatture.length} fatture da spostare<br/>
+                        ${duplicato._contratti.length} contratti da spostare
+                    </p>
+                </div>
+
+                <!-- Freccia -->
+                <div style="display: flex; align-items: center; justify-content: center; padding-top: 2rem;">
+                    <i class="fas fa-arrow-right" style="font-size: 2rem; color: var(--blu-700);"></i>
+                </div>
+
+                <!-- Principale (destinazione) -->
+                <div style="padding: 1rem; background: var(--verde-100); border-radius: 8px; border: 2px solid var(--verde-700);">
+                    <h4 style="color: var(--verde-900); margin: 0 0 0.75rem 0; font-size: 0.95rem;">
+                        <i class="fas fa-check-circle"></i> DA MANTENERE
+                    </h4>
+                    <p style="font-weight: 700; margin: 0 0 0.5rem 0;">${principale.ragioneSociale}</p>
+                    <p style="font-size: 0.85rem; color: var(--grigio-700); margin: 0;">
+                        ${principale._fatture.length} fatture esistenti<br/>
+                        ${principale._contratti.length} contratti esistenti<br/><br/>
+                        <strong style="color: var(--verde-700);">Dopo l'unione:</strong><br/>
+                        ${principale._fatture.length + duplicato._fatture.length} fatture totali<br/>
+                        ${principale._contratti.length + duplicato._contratti.length} contratti totali
+                    </p>
+                </div>
+            </div>
+
+            ${duplicato._fatture.length > 0 ? `
+                <div style="margin-top: 1rem;">
+                    <h4 style="font-size: 0.9rem; font-weight: 700; color: var(--grigio-700); margin-bottom: 0.5rem;">
+                        <i class="fas fa-file-invoice"></i> Fatture che verranno spostate:
+                    </h4>
+                    <div style="max-height: 200px; overflow-y: auto; background: var(--grigio-100); border-radius: 6px; padding: 0.5rem;">
+                        ${duplicato._fatture.map(f => `
+                            <div style="display: flex; justify-content: space-between; padding: 0.35rem 0.5rem; font-size: 0.85rem; border-bottom: 1px solid var(--grigio-200);">
+                                <span><strong>${f.numeroFatturaCompleto || 'N/A'}</strong> — ${DataService.formatDate(f.dataEmissione)}</span>
+                                <span style="font-weight: 600;">${DataService.formatCurrency(f.importoTotale)}</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            ` : ''}
+        `;
+
+        document.getElementById('unioneAnteprima').style.display = 'block';
+    },
+
+    async eseguiUnione() {
+        const principale = this._clientePrincipale;
+        const duplicato = this._clienteDuplicato;
+
+        if (!principale || !duplicato) {
+            UI.showError('Seleziona entrambi i clienti');
+            return;
+        }
+
+        if (principale.id === duplicato.id) {
+            UI.showError('Non puoi unire un cliente con se stesso!');
+            return;
+        }
+
+        const conferma = confirm(
+            `Confermi l'unione?\n\n` +
+            `ELIMINARE: "${duplicato.ragioneSociale}"\n` +
+            `MANTENERE: "${principale.ragioneSociale}"\n\n` +
+            `${duplicato._fatture.length} fatture e ${duplicato._contratti.length} contratti verranno spostati.\n` +
+            `Il cliente duplicato verrà eliminato definitivamente.`
+        );
+        if (!conferma) return;
+
+        const progressDiv = document.getElementById('unioneProgress');
+        const btnEsegui = document.getElementById('btnEseguiUnione');
+        btnEsegui.disabled = true;
+        btnEsegui.innerHTML = '<i class="fas fa-spinner fa-spin"></i> In corso...';
+        progressDiv.style.display = 'block';
+
+        // Raccoglie TUTTI i possibili ID del cliente principale e duplicato
+        const idsPrincipale = [principale.id, principale.clienteIdLegacy].filter(Boolean);
+        const idsDuplicato = [duplicato.id, duplicato.clienteIdLegacy].filter(Boolean);
+        // ID da usare per il salvataggio (usa il legacy se esiste)
+        const idPrincipale = principale.clienteIdLegacy || principale.id;
+        let operazioni = 0;
+        let errori = 0;
+        const totaleOp = duplicato._fatture.length + duplicato._contratti.length + 1; // +1 per eliminazione
+
+        try {
+            // 1. Sposta tutte le fatture (trovate tramite getFattureCliente che cerca entrambi gli ID)
+            for (const fattura of duplicato._fatture) {
+                try {
+                    await db.collection('fatture').doc(fattura.id).update({
+                        clienteId: idPrincipale,
+                        clienteRagioneSociale: principale.ragioneSociale
+                    });
+                    operazioni++;
+                } catch (e) {
+                    console.error(`Errore spostamento fattura ${fattura.id}:`, e);
+                    errori++;
+                }
+                this._aggiornaProgressUnione(progressDiv, operazioni + errori, totaleOp, 'Spostamento fatture...');
+            }
+
+            // 2. Sposta tutti i contratti (trovati tramite getContrattiCliente che cerca entrambi gli ID)
+            for (const contratto of duplicato._contratti) {
+                try {
+                    await db.collection('contratti').doc(contratto.id).update({
+                        clienteId: idPrincipale,
+                        clienteRagioneSociale: principale.ragioneSociale
+                    });
+                    operazioni++;
+                } catch (e) {
+                    console.error(`Errore spostamento contratto ${contratto.id}:`, e);
+                    errori++;
+                }
+                this._aggiornaProgressUnione(progressDiv, operazioni + errori, totaleOp, 'Spostamento contratti...');
+            }
+
+            // 3. Sposta scadenze (cerca per TUTTI gli ID del duplicato)
+            try {
+                for (const idDup of idsDuplicato) {
+                    const scadenzeSnapshot = await db.collection('scadenzario')
+                        .where('clienteId', '==', idDup).get();
+                    for (const doc of scadenzeSnapshot.docs) {
+                        await db.collection('scadenzario').doc(doc.id).update({
+                            clienteId: idPrincipale,
+                            clienteRagioneSociale: principale.ragioneSociale
+                        });
+                    }
+                }
+            } catch (e) {
+                console.error('Errore spostamento scadenze:', e);
+            }
+
+            // 4. Sposta documenti (cerca per TUTTI gli ID del duplicato)
+            try {
+                for (const idDup of idsDuplicato) {
+                    const documentiSnapshot = await db.collection('documenti')
+                        .where('entitaId', '==', idDup).get();
+                    for (const doc of documentiSnapshot.docs) {
+                        await db.collection('documenti').doc(doc.id).update({
+                            entitaId: principale.id
+                        });
+                    }
+                }
+            } catch (e) {
+                console.error('Errore spostamento documenti:', e);
+            }
+
+            // 5. Elimina il cliente duplicato
+            try {
+                await db.collection('clienti').doc(duplicato.id).delete();
+                operazioni++;
+            } catch (e) {
+                console.error('Errore eliminazione duplicato:', e);
+                errori++;
+            }
+
+            // Risultato finale
+            progressDiv.innerHTML = `
+                <div style="padding: 1.5rem; background: ${errori === 0 ? 'var(--verde-100)' : '#FFF3E0'}; border-radius: 8px; margin-top: 1rem; border-left: 4px solid ${errori === 0 ? 'var(--verde-700)' : '#FFCC00'};">
+                    <h3 style="font-size: 1.1rem; font-weight: 700; color: ${errori === 0 ? 'var(--verde-900)' : '#E65100'}; margin-bottom: 0.5rem;">
+                        <i class="fas ${errori === 0 ? 'fa-check-circle' : 'fa-exclamation-triangle'}"></i>
+                        Unione completata!
+                    </h3>
+                    <p style="margin: 0; color: var(--grigio-700); line-height: 1.6;">
+                        <strong>${duplicato._fatture.length}</strong> fatture spostate a "${principale.ragioneSociale}"<br/>
+                        <strong>${duplicato._contratti.length}</strong> contratti spostati<br/>
+                        Cliente "<strong>${duplicato.ragioneSociale}</strong>" eliminato
+                        ${errori > 0 ? `<br/><strong style="color: #D32F2F;">${errori} errori riscontrati</strong>` : ''}
+                    </p>
+                </div>
+            `;
+
+            btnEsegui.style.display = 'none';
+            document.getElementById('unioneAnteprima').style.display = 'none';
+            this._clientePrincipale = null;
+            this._clienteDuplicato = null;
+            UI.showSuccess('Unione completata con successo!');
+
+        } catch (error) {
+            console.error('Errore durante l\'unione:', error);
+            progressDiv.innerHTML = `
+                <div style="padding: 1rem; background: #FFEBEE; border-left: 4px solid #D32F2F; border-radius: 8px; margin-top: 1rem;">
+                    <p style="color: #D32F2F; font-weight: 700; margin: 0;">
+                        <i class="fas fa-times-circle"></i> Errore durante l'unione: ${error.message}
+                    </p>
+                </div>
+            `;
+            btnEsegui.disabled = false;
+            btnEsegui.innerHTML = '<i class="fas fa-play"></i> Riprova';
+        }
+    },
+
+    _aggiornaProgressUnione(div, current, total, fase) {
+        div.innerHTML = `
+            <div style="padding: 1rem; background: var(--blu-100); border-radius: 8px; margin-top: 1rem;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                    <span style="font-weight: 600; color: var(--blu-700);">${fase}</span>
+                    <span style="font-weight: 700; color: var(--blu-700);">${current}/${total}</span>
+                </div>
+                <div style="width: 100%; height: 8px; background: var(--grigio-300); border-radius: 4px; overflow: hidden;">
+                    <div style="width: ${(current / total * 100)}%; height: 100%; background: var(--verde-700); transition: width 0.3s;"></div>
+                </div>
+            </div>
+        `;
+    },
+
+    // === TAB BONIFICA FATTURE ===
+    renderBonificaTab() {
+        return `
+            <div class="card fade-in">
+                <div class="card-header">
+                    <h2 class="card-title">
+                        <i class="fas fa-wrench"></i> Bonifica Numeri Fattura (PA/PR)
+                    </h2>
+                </div>
+                <div style="padding: 1.5rem;">
+                    <div style="padding: 1rem; background: #FFF3E0; border-left: 4px solid #FFCC00; border-radius: 8px; margin-bottom: 1.5rem;">
+                        <h3 style="font-size: 1rem; font-weight: 700; color: #E65100; margin-bottom: 0.5rem;">
+                            <i class="fas fa-exclamation-triangle"></i> Cosa fa questa bonifica?
+                        </h3>
+                        <p style="color: #4A4A4A; margin: 0; font-size: 0.9rem; line-height: 1.6;">
+                            Questa operazione aggiorna <strong>tutte le fatture esistenti</strong> aggiungendo il suffisso <strong>/PA</strong> o <strong>/PR</strong> al numero fattura,
+                            in base al tipo del cliente associato.<br/>
+                            Esempio: <code>2026/005</code> diventa <code>2026/005/PA</code> o <code>2026/005/PR</code>.<br/><br/>
+                            <strong>Attenzione:</strong> le fatture che hanno già il suffisso /PA o /PR non verranno modificate.
+                        </p>
+                    </div>
+
+                    <div style="display: flex; gap: 1rem; margin-bottom: 1.5rem;">
+                        <button class="btn btn-primary" onclick="Settings.anteprimaBonifica()">
+                            <i class="fas fa-search"></i> Anteprima modifiche
+                        </button>
+                        <button class="btn btn-success" id="btnEseguiBonifica" onclick="Settings.eseguiBonificaFatture()" style="display: none;">
+                            <i class="fas fa-play"></i> Esegui Bonifica
+                        </button>
+                    </div>
+
+                    <div id="bonificaResults" style="display: none;">
+                        <div id="bonificaStats" style="margin-bottom: 1rem;"></div>
+                        <div id="bonificaList" style="max-height: 400px; overflow-y: auto;"></div>
+                    </div>
+                    <div id="bonificaProgress" style="display: none;"></div>
+                </div>
+            </div>
+        `;
+    },
+
+    async anteprimaBonifica() {
+        const resultsDiv = document.getElementById('bonificaResults');
+        const statsDiv = document.getElementById('bonificaStats');
+        const listDiv = document.getElementById('bonificaList');
+        const btnEsegui = document.getElementById('btnEseguiBonifica');
+
+        statsDiv.innerHTML = '<p style="color: var(--grigio-500);"><i class="fas fa-spinner fa-spin"></i> Analisi in corso...</p>';
+        resultsDiv.style.display = 'block';
+
+        try {
+            // Carica tutte le fatture
+            const fattureSnapshot = await db.collection('fatture').get();
+            const fatture = fattureSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+            // Carica tutti i clienti per determinare il tipo
+            const clientiSnapshot = await db.collection('clienti').get();
+            const clientiMap = {};
+            clientiSnapshot.forEach(doc => {
+                const data = doc.data();
+                const legacyId = data.id || doc.id;
+                clientiMap[legacyId] = {
+                    ragioneSociale: data.ragioneSociale,
+                    tipo: data.tipo || 'PRIVATO'
+                };
+                // Mappa anche con Firebase ID
+                clientiMap[doc.id] = clientiMap[legacyId];
+            });
+
+            // Analizza fatture da aggiornare
+            const daBonificare = [];
+            const giaOk = [];
+            const senzaCliente = [];
+
+            for (const f of fatture) {
+                const num = f.numeroFatturaCompleto || '';
+                const hasSuffix = num.endsWith('/PA') || num.endsWith('/PR');
+
+                if (hasSuffix) {
+                    giaOk.push(f);
+                    continue;
+                }
+
+                const cliente = clientiMap[f.clienteId];
+                if (!cliente) {
+                    senzaCliente.push(f);
+                    continue;
+                }
+
+                const suffisso = cliente.tipo === 'PA' ? 'PA' : 'PR';
+                const nuovoNumero = num ? `${num}/${suffisso}` : '';
+
+                daBonificare.push({
+                    ...f,
+                    clienteNome: cliente.ragioneSociale,
+                    tipoCliente: suffisso,
+                    nuovoNumero: nuovoNumero,
+                    vecchioNumero: num
+                });
+            }
+
+            // Salva per l'esecuzione
+            this._daBonificare = daBonificare;
+
+            // Statistiche
+            statsDiv.innerHTML = `
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 1rem;">
+                    <div style="padding: 1rem; background: var(--blu-100); border-radius: 8px; text-align: center;">
+                        <div style="font-size: 2rem; font-weight: 700; color: var(--blu-700);">${fatture.length}</div>
+                        <div style="font-size: 0.85rem; color: var(--grigio-700);">Fatture totali</div>
+                    </div>
+                    <div style="padding: 1rem; background: #FFF3E0; border-radius: 8px; text-align: center;">
+                        <div style="font-size: 2rem; font-weight: 700; color: #E65100;">${daBonificare.length}</div>
+                        <div style="font-size: 0.85rem; color: var(--grigio-700);">Da aggiornare</div>
+                    </div>
+                    <div style="padding: 1rem; background: var(--verde-100); border-radius: 8px; text-align: center;">
+                        <div style="font-size: 2rem; font-weight: 700; color: var(--verde-700);">${giaOk.length}</div>
+                        <div style="font-size: 0.85rem; color: var(--grigio-700);">Già con PA/PR</div>
+                    </div>
+                    ${senzaCliente.length > 0 ? `
+                    <div style="padding: 1rem; background: #FFEBEE; border-radius: 8px; text-align: center;">
+                        <div style="font-size: 2rem; font-weight: 700; color: #D32F2F;">${senzaCliente.length}</div>
+                        <div style="font-size: 0.85rem; color: var(--grigio-700);">Senza cliente</div>
+                    </div>` : ''}
+                </div>
+            `;
+
+            // Lista anteprima
+            if (daBonificare.length > 0) {
+                listDiv.innerHTML = `
+                    <table style="width: 100%; border-collapse: collapse; font-size: 0.875rem;">
+                        <thead>
+                            <tr style="background: var(--grigio-100); font-weight: 700;">
+                                <th style="padding: 0.5rem 0.75rem; text-align: left;">Cliente</th>
+                                <th style="padding: 0.5rem 0.75rem; text-align: left;">Tipo</th>
+                                <th style="padding: 0.5rem 0.75rem; text-align: left;">Numero attuale</th>
+                                <th style="padding: 0.5rem 0.75rem; text-align: left;"><i class="fas fa-arrow-right"></i> Nuovo numero</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${daBonificare.map(f => `
+                                <tr style="border-bottom: 1px solid var(--grigio-200);">
+                                    <td style="padding: 0.5rem 0.75rem;">${f.clienteNome || f.clienteId}</td>
+                                    <td style="padding: 0.5rem 0.75rem;">
+                                        <span style="display:inline-block; background:${f.tipoCliente === 'PA' ? '#0288D1' : '#9B9B9B'}; color:white; font-size:0.7rem; padding:0.15rem 0.4rem; border-radius:4px; font-weight:700;">${f.tipoCliente}</span>
+                                    </td>
+                                    <td style="padding: 0.5rem 0.75rem; color: var(--grigio-500); text-decoration: line-through;">${f.vecchioNumero}</td>
+                                    <td style="padding: 0.5rem 0.75rem; font-weight: 700; color: var(--verde-700);">${f.nuovoNumero}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `;
+                btnEsegui.style.display = 'inline-flex';
+            } else {
+                listDiv.innerHTML = '<p style="color: var(--verde-700); font-weight: 600;"><i class="fas fa-check-circle"></i> Tutte le fatture sono già aggiornate con il suffisso PA/PR!</p>';
+                btnEsegui.style.display = 'none';
+            }
+
+        } catch (error) {
+            console.error('Errore anteprima bonifica:', error);
+            statsDiv.innerHTML = `<p style="color: #D32F2F;"><i class="fas fa-times-circle"></i> Errore: ${error.message}</p>`;
+        }
+    },
+
+    async eseguiBonificaFatture() {
+        if (!this._daBonificare || this._daBonificare.length === 0) {
+            UI.showError('Nessuna fattura da bonificare');
+            return;
+        }
+
+        const conferma = confirm(`Stai per aggiornare ${this._daBonificare.length} fatture. Vuoi procedere?`);
+        if (!conferma) return;
+
+        const progressDiv = document.getElementById('bonificaProgress');
+        const btnEsegui = document.getElementById('btnEseguiBonifica');
+        btnEsegui.disabled = true;
+        btnEsegui.innerHTML = '<i class="fas fa-spinner fa-spin"></i> In corso...';
+        progressDiv.style.display = 'block';
+
+        let aggiornate = 0;
+        let errori = 0;
+        const totale = this._daBonificare.length;
+
+        for (const f of this._daBonificare) {
+            try {
+                await db.collection('fatture').doc(f.id).update({
+                    numeroFatturaCompleto: f.nuovoNumero,
+                    tipoCliente: f.tipoCliente
+                });
+                aggiornate++;
+            } catch (error) {
+                console.error(`Errore aggiornamento fattura ${f.id}:`, error);
+                errori++;
+            }
+
+            // Aggiorna progress
+            progressDiv.innerHTML = `
+                <div style="padding: 1rem; background: var(--blu-100); border-radius: 8px; margin-top: 1rem;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                        <span style="font-weight: 600; color: var(--blu-700);">Aggiornamento in corso...</span>
+                        <span style="font-weight: 700; color: var(--blu-700);">${aggiornate + errori}/${totale}</span>
+                    </div>
+                    <div style="width: 100%; height: 8px; background: var(--grigio-300); border-radius: 4px; overflow: hidden;">
+                        <div style="width: ${((aggiornate + errori) / totale * 100)}%; height: 100%; background: var(--verde-700); transition: width 0.3s;"></div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Risultato finale
+        progressDiv.innerHTML = `
+            <div style="padding: 1.5rem; background: ${errori === 0 ? 'var(--verde-100)' : '#FFF3E0'}; border-radius: 8px; margin-top: 1rem; border-left: 4px solid ${errori === 0 ? 'var(--verde-700)' : '#FFCC00'};">
+                <h3 style="font-size: 1.1rem; font-weight: 700; color: ${errori === 0 ? 'var(--verde-900)' : '#E65100'}; margin-bottom: 0.5rem;">
+                    <i class="fas ${errori === 0 ? 'fa-check-circle' : 'fa-exclamation-triangle'}"></i>
+                    Bonifica completata
+                </h3>
+                <p style="margin: 0; color: var(--grigio-700);">
+                    <strong>${aggiornate}</strong> fatture aggiornate con successo.
+                    ${errori > 0 ? `<br/><strong style="color: #D32F2F;">${errori}</strong> errori.` : ''}
+                </p>
+            </div>
+        `;
+
+        btnEsegui.style.display = 'none';
+        this._daBonificare = [];
+        UI.showSuccess(`Bonifica completata: ${aggiornate} fatture aggiornate!`);
     },
 
     async switchTab(tab) {
@@ -1944,6 +2614,96 @@ const Settings = {
 
     screenshotAzienda() {
         UI.showSuccess('Usa la funzione screenshot del tuo sistema operativo o browser per catturare la card!');
+    },
+
+    // 🏛️ ARRICCHIMENTO MASSIVO DATI COMUNI
+    async avviaArricchimento() {
+        if (!confirm('Vuoi avviare l\'arricchimento massivo?\n\nQuesta operazione:\n- Confronta tutti i clienti con il database di 7.909 comuni italiani\n- Compila automaticamente i campi vuoti\n- NON sovrascrive i campi già compilati\n\nProcedere?')) {
+            return;
+        }
+
+        const btn = document.getElementById('btnArricchimento');
+        const progressDiv = document.getElementById('arricchimentoProgress');
+        const resultDiv = document.getElementById('arricchimentoResult');
+        const bar = document.getElementById('arricchimentoBar');
+        const status = document.getElementById('arricchimentoStatus');
+
+        // Disabilita pulsante e mostra progress
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Arricchimento in corso...';
+        progressDiv.style.display = 'block';
+        resultDiv.innerHTML = '';
+
+        try {
+            const result = await ComuniService.arricchimentoMassivo((progress) => {
+                // Aggiorna barra progresso
+                bar.style.width = progress.percentuale + '%';
+                bar.textContent = progress.percentuale + '%';
+                status.textContent = `Processati ${progress.processati}/${progress.totale} clienti | Arricchiti: ${progress.arricchiti} | Non trovati: ${progress.nonTrovati} | Già completi: ${progress.giaCompleti}`;
+            });
+
+            if (result.success) {
+                // Mostra risultati
+                resultDiv.innerHTML = `
+                    <div style="background: var(--verde-100); border: 2px solid var(--verde-300); border-radius: 8px; padding: 1rem;">
+                        <h4 style="color: var(--verde-900); margin-bottom: 0.75rem;">
+                            <i class="fas fa-check-circle"></i> Arricchimento completato!
+                        </h4>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 1rem; margin-bottom: 1rem;">
+                            <div style="text-align: center;">
+                                <div style="font-size: 2rem; font-weight: 700; color: var(--blu-700);">${result.totale}</div>
+                                <div style="font-size: 0.875rem; color: var(--grigio-600);">Totale clienti</div>
+                            </div>
+                            <div style="text-align: center;">
+                                <div style="font-size: 2rem; font-weight: 700; color: var(--verde-700);">${result.arricchiti}</div>
+                                <div style="font-size: 0.875rem; color: var(--grigio-600);">Arricchiti</div>
+                            </div>
+                            <div style="text-align: center;">
+                                <div style="font-size: 2rem; font-weight: 700; color: var(--grigio-500);">${result.giaCompleti}</div>
+                                <div style="font-size: 0.875rem; color: var(--grigio-600);">Già completi</div>
+                            </div>
+                            <div style="text-align: center;">
+                                <div style="font-size: 2rem; font-weight: 700; color: var(--giallo-avviso);">${result.nonTrovati}</div>
+                                <div style="font-size: 0.875rem; color: var(--grigio-600);">Non trovati</div>
+                            </div>
+                        </div>
+                        ${result.dettaglio.length > 0 ? `
+                            <details>
+                                <summary style="cursor: pointer; color: var(--blu-700); font-weight: 600; margin-bottom: 0.5rem;">
+                                    <i class="fas fa-list"></i> Vedi dettaglio clienti arricchiti (${result.dettaglio.length})
+                                </summary>
+                                <div style="max-height: 200px; overflow-y: auto; background: white; border-radius: 6px; padding: 0.5rem;">
+                                    ${result.dettaglio.map(d => `
+                                        <div style="padding: 0.5rem; border-bottom: 1px solid var(--grigio-200); font-size: 0.875rem;">
+                                            <strong>${d.nome}</strong>
+                                            <span style="color: var(--verde-700);">+${d.campi} campi</span>
+                                            <small style="color: var(--grigio-500);"> (${d.dettagli.join(', ')})</small>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </details>
+                        ` : ''}
+                    </div>
+                `;
+            } else {
+                resultDiv.innerHTML = `
+                    <div style="background: #FDECEA; border: 2px solid var(--rosso-errore); border-radius: 8px; padding: 1rem; color: var(--rosso-errore);">
+                        <i class="fas fa-exclamation-triangle"></i> Errore: ${result.error}
+                    </div>
+                `;
+            }
+
+        } catch (error) {
+            console.error('Errore arricchimento:', error);
+            resultDiv.innerHTML = `
+                <div style="background: #FDECEA; border: 2px solid var(--rosso-errore); border-radius: 8px; padding: 1rem; color: var(--rosso-errore);">
+                    <i class="fas fa-exclamation-triangle"></i> Errore: ${error.message}
+                </div>
+            `;
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-magic"></i> Avvia Arricchimento Massivo';
+        }
     }
 
 };

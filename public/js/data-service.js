@@ -202,11 +202,46 @@ const DataService = {
 
     async getContrattiCliente(clienteId) {
         try {
-            const snapshot = await db.collection('contratti')
+            // Cerca contratti per l'ID passato
+            const snapshot1 = await db.collection('contratti')
                 .where('clienteId', '==', clienteId)
                 .orderBy('dataScadenza', 'desc')
                 .get();
-            return snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+            const contratti1 = snapshot1.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+
+            // Cerca anche per l'altro ID del cliente (legacy ↔ Firestore)
+            let contratti2 = [];
+            const clienteDoc = await db.collection('clienti').doc(clienteId).get();
+            if (clienteDoc.exists) {
+                const legacyId = clienteDoc.data().id;
+                if (legacyId && legacyId !== clienteId) {
+                    const snapshot2 = await db.collection('contratti')
+                        .where('clienteId', '==', legacyId)
+                        .get();
+                    contratti2 = snapshot2.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+                }
+            } else {
+                const snapshot = await db.collection('clienti').where('id', '==', clienteId).limit(1).get();
+                if (!snapshot.empty) {
+                    const firestoreId = snapshot.docs[0].id;
+                    if (firestoreId !== clienteId) {
+                        const snapshot2 = await db.collection('contratti')
+                            .where('clienteId', '==', firestoreId)
+                            .get();
+                        contratti2 = snapshot2.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+                    }
+                }
+            }
+
+            // Unisci senza duplicati
+            const idsVisti = new Set(contratti1.map(c => c.id));
+            const tutti = [...contratti1];
+            for (const c of contratti2) {
+                if (!idsVisti.has(c.id)) {
+                    tutti.push(c);
+                }
+            }
+            return tutti;
         } catch (error) {
             console.error('Errore caricamento contratti cliente:', error);
             return [];
@@ -364,9 +399,45 @@ const DataService = {
     },
 
     async getFattureCliente(clienteId) {
-        // Usa direttamente il clienteId (ID Firebase del documento cliente)
-        // Dopo il fix, le fatture hanno clienteId corretto
-        return this.getFatture({ clienteId: clienteId, limit: 1000 });
+        // Cerca fatture usando ENTRAMBI gli ID del cliente (Firestore doc ID e legacy ID)
+        // perché le fatture possono avere salvato l'uno o l'altro
+        try {
+            // Prima cerca per l'ID passato
+            const fatture1 = await this.getFatture({ clienteId: clienteId, limit: 1000 });
+
+            // Poi cerca anche per l'altro ID del cliente
+            let fatture2 = [];
+            const clienteDoc = await db.collection('clienti').doc(clienteId).get();
+            if (clienteDoc.exists) {
+                const legacyId = clienteDoc.data().id;
+                if (legacyId && legacyId !== clienteId) {
+                    fatture2 = await this.getFatture({ clienteId: legacyId, limit: 1000 });
+                }
+            } else {
+                // Se clienteId non è un doc ID Firestore, potrebbe essere un legacy ID
+                // Cerca il doc Firestore per ottenere il suo doc.id
+                const snapshot = await db.collection('clienti').where('id', '==', clienteId).limit(1).get();
+                if (!snapshot.empty) {
+                    const firestoreId = snapshot.docs[0].id;
+                    if (firestoreId !== clienteId) {
+                        fatture2 = await this.getFatture({ clienteId: firestoreId, limit: 1000 });
+                    }
+                }
+            }
+
+            // Unisci senza duplicati (usando l'ID fattura come chiave)
+            const idsVisti = new Set(fatture1.map(f => f.id));
+            const tutte = [...fatture1];
+            for (const f of fatture2) {
+                if (!idsVisti.has(f.id)) {
+                    tutte.push(f);
+                }
+            }
+            return tutte;
+        } catch (error) {
+            console.error('Errore caricamento fatture cliente:', error);
+            return [];
+        }
     },
 
     async getFattura(fatturaId) {
@@ -388,7 +459,7 @@ const DataService = {
 
     async getClienteByLegacyId(legacyId) {
         try {
-            // Cerca cliente che ha nel campo "id" (quello nei dati) il valore legacyId
+            // 1. Cerca cliente che ha nel campo "id" (legacy) il valore passato
             const snapshot = await db.collection('clienti')
                 .where('id', '==', legacyId)
                 .limit(1)
@@ -403,6 +474,18 @@ const DataService = {
                     id: doc.id  // ID documento Firestore
                 };
             }
+
+            // 2. Se non trovato per legacy ID, prova come Firestore doc ID
+            const docDirect = await db.collection('clienti').doc(legacyId).get();
+            if (docDirect.exists) {
+                const data = docDirect.data();
+                return {
+                    ...data,
+                    clienteIdLegacy: data.id,
+                    id: docDirect.id
+                };
+            }
+
             return null;
         } catch (error) {
             console.error('Errore ricerca cliente by legacy ID:', error);
@@ -673,6 +756,7 @@ const DataService = {
             'DA_DEFINIRE': 'badge-warning',
             'PAGATA': 'badge-success',
             'NON_PAGATA': 'badge-danger',
+            'PARZIALMENTE_PAGATA': 'badge-warning',
             'NOTA_CREDITO': 'badge-secondary',
             'RIFIUTATA': 'badge-danger'
         };

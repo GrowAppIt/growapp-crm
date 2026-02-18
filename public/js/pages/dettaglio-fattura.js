@@ -29,10 +29,15 @@ const DettaglioFattura = {
                         <button class="btn btn-secondary btn-sm" onclick="UI.showPage('fatture')">
                             <i class="fas fa-arrow-left"></i> Torna alle fatture
                         </button>
-                        <div style="display: flex; gap: 0.5rem;">
-                            ${fattura.statoPagamento === 'NON_PAGATA' ? `
+                        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                            ${fattura.statoPagamento === 'NON_PAGATA' || fattura.statoPagamento === 'PARZIALMENTE_PAGATA' ? `
                                 <button class="btn btn-success btn-sm" onclick="FormsManager.marcaFatturaPagata('${fattura.id}')">
                                     <i class="fas fa-check"></i> Marca Pagata
+                                </button>
+                            ` : ''}
+                            ${fattura.statoPagamento !== 'PAGATA' ? `
+                                <button class="btn btn-sm" style="background: var(--verde-700); color: white; border: none;" onclick="DettaglioFattura.registraAcconto()">
+                                    <i class="fas fa-hand-holding-usd"></i> Registra Acconto
                                 </button>
                             ` : ''}
                             <button class="btn btn-primary btn-sm" onclick="DettaglioFattura.editFattura()">
@@ -44,6 +49,10 @@ const DettaglioFattura = {
                         <i class="fas fa-file-invoice"></i> ${fattura.numeroFatturaCompleto || 'Fattura'}
                     </h1>
                     <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+                        ${(fattura.tipoCliente === 'PA' || fattura.numeroFatturaCompleto?.endsWith('/PA')) ?
+                            '<span class="badge badge-info" style="font-size: 0.85rem;"><i class="fas fa-landmark"></i> PA</span>' :
+                        (fattura.tipoCliente === 'PR' || fattura.numeroFatturaCompleto?.endsWith('/PR')) ?
+                            '<span class="badge badge-secondary" style="font-size: 0.85rem;"><i class="fas fa-building"></i> PR</span>' : ''}
                         <span class="badge ${DataService.getStatoBadgeClass(fattura.statoPagamento)}">
                             ${fattura.statoPagamento?.replace('_', ' ') || 'N/A'}
                         </span>
@@ -142,13 +151,13 @@ const DettaglioFattura = {
                             </div>
                             <p style="font-size: 0.875rem; color: #01579B; margin: 0 0 0.75rem 0;">
                                 ${cliente.tipo === 'PA' || cliente.gestione?.includes('PA') || cliente.ragioneSociale?.includes('COMUNE') ?
-                                    '🏛️ <strong>Cliente PA</strong> - L\'IVA è a carico dell\'Erario (Split Payment)' :
-                                    '🏢 <strong>Cliente Privato</strong> - IVA da incassare'
+                                    '<i class="fas fa-landmark"></i> <strong>Cliente PA</strong> - L\'IVA è a carico dell\'Erario (Split Payment)' :
+                                    '<i class="fas fa-building"></i> <strong>Cliente Privato</strong> - IVA da incassare'
                                 }
                             </p>
                             <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 0.75rem; border-top: 1px solid rgba(1,87,155,0.2);">
                                 <span style="font-size: 0.875rem; font-weight: 600; color: #01579B;">
-                                    💰 Da Incassare:
+                                    <i class="fas fa-coins"></i> Da Incassare:
                                 </span>
                                 <span style="font-size: 1.25rem; font-weight: 700; color: #0288D1;">
                                     ${DataService.formatCurrency(
@@ -162,6 +171,62 @@ const DettaglioFattura = {
                     ` : ''}
                 </div>
             </div>
+
+            <!-- Acconti e Saldo Residuo -->
+            ${fattura.acconti && fattura.acconti.length > 0 ? `
+                <div class="card fade-in mb-3">
+                    <div class="card-header">
+                        <h2 class="card-title">
+                            <i class="fas fa-hand-holding-usd"></i> Acconti e Saldo
+                        </h2>
+                    </div>
+                    <div style="padding: 1.5rem;">
+                        ${fattura.acconti.map((acconto, i) => `
+                            <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 1rem; background: var(--verde-100); border-radius: 8px; margin-bottom: 0.5rem;">
+                                <div>
+                                    <i class="fas fa-check-circle" style="color: var(--verde-700);"></i>
+                                    <strong style="color: var(--verde-900); margin-left: 0.5rem;">${acconto.note || 'Acconto ' + (i + 1)}</strong>
+                                    <span style="color: var(--grigio-600); margin-left: 0.5rem; font-size: 0.875rem;">
+                                        ${DataService.formatDate(acconto.data)}
+                                    </span>
+                                </div>
+                                <strong style="color: var(--verde-700); font-size: 1.125rem;">
+                                    + ${DataService.formatCurrency(acconto.importo)}
+                                </strong>
+                            </div>
+                        `).join('')}
+
+                        <!-- Totale acconti -->
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 1rem; margin-top: 0.75rem; border-top: 2px solid var(--grigio-300);">
+                            <strong style="color: var(--grigio-900);">
+                                <i class="fas fa-calculator"></i> Totale Acconti:
+                            </strong>
+                            <strong style="color: var(--verde-700); font-size: 1.25rem;">
+                                ${DataService.formatCurrency(fattura.acconti.reduce((sum, a) => sum + (a.importo || 0), 0))}
+                            </strong>
+                        </div>
+
+                        <!-- Saldo residuo -->
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 1rem; margin-top: 0.5rem; background: ${(fattura.saldoResiduo || 0) > 0 ? '#FFF3E0' : 'var(--verde-100)'}; border-radius: 8px; border-left: 4px solid ${(fattura.saldoResiduo || 0) > 0 ? '#FFCC00' : 'var(--verde-700)'};">
+                            <strong style="color: ${(fattura.saldoResiduo || 0) > 0 ? '#E65100' : 'var(--verde-900)'}; font-size: 1rem;">
+                                <i class="fas ${(fattura.saldoResiduo || 0) > 0 ? 'fa-exclamation-triangle' : 'fa-check-double'}"></i>
+                                Saldo Residuo:
+                            </strong>
+                            <strong style="color: ${(fattura.saldoResiduo || 0) > 0 ? '#D32F2F' : 'var(--verde-700)'}; font-size: 1.5rem;">
+                                ${DataService.formatCurrency(fattura.saldoResiduo || 0)}
+                            </strong>
+                        </div>
+
+                        ${(fattura.saldoResiduo || 0) > 0 ? `
+                            <div style="margin-top: 1rem; text-align: right;">
+                                <button class="btn btn-primary btn-sm" onclick="DettaglioFattura.registraAcconto()">
+                                    <i class="fas fa-plus"></i> Registra Nuovo Acconto
+                                </button>
+                            </div>
+                        ` : ''}
+                    </div>
+                </div>
+            ` : ''}
 
             <!-- Note -->
             ${fattura.note || fattura.noteConsolidate ? `
@@ -224,5 +289,74 @@ const DettaglioFattura = {
         if (this.fattura) {
             FormsManager.showModificaFattura(this.fattura);
         }
+    },
+
+    // Registra acconto rapido dalla pagina dettaglio
+    async registraAcconto() {
+        if (!this.fattura) return;
+
+        const accontiEsistenti = this.fattura.acconti || [];
+        const totaleAcconti = accontiEsistenti.reduce((sum, a) => sum + (a.importo || 0), 0);
+        const saldoResiduo = (this.fattura.importoTotale || 0) - totaleAcconti;
+
+        const content = `
+            <div style="padding: 1rem; background: var(--verde-100); border-radius: 8px; margin-bottom: 1rem;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                    <span style="color: var(--grigio-700);">Totale Fattura:</span>
+                    <strong>${DataService.formatCurrency(this.fattura.importoTotale)}</strong>
+                </div>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                    <span style="color: var(--grigio-700);">Già versato:</span>
+                    <strong style="color: var(--verde-700);">${DataService.formatCurrency(totaleAcconti)}</strong>
+                </div>
+                <div style="display: flex; justify-content: space-between; border-top: 2px solid var(--verde-700); padding-top: 0.5rem;">
+                    <span style="color: #D32F2F; font-weight: 700;">Saldo residuo:</span>
+                    <strong style="color: #D32F2F;">${DataService.formatCurrency(saldoResiduo)}</strong>
+                </div>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                ${FormsManager.createFormField('Importo Acconto', 'accontoImporto', 'number', '', { required: true, placeholder: '0.00' })}
+                ${FormsManager.createFormField('Data', 'accontoData', 'date', new Date().toISOString().split('T')[0], { required: true })}
+            </div>
+            ${FormsManager.createFormField('Nota', 'accontoNote', 'text', '', { placeholder: 'Es: Acconto ricevuto via bonifico' })}
+        `;
+
+        FormsManager.showModal(
+            '<i class="fas fa-hand-holding-usd"></i> Registra Acconto',
+            content,
+            async () => {
+                const data = FormsManager.getFormData();
+                if (!data.accontoImporto || data.accontoImporto <= 0) {
+                    throw new Error('Inserisci un importo valido');
+                }
+
+                const nuovoAcconto = {
+                    importo: data.accontoImporto,
+                    data: data.accontoData || new Date().toISOString(),
+                    note: data.accontoNote || 'Acconto'
+                };
+
+                const nuoviAcconti = [...accontiEsistenti, nuovoAcconto];
+                const nuovoTotale = nuoviAcconti.reduce((sum, a) => sum + (a.importo || 0), 0);
+                const nuovoSaldo = parseFloat(((this.fattura.importoTotale || 0) - nuovoTotale).toFixed(2));
+
+                const updateData = {
+                    acconti: nuoviAcconti,
+                    saldoResiduo: Math.max(nuovoSaldo, 0)
+                };
+
+                // Se il saldo è coperto, marca come pagata
+                if (nuovoSaldo <= 0) {
+                    updateData.statoPagamento = 'PAGATA';
+                    updateData.dataSaldo = new Date().toISOString();
+                } else {
+                    updateData.statoPagamento = 'PARZIALMENTE_PAGATA';
+                }
+
+                await DataService.updateFattura(this.fatturaId, updateData);
+                UI.showSuccess(nuovoSaldo <= 0 ? 'Fattura saldata completamente!' : 'Acconto registrato!');
+                this.render(this.fatturaId);
+            }
+        );
     }
 };

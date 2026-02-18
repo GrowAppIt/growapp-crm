@@ -47,6 +47,7 @@ const AuthService = {
         AGENTE: [
             'view_own_data', 'view_clients', 'view_contracts', 'view_apps',
             'view_invoices', 'manage_clients', 'manage_contracts',
+            'view_dev_tasks', // ✅ Aggiunto accesso TASK
             'view_company_info', 'manage_business_card' // ✅ Impostazioni base
         ],
         CONTENT_MANAGER: [
@@ -137,6 +138,18 @@ const AuthService = {
 
     getCurrentUserData() {
         return this.currentUserData || null;
+    },
+
+    // Restituisce utente corrente con uid incluso
+    getUtenteCorrente() {
+        if (!this.currentUserData || !this.currentUser) return null;
+        return {
+            uid: this.currentUser.uid,
+            nome: this.currentUserData.nome || '',
+            cognome: this.currentUserData.cognome || '',
+            email: this.currentUser.email,
+            ruolo: this.currentUserData.ruolo
+        };
     },
 
     // Verifica permesso singolo

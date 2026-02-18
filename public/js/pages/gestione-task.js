@@ -392,15 +392,16 @@ const GestioneTask = {
         const canManage = AuthService.hasPermission('manage_dev_tasks');
         const canView = AuthService.hasPermission('view_dev_tasks');
 
-        if (!canManage && !canView) return '';
-
+        // Tutti gli utenti autenticati possono almeno vedere i pulsanti base
         let actions = [];
         const currentUserId = AuthService.getUserId();
         const assegnatiA = task.assegnatiA || [];
         const isAssigned = assegnatiA.includes(currentUserId);
 
-        // Pulsante "Prendi in carico" se NON sei assegnato
-        if (canView && !isAssigned && currentStato !== TaskService.STATI.DONE) {
+        // === PULSANTI BASE (tutti gli utenti che vedono il task) ===
+
+        // "Prendi in carico" se NON sei già assegnato e task non completato
+        if (!isAssigned && currentStato !== TaskService.STATI.DONE) {
             actions.push(`
                 <button class="btn btn-sm" style="background: var(--verde-500); color: white; border: none; padding: 0.25rem 0.75rem; font-size: 0.75rem;"
                         onclick="event.stopPropagation(); GestioneTask.takeTask('${task.id}')">
@@ -409,33 +410,39 @@ const GestioneTask = {
             `);
         }
 
-        // Cambio stato (solo se assegnato o canManage)
-        if ((isAssigned || canManage) && currentStato !== TaskService.STATI.DONE) {
+        // Cambio stato: Inizia / Completa / Pausa (tutti possono se assegnati, canManage sempre)
+        if (currentStato !== TaskService.STATI.DONE) {
             if (currentStato === TaskService.STATI.TODO) {
-                actions.push(`
-                    <button class="btn btn-sm" style="background: #FFCC00; color: #333; border: none; padding: 0.25rem 0.75rem; font-size: 0.75rem;"
-                            onclick="event.stopPropagation(); GestioneTask.changeTaskState('${task.id}', '${TaskService.STATI.IN_PROGRESS}')">
-                        <i class="fas fa-play"></i> Inizia
-                    </button>
-                `);
+                if (isAssigned || canManage) {
+                    actions.push(`
+                        <button class="btn btn-sm" style="background: #FFCC00; color: #333; border: none; padding: 0.25rem 0.75rem; font-size: 0.75rem;"
+                                onclick="event.stopPropagation(); GestioneTask.changeTaskState('${task.id}', '${TaskService.STATI.IN_PROGRESS}')">
+                            <i class="fas fa-play"></i> Inizia
+                        </button>
+                    `);
+                }
             } else if (currentStato === TaskService.STATI.IN_PROGRESS) {
-                actions.push(`
-                    <button class="btn btn-sm" style="background: var(--verde-700); color: white; border: none; padding: 0.25rem 0.75rem; font-size: 0.75rem;"
-                            onclick="event.stopPropagation(); GestioneTask.changeTaskState('${task.id}', '${TaskService.STATI.DONE}')">
-                        <i class="fas fa-check"></i> Completa
-                    </button>
-                `);
-                actions.push(`
-                    <button class="btn btn-sm" style="background: var(--grigio-500); color: white; border: none; padding: 0.25rem 0.75rem; font-size: 0.75rem;"
-                            onclick="event.stopPropagation(); GestioneTask.changeTaskState('${task.id}', '${TaskService.STATI.TODO}')">
-                        <i class="fas fa-pause"></i> Pausa
-                    </button>
-                `);
+                if (isAssigned || canManage) {
+                    actions.push(`
+                        <button class="btn btn-sm" style="background: var(--verde-700); color: white; border: none; padding: 0.25rem 0.75rem; font-size: 0.75rem;"
+                                onclick="event.stopPropagation(); GestioneTask.changeTaskState('${task.id}', '${TaskService.STATI.DONE}')">
+                            <i class="fas fa-check"></i> Completa
+                        </button>
+                    `);
+                    actions.push(`
+                        <button class="btn btn-sm" style="background: var(--grigio-500); color: white; border: none; padding: 0.25rem 0.75rem; font-size: 0.75rem;"
+                                onclick="event.stopPropagation(); GestioneTask.changeTaskState('${task.id}', '${TaskService.STATI.TODO}')">
+                            <i class="fas fa-pause"></i> Pausa
+                        </button>
+                    `);
+                }
             }
         }
 
-        // Pulsante "Riassegna" (solo per chi può gestire)
-        if (canManage) {
+        // === PULSANTI GESTIONE (canManage oppure canView per Riassegna) ===
+
+        // "Riassegna" — disponibile per chi gestisce O per chi è assegnato (può riassegnare ad altri)
+        if (canManage || isAssigned) {
             actions.push(`
                 <button class="btn btn-sm" style="background: var(--blu-500); color: white; border: none; padding: 0.25rem 0.75rem; font-size: 0.75rem;"
                         onclick="event.stopPropagation(); GestioneTask.showReassignModal('${task.id}')">
@@ -444,7 +451,7 @@ const GestioneTask = {
             `);
         }
 
-        // 📱 PULSANTE "AVVISA CON TELEGRAM" (solo per task URGENTI)
+        // 📱 "Avvisa con Telegram" (task URGENTI - disponibile per tutti)
         if (task.priorita === TaskService.PRIORITA.URGENTE && !task.archiviato) {
             actions.push(`
                 <button class="btn btn-sm" style="background: #0088cc; color: white; border: none; padding: 0.25rem 0.75rem; font-size: 0.75rem;"
@@ -454,9 +461,8 @@ const GestioneTask = {
             `);
         }
 
-        // 🗄️ PULSANTI ARCHIVIAZIONE / ELIMINAZIONE (solo per chi può gestire)
+        // === PULSANTI ADMIN (solo canManage) ===
         if (canManage) {
-            // Se il task è archiviato, mostra "Ripristina"
             if (task.archiviato) {
                 actions.push(`
                     <button class="btn btn-sm" style="background: var(--verde-500); color: white; border: none; padding: 0.25rem 0.75rem; font-size: 0.75rem;"
@@ -465,7 +471,6 @@ const GestioneTask = {
                     </button>
                 `);
             } else {
-                // Se il task NON è archiviato, mostra "Archivia"
                 actions.push(`
                     <button class="btn btn-sm" style="background: var(--grigio-500); color: white; border: none; padding: 0.25rem 0.75rem; font-size: 0.75rem;"
                             onclick="event.stopPropagation(); GestioneTask.archiveTask('${task.id}')">
@@ -474,7 +479,6 @@ const GestioneTask = {
                 `);
             }
 
-            // Pulsante "Elimina" (sempre disponibile, con conferma)
             actions.push(`
                 <button class="btn btn-sm" style="background: var(--rosso-errore); color: white; border: none; padding: 0.25rem 0.75rem; font-size: 0.75rem;"
                         onclick="event.stopPropagation(); GestioneTask.deleteTask('${task.id}')">
@@ -500,19 +504,30 @@ const GestioneTask = {
     // Carica lista utenti per filtro
     async loadUtenti() {
         try {
-            const snapshot = await db.collection('utenti')
-                .where('stato', '==', 'ATTIVO')
-                .get();
+            // Carica TUTTI gli utenti (non filtrare per stato,
+            // perché utenti senza campo 'stato' non apparirebbero)
+            const snapshot = await db.collection('utenti').get();
 
             const utenti = [];
             snapshot.forEach(doc => {
                 const data = doc.data();
+                // Escludi solo utenti esplicitamente DISATTIVATI
+                if (data.stato === 'DISATTIVO') return;
+
                 utenti.push({
                     uid: doc.id,
-                    nome: data.nome,
-                    cognome: data.cognome,
-                    email: data.email
+                    nome: data.nome || '',
+                    cognome: data.cognome || '',
+                    email: data.email || '',
+                    ruolo: data.ruolo || ''
                 });
+            });
+
+            // Ordina per nome
+            utenti.sort((a, b) => {
+                const nomeA = `${a.nome} ${a.cognome}`.toLowerCase();
+                const nomeB = `${b.nome} ${b.cognome}`.toLowerCase();
+                return nomeA.localeCompare(nomeB);
             });
 
             return utenti;
@@ -1048,15 +1063,40 @@ const GestioneTask = {
                                 <div style="background: var(--grigio-100); padding: 1rem; border-radius: 8px;">
                                     <textarea
                                         id="nuovoCommentoText"
-                                        placeholder="💬 Scrivi un commento..."
+                                        placeholder="Scrivi un commento..."
                                         style="width: 100%; min-height: 80px; padding: 0.75rem; border: 2px solid var(--grigio-300); border-radius: 6px; font-family: inherit; resize: vertical; margin-bottom: 0.75rem;"
                                     ></textarea>
-                                    <div style="display: flex; justify-content: flex-end;">
+
+                                    <!-- Anteprima allegati selezionati -->
+                                    <div id="anteprimaAllegati" style="display: none; margin-bottom: 0.75rem;"></div>
+
+                                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                                        <!-- Pulsante allega file -->
+                                        <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                            <input
+                                                type="file"
+                                                id="commentoFileInput"
+                                                multiple
+                                                accept="image/*,.pdf,.doc,.docx"
+                                                style="display: none;"
+                                                onchange="GestioneTask.onFileSelezionati()"
+                                            />
+                                            <button
+                                                type="button"
+                                                onclick="document.getElementById('commentoFileInput').click()"
+                                                class="btn btn-sm"
+                                                style="background: var(--blu-100); color: var(--blu-700); border: 1px solid var(--blu-300); font-size: 0.8125rem;"
+                                                title="Allega immagini, PDF o documenti">
+                                                <i class="fas fa-paperclip"></i> Allega file
+                                            </button>
+                                            <span id="fileCountLabel" style="font-size: 0.75rem; color: var(--grigio-600);"></span>
+                                        </div>
+
                                         <button
                                             onclick="GestioneTask.aggiungiCommento('${task.id}')"
                                             class="btn"
                                             style="background: var(--verde-700); color: white;">
-                                            <i class="fas fa-paper-plane"></i> Invia commento
+                                            <i class="fas fa-paper-plane"></i> Invia
                                         </button>
                                     </div>
                                 </div>
@@ -1460,6 +1500,51 @@ const GestioneTask = {
 
         commentiList.innerHTML = commenti.map(commento => {
             const isAutore = utenteCorrente && commento.autoreId === utenteCorrente.uid;
+            const allegati = commento.allegati || [];
+
+            // Renderizza allegati
+            let allegatiHtml = '';
+            if (allegati.length > 0) {
+                const immagini = allegati.filter(a => CommentService.isImmagine(a.tipo));
+                const documenti = allegati.filter(a => !CommentService.isImmagine(a.tipo));
+
+                allegatiHtml = '<div style="margin-top: 0.75rem;">';
+
+                // Griglia anteprime immagini
+                if (immagini.length > 0) {
+                    allegatiHtml += `
+                        <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.5rem;">
+                            ${immagini.map(img => `
+                                <a href="${img.url}" target="_blank" title="${img.nome}" style="display: block; border-radius: 8px; overflow: hidden; border: 2px solid var(--grigio-300); transition: border-color 0.2s;"
+                                   onmouseover="this.style.borderColor='var(--blu-500)'" onmouseout="this.style.borderColor='var(--grigio-300)'">
+                                    <img src="${img.url}" alt="${img.nome}"
+                                         style="max-width: 200px; max-height: 150px; object-fit: cover; display: block; cursor: pointer;"
+                                         loading="lazy" />
+                                </a>
+                            `).join('')}
+                        </div>
+                    `;
+                }
+
+                // Link documenti non-immagine
+                if (documenti.length > 0) {
+                    allegatiHtml += documenti.map(doc => {
+                        const icon = doc.tipo === 'application/pdf' ? 'fa-file-pdf' : 'fa-file-word';
+                        const color = doc.tipo === 'application/pdf' ? '#D32F2F' : 'var(--blu-700)';
+                        return `
+                            <a href="${doc.url}" target="_blank" style="display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.75rem; background: white; border: 1px solid var(--grigio-300); border-radius: 6px; font-size: 0.8125rem; color: var(--grigio-900); text-decoration: none; margin-right: 0.5rem; margin-bottom: 0.25rem; transition: border-color 0.2s;"
+                               onmouseover="this.style.borderColor='var(--blu-500)'" onmouseout="this.style.borderColor='var(--grigio-300)'">
+                                <i class="fas ${icon}" style="color: ${color}; font-size: 1.25rem;"></i>
+                                <span style="max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${doc.nome}</span>
+                                <span style="color: var(--grigio-500); font-size: 0.75rem;">${CommentService.formatDimensione(doc.dimensione)}</span>
+                                <i class="fas fa-external-link-alt" style="color: var(--grigio-500); font-size: 0.625rem;"></i>
+                            </a>
+                        `;
+                    }).join('');
+                }
+
+                allegatiHtml += '</div>';
+            }
 
             return `
                 <div style="
@@ -1480,6 +1565,7 @@ const GestioneTask = {
                             <div style="color: var(--grigio-600); font-size: 0.8125rem; margin-top: 0.25rem;">
                                 <i class="fas fa-clock"></i> ${CommentService.formatDataCommento(commento.creatoIl)}
                                 ${commento.modificato ? '<span style="font-style: italic;"> (modificato)</span>' : ''}
+                                ${allegati.length > 0 ? `<span style="margin-left: 0.5rem; color: var(--blu-700);"><i class="fas fa-paperclip"></i> ${allegati.length} allegat${allegati.length === 1 ? 'o' : 'i'}</span>` : ''}
                             </div>
                         </div>
                         ${isAutore ? `
@@ -1491,9 +1577,12 @@ const GestioneTask = {
                             </button>
                         ` : ''}
                     </div>
-                    <p style="color: var(--grigio-900); line-height: 1.6; white-space: pre-wrap; margin: 0;">
-                        ${commento.testo}
-                    </p>
+                    ${commento.testo ? `
+                        <p style="color: var(--grigio-900); line-height: 1.6; white-space: pre-wrap; margin: 0;">
+                            ${commento.testo}
+                        </p>
+                    ` : ''}
+                    ${allegatiHtml}
                 </div>
             `;
         }).join('');
@@ -1502,19 +1591,83 @@ const GestioneTask = {
     /**
      * Aggiunge un nuovo commento
      */
+    // Gestione file selezionati per il commento
+    onFileSelezionati() {
+        const fileInput = document.getElementById('commentoFileInput');
+        const anteprima = document.getElementById('anteprimaAllegati');
+        const fileCountLabel = document.getElementById('fileCountLabel');
+
+        if (!fileInput || !fileInput.files.length) {
+            if (anteprima) anteprima.style.display = 'none';
+            if (fileCountLabel) fileCountLabel.textContent = '';
+            return;
+        }
+
+        const files = Array.from(fileInput.files);
+        if (fileCountLabel) fileCountLabel.textContent = `${files.length} file selezionat${files.length === 1 ? 'o' : 'i'}`;
+
+        if (anteprima) {
+            anteprima.style.display = 'flex';
+            anteprima.style.cssText = 'display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.75rem;';
+
+            anteprima.innerHTML = files.map((file, i) => {
+                const isImg = file.type.startsWith('image/');
+                const icon = isImg ? 'fa-image' : (file.type === 'application/pdf' ? 'fa-file-pdf' : 'fa-file-word');
+                const color = isImg ? 'var(--verde-700)' : (file.type === 'application/pdf' ? '#D32F2F' : 'var(--blu-700)');
+
+                return `
+                    <div style="display: flex; align-items: center; gap: 0.5rem; padding: 0.375rem 0.75rem; background: white; border: 1px solid var(--grigio-300); border-radius: 6px; font-size: 0.8125rem;">
+                        <i class="fas ${icon}" style="color: ${color};"></i>
+                        <span style="max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${file.name}</span>
+                        <span style="color: var(--grigio-500); font-size: 0.75rem;">${CommentService.formatDimensione(file.size)}</span>
+                        <button type="button" onclick="GestioneTask.rimuoviFileAllegato(${i})" style="background: none; border: none; color: var(--rosso-errore); cursor: pointer; padding: 0; font-size: 0.875rem;">
+                            <i class="fas fa-times-circle"></i>
+                        </button>
+                    </div>
+                `;
+            }).join('');
+        }
+    },
+
+    // Rimuovi un file dalla selezione
+    rimuoviFileAllegato(index) {
+        const fileInput = document.getElementById('commentoFileInput');
+        if (!fileInput) return;
+
+        // Crea un nuovo DataTransfer per rimuovere il file specifico
+        const dt = new DataTransfer();
+        const files = Array.from(fileInput.files);
+        files.forEach((file, i) => {
+            if (i !== index) dt.items.add(file);
+        });
+        fileInput.files = dt.files;
+
+        this.onFileSelezionati();
+    },
+
     async aggiungiCommento(taskId) {
         const textarea = document.getElementById('nuovoCommentoText');
+        const fileInput = document.getElementById('commentoFileInput');
         const testo = textarea.value.trim();
+        const files = fileInput ? Array.from(fileInput.files) : [];
 
-        if (!testo) {
-            UI.showError('Il commento non può essere vuoto');
+        if (!testo && files.length === 0) {
+            UI.showError('Scrivi un commento o allega un file');
             return;
         }
 
         UI.showLoading();
 
         try {
-            const result = await CommentService.aggiungiCommento(taskId, testo);
+            let result;
+
+            if (files.length > 0) {
+                // Commento con allegati
+                result = await CommentService.aggiungiCommentoConAllegati(taskId, testo, files);
+            } else {
+                // Commento solo testo
+                result = await CommentService.aggiungiCommento(taskId, testo);
+            }
 
             if (result.success) {
                 // Crea notifiche per il nuovo commento
@@ -1529,11 +1682,16 @@ const GestioneTask = {
                 // Ricarica conteggio nel badge
                 await this.loadCommentiCount(taskId);
 
-                // Pulisci textarea
+                // Pulisci textarea e file
                 textarea.value = '';
+                if (fileInput) fileInput.value = '';
+                const anteprima = document.getElementById('anteprimaAllegati');
+                if (anteprima) { anteprima.style.display = 'none'; anteprima.innerHTML = ''; }
+                const fileCountLabel = document.getElementById('fileCountLabel');
+                if (fileCountLabel) fileCountLabel.textContent = '';
 
                 UI.hideLoading();
-                UI.showSuccess('Commento aggiunto!');
+                UI.showSuccess(files.length > 0 ? 'Commento con allegati inviato!' : 'Commento aggiunto!');
             } else {
                 UI.showError('Errore: ' + result.error);
                 UI.hideLoading();
@@ -1550,13 +1708,22 @@ const GestioneTask = {
      * Elimina un commento
      */
     async eliminaCommento(commentoId, taskId) {
-        if (!confirm('Sei sicuro di voler eliminare questo commento?')) {
+        if (!confirm('Sei sicuro di voler eliminare questo commento e i suoi allegati?')) {
             return;
         }
 
         UI.showLoading();
 
         try {
+            // Prima recupera il commento per eliminare eventuali allegati dallo storage
+            const commentoDoc = await db.collection('commenti').doc(commentoId).get();
+            if (commentoDoc.exists) {
+                const allegati = commentoDoc.data().allegati || [];
+                for (const allegato of allegati) {
+                    await CommentService.eliminaAllegato(allegato.storagePath);
+                }
+            }
+
             const result = await CommentService.eliminaCommento(commentoId);
 
             if (result.success) {
