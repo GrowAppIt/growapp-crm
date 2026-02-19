@@ -219,6 +219,16 @@ const AuthService = {
         return [this.ROLES.SUPER_ADMIN, this.ROLES.ADMIN, this.ROLES.CONTABILE].includes(this.getUserRole());
     },
 
+    /**
+     * Verifica se l'utente è admin/CTO MA ha anche il flag ancheAgente
+     * (es. Super Admin che gestisce anche clienti come agente)
+     */
+    isAncheAgente() {
+        if (!this.currentUserData) return false;
+        // Ha il flag ancheAgente e NON è un agente puro (è admin, CTO, ecc.)
+        return this.currentUserData.ancheAgente === true && this.getUserRole() !== this.ROLES.AGENTE;
+    },
+
     // Verifica accesso a una pagina
     canAccessPage(pageName) {
         const pagePermissions = {

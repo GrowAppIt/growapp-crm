@@ -32,9 +32,11 @@ const DettaglioCliente = {
                         <button class="btn btn-secondary btn-sm" onclick="UI.showPage('clienti')">
                             <i class="fas fa-arrow-left"></i> Torna ai clienti
                         </button>
+                        ${!AuthService.canViewOnlyOwnData() ? `
                         <button class="btn btn-primary btn-sm" onclick="DettaglioCliente.editCliente()">
                             <i class="fas fa-edit"></i> Modifica
                         </button>
+                        ` : ''}
                     </div>
                     <h1 style="font-size: 2rem; font-weight: 700; color: var(--blu-700); margin-bottom: 0.5rem;">
                         <i class="fas fa-building"></i> ${cliente.ragioneSociale}
@@ -62,6 +64,9 @@ const DettaglioCliente = {
                         </button>
                         <button class="tab-btn" data-tab="documenti" onclick="DettaglioCliente.switchTab('documenti')">
                             <i class="fas fa-folder-open"></i> Documenti (${documenti.length})
+                        </button>
+                        <button class="tab-btn" data-tab="timeline" onclick="DettaglioCliente.switchTab('timeline')">
+                            <i class="fas fa-history"></i> Timeline
                         </button>
                         <button class="tab-btn" data-tab="note" onclick="DettaglioCliente.switchTab('note')">
                             <i class="fas fa-sticky-note"></i> Note
@@ -117,10 +122,161 @@ const DettaglioCliente = {
                 return this.renderContratti(contratti);
             case 'documenti':
                 return this.renderDocumenti(documenti);
+            case 'timeline':
+                this.loadTimeline();
+                return '<div id="timelineContainer"><div style="text-align:center;padding:2rem;"><i class="fas fa-spinner fa-spin" style="font-size:1.5rem;color:var(--blu-500);"></i><p style="margin-top:0.5rem;color:var(--grigio-500);">Caricamento timeline...</p></div></div>';
             case 'note':
                 return this.renderNote(cliente);
             default:
                 return '';
+        }
+    },
+
+    /**
+     * Carica e renderizza la timeline del cliente
+     */
+    async loadTimeline() {
+        try {
+            const [note, contratti, fatture, apps] = await Promise.allSettled([
+                db.collection('note_cliente').where('clienteId', '==', this.clienteId).get(),
+                DataService.getContrattiCliente(this.clienteId),
+                DataService.getFattureCliente(this.clienteId),
+                db.collection('app').where('clientePaganteId', '==', this.clienteId).get()
+            ]);
+
+            const eventi = [];
+
+            // Note
+            if (note.status === 'fulfilled') {
+                note.value.forEach(doc => {
+                    const d = doc.data();
+                    const dataEvento = d.dataCreazione || d.data;
+                    eventi.push({
+                        type: 'nota',
+                        data: dataEvento,
+                        icon: 'fas fa-sticky-note',
+                        color: '#2E6DA8',
+                        bgColor: '#D1E2F2',
+                        title: d.titolo || 'Nota',
+                        description: (d.testo || '').substring(0, 120) + ((d.testo || '').length > 120 ? '...' : ''),
+                        extra: d.autoreNome ? `di ${d.autoreNome}` : '',
+                        onclick: `DettaglioCliente.switchTab('note')`
+                    });
+                });
+            }
+
+            // Contratti
+            if (contratti.status === 'fulfilled') {
+                contratti.value.forEach(c => {
+                    eventi.push({
+                        type: 'contratto',
+                        data: c.dataCreazione || c.dataInizio || c.dataFirma,
+                        icon: 'fas fa-file-contract',
+                        color: '#3CA434',
+                        bgColor: '#E2F8DE',
+                        title: `Contratto ${c.numeroContratto || ''}`,
+                        description: `${c.oggetto || 'Senza oggetto'} • ${DataService.formatCurrency(c.importoAnnuale || 0)}`,
+                        extra: c.stato || '',
+                        onclick: `UI.showPage('dettaglio-contratto', '${c.id}')`
+                    });
+                });
+            }
+
+            // Fatture
+            if (fatture.status === 'fulfilled') {
+                fatture.value.forEach(f => {
+                    eventi.push({
+                        type: 'fattura',
+                        data: f.dataEmissione || f.dataCreazione,
+                        icon: 'fas fa-file-invoice',
+                        color: '#E67E22',
+                        bgColor: '#FFF3E0',
+                        title: `Fattura ${f.numeroFatturaCompleto || ''}`,
+                        description: `${DataService.formatCurrency(f.importoTotale || 0)}`,
+                        extra: f.statoPagamento?.replace('_', ' ') || '',
+                        onclick: `UI.showPage('dettaglio-fattura', '${f.id}')`
+                    });
+                });
+            }
+
+            // App
+            if (apps.status === 'fulfilled') {
+                apps.value.forEach(doc => {
+                    const a = doc.data();
+                    eventi.push({
+                        type: 'app',
+                        data: a.dataCreazione || a.dataAttivazione,
+                        icon: 'fas fa-mobile-alt',
+                        color: '#8E44AD',
+                        bgColor: '#F3E5F5',
+                        title: `App ${a.nome || 'Senza nome'}`,
+                        description: a.piattaforma || '',
+                        extra: a.stato || '',
+                        onclick: `UI.showPage('dettaglio-app', '${doc.id}')`
+                    });
+                });
+            }
+
+            // Ordina per data decrescente
+            eventi.sort((a, b) => {
+                const dataA = a.data ? new Date(a.data) : new Date(0);
+                const dataB = b.data ? new Date(b.data) : new Date(0);
+                return dataB - dataA;
+            });
+
+            // Renderizza
+            const container = document.getElementById('timelineContainer');
+            if (!container) return;
+
+            if (eventi.length === 0) {
+                container.innerHTML = `
+                    <div style="text-align:center;padding:3rem;">
+                        <i class="fas fa-stream" style="font-size:3rem;color:var(--grigio-300);"></i>
+                        <h3 style="margin-top:1rem;color:var(--grigio-500);">Nessun evento</h3>
+                        <p style="color:var(--grigio-400);">Non ci sono ancora eventi per questo cliente</p>
+                    </div>
+                `;
+                return;
+            }
+
+            let html = '<div class="card fade-in" style="padding:1.5rem;">';
+            html += '<h3 style="font-size:1.1rem;font-weight:700;color:var(--blu-700);margin-bottom:1.5rem;"><i class="fas fa-history"></i> Timeline Attività</h3>';
+
+            eventi.forEach((ev, idx) => {
+                const isLast = idx === eventi.length - 1;
+                const dataFormatted = ev.data ? DataService.formatDate(ev.data) : 'Data N/D';
+
+                html += `
+                    <div style="display:flex;gap:1rem;cursor:pointer;${!isLast ? 'margin-bottom:0;' : ''}" onclick="${ev.onclick || ''}">
+                        <!-- Linea verticale + icona -->
+                        <div style="display:flex;flex-direction:column;align-items:center;min-width:40px;">
+                            <div style="width:36px;height:36px;border-radius:50%;background:${ev.bgColor};display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                                <i class="${ev.icon}" style="color:${ev.color};font-size:0.9rem;"></i>
+                            </div>
+                            ${!isLast ? '<div style="width:2px;flex:1;background:var(--grigio-300);margin:4px 0;min-height:20px;"></div>' : ''}
+                        </div>
+                        <!-- Contenuto -->
+                        <div style="flex:1;padding-bottom:${!isLast ? '1.25rem' : '0'};border-bottom:${!isLast ? '1px solid var(--grigio-100)' : 'none'};margin-bottom:${!isLast ? '0.5rem' : '0'};">
+                            <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:0.5rem;">
+                                <h4 style="font-size:0.95rem;font-weight:600;color:var(--grigio-900);margin:0;">${ev.title}</h4>
+                                <span style="font-size:0.75rem;color:var(--grigio-500);white-space:nowrap;">${dataFormatted}</span>
+                            </div>
+                            <p style="font-size:0.85rem;color:var(--grigio-700);margin:0.25rem 0 0;">${ev.description}</p>
+                            ${ev.extra ? `<span style="display:inline-block;margin-top:0.35rem;font-size:0.7rem;padding:0.15rem 0.5rem;border-radius:4px;background:${ev.bgColor};color:${ev.color};font-weight:600;">${ev.extra}</span>` : ''}
+                        </div>
+                    </div>
+                `;
+            });
+
+            html += '</div>';
+            container.innerHTML = html;
+
+        } catch (error) {
+            console.error('Errore caricamento timeline:', error);
+            const container = document.getElementById('timelineContainer');
+            if (container) {
+                container.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--rosso-errore);"><i class="fas fa-exclamation-triangle"></i> Errore nel caricamento della timeline</div>';
+            }
         }
     },
 
@@ -175,6 +331,13 @@ const DettaglioCliente = {
                             </div>
                         </div>
                     ` : ''}
+
+                    <!-- Pulsante Genera Comunicazione -->
+                    <div style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--grigio-300);">
+                        <button class="btn btn-secondary" onclick="DettaglioCliente.mostraModalTemplate()" style="width: 100%;">
+                            <i class="fas fa-envelope"></i> Genera Comunicazione Email/PEC
+                        </button>
+                    </div>
                 </div>
             </div>
         `;
@@ -221,9 +384,11 @@ const DettaglioCliente = {
                     <h2 class="card-title">
                         <i class="fas fa-file-invoice"></i> Fatture (${fatture.length})
                     </h2>
+                    ${!AuthService.canViewOnlyOwnData() ? `
                     <button class="btn btn-primary btn-sm" onclick="FormsManager.showNuovaFattura('${this.clienteId}')">
                         <i class="fas fa-plus"></i> Nuova Fattura
                     </button>
+                    ` : ''}
                 </div>
 
                 <!-- Statistiche Fatture -->
@@ -296,9 +461,11 @@ const DettaglioCliente = {
                         <h2 class="card-title">
                             <i class="fas fa-file-contract"></i> Contratti (${contratti.length})
                         </h2>
+                        ${!AuthService.canViewOnlyOwnData() ? `
                         <button class="btn btn-primary btn-sm" onclick="FormsManager.showNuovoContratto('${this.clienteId}')">
                             <i class="fas fa-plus"></i> Nuovo Contratto
                         </button>
+                        ` : ''}
                     </div>
                 </div>
         `;
@@ -309,9 +476,9 @@ const DettaglioCliente = {
                     <i class="fas fa-file-contract"></i>
                     <h3>Nessun contratto</h3>
                     <p>Questo cliente non ha ancora contratti registrati</p>
-                    <button class="btn btn-primary" onclick="FormsManager.showNuovoContratto('${this.clienteId}')" style="margin-top: 1rem;">
+                    ${!AuthService.canViewOnlyOwnData() ? `<button class="btn btn-primary" onclick="FormsManager.showNuovoContratto('${this.clienteId}')" style="margin-top: 1rem;">
                         <i class="fas fa-plus"></i> Crea primo contratto
-                    </button>
+                    </button>` : ''}
                 </div>
             `;
         } else {
@@ -400,6 +567,43 @@ const DettaglioCliente = {
                         </label>
                         <textarea id="notaTesto" rows="3" placeholder="Scrivi qui la tua nota..." style="width: 100%; padding: 0.75rem; border: 2px solid var(--grigio-300); border-radius: 8px; font-family: 'Titillium Web', sans-serif; font-size: 0.9375rem; resize: vertical; line-height: 1.5;"></textarea>
                     </div>
+
+                    <!-- Sezione Allega Documento -->
+                    <div style="margin-bottom: 1rem;">
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="DettaglioCliente.toggleAllegaDocumento()" id="btnToggleAllegato" style="margin-bottom: 0.75rem;">
+                            <i class="fas fa-paperclip"></i> Allega Documento
+                        </button>
+                        <div id="allegaDocumentoSection" style="display: none; background: white; border: 2px dashed var(--blu-500); border-radius: 8px; padding: 1rem;">
+                            <div style="margin-bottom: 0.75rem;">
+                                <label style="display: block; margin-bottom: 0.4rem; font-weight: 600; color: var(--grigio-700); font-size: 0.8125rem;">
+                                    <i class="fas fa-file"></i> File (PDF o Immagini, max 10MB)
+                                </label>
+                                <input type="file" id="notaFileInput" accept=".pdf,.jpg,.jpeg,.png" style="
+                                    width: 100%; padding: 0.5rem; border: 2px solid var(--grigio-300);
+                                    border-radius: 8px; background: var(--grigio-100); cursor: pointer; font-size: 0.875rem;
+                                ">
+                            </div>
+                            <div style="margin-bottom: 0.5rem;">
+                                <label style="display: block; margin-bottom: 0.4rem; font-weight: 600; color: var(--grigio-700); font-size: 0.8125rem;">
+                                    <i class="fas fa-align-left"></i> Descrizione documento *
+                                </label>
+                                <input type="text" id="notaDocDescrizione" placeholder="Es: Delibera di giunta, PEC ricevuta..." style="
+                                    width: 100%; padding: 0.5rem 0.75rem; border: 2px solid var(--grigio-300);
+                                    border-radius: 8px; font-family: 'Titillium Web', sans-serif; font-size: 0.875rem;
+                                ">
+                            </div>
+                            <div style="display: flex; justify-content: flex-end;">
+                                <button type="button" class="btn btn-secondary btn-sm" onclick="DettaglioCliente.rimuoviAllegato()" style="font-size: 0.8125rem; padding: 0.3rem 0.75rem;">
+                                    <i class="fas fa-times"></i> Rimuovi allegato
+                                </button>
+                            </div>
+                        </div>
+                        <!-- Preview file selezionato -->
+                        <div id="allegaDocumentoPreview" style="display: none; margin-top: 0.5rem; padding: 0.5rem 0.75rem; background: var(--verde-100); border-radius: 8px; font-size: 0.8125rem; color: var(--verde-900); display: none;">
+                            <i class="fas fa-check-circle"></i> <span id="allegaDocumentoNome"></span>
+                        </div>
+                    </div>
+
                     <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
                         <button class="btn btn-secondary btn-sm" onclick="DettaglioCliente.hideNuovaNota()">
                             <i class="fas fa-times"></i> Annulla
@@ -435,7 +639,35 @@ const DettaglioCliente = {
             form.style.display = 'none';
             document.getElementById('notaTesto').value = '';
             document.getElementById('notaCategoria').value = 'generale';
+            // Reset allegato
+            this.rimuoviAllegato();
         }
+    },
+
+    // Toggle sezione allega documento nella nota
+    toggleAllegaDocumento() {
+        const section = document.getElementById('allegaDocumentoSection');
+        if (section) {
+            const isVisible = section.style.display !== 'none';
+            section.style.display = isVisible ? 'none' : 'block';
+            if (!isVisible) {
+                // Focus sul file input quando si apre
+                const fileInput = document.getElementById('notaFileInput');
+                if (fileInput) fileInput.focus();
+            }
+        }
+    },
+
+    // Rimuovi allegato selezionato
+    rimuoviAllegato() {
+        const section = document.getElementById('allegaDocumentoSection');
+        const fileInput = document.getElementById('notaFileInput');
+        const descInput = document.getElementById('notaDocDescrizione');
+        const preview = document.getElementById('allegaDocumentoPreview');
+        if (section) section.style.display = 'none';
+        if (fileInput) fileInput.value = '';
+        if (descInput) descInput.value = '';
+        if (preview) preview.style.display = 'none';
     },
 
     async loadNote() {
@@ -559,6 +791,44 @@ const DettaglioCliente = {
                         word-break: break-word;
                     ">${this.escapeHtml(nota.testo)}</div>
 
+                    ${nota.documentoAllegato ? `
+                        <div style="
+                            margin-top: 0.75rem;
+                            padding: 0.625rem 0.875rem;
+                            background: var(--blu-100);
+                            border: 1px solid var(--blu-300);
+                            border-radius: 8px;
+                            display: flex;
+                            align-items: center;
+                            gap: 0.75rem;
+                            cursor: pointer;
+                            transition: all 0.2s;
+                        " onclick="window.open('${nota.documentoAllegato.downloadUrl}', '_blank')"
+                           onmouseover="this.style.borderColor='var(--blu-700)';this.style.background='var(--blu-300)'"
+                           onmouseout="this.style.borderColor='var(--blu-300)';this.style.background='var(--blu-100)'">
+                            <div style="
+                                width: 36px; height: 36px;
+                                background: white; border-radius: 8px;
+                                display: flex; align-items: center; justify-content: center;
+                                flex-shrink: 0;
+                            ">
+                                <i class="${DocumentService.getFileIcon(nota.documentoAllegato.mimeType)}" style="
+                                    font-size: 1.1rem;
+                                    color: ${DocumentService.getFileColor(nota.documentoAllegato.mimeType)};
+                                "></i>
+                            </div>
+                            <div style="flex: 1; min-width: 0;">
+                                <div style="font-weight: 600; font-size: 0.8125rem; color: var(--blu-700); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                                    <i class="fas fa-paperclip" style="margin-right: 0.25rem;"></i>${this.escapeHtml(nota.documentoAllegato.nomeFile)}
+                                </div>
+                                <div style="font-size: 0.75rem; color: var(--grigio-500); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                                    ${this.escapeHtml(nota.documentoAllegato.descrizione || '')}${nota.documentoAllegato.dimensione ? ' • ' + DocumentService.formatFileSize(nota.documentoAllegato.dimensione) : ''}
+                                </div>
+                            </div>
+                            <i class="fas fa-external-link-alt" style="color: var(--blu-500); font-size: 0.8125rem; flex-shrink: 0;"></i>
+                        </div>
+                    ` : ''}
+
                     ${nota.modificatoIl ? `
                         <div style="margin-top: 0.5rem; font-size: 0.75rem; color: var(--grigio-500); font-style: italic;">
                             <i class="fas fa-edit"></i> Modificata il ${(nota.modificatoIl.toDate ? nota.modificatoIl.toDate() : new Date(nota.modificatoIl)).toLocaleDateString('it-IT', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
@@ -583,8 +853,20 @@ const DettaglioCliente = {
         const testo = document.getElementById('notaTesto').value.trim();
         const categoria = document.getElementById('notaCategoria').value;
 
+        // Controlla se c'è un allegato
+        const fileInput = document.getElementById('notaFileInput');
+        const descInput = document.getElementById('notaDocDescrizione');
+        const allegaSection = document.getElementById('allegaDocumentoSection');
+        const hasAllegato = allegaSection && allegaSection.style.display !== 'none' && fileInput && fileInput.files.length > 0;
+
         if (!testo) {
             UI.showError('Inserisci il testo della nota');
+            return;
+        }
+
+        // Se c'è un file ma manca la descrizione
+        if (hasAllegato && (!descInput || !descInput.value.trim())) {
+            UI.showError('Inserisci una descrizione per il documento allegato');
             return;
         }
 
@@ -594,21 +876,50 @@ const DettaglioCliente = {
 
         try {
             const user = firebase.auth().currentUser;
-            await db.collection('note_cliente').add({
+            let documentoAllegato = null;
+
+            // Se c'è un allegato, caricalo prima con DocumentService (così finisce anche nella sezione Documenti)
+            if (hasAllegato) {
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Upload documento...';
+                const file = fileInput.files[0];
+                const descrizione = descInput.value.trim();
+
+                const docResult = await DocumentService.uploadDocumento(file, 'cliente', this.clienteId, descrizione);
+                documentoAllegato = {
+                    documentoId: docResult.id,
+                    nomeFile: docResult.nomeOriginale,
+                    descrizione: docResult.descrizione,
+                    downloadUrl: docResult.downloadUrl,
+                    mimeType: docResult.mimeType,
+                    dimensione: docResult.dimensione
+                };
+            }
+
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Salvataggio nota...';
+
+            // Salva la nota con eventuale riferimento al documento
+            const notaData = {
                 clienteId: this.clienteId,
                 testo: testo,
                 categoria: categoria,
                 autoreId: user.uid,
                 autoreNome: AuthService.getUserName(),
                 creatoIl: firebase.firestore.FieldValue.serverTimestamp()
-            });
+            };
+
+            // Aggiungi riferimento documento se presente
+            if (documentoAllegato) {
+                notaData.documentoAllegato = documentoAllegato;
+            }
+
+            await db.collection('note_cliente').add(notaData);
 
             this.hideNuovaNota();
             await this.loadNote();
-            UI.showSuccess('Nota salvata con successo');
+            UI.showSuccess(documentoAllegato ? 'Nota salvata con documento allegato!' : 'Nota salvata con successo');
         } catch (error) {
             console.error('Errore salvataggio nota:', error);
-            UI.showError('Errore nel salvataggio della nota');
+            UI.showError('Errore nel salvataggio: ' + (error.message || 'Errore sconosciuto'));
         } finally {
             btn.disabled = false;
             btn.innerHTML = '<i class="fas fa-save"></i> Salva Nota';
@@ -618,6 +929,27 @@ const DettaglioCliente = {
     async editNota(notaId) {
         const nota = this.noteList.find(n => n.id === notaId);
         if (!nota) return;
+
+        // Mostra info documento allegato esistente, se presente
+        const docAllegatoInfo = nota.documentoAllegato ? `
+            <div id="editDocAllegatoEsistente" style="
+                margin-top: 0.75rem; padding: 0.625rem 0.875rem;
+                background: var(--blu-100); border: 1px solid var(--blu-300); border-radius: 8px;
+                display: flex; align-items: center; gap: 0.75rem;
+            ">
+                <i class="${DocumentService.getFileIcon(nota.documentoAllegato.mimeType)}" style="font-size: 1.1rem; color: ${DocumentService.getFileColor(nota.documentoAllegato.mimeType)};"></i>
+                <div style="flex: 1; min-width: 0;">
+                    <div style="font-weight: 600; font-size: 0.8125rem; color: var(--blu-700);">${nota.documentoAllegato.nomeFile}</div>
+                    <div style="font-size: 0.75rem; color: var(--grigio-500);">${nota.documentoAllegato.descrizione || ''}</div>
+                </div>
+                <button type="button" onclick="document.getElementById('editDocAllegatoEsistente').dataset.rimosso='true'; document.getElementById('editDocAllegatoEsistente').style.display='none'; document.getElementById('editAllegaNuovoDoc').style.display='block';" style="
+                    background: none; border: none; cursor: pointer; color: var(--rosso-errore); padding: 0.35rem;
+                    border-radius: 6px; font-size: 0.8125rem;
+                " title="Rimuovi allegato dalla nota">
+                    <i class="fas fa-unlink"></i>
+                </button>
+            </div>
+        ` : '';
 
         await UI.showModal({
             title: '<i class="fas fa-pen"></i> Modifica Nota',
@@ -634,11 +966,49 @@ const DettaglioCliente = {
                         <option value="importante" ${nota.categoria === 'importante' ? 'selected' : ''}>⚠️ Importante</option>
                     </select>
                 </div>
-                <div>
+                <div style="margin-bottom: 1rem;">
                     <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--grigio-700); font-size: 0.875rem;">
                         <i class="fas fa-pencil-alt"></i> Testo
                     </label>
                     <textarea id="editNotaTesto" rows="5" style="width: 100%; padding: 0.75rem; border: 2px solid var(--grigio-300); border-radius: 8px; font-family: 'Titillium Web', sans-serif; font-size: 0.9375rem; resize: vertical; line-height: 1.5;">${nota.testo}</textarea>
+                </div>
+
+                <!-- Documento allegato esistente -->
+                ${docAllegatoInfo}
+
+                <!-- Sezione per allegare nuovo documento -->
+                <div id="editAllegaNuovoDoc" style="display: ${nota.documentoAllegato ? 'none' : 'block'}; margin-top: 0.75rem;">
+                    <button type="button" onclick="
+                        const s = document.getElementById('editAllegaDocSection');
+                        s.style.display = s.style.display === 'none' ? 'block' : 'none';
+                    " style="
+                        background: none; border: 1px dashed var(--blu-500); color: var(--blu-700);
+                        padding: 0.5rem 1rem; border-radius: 8px; cursor: pointer;
+                        font-family: 'Titillium Web', sans-serif; font-size: 0.8125rem; font-weight: 600;
+                        width: 100%; text-align: center; transition: all 0.2s;
+                    ">
+                        <i class="fas fa-paperclip"></i> Allega Documento
+                    </button>
+                    <div id="editAllegaDocSection" style="display: none; margin-top: 0.75rem; background: var(--grigio-100); border-radius: 8px; padding: 1rem;">
+                        <div style="margin-bottom: 0.5rem;">
+                            <label style="display: block; margin-bottom: 0.3rem; font-weight: 600; color: var(--grigio-700); font-size: 0.8125rem;">
+                                <i class="fas fa-file"></i> File (PDF o Immagini, max 10MB)
+                            </label>
+                            <input type="file" id="editNotaFileInput" accept=".pdf,.jpg,.jpeg,.png" style="
+                                width: 100%; padding: 0.5rem; border: 2px solid var(--grigio-300);
+                                border-radius: 8px; background: white; cursor: pointer; font-size: 0.8125rem;
+                            ">
+                        </div>
+                        <div>
+                            <label style="display: block; margin-bottom: 0.3rem; font-weight: 600; color: var(--grigio-700); font-size: 0.8125rem;">
+                                <i class="fas fa-align-left"></i> Descrizione documento *
+                            </label>
+                            <input type="text" id="editNotaDocDescrizione" placeholder="Es: Delibera di giunta, PEC ricevuta..." style="
+                                width: 100%; padding: 0.5rem 0.75rem; border: 2px solid var(--grigio-300);
+                                border-radius: 8px; font-family: 'Titillium Web', sans-serif; font-size: 0.8125rem;
+                            ">
+                        </div>
+                    </div>
                 </div>
             `,
             confirmText: 'Salva Modifiche',
@@ -652,12 +1022,47 @@ const DettaglioCliente = {
                     return false;
                 }
 
+                // Verifica se c'è un nuovo file da allegare
+                const editFileInput = document.getElementById('editNotaFileInput');
+                const editDescInput = document.getElementById('editNotaDocDescrizione');
+                const editAllegaSection = document.getElementById('editAllegaDocSection');
+                const hasNuovoFile = editAllegaSection && editAllegaSection.style.display !== 'none' && editFileInput && editFileInput.files.length > 0;
+
+                if (hasNuovoFile && (!editDescInput || !editDescInput.value.trim())) {
+                    UI.showError('Inserisci una descrizione per il documento allegato');
+                    return false;
+                }
+
+                // Verifica se il documento esistente è stato rimosso
+                const docEsistente = document.getElementById('editDocAllegatoEsistente');
+                const docRimosso = docEsistente && docEsistente.dataset.rimosso === 'true';
+
                 try {
-                    await db.collection('note_cliente').doc(notaId).update({
+                    const updateData = {
                         testo: nuovoTesto,
                         categoria: nuovaCategoria,
                         modificatoIl: firebase.firestore.FieldValue.serverTimestamp()
-                    });
+                    };
+
+                    // Upload nuovo documento se presente
+                    if (hasNuovoFile) {
+                        const file = editFileInput.files[0];
+                        const descrizione = editDescInput.value.trim();
+                        const docResult = await DocumentService.uploadDocumento(file, 'cliente', this.clienteId, descrizione);
+                        updateData.documentoAllegato = {
+                            documentoId: docResult.id,
+                            nomeFile: docResult.nomeOriginale,
+                            descrizione: docResult.descrizione,
+                            downloadUrl: docResult.downloadUrl,
+                            mimeType: docResult.mimeType,
+                            dimensione: docResult.dimensione
+                        };
+                    } else if (docRimosso) {
+                        // Rimuovi il riferimento al documento dalla nota (il documento resta nella sezione Documenti)
+                        updateData.documentoAllegato = firebase.firestore.FieldValue.delete();
+                    }
+
+                    await db.collection('note_cliente').doc(notaId).update(updateData);
 
                     await this.loadNote();
                     UI.showSuccess('Nota aggiornata');
@@ -793,12 +1198,12 @@ const DettaglioCliente = {
                                     ">
                                         <i class="fas fa-download"></i> Scarica
                                     </button>
-                                    <button class="btn btn-danger" onclick="DettaglioCliente.deleteDocumento('${doc.id}', '${doc.storagePath}', '${doc.nomeOriginale}')" style="
+                                    ${!AuthService.canViewOnlyOwnData() ? `<button class="btn btn-danger" onclick="DettaglioCliente.deleteDocumento('${doc.id}', '${doc.storagePath}', '${doc.nomeOriginale}')" style="
                                         white-space: nowrap;
                                         padding: 0.5rem 1rem;
                                     ">
                                         <i class="fas fa-trash"></i> Elimina
-                                    </button>
+                                    </button>` : ''}
                                 </div>
                             </div>
                         `).join('')}
@@ -970,5 +1375,235 @@ const DettaglioCliente = {
         const scadenza = new Date(dataScadenza);
         scadenza.setHours(0, 0, 0, 0);
         return Math.ceil((scadenza - oggi) / (1000 * 60 * 60 * 24));
+    },
+
+    // =====================================================
+    // TEMPLATE EMAIL/PEC
+    // =====================================================
+
+    /**
+     * Mostra modal per selezionare e generare template comunicazione
+     */
+    async mostraModalTemplate() {
+        try {
+            // Carica contratti e fatture del cliente per le selezioni
+            const [contratti, fatture] = await Promise.all([
+                DataService.getContrattiCliente(this.clienteId),
+                DataService.getFattureCliente(this.clienteId)
+            ]);
+
+            // Cache per uso successivo
+            this._templateContratti = contratti;
+            this._templateFatture = fatture;
+
+            const templateCards = TemplateService.TEMPLATES.map(t => `
+                <div
+                    class="template-card"
+                    id="tplCard_${t.id}"
+                    onclick="DettaglioCliente.onTemplateSelezionato('${t.id}')"
+                    style="padding: 1rem; border: 2px solid var(--grigio-300); border-radius: 10px; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 0.75rem;"
+                    onmouseover="this.style.borderColor='${t.color}'; this.style.background='${t.color}10'"
+                    onmouseout="if(!this.classList.contains('selected')){this.style.borderColor='var(--grigio-300)'; this.style.background='white'}"
+                >
+                    <div style="width: 40px; height: 40px; border-radius: 50%; background: ${t.color}20; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                        <i class="${t.icon}" style="color: ${t.color};"></i>
+                    </div>
+                    <div>
+                        <strong style="font-size: 0.9rem; color: var(--grigio-900);">${t.nome}</strong>
+                        ${t.richiede ? `<div style="font-size: 0.75rem; color: var(--grigio-500);">Richiede selezione ${t.richiede}</div>` : '<div style="font-size: 0.75rem; color: var(--grigio-500);">Solo dati cliente</div>'}
+                    </div>
+                </div>
+            `).join('');
+
+            const modalHtml = `
+                <div id="templateModal" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 1rem;">
+                    <div style="background: white; border-radius: 16px; width: 100%; max-width: 700px; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.3);">
+                        <!-- Header -->
+                        <div style="padding: 1.5rem; border-bottom: 1px solid var(--grigio-300); display: flex; justify-content: space-between; align-items: center;">
+                            <h2 style="font-size: 1.25rem; font-weight: 700; color: var(--blu-700); margin: 0;">
+                                <i class="fas fa-envelope"></i> Genera Comunicazione
+                            </h2>
+                            <button onclick="DettaglioCliente.chiudiModalTemplate()" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--grigio-500); padding: 0.25rem;">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+
+                        <!-- Step 1: Selezione Template -->
+                        <div style="padding: 1.5rem;">
+                            <p style="font-size: 0.875rem; color: var(--grigio-700); margin-bottom: 1rem;">Seleziona il tipo di comunicazione:</p>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;" id="templateGrid">
+                                ${templateCards}
+                            </div>
+                        </div>
+
+                        <!-- Step 2: Selezione entità (se necessario) -->
+                        <div id="templateEntitaSection" style="display: none; padding: 0 1.5rem 1rem;">
+                        </div>
+
+                        <!-- Step 3: Testo generato -->
+                        <div id="templateOutputSection" style="display: none; padding: 0 1.5rem 1.5rem;">
+                            <div style="margin-bottom: 0.75rem;">
+                                <label style="font-size: 0.8rem; font-weight: 600; color: var(--grigio-700);">Oggetto:</label>
+                                <input type="text" id="templateOggetto" readonly style="width: 100%; padding: 0.5rem; border: 1px solid var(--grigio-300); border-radius: 6px; font-family: 'Titillium Web', sans-serif; background: var(--grigio-100); margin-top: 0.25rem;" />
+                            </div>
+                            <div style="margin-bottom: 1rem;">
+                                <label style="font-size: 0.8rem; font-weight: 600; color: var(--grigio-700);">Corpo messaggio:</label>
+                                <textarea id="templateCorpo" readonly style="width: 100%; min-height: 250px; padding: 0.75rem; border: 1px solid var(--grigio-300); border-radius: 6px; font-family: 'Titillium Web', sans-serif; background: var(--grigio-100); resize: vertical; margin-top: 0.25rem; line-height: 1.5;"></textarea>
+                            </div>
+                            <div style="display: flex; gap: 0.5rem;">
+                                <button class="btn btn-primary" onclick="DettaglioCliente.copiaOggettoTemplate()" style="flex: 1;">
+                                    <i class="fas fa-copy"></i> Copia Oggetto
+                                </button>
+                                <button class="btn btn-primary" onclick="DettaglioCliente.copiaCorpoTemplate()" style="flex: 2;">
+                                    <i class="fas fa-copy"></i> Copia Corpo
+                                </button>
+                                <button class="btn btn-secondary" onclick="DettaglioCliente.copiaTuttoTemplate()" style="flex: 1;">
+                                    <i class="fas fa-clipboard"></i> Copia Tutto
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+        } catch (error) {
+            console.error('Errore apertura modal template:', error);
+            UI.showError('Errore nell\'apertura dei template');
+        }
+    },
+
+    chiudiModalTemplate() {
+        const modal = document.getElementById('templateModal');
+        if (modal) modal.remove();
+    },
+
+    /**
+     * Gestisce selezione di un template
+     */
+    async onTemplateSelezionato(templateId) {
+        this._selectedTemplateId = templateId;
+        const template = TemplateService.TEMPLATES.find(t => t.id === templateId);
+        if (!template) return;
+
+        // Evidenzia card selezionata
+        document.querySelectorAll('.template-card').forEach(card => {
+            card.classList.remove('selected');
+            card.style.borderColor = 'var(--grigio-300)';
+            card.style.background = 'white';
+        });
+        const selectedCard = document.getElementById(`tplCard_${templateId}`);
+        if (selectedCard) {
+            selectedCard.classList.add('selected');
+            selectedCard.style.borderColor = template.color;
+            selectedCard.style.background = template.color + '10';
+        }
+
+        const entitaSection = document.getElementById('templateEntitaSection');
+        const outputSection = document.getElementById('templateOutputSection');
+
+        // Se richiede selezione entità
+        if (template.richiede === 'fattura') {
+            if (this._templateFatture.length === 0) {
+                entitaSection.innerHTML = '<p style="color: var(--rosso-errore); font-size: 0.875rem;"><i class="fas fa-exclamation-triangle"></i> Nessuna fattura trovata per questo cliente</p>';
+                entitaSection.style.display = 'block';
+                outputSection.style.display = 'none';
+                return;
+            }
+            entitaSection.innerHTML = `
+                <label style="font-size: 0.8rem; font-weight: 600; color: var(--grigio-700);">Seleziona fattura:</label>
+                <select id="templateEntitaSelect" onchange="DettaglioCliente.generaTestoTemplate()" style="width: 100%; padding: 0.75rem; border: 1px solid var(--grigio-300); border-radius: 8px; font-family: 'Titillium Web', sans-serif; margin-top: 0.25rem;">
+                    <option value="">-- Seleziona una fattura --</option>
+                    ${this._templateFatture.map((f, idx) => `<option value="${idx}">${f.numeroFatturaCompleto} • ${DataService.formatCurrency(f.importoTotale || 0)} • ${f.statoPagamento?.replace('_', ' ') || ''}</option>`).join('')}
+                </select>
+            `;
+            entitaSection.style.display = 'block';
+            outputSection.style.display = 'none';
+
+        } else if (template.richiede === 'contratto') {
+            if (this._templateContratti.length === 0) {
+                entitaSection.innerHTML = '<p style="color: var(--rosso-errore); font-size: 0.875rem;"><i class="fas fa-exclamation-triangle"></i> Nessun contratto trovato per questo cliente</p>';
+                entitaSection.style.display = 'block';
+                outputSection.style.display = 'none';
+                return;
+            }
+            entitaSection.innerHTML = `
+                <label style="font-size: 0.8rem; font-weight: 600; color: var(--grigio-700);">Seleziona contratto:</label>
+                <select id="templateEntitaSelect" onchange="DettaglioCliente.generaTestoTemplate()" style="width: 100%; padding: 0.75rem; border: 1px solid var(--grigio-300); border-radius: 8px; font-family: 'Titillium Web', sans-serif; margin-top: 0.25rem;">
+                    <option value="">-- Seleziona un contratto --</option>
+                    ${this._templateContratti.map((c, idx) => `<option value="${idx}">${c.numeroContratto} • ${c.oggetto || 'Senza oggetto'} • ${c.stato || ''}</option>`).join('')}
+                </select>
+            `;
+            entitaSection.style.display = 'block';
+            outputSection.style.display = 'none';
+
+        } else {
+            // Template senza selezione entità → genera direttamente
+            entitaSection.style.display = 'none';
+            await this.generaTestoTemplate();
+        }
+    },
+
+    /**
+     * Genera il testo dal template selezionato
+     */
+    async generaTestoTemplate() {
+        const template = TemplateService.TEMPLATES.find(t => t.id === this._selectedTemplateId);
+        if (!template) return;
+
+        let entita = null;
+        if (template.richiede) {
+            const select = document.getElementById('templateEntitaSelect');
+            if (!select || select.value === '') return;
+            const idx = parseInt(select.value);
+            if (template.richiede === 'fattura') {
+                entita = this._templateFatture[idx];
+            } else {
+                entita = this._templateContratti[idx];
+            }
+        }
+
+        try {
+            const cliente = await DataService.getCliente(this.clienteId);
+            const risultato = await TemplateService.generaTesto(this._selectedTemplateId, cliente, entita);
+
+            document.getElementById('templateOggetto').value = risultato.oggetto;
+            document.getElementById('templateCorpo').value = risultato.corpo;
+            document.getElementById('templateOutputSection').style.display = 'block';
+
+        } catch (error) {
+            console.error('Errore generazione testo:', error);
+            UI.showError('Errore nella generazione del testo');
+        }
+    },
+
+    async copiaOggettoTemplate() {
+        const testo = document.getElementById('templateOggetto')?.value;
+        if (testo && await TemplateService.copyToClipboard(testo)) {
+            UI.showSuccess('Oggetto copiato negli appunti!');
+        } else {
+            UI.showError('Errore nella copia');
+        }
+    },
+
+    async copiaCorpoTemplate() {
+        const testo = document.getElementById('templateCorpo')?.value;
+        if (testo && await TemplateService.copyToClipboard(testo)) {
+            UI.showSuccess('Corpo messaggio copiato negli appunti!');
+        } else {
+            UI.showError('Errore nella copia');
+        }
+    },
+
+    async copiaTuttoTemplate() {
+        const oggetto = document.getElementById('templateOggetto')?.value || '';
+        const corpo = document.getElementById('templateCorpo')?.value || '';
+        const tutto = `Oggetto: ${oggetto}\n\n${corpo}`;
+        if (await TemplateService.copyToClipboard(tutto)) {
+            UI.showSuccess('Comunicazione completa copiata negli appunti!');
+        } else {
+            UI.showError('Errore nella copia');
+        }
     }
 };

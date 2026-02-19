@@ -42,9 +42,11 @@ const GestioneApp = {
                             <button class="btn btn-secondary" onclick="GestioneApp.exportData()">
                                 <i class="fas fa-file-excel"></i> Esporta
                             </button>
+                            ${!AuthService.canViewOnlyOwnData() ? `
                             <button class="btn btn-primary" onclick="FormsManager.showNuovaApp()">
                                 <i class="fas fa-plus"></i> Nuova App
                             </button>
+                            ` : ''}
                         </div>
                     </div>
                 </div>
@@ -389,6 +391,7 @@ const GestioneApp = {
                     <span class="badge ${badgeClass}">
                         ${app.statoApp?.replace('_', ' ') || 'N/A'}
                     </span>
+                    ${!AuthService.canViewOnlyOwnData() ? `
                     <button
                         class="btn-icon"
                         onclick="GestioneApp.eliminaApp('${app.id}', '${app.nome}')"
@@ -396,6 +399,7 @@ const GestioneApp = {
                     >
                         <i class="fas fa-trash"></i>
                     </button>
+                    ` : ''}
                 </div>
             </div>
         `;

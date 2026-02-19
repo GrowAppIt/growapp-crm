@@ -5,16 +5,49 @@ const Scadenzario = {
         urgenza: ''
     },
 
+    // Cache dati agente per evitare ricaricamenti
+    _isAgente: false,
+    _agenteNome: null,
+    _datiAgente: null,
+
     async render() {
         UI.showLoading();
 
         try {
-            // Carica dati in parallelo
-            const [scadenze, contrattiInScadenza, fattureScadute] = await Promise.all([
-                DataService.getScadenze(),
-                DataService.getContrattiInScadenza(60),
-                DataService.getFattureScadute()
-            ]);
+            // Verifica se è un agente
+            this._isAgente = AuthService.canViewOnlyOwnData();
+            this._agenteNome = this._isAgente ? AuthService.getAgenteFilterName() : null;
+
+            let scadenze, contrattiInScadenza, fattureScadute;
+
+            if (this._isAgente && this._agenteNome) {
+                // Agente: carica dati filtrati per i propri clienti
+                this._datiAgente = await DataService.getDatiAgente(this._agenteNome);
+                const clienteIds = this._datiAgente.clienteIds;
+
+                scadenze = this._datiAgente.scadenze;
+
+                // Filtra contratti in scadenza tra quelli dell'agente
+                const oggi = new Date();
+                const tra60gg = new Date();
+                tra60gg.setDate(oggi.getDate() + 60);
+                contrattiInScadenza = this._datiAgente.contratti.filter(c =>
+                    c.stato === 'ATTIVO' && c.dataScadenza && new Date(c.dataScadenza) <= tra60gg
+                );
+
+                // Filtra fatture scadute tra quelle dell'agente
+                fattureScadute = this._datiAgente.fatture.filter(f =>
+                    (f.statoPagamento === 'NON_PAGATA' || f.statoPagamento === 'PARZIALMENTE_PAGATA') &&
+                    f.dataScadenza && new Date(f.dataScadenza) < oggi
+                );
+            } else {
+                // Admin/altri ruoli: carica tutto
+                [scadenze, contrattiInScadenza, fattureScadute] = await Promise.all([
+                    DataService.getScadenze(),
+                    DataService.getContrattiInScadenza(60),
+                    DataService.getFattureScadute()
+                ]);
+            }
 
             // Filtra scadenze per tipo FATTURAZIONE
             const prossimeFatturazioni = scadenze.filter(s => s.tipo === 'FATTURAZIONE');
@@ -128,7 +161,12 @@ const Scadenzario = {
         this.filtri.tipo = document.getElementById('filtroTipo').value;
         this.filtri.urgenza = document.getElementById('filtroUrgenza').value;
 
-        DataService.getScadenze().then(scadenze => {
+        // Usa dati agente se disponibili, altrimenti carica tutto
+        const scadenzePromise = (this._isAgente && this._agenteNome)
+            ? DataService.getDatiAgente(this._agenteNome).then(d => d.scadenze)
+            : DataService.getScadenze();
+
+        scadenzePromise.then(scadenze => {
             let filtrate = scadenze;
 
             if (this.filtri.tipo) {
@@ -255,19 +293,33 @@ const Scadenzario = {
 
     async mostraContratti() {
         UI.showLoading();
-        const [contratti, clienti] = await Promise.all([
-            DataService.getContrattiInScadenza(60),
-            DataService.getClienti()
-        ]);
+
+        let contratti, clienti;
+
+        if (this._isAgente && this._agenteNome) {
+            const datiAgente = await DataService.getDatiAgente(this._agenteNome);
+            clienti = datiAgente.clienti;
+            const oggi = new Date();
+            const tra60gg = new Date();
+            tra60gg.setDate(oggi.getDate() + 60);
+            contratti = datiAgente.contratti.filter(c =>
+                c.stato === 'ATTIVO' && c.dataScadenza && new Date(c.dataScadenza) <= tra60gg
+            );
+        } else {
+            [contratti, clienti] = await Promise.all([
+                DataService.getContrattiInScadenza(60),
+                DataService.getClienti()
+            ]);
+        }
 
         // Arricchisci contratti con dati cliente
         const contrattiArricchiti = contratti.map(contratto => {
             const cliente = clienti.find(c => c.id === contratto.clienteId);
             return {
                 ...contratto,
-                ragioneSociale: cliente?.ragioneSociale || 'Cliente non trovato',
-                agente: cliente?.agente || '',
-                provincia: cliente?.provincia || ''
+                ragioneSociale: cliente?.ragioneSociale || contratto.ragioneSociale || 'Cliente non trovato',
+                agente: cliente?.agente || contratto.agente || '',
+                provincia: cliente?.provincia || contratto.provincia || ''
             };
         });
 
@@ -293,7 +345,18 @@ const Scadenzario = {
 
     async mostraFattureScadute() {
         UI.showLoading();
-        const fatture = await DataService.getFattureScadute();
+        let fatture;
+
+        if (this._isAgente && this._agenteNome) {
+            const datiAgente = await DataService.getDatiAgente(this._agenteNome);
+            const oggi = new Date();
+            fatture = datiAgente.fatture.filter(f =>
+                (f.statoPagamento === 'NON_PAGATA' || f.statoPagamento === 'PARZIALMENTE_PAGATA') &&
+                f.dataScadenza && new Date(f.dataScadenza) < oggi
+            );
+        } else {
+            fatture = await DataService.getFattureScadute();
+        }
 
         const mainContent = document.getElementById('mainContent');
         const listHtml = this.renderFattureScaduteList(fatture);
@@ -317,7 +380,15 @@ const Scadenzario = {
 
     async mostraFatturazioni() {
         UI.showLoading();
-        const scadenze = await DataService.getScadenze();
+        let scadenze;
+
+        if (this._isAgente && this._agenteNome) {
+            const datiAgente = await DataService.getDatiAgente(this._agenteNome);
+            scadenze = datiAgente.scadenze;
+        } else {
+            scadenze = await DataService.getScadenze();
+        }
+
         const fatturazioni = scadenze.filter(s => s.tipo === 'FATTURAZIONE');
         const ordinate = this.ordinaPerUrgenza(fatturazioni);
 
@@ -436,7 +507,15 @@ const Scadenzario = {
     },
 
     async exportData() {
-        const scadenze = await DataService.getScadenze();
+        let scadenze;
+
+        if (this._isAgente && this._agenteNome) {
+            const datiAgente = await DataService.getDatiAgente(this._agenteNome);
+            scadenze = datiAgente.scadenze;
+        } else {
+            scadenze = await DataService.getScadenze();
+        }
+
         let filtrate = scadenze;
 
         if (this.filtri.tipo) {

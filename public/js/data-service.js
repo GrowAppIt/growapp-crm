@@ -67,21 +67,27 @@ const DataService = {
     async getClienti(filtri = {}) {
         try {
             let query = db.collection('clienti');
+            let hasCompositeFilter = false;
 
             if (filtri.stato) {
                 query = query.where('statoContratto', '==', filtri.stato);
             }
             if (filtri.agente) {
                 query = query.where('agente', '==', filtri.agente);
+                hasCompositeFilter = true; // Evita orderBy per non richiedere indice composito
             }
             if (filtri.tipo) {
                 query = query.where('tipo', '==', filtri.tipo);
             }
 
-            query = query.orderBy('ragioneSociale', 'asc');
+            // Se c'è un filtro agente, non aggiungere orderBy (richiederebbe indice composito)
+            // L'ordinamento viene fatto lato client
+            if (!hasCompositeFilter) {
+                query = query.orderBy('ragioneSociale', 'asc');
+            }
 
             const snapshot = await query.get();
-            return snapshot.docs.map(doc => {
+            const risultati = snapshot.docs.map(doc => {
                 const data = doc.data();
                 return {
                     ...data,
@@ -89,6 +95,13 @@ const DataService = {
                     id: doc.id  // ID documento Firestore
                 };
             });
+
+            // Ordinamento lato client quando non fatto da Firestore
+            if (hasCompositeFilter) {
+                risultati.sort((a, b) => (a.ragioneSociale || '').localeCompare(b.ragioneSociale || ''));
+            }
+
+            return risultati;
         } catch (error) {
             console.error('Errore caricamento clienti:', error);
             return [];
@@ -679,26 +692,48 @@ const DataService = {
     async getScadenze(filtri = {}) {
         try {
             let query = db.collection('scadenzario');
+            let hasAgenteFilter = false;
 
             if (filtri.tipo) {
                 query = query.where('tipo', '==', filtri.tipo);
             }
             if (filtri.agente) {
-                query = query.where('agente', '==', filtri.agente);
+                hasAgenteFilter = true;
+                // NON aggiungiamo where('agente') + where('completata') + orderBy insieme
+                // perché richiederebbe un indice composito su 3 campi.
+                // Filtriamo solo per completata su Firestore, il resto lato client
             }
 
-            query = query.where('completata', '==', false)
-                         .orderBy('dataScadenza', 'asc');
+            if (!hasAgenteFilter) {
+                // Query normale senza filtro agente: usa indice completata + dataScadenza
+                query = query.where('completata', '==', false)
+                             .orderBy('dataScadenza', 'asc');
+            } else {
+                // Con filtro agente: solo where('completata') per evitare indice composito
+                query = query.where('completata', '==', false);
+            }
 
             const snapshot = await query.get();
-            return snapshot.docs.map(doc => {
+            let risultati = snapshot.docs.map(doc => {
                 const data = doc.data();
                 return {
                     ...data,
-                    clienteIdLegacy: data.id,  // Salva l'ID originale prima di sovrascriverlo
-                    id: doc.id  // ID documento Firestore
+                    clienteIdLegacy: data.id,
+                    id: doc.id
                 };
             });
+
+            // Filtraggio e ordinamento lato client quando c'è filtro agente
+            if (hasAgenteFilter) {
+                risultati = risultati.filter(s => s.agente === filtri.agente);
+                risultati.sort((a, b) => {
+                    const dataA = a.dataScadenza ? new Date(a.dataScadenza) : new Date(0);
+                    const dataB = b.dataScadenza ? new Date(b.dataScadenza) : new Date(0);
+                    return dataA - dataB;
+                });
+            }
+
+            return risultati;
         } catch (error) {
             console.error('Errore caricamento scadenze:', error);
             return [];
@@ -880,28 +915,40 @@ const DataService = {
                 if (c.clienteIdLegacy) clienteIds.add(c.clienteIdLegacy);
             });
 
-            // 3. Carica tutte le fatture e filtra per clienti dell'agente
-            const tutteFatture = await this.getFatture({ limit: 1000 });
+            // 3. Carica fatture, contratti e app in parallelo (ogni query gestita singolarmente)
+            const [tutteFattureResult, tuttiContrattiResult, tutteAppResult, scadenzeResult] = await Promise.allSettled([
+                this.getFatture({ limit: 1000 }),
+                this.getContratti(),
+                this.getApps(),
+                this.getScadenze({ agente: agenteNome })
+            ]);
+
+            // Estrai risultati con fallback sicuro ad array vuoto
+            const tutteFatture = tutteFattureResult.status === 'fulfilled' ? tutteFattureResult.value : [];
+            const tuttiContratti = tuttiContrattiResult.status === 'fulfilled' ? tuttiContrattiResult.value : [];
+            const tutteApp = tutteAppResult.status === 'fulfilled' ? tutteAppResult.value : [];
+            const scadenze = scadenzeResult.status === 'fulfilled' ? scadenzeResult.value : [];
+
+            // Log eventuali errori senza bloccare il flusso
+            if (tutteFattureResult.status === 'rejected') console.warn('Errore caricamento fatture agente:', tutteFattureResult.reason);
+            if (tuttiContrattiResult.status === 'rejected') console.warn('Errore caricamento contratti agente:', tuttiContrattiResult.reason);
+            if (tutteAppResult.status === 'rejected') console.warn('Errore caricamento app agente:', tutteAppResult.reason);
+            if (scadenzeResult.status === 'rejected') console.warn('Errore caricamento scadenze agente:', scadenzeResult.reason);
+
+            // 4. Filtra fatture per clienti dell'agente
             const fatture = tutteFatture.filter(f => clienteIds.has(f.clienteId));
 
-            // 4. Carica tutti i contratti e filtra per clienti dell'agente
-            const tuttiContratti = await this.getContratti();
+            // 5. Filtra contratti per clienti dell'agente
             const contratti = tuttiContratti.filter(c => clienteIds.has(c.clienteId));
 
-            // 5. Carica le app e filtra per clienti dell'agente
-            const tutteApp = await this.getApps();
+            // 6. Filtra app per clienti dell'agente
             const app = tutteApp.filter(a => {
-                // Le app possono essere collegate tramite clientePaganteId, clienteId, o nome comune
                 if (a.clientePaganteId && clienteIds.has(a.clientePaganteId)) return true;
                 if (a.clienteId && clienteIds.has(a.clienteId)) return true;
-                // Match per nome comune (ragione sociale del cliente)
                 const nomiClienti = clienti.map(c => (c.ragioneSociale || '').toLowerCase());
                 if (a.comune && nomiClienti.some(n => n.includes(a.comune.toLowerCase()) || a.comune.toLowerCase().includes(n))) return true;
                 return false;
             });
-
-            // 6. Scadenze dell'agente
-            const scadenze = await this.getScadenze({ agente: agenteNome });
 
             // 7. Calcola lo stato clienti dai contratti caricati
             const contrattiPerCliente = {};
@@ -1148,6 +1195,164 @@ const DataService = {
         } catch (error) {
             console.error('Errore creazione scadenza:', error);
             throw error;
+        }
+    },
+
+    /**
+     * Genera scadenze automatiche da un contratto appena creato
+     * - 1 scadenza RINNOVO_CONTRATTO (dataScadenza - giorniPreavviso)
+     * - N scadenze FATTURAZIONE in base alla periodicità
+     */
+    async generateScadenzeFromContratto(contratto, clienteRagioneSociale, agente) {
+        try {
+            const scadenzeCreate = [];
+            const dataInizio = new Date(contratto.dataInizio);
+            const dataScadenza = new Date(contratto.dataScadenza);
+            const importoAnnuale = parseFloat(contratto.importoAnnuale) || 0;
+            const giorniPreavviso = parseInt(contratto.giorniPreavvisoRinnovo) || 60;
+
+            // === 1. SCADENZA RINNOVO CONTRATTO ===
+            if (contratto.dataScadenza) {
+                const dataRinnovo = new Date(dataScadenza);
+                dataRinnovo.setDate(dataRinnovo.getDate() - giorniPreavviso);
+
+                // Solo se la data di rinnovo è futura
+                if (dataRinnovo > new Date()) {
+                    const idRinnovo = await this.createScadenza({
+                        tipo: 'RINNOVO_CONTRATTO',
+                        clienteId: contratto.clienteId,
+                        clienteRagioneSociale: clienteRagioneSociale || '',
+                        contrattoId: contratto.id || '',
+                        dataScadenza: dataRinnovo.toISOString(),
+                        descrizione: `Rinnovo contratto ${contratto.numeroContratto}`,
+                        agente: agente || '',
+                        importo: importoAnnuale,
+                        completata: false,
+                        note: `Preavviso ${giorniPreavviso} giorni prima della scadenza del ${dataScadenza.toLocaleDateString('it-IT')}`
+                    });
+                    scadenzeCreate.push(idRinnovo);
+                }
+            }
+
+            // === 2. SCADENZE FATTURAZIONE ===
+            if (contratto.periodicita && importoAnnuale > 0) {
+                // Calcola numero periodi e intervallo mesi
+                let numPeriodi = 1;
+                let intervalloMesi = 12;
+
+                switch (contratto.periodicita) {
+                    case 'MENSILE':
+                        numPeriodi = 12;
+                        intervalloMesi = 1;
+                        break;
+                    case 'BIMENSILE':
+                        numPeriodi = 6;
+                        intervalloMesi = 2;
+                        break;
+                    case 'TRIMESTRALE':
+                        numPeriodi = 4;
+                        intervalloMesi = 3;
+                        break;
+                    case 'SEMESTRALE':
+                        numPeriodi = 2;
+                        intervalloMesi = 6;
+                        break;
+                    case 'ANNUALE':
+                        numPeriodi = 1;
+                        intervalloMesi = 12;
+                        break;
+                    case 'BIENNALE':
+                        numPeriodi = 1;
+                        intervalloMesi = 24;
+                        break;
+                    case 'UNA_TANTUM':
+                        numPeriodi = 1;
+                        intervalloMesi = 0; // Nessun intervallo, una sola scadenza
+                        break;
+                }
+
+                const importoPerPeriodo = Math.round((importoAnnuale / numPeriodi) * 100) / 100;
+
+                for (let i = 0; i < numPeriodi; i++) {
+                    // Calcola data scadenza fatturazione
+                    const dataFatturazione = new Date(dataInizio);
+
+                    if (contratto.periodicita === 'UNA_TANTUM') {
+                        // Una tantum: stessa data di inizio
+                    } else {
+                        // Aggiungi mesi in modo sicuro (gestione fine mese)
+                        const meseTarget = dataFatturazione.getMonth() + (intervalloMesi * i);
+                        dataFatturazione.setMonth(meseTarget);
+
+                        // Gestione edge case fine mese (es. 31 gen + 1 mese = 28/29 feb)
+                        const giornoOriginale = new Date(dataInizio).getDate();
+                        if (dataFatturazione.getDate() !== giornoOriginale) {
+                            // Se il giorno è cambiato, vai all'ultimo giorno del mese precedente
+                            dataFatturazione.setDate(0);
+                        }
+                    }
+
+                    // Verifica che la data sia nel range contratto
+                    if (dataFatturazione > dataScadenza) break;
+
+                    // Crea scadenza fatturazione
+                    const periodoLabel = this._getPeriodoLabel(contratto.periodicita, i + 1, numPeriodi);
+
+                    const idFatt = await this.createScadenza({
+                        tipo: 'FATTURAZIONE',
+                        clienteId: contratto.clienteId,
+                        clienteRagioneSociale: clienteRagioneSociale || '',
+                        contrattoId: contratto.id || '',
+                        dataScadenza: dataFatturazione.toISOString(),
+                        descrizione: `Fatturazione ${periodoLabel} - ${contratto.numeroContratto}`,
+                        agente: agente || '',
+                        importo: importoPerPeriodo,
+                        completata: false,
+                        note: `${contratto.oggetto || ''} • Periodicità: ${contratto.periodicita} • Rata ${i + 1}/${numPeriodi}`
+                    });
+                    scadenzeCreate.push(idFatt);
+                }
+            }
+
+            return {
+                success: true,
+                scadenzeCreate: scadenzeCreate.length,
+                ids: scadenzeCreate
+            };
+
+        } catch (error) {
+            console.error('Errore generazione scadenze da contratto:', error);
+            return {
+                success: false,
+                error: error.message,
+                scadenzeCreate: 0
+            };
+        }
+    },
+
+    /**
+     * Helper: genera etichetta periodo per scadenza fatturazione
+     */
+    _getPeriodoLabel(periodicita, numero, totale) {
+        switch (periodicita) {
+            case 'MENSILE':
+                const mesi = ['Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno',
+                              'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre'];
+                return mesi[(numero - 1) % 12] || `Rata ${numero}`;
+            case 'BIMENSILE':
+                return `Bimestre ${numero}/${totale}`;
+            case 'TRIMESTRALE':
+                return `Q${numero} (Trimestre ${numero}/${totale})`;
+            case 'SEMESTRALE':
+                return `Semestre ${numero}/${totale}`;
+            case 'ANNUALE':
+                return 'Annuale';
+            case 'BIENNALE':
+                return 'Biennale';
+            case 'UNA_TANTUM':
+                return 'Una Tantum';
+            default:
+                return `Rata ${numero}/${totale}`;
         }
     },
 

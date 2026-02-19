@@ -63,9 +63,16 @@ const Dashboard = {
                                 Panoramica generale e metriche chiave
                             </p>
                         </div>
-                        <button class="btn btn-secondary" onclick="UI.showPage('impostazioni')">
-                            <i class="fas fa-cog"></i> Personalizza
-                        </button>
+                        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                            ${AuthService.isAncheAgente() ? `
+                                <button class="btn btn-primary" onclick="Dashboard.switchToVistaAgente()" style="background: var(--verde-700);">
+                                    <i class="fas fa-user-tie"></i> Vista Agente
+                                </button>
+                            ` : ''}
+                            <button class="btn btn-secondary" onclick="UI.showPage('impostazioni')">
+                                <i class="fas fa-cog"></i> Personalizza
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -93,6 +100,26 @@ const Dashboard = {
             UI.hideLoading();
             UI.showError('Errore nel caricamento della dashboard');
         }
+    },
+
+    // Flag per distinguere vista agente manuale vs automatica
+    _vistaAgenteManuale: false,
+
+    /**
+     * Passa alla vista agente (per admin/CTO con ancheAgente)
+     */
+    async switchToVistaAgente() {
+        this._vistaAgenteManuale = true;
+        UI.showLoading();
+        await this.renderDashboardAgente();
+    },
+
+    /**
+     * Torna alla dashboard admin normale
+     */
+    async switchToVistaAdmin() {
+        this._vistaAgenteManuale = false;
+        await this.render();
     },
 
     async renderEnabledWidgets(widgets, data) {
@@ -1193,6 +1220,11 @@ const Dashboard = {
                             Benvenuto, <strong>${agenteNome}</strong> — Panoramica del tuo portafoglio clienti
                         </p>
                     </div>
+                    ${this._vistaAgenteManuale ? `
+                        <button class="btn btn-secondary" onclick="Dashboard.switchToVistaAdmin()" style="border: 2px solid var(--blu-700);">
+                            <i class="fas fa-arrow-left"></i> Torna alla Dashboard
+                        </button>
+                    ` : ''}
                 </div>
             </div>
 
@@ -1256,9 +1288,182 @@ const Dashboard = {
 
             <!-- LISTA CLIENTI -->
             ${this.renderAgenteListaClienti(clienti, contratti, fatture)}
+
+            <!-- NUOVI WIDGET: Prossime Attività, Task Aperti, Azioni Rapide -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem; margin-top: 1.5rem;">
+                <!-- PROSSIME ATTIVITÀ (7gg) -->
+                <div id="widgetProssimeAttivita" style="background: white; border-radius: 12px; padding: 1.5rem; box-shadow: 0 2px 8px rgba(0,0,0,0.06);">
+                    <h3 style="font-size: 1rem; font-weight: 700; color: var(--blu-700); margin-bottom: 1rem;">
+                        <i class="fas fa-calendar-week"></i> Prossime Attività (7gg)
+                    </h3>
+                    ${this.renderWidgetProssimeAttivita(scadenze)}
+                </div>
+
+                <!-- I MIEI TASK APERTI -->
+                <div id="widgetTaskAperti" style="background: white; border-radius: 12px; padding: 1.5rem; box-shadow: 0 2px 8px rgba(0,0,0,0.06);">
+                    <h3 style="font-size: 1rem; font-weight: 700; color: var(--blu-700); margin-bottom: 1rem;">
+                        <i class="fas fa-tasks"></i> I Miei Task Aperti
+                    </h3>
+                    <div id="widgetTaskApertiContent">
+                        <div style="text-align:center;padding:1rem;"><i class="fas fa-spinner fa-spin" style="color:var(--grigio-400);"></i></div>
+                    </div>
+                </div>
+
+                <!-- AZIONI RAPIDE -->
+                <div style="background: white; border-radius: 12px; padding: 1.5rem; box-shadow: 0 2px 8px rgba(0,0,0,0.06);">
+                    <h3 style="font-size: 1rem; font-weight: 700; color: var(--blu-700); margin-bottom: 1rem;">
+                        <i class="fas fa-bolt"></i> Azioni Rapide
+                    </h3>
+                    <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                        <button class="btn btn-primary" onclick="UI.showPage('gestione-task')" style="width: 100%; text-align: left;">
+                            <i class="fas fa-plus-circle"></i> Nuovo Task
+                        </button>
+                        <button class="btn btn-secondary" onclick="UI.showPage('scadenzario')" style="width: 100%; text-align: left;">
+                            <i class="fas fa-calendar-check"></i> Vedi Scadenzario
+                        </button>
+                        <button class="btn btn-secondary" onclick="UI.showPage('report')" style="width: 100%; text-align: left;">
+                            <i class="fas fa-chart-bar"></i> Vedi Report
+                        </button>
+                        <button class="btn btn-secondary" onclick="UI.showPage('clienti')" style="width: 100%; text-align: left;">
+                            <i class="fas fa-users"></i> I Miei Clienti
+                        </button>
+                    </div>
+                </div>
+            </div>
         `;
 
+        // Carica task aperti in modo asincrono
+        this.loadWidgetTaskAperti();
+
         UI.hideLoading();
+    },
+
+    /**
+     * Widget: Prossime attività nei prossimi 7 giorni
+     */
+    renderWidgetProssimeAttivita(scadenze) {
+        const oggi = new Date();
+        const tra7gg = new Date(oggi);
+        tra7gg.setDate(tra7gg.getDate() + 7);
+
+        const prossime = scadenze
+            .filter(s => {
+                if (!s.dataScadenza || s.completata) return false;
+                const data = new Date(s.dataScadenza);
+                return data >= oggi && data <= tra7gg;
+            })
+            .sort((a, b) => new Date(a.dataScadenza) - new Date(b.dataScadenza))
+            .slice(0, 5);
+
+        if (prossime.length === 0) {
+            return `<div style="text-align:center;padding:1rem;color:var(--grigio-400);"><i class="fas fa-check-circle" style="font-size:1.5rem;display:block;margin-bottom:0.5rem;"></i>Nessuna attività nei prossimi 7 giorni</div>`;
+        }
+
+        const tipoIcons = {
+            'FATTURAZIONE': 'fas fa-file-invoice',
+            'RINNOVO_CONTRATTO': 'fas fa-sync-alt',
+            'PAGAMENTO': 'fas fa-euro-sign'
+        };
+
+        const tipoColors = {
+            'FATTURAZIONE': '#E67E22',
+            'RINNOVO_CONTRATTO': '#3CA434',
+            'PAGAMENTO': '#D32F2F'
+        };
+
+        let html = prossime.map(s => {
+            const icon = tipoIcons[s.tipo] || 'fas fa-bell';
+            const color = tipoColors[s.tipo] || 'var(--blu-500)';
+            const dataStr = DataService.formatDate(s.dataScadenza);
+            const giorniMancanti = Math.ceil((new Date(s.dataScadenza) - oggi) / (1000 * 60 * 60 * 24));
+
+            return `
+                <div style="display:flex;gap:0.75rem;align-items:center;padding:0.6rem;border-radius:8px;background:var(--grigio-100);margin-bottom:0.5rem;cursor:pointer;"
+                     onclick="UI.showPage('dettaglio-scadenza', '${s.id}')">
+                    <i class="${icon}" style="color:${color};font-size:0.9rem;width:20px;text-align:center;"></i>
+                    <div style="flex:1;min-width:0;">
+                        <div style="font-size:0.85rem;font-weight:600;color:var(--grigio-900);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${s.clienteRagioneSociale || s.descrizione || s.tipo}</div>
+                        <div style="font-size:0.75rem;color:var(--grigio-500);">${s.descrizione ? s.descrizione.substring(0, 40) : ''}</div>
+                    </div>
+                    <div style="text-align:right;flex-shrink:0;">
+                        <div style="font-size:0.75rem;font-weight:600;color:${giorniMancanti <= 2 ? '#D32F2F' : 'var(--grigio-700)'};">${giorniMancanti === 0 ? 'OGGI' : giorniMancanti === 1 ? 'Domani' : `${giorniMancanti}gg`}</div>
+                        ${s.importo ? `<div style="font-size:0.7rem;color:var(--grigio-500);">${DataService.formatCurrency(s.importo)}</div>` : ''}
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        const totaleScadenze7gg = scadenze.filter(s => s.dataScadenza && !s.completata && new Date(s.dataScadenza) >= oggi && new Date(s.dataScadenza) <= tra7gg).length;
+        if (totaleScadenze7gg > 5) {
+            html += `<div style="text-align:center;margin-top:0.5rem;"><a href="#" onclick="UI.showPage('scadenzario');return false;" style="font-size:0.8rem;color:var(--blu-500);text-decoration:none;">Vedi tutte (${totaleScadenze7gg}) →</a></div>`;
+        }
+
+        return html;
+    },
+
+    /**
+     * Widget: Task aperti (caricamento asincrono)
+     */
+    async loadWidgetTaskAperti() {
+        try {
+            const allTasks = await TaskService.getAllTasks();
+            const currentUserId = AuthService.getUserId();
+
+            // Filtra task dell'agente (assegnati o creati)
+            const myTasks = allTasks.filter(task => {
+                if (task.stato === 'COMPLETATO') return false;
+                if (task.creatoDa === currentUserId) return true;
+                if (task.assegnatiA && Array.isArray(task.assegnatiA) && task.assegnatiA.includes(currentUserId)) return true;
+                return false;
+            }).slice(0, 5);
+
+            const container = document.getElementById('widgetTaskApertiContent');
+            if (!container) return;
+
+            if (myTasks.length === 0) {
+                container.innerHTML = `<div style="text-align:center;padding:1rem;color:var(--grigio-400);"><i class="fas fa-clipboard-check" style="font-size:1.5rem;display:block;margin-bottom:0.5rem;"></i>Nessun task aperto</div>`;
+                return;
+            }
+
+            const prioritaColors = {
+                'ALTA': '#D32F2F',
+                'MEDIA': '#FFCC00',
+                'BASSA': '#3CA434'
+            };
+
+            let html = myTasks.map(t => {
+                const prColor = prioritaColors[t.priorita] || 'var(--grigio-400)';
+                return `
+                    <div style="display:flex;gap:0.75rem;align-items:center;padding:0.6rem;border-radius:8px;background:var(--grigio-100);margin-bottom:0.5rem;cursor:pointer;"
+                         onclick="UI.showPage('gestione-task')">
+                        <div style="width:8px;height:8px;border-radius:50%;background:${prColor};flex-shrink:0;"></div>
+                        <div style="flex:1;min-width:0;">
+                            <div style="font-size:0.85rem;font-weight:600;color:var(--grigio-900);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${t.titolo || 'Task senza titolo'}</div>
+                            <div style="font-size:0.75rem;color:var(--grigio-500);">${t.appNome || ''} ${t.stato ? '• ' + t.stato.replace('_', ' ') : ''}</div>
+                        </div>
+                        <span style="font-size:0.65rem;padding:0.15rem 0.4rem;border-radius:4px;background:${prColor}20;color:${prColor};font-weight:700;">${t.priorita || 'N/A'}</span>
+                    </div>
+                `;
+            }).join('');
+
+            const totaleTasks = allTasks.filter(task => {
+                if (task.stato === 'COMPLETATO') return false;
+                return task.creatoDa === currentUserId || (task.assegnatiA && task.assegnatiA.includes(currentUserId));
+            }).length;
+
+            if (totaleTasks > 5) {
+                html += `<div style="text-align:center;margin-top:0.5rem;"><a href="#" onclick="UI.showPage('gestione-task');return false;" style="font-size:0.8rem;color:var(--blu-500);text-decoration:none;">Vedi tutti (${totaleTasks}) →</a></div>`;
+            }
+
+            container.innerHTML = html;
+
+        } catch (error) {
+            console.warn('Errore caricamento task agente:', error);
+            const container = document.getElementById('widgetTaskApertiContent');
+            if (container) {
+                container.innerHTML = '<div style="text-align:center;padding:1rem;color:var(--grigio-400);font-size:0.85rem;">Impossibile caricare i task</div>';
+            }
+        }
     },
 
     // === Widget Alert per Agente ===

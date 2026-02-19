@@ -22,7 +22,23 @@ const GestioneTask = {
                 this.loadUtenti()
             ]);
 
-            this.tasks = tasksResult.success ? tasksResult.tasks : [];
+            let allTasks = tasksResult.success ? tasksResult.tasks : [];
+
+            // Filtro visibilità task per ruolo:
+            // Admin e CTO vedono tutti i task, gli altri vedono solo quelli assegnati a loro o creati da loro
+            const canSeeAllTasks = AuthService.isAdmin() || AuthService.isCTO();
+            if (!canSeeAllTasks) {
+                const currentUserId = AuthService.getUserId();
+                allTasks = allTasks.filter(task => {
+                    // Task creato dall'utente corrente
+                    if (task.creatoDa === currentUserId) return true;
+                    // Task assegnato all'utente corrente
+                    if (task.assegnatiA && Array.isArray(task.assegnatiA) && task.assegnatiA.includes(currentUserId)) return true;
+                    return false;
+                });
+            }
+
+            this.tasks = allTasks;
             this.apps = apps;
             this.utenti = utenti;
 

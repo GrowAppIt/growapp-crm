@@ -29,6 +29,7 @@ const DettaglioFattura = {
                         <button class="btn btn-secondary btn-sm" onclick="UI.showPage('fatture')">
                             <i class="fas fa-arrow-left"></i> Torna alle fatture
                         </button>
+                        ${!AuthService.canViewOnlyOwnData() ? `
                         <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
                             ${fattura.statoPagamento === 'NON_PAGATA' || fattura.statoPagamento === 'PARZIALMENTE_PAGATA' ? `
                                 <button class="btn btn-success btn-sm" onclick="FormsManager.marcaFatturaPagata('${fattura.id}')">
@@ -44,6 +45,7 @@ const DettaglioFattura = {
                                 <i class="fas fa-edit"></i> Modifica
                             </button>
                         </div>
+                        ` : ''}
                     </div>
                     <h1 style="font-size: 2rem; font-weight: 700; color: var(--blu-700); margin-bottom: 0.5rem;">
                         <i class="fas fa-file-invoice"></i> ${fattura.numeroFatturaCompleto || 'Fattura'}

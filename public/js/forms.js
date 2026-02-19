@@ -1777,7 +1777,31 @@ const FormsManager = {
                 data.dataAggiornamento = new Date();
 
                 const newId = await DataService.createContratto(data);
-                UI.showSuccess('Contratto creato con successo!');
+
+                // === GENERAZIONE SCADENZE AUTOMATICHE ===
+                try {
+                    // Recupera dati cliente per ragioneSociale e agente
+                    const clientePerScadenze = clienti.find(c => c.id === data.clienteId);
+                    const ragioneSocialeCliente = clientePerScadenze?.ragioneSociale || '';
+                    const agenteCliente = clientePerScadenze?.agente || '';
+
+                    // Genera scadenze passando l'ID del contratto appena creato
+                    const contrattoConId = { ...data, id: newId };
+                    const risultatoScadenze = await DataService.generateScadenzeFromContratto(
+                        contrattoConId,
+                        ragioneSocialeCliente,
+                        agenteCliente
+                    );
+
+                    if (risultatoScadenze.success && risultatoScadenze.scadenzeCreate > 0) {
+                        UI.showSuccess(`Contratto creato! Generate ${risultatoScadenze.scadenzeCreate} scadenze automatiche.`);
+                    } else {
+                        UI.showSuccess('Contratto creato con successo!');
+                    }
+                } catch (errScadenze) {
+                    console.warn('Scadenze automatiche non generate:', errScadenze);
+                    UI.showSuccess('Contratto creato con successo! (Scadenze automatiche non generate)');
+                }
 
                 // Vai al dettaglio contratto
                 DettaglioContratto.render(newId);

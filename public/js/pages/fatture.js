@@ -46,9 +46,11 @@ const Fatture = {
                             <button class="btn btn-secondary" onclick="Fatture.exportData()">
                                 <i class="fas fa-file-excel"></i> Esporta
                             </button>
+                            ${!AuthService.canViewOnlyOwnData() ? `
                             <button class="btn btn-primary" onclick="FormsManager.showNuovaFattura()">
                                 <i class="fas fa-plus"></i> Nuova Fattura
                             </button>
+                            ` : ''}
                         </div>
                     </div>
                 </div>

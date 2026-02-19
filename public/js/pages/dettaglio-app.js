@@ -40,6 +40,7 @@ const DettaglioApp = {
                         <button class="btn btn-secondary btn-sm" onclick="UI.showPage('app')">
                             <i class="fas fa-arrow-left"></i> Torna alle app
                         </button>
+                        ${!AuthService.canViewOnlyOwnData() ? `
                         <div style="display: flex; gap: 0.5rem;">
                             <button class="btn btn-primary btn-sm" onclick="DettaglioApp.editApp()">
                                 <i class="fas fa-edit"></i> Modifica
@@ -48,6 +49,7 @@ const DettaglioApp = {
                                 <i class="fas fa-trash"></i> Elimina
                             </button>
                         </div>
+                        ` : ''}
                     </div>
                     <h1 style="font-size: 2rem; font-weight: 700; color: var(--blu-700); margin-bottom: 0.5rem;">
                         <i class="fas fa-mobile-alt"></i> ${app.nome}
@@ -909,12 +911,12 @@ const DettaglioApp = {
                                     ">
                                         <i class="fas fa-download"></i> Scarica
                                     </button>
-                                    <button class="btn btn-danger" onclick="DettaglioApp.deleteDocumento('${doc.id}', '${doc.storagePath}', '${doc.nomeOriginale}')" style="
+                                    ${!AuthService.canViewOnlyOwnData() ? `<button class="btn btn-danger" onclick="DettaglioApp.deleteDocumento('${doc.id}', '${doc.storagePath}', '${doc.nomeOriginale}')" style="
                                         white-space: nowrap;
                                         padding: 0.5rem 1rem;
                                     ">
                                         <i class="fas fa-trash"></i> Elimina
-                                    </button>
+                                    </button>` : ''}
                                 </div>
                             </div>
                         `).join('')}

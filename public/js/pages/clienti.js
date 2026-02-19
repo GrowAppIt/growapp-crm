@@ -40,9 +40,11 @@ const Clienti = {
                             <button class="btn btn-secondary" onclick="Clienti.exportData()">
                                 <i class="fas fa-file-excel"></i> Esporta
                             </button>
+                            ${!AuthService.canViewOnlyOwnData() ? `
                             <button class="btn btn-primary" onclick="FormsManager.showNuovoCliente()">
                                 <i class="fas fa-plus"></i> Nuovo Cliente
                             </button>
+                            ` : ''}
                         </div>
                     </div>
                 </div>

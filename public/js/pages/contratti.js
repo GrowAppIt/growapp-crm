@@ -50,9 +50,11 @@ const Contratti = {
                             <button class="btn btn-secondary" onclick="Contratti.exportData()">
                                 <i class="fas fa-file-excel"></i> Esporta
                             </button>
+                            ${!AuthService.canViewOnlyOwnData() ? `
                             <button class="btn btn-primary" onclick="FormsManager.showNuovoContratto()">
                                 <i class="fas fa-plus"></i> Nuovo Contratto
                             </button>
+                            ` : ''}
                         </div>
                     </div>
                 </div>

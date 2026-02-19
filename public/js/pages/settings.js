@@ -79,6 +79,14 @@ const Settings = {
                         <i class="fas fa-object-group"></i> Unisci Clienti
                     </button>
                     ` : ''}
+                    ${AuthService.hasPermission('manage_settings') ? `
+                    <button
+                        class="settings-tab ${this.currentTab === 'template' ? 'active' : ''}"
+                        onclick="Settings.switchTab('template')"
+                    >
+                        <i class="fas fa-envelope-open-text"></i> Template Email
+                    </button>
+                    ` : ''}
                     ${AuthService.hasPermission('manage_users') ? `
                     <button
                         class="settings-tab ${this.currentTab === 'utenti' ? 'active' : ''}"
@@ -119,6 +127,8 @@ const Settings = {
                 return this.renderUnisciClientiTab();
             case 'utenti':
                 return this.renderUtentiTab();
+            case 'template':
+                return this.renderTemplateTab();
             default:
                 return '';
         }
@@ -175,9 +185,21 @@ const Settings = {
     },
 
     renderAziendaTab() {
-        // Carica dati azienda da localStorage o usa valori predefiniti
+        // Mostra loading e poi carica dati da Firestore
+        // Al primo render mostra i dati dalla cache/default, poi aggiorna da Firestore
         const growappData = this.getGrowappData();
         const isEditMode = this.growappEditMode || false;
+
+        // Carica dati da Firestore in background e aggiorna la vista
+        if (!isEditMode) {
+            setTimeout(async () => {
+                await this.loadGrowappData();
+                const container = document.getElementById('settingsTabContent');
+                if (container && this.currentTab === 'azienda' && !this.growappEditMode) {
+                    container.innerHTML = this.renderGrowappCard(this.getGrowappData());
+                }
+            }, 50);
+        }
 
         if (isEditMode) {
             // MODALITÀ MODIFICA - Form
@@ -188,8 +210,11 @@ const Settings = {
         }
     },
 
-    getGrowappData() {
-        const defaultData = {
+    // Cache locale dei dati Growapp (caricati da Firestore)
+    _growappDataCache: null,
+
+    getGrowappDefaultData() {
+        return {
             ragioneSociale: 'GROWAPP S.R.L.',
             tagline: 'Soluzioni Digitali per Comuni ed Enti Pubblici',
             partitaIva: '02631030306',
@@ -214,13 +239,67 @@ const Settings = {
             rea: 'UD-286344',
             noteFinali: 'Società soggetta all\'attività di direzione e coordinamento di ARTIS S.r.l. (P.IVA 02482670302)'
         };
-
-        const savedData = localStorage.getItem('growappData');
-        return savedData ? { ...defaultData, ...JSON.parse(savedData) } : defaultData;
     },
 
-    saveGrowappData(data) {
-        localStorage.setItem('growappData', JSON.stringify(data));
+    getGrowappData() {
+        // Ritorna la cache se disponibile, altrimenti i default
+        // I dati reali vengono caricati async da loadGrowappData()
+        return this._growappDataCache || this.getGrowappDefaultData();
+    },
+
+    async loadGrowappData() {
+        try {
+            const doc = await db.collection('impostazioni').doc('growapp').get();
+            if (doc.exists) {
+                this._growappDataCache = { ...this.getGrowappDefaultData(), ...doc.data() };
+            } else {
+                // Prima volta: migra da localStorage se ci sono dati salvati
+                const localData = localStorage.getItem('growappData');
+                if (localData) {
+                    const parsed = JSON.parse(localData);
+                    await db.collection('impostazioni').doc('growapp').set({
+                        ...parsed,
+                        ultimaModifica: new Date().toISOString(),
+                        modificatoDa: AuthService.getUserName() || 'Sistema',
+                        modificatoDaId: AuthService.getUserId() || 'migrazione'
+                    });
+                    this._growappDataCache = { ...this.getGrowappDefaultData(), ...parsed };
+                    // Rimuovi da localStorage dopo la migrazione
+                    localStorage.removeItem('growappData');
+                } else {
+                    this._growappDataCache = this.getGrowappDefaultData();
+                }
+            }
+            return this._growappDataCache;
+        } catch (error) {
+            console.error('Errore caricamento dati Growapp da Firestore:', error);
+            // Fallback: usa localStorage o default
+            const localData = localStorage.getItem('growappData');
+            this._growappDataCache = localData ? { ...this.getGrowappDefaultData(), ...JSON.parse(localData) } : this.getGrowappDefaultData();
+            return this._growappDataCache;
+        }
+    },
+
+    async saveGrowappData(data) {
+        try {
+            // Salva su Firestore (condiviso tra tutti gli utenti)
+            await db.collection('impostazioni').doc('growapp').set({
+                ...data,
+                ultimaModifica: new Date().toISOString(),
+                modificatoDa: AuthService.getUserName() || 'Utente',
+                modificatoDaId: AuthService.getUserId() || ''
+            });
+            // Aggiorna cache locale
+            this._growappDataCache = { ...this.getGrowappDefaultData(), ...data };
+            // Rimuovi eventuale dato vecchio da localStorage
+            localStorage.removeItem('growappData');
+        } catch (error) {
+            console.error('Errore salvataggio dati Growapp su Firestore:', error);
+            // Fallback: salva su localStorage
+            localStorage.setItem('growappData', JSON.stringify(data));
+            this._growappDataCache = { ...this.getGrowappDefaultData(), ...data };
+            UI.showError('Salvataggio locale. Riprova più tardi per condividere le modifiche.');
+        }
     },
 
     renderGrowappCard(data) {
@@ -560,7 +639,11 @@ const Settings = {
         `;
     },
 
-    toggleGrowappEdit() {
+    async toggleGrowappEdit() {
+        // Carica dati aggiornati da Firestore prima di aprire il form
+        if (!this.growappEditMode) {
+            await this.loadGrowappData();
+        }
         this.growappEditMode = !this.growappEditMode;
         this.switchTab('azienda');
 
@@ -578,7 +661,7 @@ const Settings = {
         }
     },
 
-    saveGrowappEdit() {
+    async saveGrowappEdit() {
         const newData = {
             ragioneSociale: document.getElementById('editRagioneSociale').value,
             tagline: document.getElementById('editTagline').value,
@@ -605,10 +688,17 @@ const Settings = {
             noteFinali: document.getElementById('editNoteFinali').value
         };
 
-        this.saveGrowappData(newData);
-        this.growappEditMode = false;
-        UI.showSuccess('Dati aziendali salvati con successo!');
-        this.switchTab('azienda');
+        try {
+            UI.showLoading('Salvataggio dati aziendali...');
+            await this.saveGrowappData(newData);
+            this.growappEditMode = false;
+            UI.hideLoading();
+            UI.showSuccess('Dati aziendali salvati con successo! Visibili a tutti gli utenti.');
+            this.switchTab('azienda');
+        } catch (error) {
+            UI.hideLoading();
+            UI.showError('Errore nel salvataggio: ' + error.message);
+        }
     },
 
     renderSistemaTab() {
@@ -1990,6 +2080,12 @@ const Settings = {
 
     async switchTab(tab) {
         this.currentTab = tab;
+
+        // Pre-carica dati Growapp da Firestore per tab che ne hanno bisogno
+        if (tab === 'azienda' || tab === 'biglietto') {
+            await this.loadGrowappData();
+        }
+
         await this.render();
 
         // Se tab dati, carica statistiche
@@ -2761,6 +2857,373 @@ const Settings = {
             btn.disabled = false;
             btn.innerHTML = '<i class="fas fa-magic"></i> Avvia Arricchimento Massivo';
         }
+    },
+
+    // =====================================================
+    // TAB TEMPLATE EMAIL/PEC
+    // =====================================================
+
+    _templateEditabili: null,
+
+    renderTemplateTab() {
+        // Carica template da Firestore in background
+        this.loadTemplateEmailFromFirestore();
+
+        return `
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title"><i class="fas fa-envelope-open-text"></i> Template Comunicazioni Email/PEC</h2>
+                </div>
+                <div style="padding: 1.5rem;">
+                    <p style="color: var(--grigio-700); margin-bottom: 1rem; font-size: 0.9rem;">
+                        Modifica i template delle comunicazioni standard. I placeholder come <code>{{ragioneSociale}}</code>, <code>{{nomeAzienda}}</code>, ecc. verranno sostituiti automaticamente con i dati reali del cliente quando generi una comunicazione.
+                    </p>
+
+                    <div style="background: var(--blu-100); padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem; font-size: 0.85rem;">
+                        <strong><i class="fas fa-info-circle"></i> Placeholder disponibili:</strong><br>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.25rem; margin-top: 0.5rem;">
+                            <span><code>{{ragioneSociale}}</code> — Nome cliente</span>
+                            <span><code>{{nomeAzienda}}</code> — Nome Growapp</span>
+                            <span><code>{{emailCliente}}</code> — Email cliente</span>
+                            <span><code>{{emailAzienda}}</code> — Email Growapp</span>
+                            <span><code>{{pecCliente}}</code> — PEC cliente</span>
+                            <span><code>{{pecAzienda}}</code> — PEC Growapp</span>
+                            <span><code>{{telefonoCliente}}</code> — Tel. cliente</span>
+                            <span><code>{{telefonoAzienda}}</code> — Tel. Growapp</span>
+                            <span><code>{{numeroFattura}}</code> — N. fattura</span>
+                            <span><code>{{importoFattura}}</code> — Importo fattura</span>
+                            <span><code>{{dataEmissione}}</code> — Data emissione</span>
+                            <span><code>{{numeroContratto}}</code> — N. contratto</span>
+                            <span><code>{{oggettoContratto}}</code> — Oggetto contr.</span>
+                            <span><code>{{importoContratto}}</code> — Importo contr.</span>
+                            <span><code>{{dataScadenza}}</code> — Data scadenza</span>
+                            <span><code>{{periodicita}}</code> — Periodicità</span>
+                        </div>
+                    </div>
+
+                    <div id="templateEditorContainer">
+                        <div style="text-align: center; padding: 2rem;">
+                            <i class="fas fa-spinner fa-spin" style="font-size: 1.5rem; color: var(--blu-500);"></i>
+                            <p style="margin-top: 0.5rem; color: var(--grigio-500);">Caricamento template...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    },
+
+    /**
+     * Carica template da Firestore, o usa quelli di default da TemplateService
+     */
+    async loadTemplateEmailFromFirestore() {
+        try {
+            const doc = await db.collection('impostazioni').doc('template_email').get();
+            let templateSalvati = {};
+
+            if (doc.exists) {
+                templateSalvati = doc.data().templates || {};
+            }
+
+            // Merge: per ogni template di default, usa quello salvato su Firestore se esiste
+            const templateFinali = TemplateService.TEMPLATES.map(t => {
+                const salvato = templateSalvati[t.id];
+                return {
+                    ...t,
+                    oggetto: salvato?.oggetto || t.oggetto,
+                    corpo: salvato?.corpo || t.corpo
+                };
+            });
+
+            this._templateEditabili = templateFinali;
+            this.renderTemplateEditors(templateFinali);
+
+        } catch (error) {
+            console.error('Errore caricamento template:', error);
+            // Fallback: usa quelli di default
+            this._templateEditabili = TemplateService.TEMPLATES;
+            this.renderTemplateEditors(TemplateService.TEMPLATES);
+        }
+    },
+
+    /**
+     * Renderizza i form di editing per ciascun template
+     */
+    renderTemplateEditors(templates) {
+        const container = document.getElementById('templateEditorContainer');
+        if (!container) return;
+
+        let html = '';
+
+        templates.forEach((t, idx) => {
+            html += `
+                <div style="border: 1px solid var(--grigio-300); border-radius: 12px; margin-bottom: 1.5rem; overflow: hidden;">
+                    <!-- Header template -->
+                    <div
+                        onclick="Settings.toggleTemplateEditor('tplEditor_${idx}')"
+                        style="padding: 1rem 1.25rem; background: var(--grigio-100); cursor: pointer; display: flex; align-items: center; justify-content: space-between;"
+                    >
+                        <div style="display: flex; align-items: center; gap: 0.75rem;">
+                            <div style="width: 36px; height: 36px; border-radius: 50%; background: ${t.color}20; display: flex; align-items: center; justify-content: center;">
+                                <i class="${t.icon}" style="color: ${t.color};"></i>
+                            </div>
+                            <div>
+                                <strong style="font-size: 0.95rem; color: var(--grigio-900);">${t.nome}</strong>
+                                <div style="font-size: 0.75rem; color: var(--grigio-500);">${t.richiede ? 'Richiede: ' + t.richiede : 'Solo dati cliente'}</div>
+                            </div>
+                        </div>
+                        <i class="fas fa-chevron-down" id="tplChevron_${idx}" style="color: var(--grigio-500); transition: transform 0.2s;"></i>
+                    </div>
+
+                    <!-- Editor (nascosto di default) -->
+                    <div id="tplEditor_${idx}" style="display: none; padding: 1.25rem;">
+                        <div style="margin-bottom: 1rem;">
+                            <label style="display: block; font-size: 0.8rem; font-weight: 600; color: var(--grigio-700); margin-bottom: 0.35rem;">
+                                Oggetto email
+                            </label>
+                            <input
+                                type="text"
+                                id="tplOggetto_${t.id}"
+                                value="${this.escapeHtmlAttr(t.oggetto)}"
+                                style="width: 100%; padding: 0.6rem; border: 1px solid var(--grigio-300); border-radius: 6px; font-family: 'Titillium Web', sans-serif; font-size: 0.9rem;"
+                            />
+                        </div>
+                        <div style="margin-bottom: 1rem;">
+                            <label style="display: block; font-size: 0.8rem; font-weight: 600; color: var(--grigio-700); margin-bottom: 0.35rem;">
+                                Corpo del messaggio
+                            </label>
+                            <textarea
+                                id="tplCorpo_${t.id}"
+                                style="width: 100%; min-height: 280px; padding: 0.75rem; border: 1px solid var(--grigio-300); border-radius: 6px; font-family: 'Titillium Web', sans-serif; font-size: 0.9rem; line-height: 1.6; resize: vertical;"
+                            >${this.escapeHtml(t.corpo)}</textarea>
+                        </div>
+                        <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
+                            <button
+                                class="btn btn-secondary"
+                                onclick="Settings.ripristinaTemplateDefault('${t.id}', ${idx})"
+                                style="font-size: 0.85rem;"
+                            >
+                                <i class="fas fa-undo"></i> Ripristina Default
+                            </button>
+                            <button
+                                class="btn btn-primary"
+                                onclick="Settings.salvaTemplate('${t.id}')"
+                                style="font-size: 0.85rem;"
+                            >
+                                <i class="fas fa-save"></i> Salva Template
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+
+        // Pulsante salva tutti
+        html += `
+            <div style="text-align: center; margin-top: 1rem;">
+                <button class="btn btn-primary" onclick="Settings.salvaTuttiTemplate()" style="padding: 0.75rem 2rem;">
+                    <i class="fas fa-save"></i> Salva Tutti i Template
+                </button>
+            </div>
+        `;
+
+        container.innerHTML = html;
+    },
+
+    toggleTemplateEditor(editorId) {
+        const editor = document.getElementById(editorId);
+        if (!editor) return;
+        const isOpen = editor.style.display !== 'none';
+        editor.style.display = isOpen ? 'none' : 'block';
+
+        // Ruota chevron
+        const idx = editorId.replace('tplEditor_', '');
+        const chevron = document.getElementById('tplChevron_' + idx);
+        if (chevron) {
+            chevron.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(180deg)';
+        }
+    },
+
+    /**
+     * Salva un singolo template su Firestore
+     */
+    async salvaTemplate(templateId) {
+        try {
+            const oggettoInput = document.getElementById('tplOggetto_' + templateId);
+            const corpoInput = document.getElementById('tplCorpo_' + templateId);
+            if (!oggettoInput || !corpoInput) return;
+
+            // Carica template esistenti da Firestore
+            const doc = await db.collection('impostazioni').doc('template_email').get();
+            let templates = {};
+            if (doc.exists) {
+                templates = doc.data().templates || {};
+            }
+
+            // Aggiorna questo template
+            templates[templateId] = {
+                oggetto: oggettoInput.value,
+                corpo: corpoInput.value
+            };
+
+            await db.collection('impostazioni').doc('template_email').set({
+                templates: templates,
+                ultimaModifica: new Date().toISOString(),
+                modificatoDa: AuthService.getUserName(),
+                modificatoDaId: AuthService.getUserId()
+            });
+
+            // Aggiorna anche il TemplateService in memoria + invalida cache
+            TemplateService._templatePersonalizzati = null;
+            const tpl = TemplateService.TEMPLATES.find(t => t.id === templateId);
+            if (tpl) {
+                tpl.oggetto = oggettoInput.value;
+                tpl.corpo = corpoInput.value;
+            }
+
+            UI.showSuccess('Template "' + templateId + '" salvato!');
+
+        } catch (error) {
+            console.error('Errore salvataggio template:', error);
+            UI.showError('Errore nel salvataggio del template');
+        }
+    },
+
+    /**
+     * Salva tutti i template contemporaneamente
+     */
+    async salvaTuttiTemplate() {
+        try {
+            const templates = {};
+
+            TemplateService.TEMPLATES.forEach(t => {
+                const oggettoInput = document.getElementById('tplOggetto_' + t.id);
+                const corpoInput = document.getElementById('tplCorpo_' + t.id);
+                if (oggettoInput && corpoInput) {
+                    templates[t.id] = {
+                        oggetto: oggettoInput.value,
+                        corpo: corpoInput.value
+                    };
+
+                    // Aggiorna anche in memoria
+                    t.oggetto = oggettoInput.value;
+                    t.corpo = corpoInput.value;
+                }
+            });
+
+            await db.collection('impostazioni').doc('template_email').set({
+                templates: templates,
+                ultimaModifica: new Date().toISOString(),
+                modificatoDa: AuthService.getUserName(),
+                modificatoDaId: AuthService.getUserId()
+            });
+
+            // Invalida cache TemplateService
+            TemplateService._templatePersonalizzati = null;
+
+            UI.showSuccess('Tutti i template salvati con successo!');
+
+        } catch (error) {
+            console.error('Errore salvataggio template:', error);
+            UI.showError('Errore nel salvataggio');
+        }
+    },
+
+    /**
+     * Ripristina un template ai valori di default (hardcoded)
+     */
+    ripristinaTemplateDefault(templateId, idx) {
+        // Trova il template di default nel codice originale di TemplateService
+        // Per ripristinare, serve il testo originale hardcoded
+        const defaultTemplates = {
+            'sollecito_pagamento': {
+                oggetto: 'Sollecito pagamento fattura n. {{numeroFattura}}',
+                corpo: `Gentile {{ragioneSociale}},
+
+con la presente ci permettiamo di ricordarVi che la fattura n. {{numeroFattura}} del {{dataEmissione}}, di importo pari a €{{importoFattura}}, risulta ad oggi non ancora saldata.
+
+Vi invitiamo cortesemente a provvedere al pagamento entro i prossimi 15 giorni dalla ricezione della presente comunicazione.
+
+Per qualsiasi chiarimento o necessità, non esitate a contattarci.
+
+Cordiali saluti,
+{{nomeAzienda}}
+{{emailAzienda}}
+{{telefonoAzienda}}`
+            },
+            'conferma_rinnovo': {
+                oggetto: 'Conferma rinnovo contratto n. {{numeroContratto}}',
+                corpo: `Gentile {{ragioneSociale}},
+
+siamo lieti di confermarVi il rinnovo del contratto n. {{numeroContratto}} relativo a "{{oggettoContratto}}".
+
+Il contratto è stato rinnovato con le seguenti condizioni:
+- Importo annuale: €{{importoContratto}}
+- Periodicità: {{periodicita}}
+- Nuova scadenza: {{dataScadenza}}
+
+Rimaniamo a disposizione per qualsiasi chiarimento.
+
+Cordiali saluti,
+{{nomeAzienda}}
+{{emailAzienda}}
+{{telefonoAzienda}}`
+            },
+            'benvenuto': {
+                oggetto: 'Benvenuto in {{nomeAzienda}} - {{ragioneSociale}}',
+                corpo: `Gentile {{ragioneSociale}},
+
+siamo lieti di darVi il benvenuto tra i nostri clienti!
+
+Il nostro team è a Vostra completa disposizione per supportarVi in ogni fase del percorso. Di seguito i nostri recapiti per qualsiasi necessità:
+
+Email: {{emailAzienda}}
+Telefono: {{telefonoAzienda}}
+PEC: {{pecAzienda}}
+
+Non esitate a contattarci per qualsiasi domanda o richiesta.
+
+Un cordiale benvenuto,
+{{nomeAzienda}}`
+            },
+            'scadenza_contratto': {
+                oggetto: 'Avviso scadenza contratto n. {{numeroContratto}}',
+                corpo: `Gentile {{ragioneSociale}},
+
+desideriamo informarVi che il contratto n. {{numeroContratto}} relativo a "{{oggettoContratto}}" è in scadenza il {{dataScadenza}}.
+
+L'importo annuale attuale è di €{{importoContratto}} con periodicità {{periodicita}}.
+
+Vi invitiamo a contattarci per discutere le condizioni di rinnovo e garantire la continuità del servizio.
+
+Restiamo a disposizione per un incontro o una call.
+
+Cordiali saluti,
+{{nomeAzienda}}
+{{emailAzienda}}
+{{telefonoAzienda}}`
+            }
+        };
+
+        const def = defaultTemplates[templateId];
+        if (!def) return;
+
+        const oggettoInput = document.getElementById('tplOggetto_' + templateId);
+        const corpoInput = document.getElementById('tplCorpo_' + templateId);
+
+        if (oggettoInput) oggettoInput.value = def.oggetto;
+        if (corpoInput) corpoInput.value = def.corpo;
+
+        UI.showSuccess('Template ripristinato ai valori di default. Clicca "Salva" per confermare.');
+    },
+
+    escapeHtml(text) {
+        if (!text) return '';
+        return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    },
+
+    escapeHtmlAttr(text) {
+        if (!text) return '';
+        return text.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     }
 
 };

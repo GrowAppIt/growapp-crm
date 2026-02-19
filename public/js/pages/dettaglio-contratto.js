@@ -266,6 +266,11 @@ const DettaglioContratto = {
     },
 
     renderAzioni() {
+        // Gli agenti possono solo leggere, non modificare
+        if (AuthService.canViewOnlyOwnData()) {
+            return '';
+        }
+
         const isAttivo = this.contratto.stato === 'ATTIVO';
         const isScaduto = this.contratto.stato === 'SCADUTO';
 
