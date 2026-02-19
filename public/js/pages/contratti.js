@@ -12,15 +12,26 @@ const Contratti = {
         UI.showLoading();
 
         try {
-            const [contratti, clienti] = await Promise.all([
-                DataService.getContratti(),
-                DataService.getClienti()
-            ]);
+            // Se agente, carica solo dati dei propri clienti
+            const _isAgente = AuthService.canViewOnlyOwnData();
+            const _agenteNome = _isAgente ? AuthService.getAgenteFilterName() : null;
+            let contratti, clienti;
+
+            if (_isAgente && _agenteNome) {
+                const datiAgente = await DataService.getDatiAgente(_agenteNome);
+                contratti = datiAgente.contratti;
+                clienti = datiAgente.clienti;
+            } else {
+                [contratti, clienti] = await Promise.all([
+                    DataService.getContratti(),
+                    DataService.getClienti()
+                ]);
+            }
 
             // Arricchisci contratti con ragione sociale cliente
             const contrattiArricchiti = contratti.map(c => ({
                 ...c,
-                clienteRagioneSociale: clienti.find(cl => cl.id === c.clienteId)?.ragioneSociale || 'Sconosciuto'
+                clienteRagioneSociale: clienti.find(cl => cl.id === c.clienteId || cl.clienteIdLegacy === c.clienteId)?.ragioneSociale || c.clienteRagioneSociale || 'Sconosciuto'
             }));
 
             const mainContent = document.getElementById('mainContent');
@@ -287,15 +298,25 @@ const Contratti = {
     async exportData() {
         try {
             UI.showLoading();
-            const [contratti, clienti] = await Promise.all([
-                DataService.getContratti(),
-                DataService.getClienti()
-            ]);
+            const _isAgenteExp = AuthService.canViewOnlyOwnData();
+            const _agenteNomeExp = _isAgenteExp ? AuthService.getAgenteFilterName() : null;
+            let contratti, clienti;
+
+            if (_isAgenteExp && _agenteNomeExp) {
+                const dati = await DataService.getDatiAgente(_agenteNomeExp);
+                contratti = dati.contratti;
+                clienti = dati.clienti;
+            } else {
+                [contratti, clienti] = await Promise.all([
+                    DataService.getContratti(),
+                    DataService.getClienti()
+                ]);
+            }
 
             // Arricchisci con ragione sociale cliente
             const contrattiConCliente = contratti.map(c => ({
                 ...c,
-                clienteRagioneSociale: clienti.find(cl => cl.id === c.clienteId)?.ragioneSociale || 'Sconosciuto'
+                clienteRagioneSociale: clienti.find(cl => cl.id === c.clienteId || cl.clienteIdLegacy === c.clienteId)?.ragioneSociale || c.clienteRagioneSociale || 'Sconosciuto'
             }));
 
             UI.hideLoading();

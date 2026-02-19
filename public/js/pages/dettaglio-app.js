@@ -453,86 +453,119 @@ const DettaglioApp = {
     },
 
     renderFunzionalita(app) {
-        // Calcola scadenze in alert (3 giorni prima)
+        // Calcola scadenze con alert: scadute (passate) + imminenti (prossimi 7 giorni)
         const oggi = new Date();
         oggi.setHours(0, 0, 0, 0);
-        const tre_giorni = new Date(oggi);
-        tre_giorni.setDate(oggi.getDate() + 3);
+        const tra7giorni = new Date(oggi);
+        tra7giorni.setDate(oggi.getDate() + 7);
 
         const scadenze = [];
 
         if (app.ultimaDataRaccoltaDifferenziata) {
             const data = new Date(app.ultimaDataRaccoltaDifferenziata);
             data.setHours(0, 0, 0, 0);
-            if (data >= oggi && data <= tre_giorni) {
-                scadenze.push({ tipo: '📅 Raccolta Differenziata', data: app.ultimaDataRaccoltaDifferenziata, isScaduta: data < oggi });
+            const isScaduta = data < oggi;
+            const isImminente = data >= oggi && data <= tra7giorni;
+            if (isScaduta || isImminente) {
+                scadenze.push({ tipo: '📅 Raccolta Differenziata', data: app.ultimaDataRaccoltaDifferenziata, isScaduta });
             }
         }
 
         if (app.ultimaDataFarmacieTurno) {
             const data = new Date(app.ultimaDataFarmacieTurno);
             data.setHours(0, 0, 0, 0);
-            if (data >= oggi && data <= tre_giorni) {
-                scadenze.push({ tipo: '💊 Farmacie di Turno', data: app.ultimaDataFarmacieTurno, isScaduta: data < oggi });
+            const isScaduta = data < oggi;
+            const isImminente = data >= oggi && data <= tra7giorni;
+            if (isScaduta || isImminente) {
+                scadenze.push({ tipo: '💊 Farmacie di Turno', data: app.ultimaDataFarmacieTurno, isScaduta });
             }
         }
 
         if (app.scadenzaCertificatoApple) {
             const data = new Date(app.scadenzaCertificatoApple);
             data.setHours(0, 0, 0, 0);
-            if (data >= oggi && data <= tre_giorni) {
-                scadenze.push({ tipo: '🍎 Certificato Apple', data: app.scadenzaCertificatoApple, isScaduta: data < oggi });
+            const isScaduta = data < oggi;
+            const isImminente = data >= oggi && data <= tra7giorni;
+            if (isScaduta || isImminente) {
+                scadenze.push({ tipo: '🍎 Certificato Apple', data: app.scadenzaCertificatoApple, isScaduta });
             }
         }
 
         if (app.altraScadenzaData) {
             const data = new Date(app.altraScadenzaData);
             data.setHours(0, 0, 0, 0);
-            if (data >= oggi && data <= tre_giorni) {
-                scadenze.push({ tipo: '📌 ' + (app.altraScadenzaNote || 'Altra Scadenza'), data: app.altraScadenzaData, isScaduta: data < oggi });
+            const isScaduta = data < oggi;
+            const isImminente = data >= oggi && data <= tra7giorni;
+            if (isScaduta || isImminente) {
+                scadenze.push({ tipo: '📌 ' + (app.altraScadenzaNote || 'Altra Scadenza'), data: app.altraScadenzaData, isScaduta });
             }
         }
+
+        // Separa scadute da imminenti per stile diverso
+        const scadute = scadenze.filter(s => s.isScaduta);
+        const imminenti = scadenze.filter(s => !s.isScaduta);
+
+        // Gestisci booleani che possono essere sia true/false che stringhe "true"/"false"
+        const hasTelegram = app.hasGruppoTelegram === true || app.hasGruppoTelegram === 'true';
+        const hasFlash = app.hasAvvisiFlash === true || app.hasAvvisiFlash === 'true';
+
+        const haDateScadenze = app.ultimaDataRaccoltaDifferenziata || app.ultimaDataFarmacieTurno || app.scadenzaCertificatoApple || app.altraScadenzaData;
 
         return `
             <div class="card">
                 <div class="card-header">
                     <h2 class="card-title">
                         <i class="fas fa-cogs"></i> Funzionalità e Scadenze
-                        ${scadenze.length > 0 ? `<span class="badge" style="background: var(--rosso-errore); color: white; font-size: 0.75rem; padding: 0.25rem 0.5rem; border-radius: 12px; margin-left: 0.5rem;">${scadenze.length} Alert</span>` : ''}
+                        ${scadute.length > 0 ? `<span class="badge" style="background: var(--rosso-errore); color: white; font-size: 0.75rem; padding: 0.25rem 0.5rem; border-radius: 12px; margin-left: 0.5rem;"><i class="fas fa-exclamation-circle"></i> ${scadute.length} Scadute</span>` : ''}
+                        ${imminenti.length > 0 ? `<span class="badge" style="background: var(--giallo-avviso); color: #856404; font-size: 0.75rem; padding: 0.25rem 0.5rem; border-radius: 12px; margin-left: 0.5rem;"><i class="fas fa-clock"></i> ${imminenti.length} Imminenti</span>` : ''}
                     </h2>
                 </div>
                 <div class="card-body">
                     <!-- Funzionalità Attive -->
-                    <div style="margin-bottom: ${app.ultimaDataRaccoltaDifferenziata || app.ultimaDataFarmacieTurno || app.scadenzaCertificatoApple || app.altraScadenzaData ? '1.5rem' : '0'}; padding-bottom: ${app.ultimaDataRaccoltaDifferenziata || app.ultimaDataFarmacieTurno || app.scadenzaCertificatoApple || app.altraScadenzaData ? '1.5rem' : '0'}; border-bottom: ${app.ultimaDataRaccoltaDifferenziata || app.ultimaDataFarmacieTurno || app.scadenzaCertificatoApple || app.altraScadenzaData ? '2px solid var(--grigio-300)' : 'none'};">
+                    <div style="margin-bottom: ${haDateScadenze ? '1.5rem' : '0'}; padding-bottom: ${haDateScadenze ? '1.5rem' : '0'}; border-bottom: ${haDateScadenze ? '2px solid var(--grigio-300)' : 'none'};">
                         <h4 style="font-size: 0.875rem; font-weight: 700; color: var(--grigio-700); margin-bottom: 1rem; text-transform: uppercase; letter-spacing: 0.05em;">Funzionalità Attive</h4>
                         <div style="display: flex; gap: 2rem; flex-wrap: wrap;">
                             <div style="display: flex; align-items: center; gap: 0.5rem;">
-                                <i class="fas fa-${app.hasGruppoTelegram ? 'check-circle' : 'times-circle'}"
-                                   style="color: var(--${app.hasGruppoTelegram ? 'verde-700' : 'grigio-400'}); font-size: 1.5rem;"></i>
+                                <i class="fas fa-${hasTelegram ? 'check-circle' : 'times-circle'}"
+                                   style="color: var(--${hasTelegram ? 'verde-700' : 'grigio-400'}); font-size: 1.5rem;"></i>
                                 <span style="font-weight: 600;">Gruppo Telegram</span>
                             </div>
                             <div style="display: flex; align-items: center; gap: 0.5rem;">
-                                <i class="fas fa-${app.hasAvvisiFlash ? 'check-circle' : 'times-circle'}"
-                                   style="color: var(--${app.hasAvvisiFlash ? 'verde-700' : 'grigio-400'}); font-size: 1.5rem;"></i>
+                                <i class="fas fa-${hasFlash ? 'check-circle' : 'times-circle'}"
+                                   style="color: var(--${hasFlash ? 'verde-700' : 'grigio-400'}); font-size: 1.5rem;"></i>
                                 <span style="font-weight: 600;">Avvisi Flash</span>
                             </div>
                         </div>
                     </div>
 
                     <!-- Scadenze e Alert -->
-                    ${app.ultimaDataRaccoltaDifferenziata || app.ultimaDataFarmacieTurno || app.scadenzaCertificatoApple || app.altraScadenzaData ? `
+                    ${haDateScadenze ? `
                     <div>
-                        <h4 style="font-size: 0.875rem; font-weight: 700; color: var(--giallo-avviso); margin-bottom: 1rem; text-transform: uppercase; letter-spacing: 0.05em;">⚠️ Scadenze e Alert</h4>
+                        <h4 style="font-size: 0.875rem; font-weight: 700; color: var(--blu-700); margin-bottom: 1rem; text-transform: uppercase; letter-spacing: 0.05em;">📋 Scadenze e Date</h4>
 
-                        ${scadenze.length > 0 ? `
-                        <div style="background: linear-gradient(135deg, #FFF3CD 0%, #FFEBCC 100%); border-left: 4px solid var(--giallo-avviso); padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem;">
-                            <div style="font-weight: 700; color: #856404; margin-bottom: 0.5rem;">
-                                <i class="fas fa-exclamation-triangle"></i> Alert Scadenze Imminenti
+                        ${scadute.length > 0 ? `
+                        <div style="background: linear-gradient(135deg, #FFEBEE 0%, #FFCDD2 100%); border-left: 4px solid var(--rosso-errore); padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
+                            <div style="font-weight: 700; color: #C62828; margin-bottom: 0.5rem;">
+                                <i class="fas fa-exclamation-circle"></i> Scadenze Superate
                             </div>
-                            ${scadenze.map(s => `
+                            ${scadute.map(s => `
+                                <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0; border-bottom: 1px solid rgba(198, 40, 40, 0.2);">
+                                    <span style="font-weight: 600; color: #C62828;">${s.tipo}</span>
+                                    <span style="font-weight: 700; color: var(--rosso-errore);">${DataService.formatDate(s.data)} — SCADUTA</span>
+                                </div>
+                            `).join('')}
+                        </div>
+                        ` : ''}
+
+                        ${imminenti.length > 0 ? `
+                        <div style="background: linear-gradient(135deg, #FFF3CD 0%, #FFEBCC 100%); border-left: 4px solid var(--giallo-avviso); padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
+                            <div style="font-weight: 700; color: #856404; margin-bottom: 0.5rem;">
+                                <i class="fas fa-exclamation-triangle"></i> Scadenze Imminenti (prossimi 7 giorni)
+                            </div>
+                            ${imminenti.map(s => `
                                 <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0; border-bottom: 1px solid rgba(133, 100, 4, 0.2);">
                                     <span style="font-weight: 600; color: #856404;">${s.tipo}</span>
-                                    <span style="font-weight: 700; color: var(--rosso-errore);">${DataService.formatDate(s.data)}</span>
+                                    <span style="font-weight: 700; color: #E6A800;">${DataService.formatDate(s.data)}</span>
                                 </div>
                             `).join('')}
                         </div>
@@ -543,29 +576,38 @@ const DettaglioApp = {
                             <div class="stat-box" style="background: var(--grigio-100); padding: 1rem; border-radius: 8px;">
                                 <div style="font-size: 0.75rem; color: var(--grigio-500); margin-bottom: 0.25rem; font-weight: 600; text-transform: uppercase;">📅 Raccolta Differenziata</div>
                                 <div style="font-size: 1.125rem; font-weight: 700; color: var(--blu-700);">${DataService.formatDate(app.ultimaDataRaccoltaDifferenziata)}</div>
+                                ${(() => { const d = new Date(app.ultimaDataRaccoltaDifferenziata); d.setHours(0,0,0,0); return d < oggi ? '<div style="font-size: 0.8rem; color: var(--rosso-errore); margin-top: 4px; font-weight: 600;"><i class="fas fa-exclamation-circle"></i> Scaduta</div>' : ''; })()}
                             </div>
                             ` : ''}
                             ${app.ultimaDataFarmacieTurno ? `
                             <div class="stat-box" style="background: var(--grigio-100); padding: 1rem; border-radius: 8px;">
                                 <div style="font-size: 0.75rem; color: var(--grigio-500); margin-bottom: 0.25rem; font-weight: 600; text-transform: uppercase;">💊 Farmacie di Turno</div>
                                 <div style="font-size: 1.125rem; font-weight: 700; color: var(--blu-700);">${DataService.formatDate(app.ultimaDataFarmacieTurno)}</div>
+                                ${(() => { const d = new Date(app.ultimaDataFarmacieTurno); d.setHours(0,0,0,0); return d < oggi ? '<div style="font-size: 0.8rem; color: var(--rosso-errore); margin-top: 4px; font-weight: 600;"><i class="fas fa-exclamation-circle"></i> Scaduta</div>' : ''; })()}
                             </div>
                             ` : ''}
                             ${app.scadenzaCertificatoApple ? `
                             <div class="stat-box" style="background: var(--grigio-100); padding: 1rem; border-radius: 8px;">
                                 <div style="font-size: 0.75rem; color: var(--grigio-500); margin-bottom: 0.25rem; font-weight: 600; text-transform: uppercase;">🍎 Certificato Apple</div>
                                 <div style="font-size: 1.125rem; font-weight: 700; color: var(--blu-700);">${DataService.formatDate(app.scadenzaCertificatoApple)}</div>
+                                ${(() => { const d = new Date(app.scadenzaCertificatoApple); d.setHours(0,0,0,0); return d < oggi ? '<div style="font-size: 0.8rem; color: var(--rosso-errore); margin-top: 4px; font-weight: 600;"><i class="fas fa-exclamation-circle"></i> Scaduta</div>' : ''; })()}
                             </div>
                             ` : ''}
                             ${app.altraScadenzaData ? `
                             <div class="stat-box" style="background: var(--grigio-100); padding: 1rem; border-radius: 8px;">
                                 <div style="font-size: 0.75rem; color: var(--grigio-500); margin-bottom: 0.25rem; font-weight: 600; text-transform: uppercase;">📌 ${app.altraScadenzaNote || 'Altra Scadenza'}</div>
                                 <div style="font-size: 1.125rem; font-weight: 700; color: var(--blu-700);">${DataService.formatDate(app.altraScadenzaData)}</div>
+                                ${(() => { const d = new Date(app.altraScadenzaData); d.setHours(0,0,0,0); return d < oggi ? '<div style="font-size: 0.8rem; color: var(--rosso-errore); margin-top: 4px; font-weight: 600;"><i class="fas fa-exclamation-circle"></i> Scaduta</div>' : ''; })()}
                             </div>
                             ` : ''}
                         </div>
                     </div>
-                    ` : ''}
+                    ` : `
+                    <div style="text-align: center; padding: 1rem; color: var(--grigio-400); font-size: 0.9rem;">
+                        <i class="fas fa-calendar-times" style="font-size: 1.5rem; margin-bottom: 0.5rem;"></i>
+                        <p style="margin: 0;">Nessuna scadenza configurata</p>
+                    </div>
+                    `}
                 </div>
             </div>
         `;
@@ -606,6 +648,9 @@ const DettaglioApp = {
     },
 
     renderControlloQualita(app) {
+        // Gestisci booleano che può essere sia true/false che stringa "true"/"false"
+        const isQANegativo = app.controlloQualitaNegativo === true || app.controlloQualitaNegativo === 'true';
+
         // Calcola se serve un controllo qualità (più di 1 mese dall'ultimo)
         let needsCheck = false;
         let giorniPassati = null;
@@ -628,11 +673,11 @@ const DettaglioApp = {
                 <div class="card-header">
                     <h2 class="card-title">
                         <i class="fas fa-clipboard-check"></i> Controllo Qualità
-                        ${app.controlloQualitaNegativo ? `<span class="badge" style="background: var(--rosso-errore); color: white; font-size: 0.75rem; padding: 0.25rem 0.5rem; border-radius: 12px; margin-left: 0.5rem;"><i class="fas fa-times-circle"></i> QA KO</span>` : needsCheck ? `<span class="badge" style="background: var(--giallo-avviso); color: #856404; font-size: 0.75rem; padding: 0.25rem 0.5rem; border-radius: 12px; margin-left: 0.5rem;"><i class="fas fa-info-circle"></i> Controllo necessario</span>` : ''}
+                        ${isQANegativo ? `<span class="badge" style="background: var(--rosso-errore); color: white; font-size: 0.75rem; padding: 0.25rem 0.5rem; border-radius: 12px; margin-left: 0.5rem;"><i class="fas fa-times-circle"></i> QA KO</span>` : needsCheck ? `<span class="badge" style="background: var(--giallo-avviso); color: #856404; font-size: 0.75rem; padding: 0.25rem 0.5rem; border-radius: 12px; margin-left: 0.5rem;"><i class="fas fa-info-circle"></i> Controllo necessario</span>` : ''}
                     </h2>
                 </div>
                 <div class="card-body">
-                    ${app.controlloQualitaNegativo ? `
+                    ${isQANegativo ? `
                     <div style="background: linear-gradient(135deg, #FFEBEE 0%, #FFCDD2 100%); border-left: 4px solid var(--rosso-errore); padding: 1.5rem; border-radius: 8px; margin-bottom: 1.5rem;">
                         <div style="display: flex; align-items: center; gap: 1rem;">
                             <i class="fas fa-times-circle" style="color: var(--rosso-errore); font-size: 2.5rem;"></i>

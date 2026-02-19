@@ -837,17 +837,21 @@ const Settings = {
                             </tr>
                         </thead>
                         <tbody>
-                            ${utenti.map(utente => `
+                            ${utenti.map(utente => {
+                                const uId = utente.id; // doc.id Firestore, sempre affidabile
+                                const isSelf = uId === AuthService.getUserId();
+                                return `
                                 <tr>
                                     <td>
                                         <div style="font-weight: 600;">${utente.nome} ${utente.cognome}</div>
-                                        ${utente.uid === AuthService.getUserId() ? '<span class="badge" style="background: var(--blu-700);">Tu</span>' : ''}
+                                        ${isSelf ? '<span class="badge" style="background: var(--blu-700);">Tu</span>' : ''}
                                     </td>
                                     <td>${utente.email}</td>
                                     <td>
                                         <span class="badge" style="background: var(--blu-500); color: white;">
                                             ${AuthService.ROLE_LABELS[utente.ruolo] || utente.ruolo}
                                         </span>
+                                        ${utente.ancheAgente && utente.ruolo !== 'AGENTE' ? '<span class="badge" style="background: var(--verde-700); color: white; margin-left: 0.25rem;"><i class="fas fa-user-tie"></i> Agente</span>' : ''}
                                     </td>
                                     <td>
                                         <span class="badge" style="background: ${utente.stato === 'ATTIVO' ? 'var(--verde-700)' : 'var(--grigio-500)'};">
@@ -858,27 +862,27 @@ const Settings = {
                                         ${utente.lastLogin ? new Date(utente.lastLogin.toDate()).toLocaleDateString('it-IT') : 'Mai'}
                                     </td>
                                     <td style="text-align: right;">
-                                        <button class="btn btn-sm btn-secondary" onclick="Settings.editUser('${utente.uid}')" title="Modifica">
+                                        <button class="btn btn-sm btn-secondary" onclick="Settings.editUser('${uId}')" title="Modifica">
                                             <i class="fas fa-edit"></i>
                                         </button>
-                                        ${utente.uid !== AuthService.getUserId() ? `
+                                        ${!isSelf ? `
                                             <button class="btn btn-sm ${utente.stato === 'ATTIVO' ? 'btn-warning' : 'btn-success'}"
-                                                onclick="Settings.toggleUserStatus('${utente.uid}', '${utente.stato || 'ATTIVO'}')"
+                                                onclick="Settings.toggleUserStatus('${uId}', '${utente.stato || 'ATTIVO'}')"
                                                 title="${utente.stato === 'ATTIVO' ? 'Disattiva' : 'Attiva'}">
                                                 <i class="fas fa-${utente.stato === 'ATTIVO' ? 'ban' : 'check'}"></i>
                                             </button>
                                         ` : ''}
-                                        <button class="btn btn-sm btn-primary" onclick="Settings.resetUserPassword('${utente.uid}', '${utente.email}')" title="Reset Password">
+                                        <button class="btn btn-sm btn-primary" onclick="Settings.resetUserPassword('${uId}', '${utente.email}')" title="Reset Password">
                                             <i class="fas fa-key"></i>
                                         </button>
-                                        ${AuthService.isSuperAdmin() && utente.uid !== AuthService.getUserId() ? `
-                                            <button class="btn btn-sm btn-danger" onclick="Settings.deleteUser('${utente.uid}', '${utente.nome} ${utente.cognome}')" title="Elimina Utente">
+                                        ${AuthService.isSuperAdmin() && !isSelf ? `
+                                            <button class="btn btn-sm btn-danger" onclick="Settings.deleteUser('${uId}', '${utente.nome} ${utente.cognome}')" title="Elimina Utente">
                                                 <i class="fas fa-trash"></i>
                                             </button>
                                         ` : ''}
                                     </td>
                                 </tr>
-                            `).join('')}
+                            `;}).join('')}
                         </tbody>
                     </table>
                 </div>
@@ -1016,6 +1020,23 @@ const Settings = {
                             </select>
                         </div>
 
+                        <!-- Flag Anche Agente (nascosto se ruolo è già AGENTE) -->
+                        <div id="ancheAgenteContainer" style="margin-bottom: 1.5rem; padding: 1rem; background: var(--verde-100); border-radius: 8px; border-left: 4px solid var(--verde-700); ${isEdit && utente && utente.ruolo === 'AGENTE' ? 'display: none;' : ''}">
+                            <label style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer;">
+                                <input type="checkbox" id="userAncheAgente"
+                                       ${isEdit && utente && utente.ancheAgente ? 'checked' : ''}
+                                       style="width: 20px; height: 20px;">
+                                <div>
+                                    <span style="font-weight: 700; color: var(--verde-900); font-size: 1rem;">
+                                        <i class="fas fa-user-tie"></i> Opera anche come Agente Commerciale
+                                    </span>
+                                    <div style="font-size: 0.85rem; color: var(--grigio-700); margin-top: 0.25rem;">
+                                        Se attivo, questo utente apparirà nelle liste agenti per l'assegnazione ai clienti e alle app, pur mantenendo il suo ruolo principale.
+                                    </div>
+                                </div>
+                            </label>
+                        </div>
+
                         <!-- Permessi Info (readonly) -->
                         <div style="margin-bottom: 1.5rem; padding: 1rem; background: var(--blu-100); border-radius: 6px;">
                             <h4 style="font-size: 0.875rem; font-weight: 700; color: var(--blu-700); margin-bottom: 0.5rem;">
@@ -1060,8 +1081,24 @@ const Settings = {
             }
         };
 
-        ruoloSelect.addEventListener('change', updatePermissionsPreview);
+        // Mostra/nascondi checkbox "anche agente" in base al ruolo
+        const updateAncheAgenteVisibility = () => {
+            const container = document.getElementById('ancheAgenteContainer');
+            const checkbox = document.getElementById('userAncheAgente');
+            if (ruoloSelect.value === 'AGENTE') {
+                container.style.display = 'none';
+                checkbox.checked = false; // Non serve se il ruolo è già AGENTE
+            } else {
+                container.style.display = '';
+            }
+        };
+
+        ruoloSelect.addEventListener('change', () => {
+            updatePermissionsPreview();
+            updateAncheAgenteVisibility();
+        });
         updatePermissionsPreview(); // Initial load
+        updateAncheAgenteVisibility(); // Initial load
 
         // Form submit
         document.getElementById('userForm').addEventListener('submit', async (e) => {
@@ -1132,6 +1169,7 @@ const Settings = {
             const ruolo = document.getElementById('userRuolo').value;
             const stato = document.getElementById('userStato').value;
             const telegramUsername = document.getElementById('userTelegram').value.trim();
+            const ancheAgente = ruolo !== 'AGENTE' ? document.getElementById('userAncheAgente').checked : false;
 
             // Validazione
             if (!nome || !cognome || !email || !ruolo) {
@@ -1153,14 +1191,20 @@ const Settings = {
                     cognome: cognome,
                     ruolo: ruolo,
                     stato: stato,
+                    ancheAgente: ancheAgente,
                     telegramUsername: telegramUsername || null,
                     updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
                     updatedBy: AuthService.getUserId()
                 });
 
+                UI.hideLoading();
                 UI.showSuccess('Utente aggiornato con successo');
                 this.closeUserModal();
                 this.loadUtentiList();
+
+                // Svuota cache agenti in caso di cambio nome/ruolo
+                DataService._cacheAgenti = null;
+                DataService._cacheAgentiTimestamp = 0;
 
             } else {
                 // CREAZIONE NUOVO UTENTE
@@ -1184,6 +1228,13 @@ const Settings = {
                 try {
                     // Crea una seconda istanza di Firebase App temporanea
                     const firebaseConfig = firebase.app().options;
+
+                    // Elimina eventuale istanza 'Secondary' rimasta da un tentativo precedente
+                    try {
+                        const existingApp = firebase.app('Secondary');
+                        if (existingApp) await existingApp.delete();
+                    } catch (e) { /* Non esiste, va bene */ }
+
                     secondaryApp = firebase.initializeApp(firebaseConfig, 'Secondary');
 
                     // Crea l'utente usando l'istanza secondaria
@@ -1239,12 +1290,14 @@ const Settings = {
                     email: email,
                     ruolo: ruolo,
                     stato: stato,
+                    ancheAgente: ancheAgente,
                     telegramUsername: telegramUsername || null,
                     createdAt: firebase.firestore.FieldValue.serverTimestamp(),
                     createdBy: AuthService.getUserId(),
                     lastLogin: null
                 });
 
+                UI.hideLoading();
                 UI.showSuccess('Utente creato con successo!');
 
                 // Chiudi modal
@@ -1252,6 +1305,10 @@ const Settings = {
 
                 // Ricarica lista utenti
                 this.loadUtentiList();
+
+                // Svuota cache agenti così il nuovo agente appare nelle select
+                DataService._cacheAgenti = null;
+                DataService._cacheAgentiTimestamp = 0;
             }
 
         } catch (error) {

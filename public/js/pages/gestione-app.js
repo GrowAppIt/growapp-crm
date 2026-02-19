@@ -12,8 +12,19 @@ const GestioneApp = {
         UI.showLoading();
 
         try {
-            const apps = await DataService.getApps();
-            const clienti = await DataService.getClienti();
+            // Se agente, carica solo app dei propri clienti
+            const _isAgente = AuthService.canViewOnlyOwnData();
+            const _agenteNome = _isAgente ? AuthService.getAgenteFilterName() : null;
+            let apps, clienti;
+
+            if (_isAgente && _agenteNome) {
+                const datiAgente = await DataService.getDatiAgente(_agenteNome);
+                apps = datiAgente.app;
+                clienti = datiAgente.clienti;
+            } else {
+                apps = await DataService.getApps();
+                clienti = await DataService.getClienti();
+            }
 
             const mainContent = document.getElementById('mainContent');
             mainContent.innerHTML = `
@@ -104,6 +115,7 @@ const GestioneApp = {
                                 <option value="SOSPESA">Sospese</option>
                                 <option value="DISATTIVATA">Disattivate</option>
                                 <option value="DEMO">Demo</option>
+                                <option value="__SENZA_STATO__">⚠️ Senza stato</option>
                             </select>
                             <select class="filter-select" id="filtroClientePagante" onchange="GestioneApp.applyFilters()">
                                 <option value="">Tutti i paganti</option>
@@ -133,10 +145,10 @@ const GestioneApp = {
     },
 
     renderAvvisoAppDaCollegare(apps) {
-        // Mostra warning solo per app ATTIVE o IN_SVILUPPO non collegate (non per DEMO o prospect)
+        // Mostra warning solo per app ATTIVE non collegate (non per IN_SVILUPPO, DEMO o prospect)
         const nonCollegate = apps.filter(a =>
             !a.clientePaganteId &&
-            (a.statoApp === 'ATTIVA' || a.statoApp === 'IN_SVILUPPO')
+            a.statoApp === 'ATTIVA'
         ).length;
 
         if (nonCollegate === 0) return '';
@@ -145,7 +157,7 @@ const GestioneApp = {
             <div class="alert alert-warning" style="background: var(--giallo-avviso); border-left: 4px solid #FFA000; padding: 1rem; margin-bottom: 1.5rem; border-radius: 8px;">
                 <strong><i class="fas fa-exclamation-triangle"></i> ${nonCollegate} app attive da collegare</strong>
                 <p style="margin: 0.5rem 0 0 0; color: var(--grigio-700);">
-                    Collega ogni app attiva/in sviluppo al cliente pagante corretto usando il menu a tendina
+                    Collega ogni app attiva al cliente pagante corretto usando il menu a tendina
                 </p>
             </div>
         `;
@@ -193,7 +205,11 @@ const GestioneApp = {
         }
 
         if (this.filtri.statoApp) {
-            filtrate = filtrate.filter(a => a.statoApp === this.filtri.statoApp);
+            if (this.filtri.statoApp === '__SENZA_STATO__') {
+                filtrate = filtrate.filter(a => !a.statoApp || a.statoApp === '');
+            } else {
+                filtrate = filtrate.filter(a => a.statoApp === this.filtri.statoApp);
+            }
         }
 
         if (this.filtri.clientePagante) {
@@ -205,11 +221,12 @@ const GestioneApp = {
         }
 
         if (this.filtri.agente) {
+            const _filtroAgLower = this.filtri.agente.toLowerCase();
             filtrate = filtrate.filter(a => {
                 // Priorità: agente dal cliente se collegato, altrimenti agente app
                 const cliente = clienti.find(c => c.id === a.clientePaganteId);
                 const agente = cliente?.agente || a.agente;
-                return agente === this.filtri.agente;
+                return (agente || '').toLowerCase() === _filtroAgLower;
             });
         }
 
@@ -236,33 +253,34 @@ const GestioneApp = {
         // Calcola scadenze in alert (3 giorni prima)
         const oggi = new Date();
         oggi.setHours(0, 0, 0, 0);
-        const tre_giorni = new Date(oggi);
-        tre_giorni.setDate(oggi.getDate() + 3);
+        const tra7giorni = new Date(oggi);
+        tra7giorni.setDate(oggi.getDate() + 7);
 
         let numAlert = 0;
 
+        // Alert = scadute (passate) + imminenti (prossimi 7 giorni)
         if (app.ultimaDataRaccoltaDifferenziata) {
             const data = new Date(app.ultimaDataRaccoltaDifferenziata);
             data.setHours(0, 0, 0, 0);
-            if (data >= oggi && data <= tre_giorni) numAlert++;
+            if (data < oggi || (data >= oggi && data <= tra7giorni)) numAlert++;
         }
 
         if (app.ultimaDataFarmacieTurno) {
             const data = new Date(app.ultimaDataFarmacieTurno);
             data.setHours(0, 0, 0, 0);
-            if (data >= oggi && data <= tre_giorni) numAlert++;
+            if (data < oggi || (data >= oggi && data <= tra7giorni)) numAlert++;
         }
 
         if (app.scadenzaCertificatoApple) {
             const data = new Date(app.scadenzaCertificatoApple);
             data.setHours(0, 0, 0, 0);
-            if (data >= oggi && data <= tre_giorni) numAlert++;
+            if (data < oggi || (data >= oggi && data <= tra7giorni)) numAlert++;
         }
 
         if (app.altraScadenzaData) {
             const data = new Date(app.altraScadenzaData);
             data.setHours(0, 0, 0, 0);
-            if (data >= oggi && data <= tre_giorni) numAlert++;
+            if (data < oggi || (data >= oggi && data <= tra7giorni)) numAlert++;
         }
 
         return numAlert;
@@ -355,7 +373,7 @@ const GestioneApp = {
                         <i class="fas fa-bell"></i> ${numAlert} Alert
                     </span>
                     ` : ''}
-                    ${app.controlloQualitaNegativo && app.statoApp === 'ATTIVA' ? `
+                    ${(app.controlloQualitaNegativo === true || app.controlloQualitaNegativo === 'true') && app.statoApp === 'ATTIVA' ? `
                     <span class="badge" style="background: var(--rosso-errore); color: white; cursor: pointer; animation: pulse 2s infinite;" onclick="UI.showPage('dettaglio-app', '${app.id}')" title="Controllo qualità NEGATIVO - problemi rilevati">
                         <i class="fas fa-times-circle"></i> QA KO
                     </span>
@@ -439,8 +457,17 @@ const GestioneApp = {
 
             // Ricarica solo la lista, non tutta la pagina
             try {
-                const apps = await DataService.getApps();
-                const clienti = await DataService.getClienti();
+                const __isAgente = AuthService.canViewOnlyOwnData();
+                const __agenteNome = __isAgente ? AuthService.getAgenteFilterName() : null;
+                let apps, clienti;
+                if (__isAgente && __agenteNome) {
+                    const dati = await DataService.getDatiAgente(__agenteNome);
+                    apps = dati.app;
+                    clienti = dati.clienti;
+                } else {
+                    apps = await DataService.getApps();
+                    clienti = await DataService.getClienti();
+                }
                 document.getElementById('appListContainer').innerHTML = this.renderAppList(apps, clienti);
             } catch (error) {
                 console.error('Errore applicazione filtri:', error);
@@ -451,10 +478,19 @@ const GestioneApp = {
     async exportData() {
         try {
             UI.showLoading();
-            const [apps, clienti] = await Promise.all([
-                DataService.getApps(),
-                DataService.getClienti()
-            ]);
+            const _isAgenteExp = AuthService.canViewOnlyOwnData();
+            const _agenteNomeExp = _isAgenteExp ? AuthService.getAgenteFilterName() : null;
+            let apps, clienti;
+            if (_isAgenteExp && _agenteNomeExp) {
+                const dati = await DataService.getDatiAgente(_agenteNomeExp);
+                apps = dati.app;
+                clienti = dati.clienti;
+            } else {
+                [apps, clienti] = await Promise.all([
+                    DataService.getApps(),
+                    DataService.getClienti()
+                ]);
+            }
 
             // Arricchisci con ragione sociale cliente pagante e agente
             const appsConCliente = apps.map(a => {

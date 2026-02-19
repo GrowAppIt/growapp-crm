@@ -251,7 +251,10 @@ const FormsManager = {
             // Salta campi senza name o disabilitati
             if (!input.name || input.disabled) return;
 
-            if (input.type === 'number') {
+            if (input.type === 'checkbox') {
+                // Per i checkbox, usa input.checked (NON input.value che è sempre 'true')
+                data[input.name] = input.checked ? 'true' : 'false';
+            } else if (input.type === 'number') {
                 data[input.name] = input.value ? parseFloat(input.value) : null;
             } else if (input.type === 'date') {
                 data[input.name] = input.value ? new Date(input.value).toISOString() : null;
@@ -265,6 +268,17 @@ const FormsManager = {
 
     // === FORM MODIFICA CLIENTE ===
     async showModificaCliente(cliente) {
+        // Carica lista agenti per il selettore
+        const agenti = await DataService.getAgenti();
+        const opzioniAgente = [
+            { value: '', label: '— Nessun agente —' },
+            ...agenti.map(a => ({ value: a.nomeCompleto, label: `${a.nomeCompleto} (${a.email})` }))
+        ];
+        // Se il cliente ha un agente non in lista (vecchio dato testo libero), aggiungilo
+        if (cliente.agente && !agenti.find(a => a.nomeCompleto === cliente.agente)) {
+            opzioniAgente.push({ value: cliente.agente, label: `${cliente.agente} (non in lista utenti)` });
+        }
+
         const content = `
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem;">
                 ${this.createFormField('Ragione Sociale', 'ragioneSociale', 'text', cliente.ragioneSociale, { required: true })}
@@ -281,16 +295,7 @@ const FormsManager = {
                 ${this.createFormField('PEC', 'pec', 'email', cliente.pec)}
                 ${this.createFormField('Codice SDI', 'codiceSdi', 'text', cliente.codiceSdi)}
                 ${this.createFormField('N. Residenti', 'numResidenti', 'number', cliente.numResidenti, { placeholder: 'Numero abitanti' })}
-                ${this.createFormField('Agente', 'agente', 'text', cliente.agente)}
-                ${this.createFormField('Stato Contratto', 'statoContratto', 'select', cliente.statoContratto, {
-                    options: [
-                        { value: 'ATTIVO', label: 'Attivo' },
-                        { value: 'PROSPECT', label: 'Prospect' },
-                        { value: 'SCADUTO', label: 'Scaduto' },
-                        { value: 'CESSATO', label: 'Cessato' },
-                        { value: 'DA_DEFINIRE', label: 'Da Definire' }
-                    ]
-                })}
+                ${this.createFormField('Agente', 'agente', 'select', cliente.agente, { options: opzioniAgente })}
                 ${this.createFormField('Tipo', 'tipo', 'select', cliente.tipo, {
                     options: [
                         { value: 'PA', label: 'Pubblica Amministrazione' },
@@ -327,6 +332,13 @@ const FormsManager = {
 
     // === FORM NUOVO CLIENTE ===
     async showNuovoCliente() {
+        // Carica lista agenti per il selettore
+        const agenti = await DataService.getAgenti();
+        const opzioniAgente = [
+            { value: '', label: '— Nessun agente —' },
+            ...agenti.map(a => ({ value: a.nomeCompleto, label: `${a.nomeCompleto} (${a.email})` }))
+        ];
+
         const content = `
             <!-- 🏛️ Autocomplete Comune -->
             <div style="margin-bottom: 1.5rem; padding: 1rem; background: var(--verde-100); border-radius: 8px; border: 2px solid var(--verde-300);">
@@ -377,16 +389,7 @@ const FormsManager = {
                 ${this.createFormField('PEC', 'pec', 'email', '')}
                 ${this.createFormField('Codice SDI', 'codiceSdi', 'text', '', { placeholder: 'Codice 7 caratteri' })}
                 ${this.createFormField('N. Residenti', 'numResidenti', 'number', '', { placeholder: 'Numero abitanti' })}
-                ${this.createFormField('Agente', 'agente', 'text', '')}
-                ${this.createFormField('Stato Contratto', 'statoContratto', 'select', 'PROSPECT', {
-                    options: [
-                        { value: 'PROSPECT', label: 'Prospect' },
-                        { value: 'ATTIVO', label: 'Attivo' },
-                        { value: 'SCADUTO', label: 'Scaduto' },
-                        { value: 'CESSATO', label: 'Cessato' },
-                        { value: 'DA_DEFINIRE', label: 'Da Definire' }
-                    ]
-                })}
+                ${this.createFormField('Agente', 'agente', 'select', '', { options: opzioniAgente })}
                 ${this.createFormField('Tipo', 'tipo', 'select', 'PRIVATO', {
                     options: [
                         { value: 'PRIVATO', label: 'Privato' },
@@ -561,6 +564,12 @@ const FormsManager = {
                         { value: 'ASSEGNO', label: 'Assegno' },
                         { value: 'RIBA', label: 'RiBa' },
                         { value: 'ALTRO', label: 'Altro' }
+                    ]
+                })}
+                ${this.createFormField('Tipo Documento', 'tipoDocumento', 'select', fattura.tipoDocumento || 'FATTURA', {
+                    options: [
+                        { value: 'FATTURA', label: 'Fattura' },
+                        { value: 'NOTA_DI_CREDITO', label: 'Nota di Credito' }
                     ]
                 })}
                 ${this.createFormField('Stato Pagamento', 'statoPagamento', 'select', fattura.statoPagamento, {
@@ -784,6 +793,12 @@ const FormsManager = {
                         { value: 'ALTRO', label: 'Altro' }
                     ]
                 })}
+                ${this.createFormField('Tipo Documento', 'tipoDocumento', 'select', 'FATTURA', {
+                    options: [
+                        { value: 'FATTURA', label: 'Fattura' },
+                        { value: 'NOTA_DI_CREDITO', label: 'Nota di Credito' }
+                    ]
+                })}
                 ${this.createFormField('Stato Pagamento', 'statoPagamento', 'select', 'NON_PAGATA', {
                     options: [
                         { value: 'NON_PAGATA', label: 'Non Pagata' },
@@ -885,11 +900,46 @@ const FormsManager = {
             if (annoInput) {
                 annoInput.addEventListener('input', () => FormsManager.aggiornaNumeroFattura());
             }
+
+            // Quando cambia il tipo documento (Fattura/Nota di Credito)
+            const tipoDocSelect = document.getElementById('tipoDocumento');
+            if (tipoDocSelect) {
+                tipoDocSelect.addEventListener('change', () => {
+                    const isNC = tipoDocSelect.value === 'NOTA_DI_CREDITO';
+
+                    // Ricalcola numero con prefisso NC
+                    FormsManager.aggiornaNumeroFattura();
+
+                    // Se è Nota di Credito, imposta stato automaticamente
+                    if (isNC && statoSelect) {
+                        statoSelect.value = 'NOTA_CREDITO';
+                        if (sezioneAcconto) sezioneAcconto.style.display = 'none';
+                    }
+
+                    // Aggiorna titolo modale
+                    const modalTitle = document.querySelector('.modal-header h2, [style*="font-size: 1.5rem"]');
+                    if (modalTitle) {
+                        modalTitle.innerHTML = isNC
+                            ? '<i class="fas fa-file-invoice-dollar" style="color: #D32F2F;"></i> Nuova Nota di Credito'
+                            : '<i class="fas fa-plus"></i> Nuova Fattura';
+                    }
+                });
+            }
         }, 100);
     },
 
     // === FORM MODIFICA SCADENZA ===
     async showModificaScadenza(scadenza) {
+        // Carica lista agenti per il selettore
+        const agentiScad = await DataService.getAgenti();
+        const opzioniAgenteScad = [
+            { value: '', label: '— Nessun agente —' },
+            ...agentiScad.map(a => ({ value: a.nomeCompleto, label: `${a.nomeCompleto} (${a.email})` }))
+        ];
+        if (scadenza.agente && !agentiScad.find(a => a.nomeCompleto === scadenza.agente)) {
+            opzioniAgenteScad.push({ value: scadenza.agente, label: `${scadenza.agente} (non in lista utenti)` });
+        }
+
         const content = `
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem;">
                 ${this.createFormField('Cliente ID', 'clienteId', 'text', scadenza.clienteId)}
@@ -903,7 +953,7 @@ const FormsManager = {
                     ]
                 })}
                 ${this.createFormField('Data Scadenza', 'dataScadenza', 'date', scadenza.dataScadenza?.split('T')[0], { required: true })}
-                ${this.createFormField('Agente', 'agente', 'text', scadenza.agente)}
+                ${this.createFormField('Agente', 'agente', 'select', scadenza.agente, { options: opzioniAgenteScad })}
                 ${this.createFormField('Importo', 'importo', 'number', scadenza.importo)}
                 ${this.createFormField('Fattura ID', 'fatturaId', 'text', scadenza.fatturaId, { placeholder: 'ID fattura collegata (opzionale)' })}
                 ${this.createFormField('Completata', 'completata', 'select', scadenza.completata ? 'true' : 'false', {
@@ -932,8 +982,13 @@ const FormsManager = {
 
     // === FORM NUOVA SCADENZA ===
     async showNuovaScadenza() {
-        // Carica lista clienti per il selettore
+        // Carica lista clienti e agenti per i selettori
         const clienti = await DataService.getClienti();
+        const agentiNuovaScad = await DataService.getAgenti();
+        const opzioniAgenteNuovaScad = [
+            { value: '', label: '— Nessun agente —' },
+            ...agentiNuovaScad.map(a => ({ value: a.nomeCompleto, label: `${a.nomeCompleto} (${a.email})` }))
+        ];
 
         const clienteSelectHtml = `
             <div class="form-group" style="margin-bottom: 1rem; grid-column: 1 / -1;">
@@ -974,7 +1029,7 @@ const FormsManager = {
                     ]
                 })}
                 ${this.createFormField('Data Scadenza', 'dataScadenza', 'date', '', { required: true })}
-                ${this.createFormField('Agente', 'agente', 'text', '')}
+                ${this.createFormField('Agente', 'agente', 'select', '', { options: opzioniAgenteNuovaScad })}
                 ${this.createFormField('Importo', 'importo', 'number', '', { placeholder: '0.00' })}
                 ${this.createFormField('Fattura ID', 'fatturaId', 'text', '', { placeholder: 'ID fattura collegata (opzionale)' })}
             </div>
@@ -1091,6 +1146,7 @@ const FormsManager = {
     },
 
     // Compone automaticamente il numero fattura nel formato ANNO/NUMERO/PA o ANNO/NUMERO/PR
+    // Per note di credito: NC-ANNO/NUMERO/PA o NC-ANNO/NUMERO/PR
     aggiornaNumeroFattura() {
         const annoInput = document.getElementById('anno');
         const numInput = document.getElementById('numeroProgressivo');
@@ -1098,18 +1154,21 @@ const FormsManager = {
         const anteprimaDiv = document.getElementById('anteprimaNumeroFattura');
         const anteprimaSpan = document.getElementById('anteprimaNumero');
         const tipoInput = document.getElementById('tipoClienteSelezionato');
+        const tipoDocSelect = document.getElementById('tipoDocumento');
 
         if (!numInput || !hiddenNumero) return;
 
         const anno = annoInput?.value || new Date().getFullYear();
         const numero = numInput.value.trim();
         const tipo = tipoInput?.value || '';
+        const isNotaCredito = tipoDocSelect?.value === 'NOTA_DI_CREDITO';
 
         if (numero) {
             // Pad del numero a 3 cifre
             const numeroPadded = numero.padStart(3, '0');
             const suffisso = tipo === 'PA' ? 'PA' : (tipo ? 'PR' : '');
-            const numeroCompleto = suffisso ? `${anno}/${numeroPadded}/${suffisso}` : `${anno}/${numeroPadded}`;
+            const prefisso = isNotaCredito ? 'NC-' : '';
+            const numeroCompleto = suffisso ? `${prefisso}${anno}/${numeroPadded}/${suffisso}` : `${prefisso}${anno}/${numeroPadded}`;
 
             hiddenNumero.value = numeroCompleto;
 
@@ -1118,12 +1177,18 @@ const FormsManager = {
                 anteprimaDiv.style.display = 'block';
 
                 // Colora in base al tipo
-                if (tipo === 'PA') {
+                if (isNotaCredito) {
+                    anteprimaDiv.style.background = '#FFEBEE';
+                    anteprimaDiv.style.color = '#D32F2F';
+                    anteprimaDiv.querySelector('i').className = 'fas fa-file-invoice-dollar';
+                } else if (tipo === 'PA') {
                     anteprimaDiv.style.background = '#E1F5FE';
                     anteprimaDiv.style.color = '#0288D1';
+                    anteprimaDiv.querySelector('i').className = 'fas fa-file-invoice';
                 } else {
                     anteprimaDiv.style.background = 'var(--blu-100)';
                     anteprimaDiv.style.color = 'var(--blu-700)';
+                    anteprimaDiv.querySelector('i').className = 'fas fa-file-invoice';
                 }
             }
         } else {
@@ -1134,8 +1199,23 @@ const FormsManager = {
 
     // === FORM MODIFICA APP ===
     async showModificaApp(app) {
-        // Carica lista clienti per il selettore cliente pagante
-        const clienti = await DataService.getClienti();
+        // Carica lista clienti e agenti in parallelo
+        const [clienti, agenti] = await Promise.all([
+            DataService.getClienti(),
+            DataService.getAgenti()
+        ]);
+
+        // Costruisci opzioni agente
+        const agenteCorrente = app.agente || '';
+        const agenteInLista = agenti.some(a => a.nomeCompleto === agenteCorrente);
+        let opzioniAgente = '<option value="">-- Nessun agente --</option>';
+        agenti.forEach(a => {
+            const sel = a.nomeCompleto === agenteCorrente ? 'selected' : '';
+            opzioniAgente += `<option value="${a.nomeCompleto}" ${sel}>${a.nomeCompleto}</option>`;
+        });
+        if (agenteCorrente && !agenteInLista) {
+            opzioniAgente += `<option value="${agenteCorrente}" selected>${agenteCorrente} (non in lista utenti)</option>`;
+        }
 
         const content = `
             <div style="margin-bottom: 1.5rem;">
@@ -1169,16 +1249,10 @@ const FormsManager = {
                     </div>
                     <div class="form-group">
                         <label>Agente Commerciale</label>
-                        <input
-                            type="text"
-                            name="agente"
-                            id="agenteAppInput"
-                            class="form-input"
-                            value="${app.agente || ''}"
-                            placeholder="${app.clientePaganteId ? 'Preso dal cliente' : 'Inserisci nome agente'}"
-                            ${app.clientePaganteId ? 'disabled' : ''}
-                        />
-                        ${app.clientePaganteId ? `<small style="color: var(--grigio-500); display: block; margin-top: 0.25rem;"><i class="fas fa-info-circle"></i> L'agente viene preso dal cliente associato</small>` : ''}
+                        <select name="agente" id="agenteAppInput" class="form-input" ${app.clientePaganteId ? 'disabled' : ''}>
+                            ${opzioniAgente}
+                        </select>
+                        ${app.clientePaganteId ? `<small class="agente-info" style="color: var(--grigio-500); display: block; margin-top: 0.25rem;"><i class="fas fa-info-circle"></i> L'agente viene preso dal cliente associato</small>` : ''}
                     </div>
                     ${this.createFormField('Gestione', 'gestione', 'select', app.gestione, {
                         options: [
@@ -1362,8 +1436,17 @@ const FormsManager = {
 
     // === FORM NUOVA APP ===
     async showNuovaApp() {
-        // Carica lista clienti per il selettore cliente pagante
-        const clienti = await DataService.getClienti();
+        // Carica lista clienti e agenti in parallelo
+        const [clienti, agenti] = await Promise.all([
+            DataService.getClienti(),
+            DataService.getAgenti()
+        ]);
+
+        // Costruisci opzioni agente per nuova app
+        let opzioniAgenteNuova = '<option value="">-- Nessun agente --</option>';
+        agenti.forEach(a => {
+            opzioniAgenteNuova += `<option value="${a.nomeCompleto}">${a.nomeCompleto}</option>`;
+        });
 
         const content = `
             <div style="margin-bottom: 1.5rem;">
@@ -1390,9 +1473,15 @@ const FormsManager = {
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem;">
                     <div class="form-group">
                         <label>Cliente Pagante</label>
-                        <select name="clientePaganteId" class="form-input">
+                        <select name="clientePaganteId" class="form-input" onchange="FormsManager.onClientePaganteChange(this.value, ${JSON.stringify(clienti).replace(/"/g, '&quot;')})">
                             <option value="">-- Nessuno (Prospect/Demo) --</option>
                             ${clienti.map(c => `<option value="${c.id}">${c.ragioneSociale}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Agente Commerciale</label>
+                        <select name="agente" id="agenteAppInput" class="form-input">
+                            ${opzioniAgenteNuova}
                         </select>
                     </div>
                     ${this.createFormField('Gestione', 'gestione', 'select', '', {
@@ -1894,8 +1983,8 @@ const FormsManager = {
 
     // Gestisce il cambio del cliente pagante nel form app
     onClientePaganteChange(clienteId, clientiJSON) {
-        const agenteInput = document.getElementById('agenteAppInput');
-        if (!agenteInput) return;
+        const agenteSelect = document.getElementById('agenteAppInput');
+        if (!agenteSelect) return;
 
         try {
             // Parse clienti dalla stringa JSON
@@ -1905,34 +1994,54 @@ const FormsManager = {
                 // Cliente selezionato → prendi agente dal cliente
                 const cliente = clienti.find(c => c.id === clienteId);
                 if (cliente && cliente.agente) {
-                    agenteInput.value = cliente.agente;
-                    agenteInput.placeholder = 'Preso dal cliente';
-                    agenteInput.disabled = true;
+                    // Seleziona l'agente nella select (se presente tra le opzioni)
+                    const agenteNome = cliente.agente;
+                    let trovato = false;
+                    for (let i = 0; i < agenteSelect.options.length; i++) {
+                        if (agenteSelect.options[i].value === agenteNome) {
+                            agenteSelect.selectedIndex = i;
+                            trovato = true;
+                            break;
+                        }
+                    }
+                    // Se l'agente del cliente non è in lista, aggiungilo temporaneamente
+                    if (!trovato && agenteNome) {
+                        const opt = document.createElement('option');
+                        opt.value = agenteNome;
+                        opt.textContent = agenteNome + ' (dal cliente)';
+                        opt.selected = true;
+                        agenteSelect.appendChild(opt);
+                    }
+                    agenteSelect.disabled = true;
 
                     // Mostra messaggio informativo
-                    let infoMessage = agenteInput.nextElementSibling;
-                    if (!infoMessage || !infoMessage.classList.contains('agente-info')) {
+                    let infoMessage = agenteSelect.parentNode.querySelector('.agente-info');
+                    if (!infoMessage) {
                         infoMessage = document.createElement('small');
                         infoMessage.className = 'agente-info';
                         infoMessage.style.cssText = 'color: var(--grigio-500); display: block; margin-top: 0.25rem;';
-                        agenteInput.parentNode.appendChild(infoMessage);
+                        agenteSelect.parentNode.appendChild(infoMessage);
                     }
                     infoMessage.innerHTML = '<i class="fas fa-info-circle"></i> L\'agente viene preso dal cliente associato';
                 } else {
                     // Cliente senza agente
-                    agenteInput.value = '';
-                    agenteInput.placeholder = 'Cliente senza agente';
-                    agenteInput.disabled = true;
+                    agenteSelect.selectedIndex = 0;
+                    agenteSelect.disabled = true;
                 }
             } else {
-                // Nessun cliente → campo manuale
-                agenteInput.placeholder = 'Inserisci nome agente';
-                agenteInput.disabled = false;
+                // Nessun cliente → select libera
+                agenteSelect.disabled = false;
 
                 // Rimuovi messaggio informativo
-                const infoMessage = agenteInput.parentNode.querySelector('.agente-info');
+                const infoMessage = agenteSelect.parentNode.querySelector('.agente-info');
                 if (infoMessage) {
                     infoMessage.remove();
+                }
+                // Rimuovi eventuali opzioni temporanee "(dal cliente)"
+                for (let i = agenteSelect.options.length - 1; i >= 0; i--) {
+                    if (agenteSelect.options[i].textContent.includes('(dal cliente)')) {
+                        agenteSelect.remove(i);
+                    }
                 }
             }
         } catch (error) {

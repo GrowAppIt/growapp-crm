@@ -551,12 +551,15 @@ const Report = {
             });
         }
 
-        // Calcola statistiche
-        const fatturatoTotale = fattureFiltrate.reduce((sum, f) => sum + (f.importoTotale || 0), 0);
-        const numeroFatture = fattureFiltrate.length;
+        // Calcola statistiche (note di credito sottraggono dal fatturato)
+        const fatturatoTotale = fattureFiltrate.reduce((sum, f) => {
+            const isNC = f.tipoDocumento === 'NOTA_DI_CREDITO' || (f.numeroFatturaCompleto || '').startsWith('NC-');
+            return sum + (isNC ? -Math.abs(f.importoTotale || 0) : (f.importoTotale || 0));
+        }, 0);
+        const numeroFatture = fattureFiltrate.filter(f => f.tipoDocumento !== 'NOTA_DI_CREDITO' && !(f.numeroFatturaCompleto || '').startsWith('NC-')).length;
         const ticketMedio = numeroFatture > 0 ? fatturatoTotale / numeroFatture : 0;
         const daIncassare = fattureFiltrate
-            .filter(f => f.statoPagamento === 'NON_PAGATA')
+            .filter(f => f.statoPagamento === 'NON_PAGATA' && f.tipoDocumento !== 'NOTA_DI_CREDITO')
             .reduce((sum, f) => sum + (f.importoTotale || 0), 0);
 
         // Top clienti

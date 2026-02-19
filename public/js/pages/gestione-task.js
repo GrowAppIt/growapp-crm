@@ -12,6 +12,7 @@ const GestioneTask = {
 
     async render() {
         UI.showLoading();
+        this._permDebugLogged = false; // Reset debug flag per nuovo render
 
         try {
             // Carica dati in parallelo
@@ -391,6 +392,20 @@ const GestioneTask = {
     renderTaskActions(task, currentStato) {
         const canManage = AuthService.hasPermission('manage_dev_tasks');
         const canView = AuthService.hasPermission('view_dev_tasks');
+
+        // 🔍 DEBUG: Log permessi per diagnosi
+        if (!this._permDebugLogged) {
+            const ruolo = AuthService.getUserRole();
+            console.log('🔑 DEBUG PERMESSI TASK:', {
+                ruolo: ruolo,
+                canManage: canManage,
+                canView: canView,
+                userId: AuthService.getUserId(),
+                userName: AuthService.getUserName(),
+                currentUserData: AuthService.getCurrentUserData()
+            });
+            this._permDebugLogged = true;
+        }
 
         // Tutti gli utenti autenticati possono almeno vedere i pulsanti base
         let actions = [];

@@ -1,5 +1,68 @@
 // Data Service - Gestione dati da Firestore
 const DataService = {
+
+    // === AGENTI (utenti con ruolo AGENTE oppure con flag ancheAgente) ===
+    _cacheAgenti: null,
+    _cacheAgentiTimestamp: 0,
+
+    async getAgenti(forceRefresh = false) {
+        // Cache di 5 minuti per evitare query ripetute
+        const now = Date.now();
+        if (!forceRefresh && this._cacheAgenti && (now - this._cacheAgentiTimestamp) < 300000) {
+            return this._cacheAgenti;
+        }
+
+        try {
+            // Due query: utenti con ruolo AGENTE + utenti con flag ancheAgente
+            const [snapshotAgenti, snapshotAnche] = await Promise.all([
+                db.collection('utenti')
+                    .where('ruolo', '==', 'AGENTE')
+                    .where('stato', '==', 'ATTIVO')
+                    .get(),
+                db.collection('utenti')
+                    .where('ancheAgente', '==', true)
+                    .where('stato', '==', 'ATTIVO')
+                    .get()
+            ]);
+
+            // Unisci i risultati evitando duplicati (per uid)
+            const agentiMap = new Map();
+
+            snapshotAgenti.docs.forEach(doc => {
+                const data = doc.data();
+                agentiMap.set(doc.id, {
+                    uid: doc.id,
+                    nome: data.nome || '',
+                    cognome: data.cognome || '',
+                    email: data.email || '',
+                    nomeCompleto: `${data.nome || ''} ${data.cognome || ''}`.trim()
+                });
+            });
+
+            snapshotAnche.docs.forEach(doc => {
+                if (!agentiMap.has(doc.id)) {
+                    const data = doc.data();
+                    agentiMap.set(doc.id, {
+                        uid: doc.id,
+                        nome: data.nome || '',
+                        cognome: data.cognome || '',
+                        email: data.email || '',
+                        nomeCompleto: `${data.nome || ''} ${data.cognome || ''}`.trim()
+                    });
+                }
+            });
+
+            this._cacheAgenti = Array.from(agentiMap.values())
+                .sort((a, b) => a.nomeCompleto.localeCompare(b.nomeCompleto));
+
+            this._cacheAgentiTimestamp = now;
+            return this._cacheAgenti;
+        } catch (error) {
+            console.error('Errore caricamento agenti:', error);
+            return [];
+        }
+    },
+
     // === CLIENTI ===
     async getClienti(filtri = {}) {
         try {
@@ -246,6 +309,88 @@ const DataService = {
             console.error('Errore caricamento contratti cliente:', error);
             return [];
         }
+    },
+
+    // === STATO CLIENTE CALCOLATO DAI CONTRATTI ===
+    // Logica:
+    // - ATTIVO: almeno 1 contratto ATTIVO o IN_RINNOVO
+    // - SCADUTO: nessun contratto attivo, ma almeno 1 SCADUTO (attesa rinnovo)
+    // - CESSATO: tutti i contratti CESSATI
+    // - SOSPESO: almeno 1 contratto SOSPESO e nessun ATTIVO
+    // - SENZA_CONTRATTO: nessun contratto collegato (errore da evidenziare)
+    calcolaStatoCliente(contrattiCliente) {
+        if (!contrattiCliente || contrattiCliente.length === 0) {
+            return 'SENZA_CONTRATTO';
+        }
+
+        const stati = contrattiCliente.map(c => c.stato);
+
+        // Se almeno uno è ATTIVO o IN_RINNOVO → cliente ATTIVO
+        if (stati.includes('ATTIVO') || stati.includes('IN_RINNOVO')) {
+            return 'ATTIVO';
+        }
+
+        // Se almeno uno è SOSPESO → cliente SOSPESO
+        if (stati.includes('SOSPESO')) {
+            return 'SOSPESO';
+        }
+
+        // Se almeno uno è SCADUTO → cliente SCADUTO (in attesa rinnovo)
+        if (stati.includes('SCADUTO')) {
+            return 'SCADUTO';
+        }
+
+        // Tutti CESSATI → cliente CESSATO
+        if (stati.every(s => s === 'CESSATO')) {
+            return 'CESSATO';
+        }
+
+        return 'SENZA_CONTRATTO';
+    },
+
+    // Arricchisce l'array clienti con lo stato calcolato dai contratti
+    async getClientiConStato(filtriClienti = {}) {
+        // Carica clienti e contratti in parallelo
+        const [clienti, contratti] = await Promise.all([
+            this.getClienti(filtriClienti),
+            this.getContratti()
+        ]);
+
+        // Raggruppa contratti per clienteId (usando anche legacyId)
+        const contrattiPerCliente = {};
+        contratti.forEach(c => {
+            if (!c.clienteId) return;
+            if (!contrattiPerCliente[c.clienteId]) {
+                contrattiPerCliente[c.clienteId] = [];
+            }
+            contrattiPerCliente[c.clienteId].push(c);
+        });
+
+        // Per ogni cliente, calcola lo stato
+        return clienti.map(cliente => {
+            // Cerca contratti per entrambi gli ID (Firestore e legacy)
+            const ids = [cliente.id, cliente.clienteIdLegacy].filter(Boolean);
+            const contrattiCliente = [];
+            const idsVisti = new Set();
+
+            ids.forEach(id => {
+                (contrattiPerCliente[id] || []).forEach(c => {
+                    if (!idsVisti.has(c.id)) {
+                        idsVisti.add(c.id);
+                        contrattiCliente.push(c);
+                    }
+                });
+            });
+
+            const statoCalcolato = this.calcolaStatoCliente(contrattiCliente);
+
+            return {
+                ...cliente,
+                statoContratto: statoCalcolato,
+                _numContratti: contrattiCliente.length,
+                _contrattiAttivi: contrattiCliente.filter(c => c.stato === 'ATTIVO' || c.stato === 'IN_RINNOVO').length
+            };
+        });
     },
 
     async getContrattiInScadenza(giorni = 30) {
@@ -615,9 +760,9 @@ const DataService = {
     // === STATISTICHE ===
     async getStatistiche() {
         try {
-            // Carica solo i dati necessari per le statistiche
+            // Carica clienti con stato calcolato dai contratti
             const [clienti, fattureRecenti, scadenze, app, contratti] = await Promise.all([
-                this.getClienti(),
+                this.getClientiConStato(),
                 this.getFatture({ limit: 500 }),  // Solo le 500 più recenti
                 this.getScadenze(),
                 this.getApps(),
@@ -625,7 +770,7 @@ const DataService = {
             ]);
             const fatture = fattureRecenti;
 
-            // Clienti per stato
+            // Clienti per stato (ora calcolato dai contratti)
             const clientiPerStato = {};
             clienti.forEach(c => {
                 clientiPerStato[c.statoContratto] = (clientiPerStato[c.statoContratto] || 0) + 1;
@@ -637,13 +782,17 @@ const DataService = {
                 fatturePerStato[f.statoPagamento] = (fatturePerStato[f.statoPagamento] || 0) + 1;
             });
 
-            // Fatturato totale
+            // Fatturato totale (le note di credito sottraggono)
             const fatturatoTotale = fatture
-                .filter(f => f.statoPagamento === 'PAGATA')
-                .reduce((sum, f) => sum + (f.importoTotale || 0), 0);
+                .filter(f => f.statoPagamento === 'PAGATA' || f.tipoDocumento === 'NOTA_DI_CREDITO')
+                .reduce((sum, f) => {
+                    const importo = f.importoTotale || 0;
+                    const isNC = f.tipoDocumento === 'NOTA_DI_CREDITO' || (f.numeroFatturaCompleto || '').startsWith('NC-');
+                    return sum + (isNC ? -Math.abs(importo) : importo);
+                }, 0);
 
-            // Fatture non pagate
-            const fattureNonPagate = fatture.filter(f => f.statoPagamento === 'NON_PAGATA');
+            // Fatture non pagate (escluse note di credito)
+            const fattureNonPagate = fatture.filter(f => f.statoPagamento === 'NON_PAGATA' && f.tipoDocumento !== 'NOTA_DI_CREDITO');
             const importoNonPagato = fattureNonPagate.reduce((sum, f) => sum + (f.importoTotale || 0), 0);
 
             // Scadenze critiche (scadute)
@@ -678,8 +827,9 @@ const DataService = {
                 clienti: {
                     totale: clienti.length,
                     attivi: clientiPerStato['ATTIVO'] || 0,
-                    prospect: clientiPerStato['PROSPECT'] || 0,
                     scaduti: clientiPerStato['SCADUTO'] || 0,
+                    cessati: clientiPerStato['CESSATO'] || 0,
+                    senzaContratto: clientiPerStato['SENZA_CONTRATTO'] || 0,
                     perStato: clientiPerStato
                 },
                 app: {
@@ -712,6 +862,143 @@ const DataService = {
             };
         } catch (error) {
             console.error('Errore calcolo statistiche:', error);
+            return null;
+        }
+    },
+
+    // === DATI FILTRATI PER AGENTE ===
+    // Metodo centralizzato: carica i clienti dell'agente e filtra a cascata fatture, contratti, app
+    async getDatiAgente(agenteNome) {
+        try {
+            // 1. Carica solo i clienti di questo agente
+            const clienti = await this.getClienti({ agente: agenteNome });
+
+            // 2. Raccogli tutti gli ID dei clienti (sia Firestore che legacy)
+            const clienteIds = new Set();
+            clienti.forEach(c => {
+                if (c.id) clienteIds.add(c.id);
+                if (c.clienteIdLegacy) clienteIds.add(c.clienteIdLegacy);
+            });
+
+            // 3. Carica tutte le fatture e filtra per clienti dell'agente
+            const tutteFatture = await this.getFatture({ limit: 1000 });
+            const fatture = tutteFatture.filter(f => clienteIds.has(f.clienteId));
+
+            // 4. Carica tutti i contratti e filtra per clienti dell'agente
+            const tuttiContratti = await this.getContratti();
+            const contratti = tuttiContratti.filter(c => clienteIds.has(c.clienteId));
+
+            // 5. Carica le app e filtra per clienti dell'agente
+            const tutteApp = await this.getApps();
+            const app = tutteApp.filter(a => {
+                // Le app possono essere collegate tramite clientePaganteId, clienteId, o nome comune
+                if (a.clientePaganteId && clienteIds.has(a.clientePaganteId)) return true;
+                if (a.clienteId && clienteIds.has(a.clienteId)) return true;
+                // Match per nome comune (ragione sociale del cliente)
+                const nomiClienti = clienti.map(c => (c.ragioneSociale || '').toLowerCase());
+                if (a.comune && nomiClienti.some(n => n.includes(a.comune.toLowerCase()) || a.comune.toLowerCase().includes(n))) return true;
+                return false;
+            });
+
+            // 6. Scadenze dell'agente
+            const scadenze = await this.getScadenze({ agente: agenteNome });
+
+            // 7. Calcola lo stato clienti dai contratti caricati
+            const contrattiPerCliente = {};
+            contratti.forEach(c => {
+                if (!c.clienteId) return;
+                if (!contrattiPerCliente[c.clienteId]) contrattiPerCliente[c.clienteId] = [];
+                contrattiPerCliente[c.clienteId].push(c);
+            });
+
+            const clientiConStato = clienti.map(cl => {
+                const ids = [cl.id, cl.clienteIdLegacy].filter(Boolean);
+                const contrattiCl = [];
+                const idsVisti = new Set();
+                ids.forEach(id => {
+                    (contrattiPerCliente[id] || []).forEach(ct => {
+                        if (!idsVisti.has(ct.id)) { idsVisti.add(ct.id); contrattiCl.push(ct); }
+                    });
+                });
+                return {
+                    ...cl,
+                    statoContratto: this.calcolaStatoCliente(contrattiCl),
+                    _numContratti: contrattiCl.length
+                };
+            });
+
+            return { clienti: clientiConStato, fatture, contratti, app, scadenze, clienteIds };
+        } catch (error) {
+            console.error('Errore caricamento dati agente:', error);
+            return { clienti: [], fatture: [], contratti: [], app: [], scadenze: [], clienteIds: new Set() };
+        }
+    },
+
+    // Statistiche filtrate per agente
+    async getStatisticheAgente(agenteNome) {
+        try {
+            const { clienti, fatture, contratti, app, scadenze } = await this.getDatiAgente(agenteNome);
+
+            const oggi = new Date();
+            const tra7giorni = new Date(oggi);
+            tra7giorni.setDate(tra7giorni.getDate() + 7);
+
+            // Clienti per stato
+            const clientiPerStato = {};
+            clienti.forEach(c => {
+                clientiPerStato[c.statoContratto] = (clientiPerStato[c.statoContratto] || 0) + 1;
+            });
+
+            // Fatture per stato
+            const fatturePerStato = {};
+            fatture.forEach(f => {
+                fatturePerStato[f.statoPagamento] = (fatturePerStato[f.statoPagamento] || 0) + 1;
+            });
+
+            const fatturatoTotale = fatture
+                .filter(f => f.statoPagamento === 'PAGATA' || f.tipoDocumento === 'NOTA_DI_CREDITO')
+                .reduce((sum, f) => {
+                    const importo = f.importoTotale || 0;
+                    const isNC = f.tipoDocumento === 'NOTA_DI_CREDITO' || (f.numeroFatturaCompleto || '').startsWith('NC-');
+                    return sum + (isNC ? -Math.abs(importo) : importo);
+                }, 0);
+
+            const importoNonPagato = fatture
+                .filter(f => f.statoPagamento === 'NON_PAGATA' && f.tipoDocumento !== 'NOTA_DI_CREDITO')
+                .reduce((sum, f) => sum + (f.importoTotale || 0), 0);
+
+            // Contratti per stato
+            const contrattiPerStato = {};
+            contratti.forEach(c => {
+                contrattiPerStato[c.stato] = (contrattiPerStato[c.stato] || 0) + 1;
+            });
+
+            // App per stato
+            const appPerStato = {};
+            app.forEach(a => {
+                appPerStato[a.statoApp] = (appPerStato[a.statoApp] || 0) + 1;
+            });
+
+            // Scadenze
+            const scadenzeScadute = scadenze.filter(s => {
+                if (!s.dataScadenza) return false;
+                return new Date(s.dataScadenza) < oggi;
+            });
+            const scadenzeImminenti = scadenze.filter(s => {
+                if (!s.dataScadenza) return false;
+                const data = new Date(s.dataScadenza);
+                return data >= oggi && data <= tra7giorni;
+            });
+
+            return {
+                clienti: { totale: clienti.length, attivi: clientiPerStato['ATTIVO'] || 0, scaduti: clientiPerStato['SCADUTO'] || 0, cessati: clientiPerStato['CESSATO'] || 0, senzaContratto: clientiPerStato['SENZA_CONTRATTO'] || 0, perStato: clientiPerStato },
+                app: { totale: app.length, attive: appPerStato['ATTIVA'] || 0, inSviluppo: (appPerStato['SVILUPPO'] || 0) + (appPerStato['IN_SVILUPPO'] || 0), sospese: appPerStato['SOSPESA'] || 0, perStato: appPerStato },
+                contratti: { totale: contratti.length, attivi: contrattiPerStato['ATTIVO'] || 0, scaduti: contrattiPerStato['SCADUTO'] || 0, cessati: contrattiPerStato['CESSATO'] || 0, perStato: contrattiPerStato },
+                fatture: { totale: fatture.length, pagate: fatturePerStato['PAGATA'] || 0, nonPagate: fatturePerStato['NON_PAGATA'] || 0, perStato: fatturePerStato, fatturatoTotale, importoNonPagato },
+                scadenze: { totale: scadenze.length, scadute: scadenzeScadute.length, imminenti: scadenzeImminenti.length }
+            };
+        } catch (error) {
+            console.error('Errore calcolo statistiche agente:', error);
             return null;
         }
     },
@@ -753,7 +1040,10 @@ const DataService = {
             'SCADUTO': 'badge-danger',
             'PROSPECT': 'badge-info',
             'CESSATO': 'badge-secondary',
+            'SOSPESO': 'badge-warning',
+            'SENZA_CONTRATTO': 'badge-danger',
             'DA_DEFINIRE': 'badge-warning',
+            'IN_RINNOVO': 'badge-info',
             'PAGATA': 'badge-success',
             'NON_PAGATA': 'badge-danger',
             'PARZIALMENTE_PAGATA': 'badge-warning',
@@ -778,10 +1068,11 @@ const DataService = {
 
     async createCliente(data) {
         try {
+            // Rimuovi statoContratto statico (viene calcolato dai contratti)
+            delete data.statoContratto;
             const docRef = await db.collection('clienti').add({
                 ...data,
-                dataCreazione: new Date().toISOString(),
-                statoContratto: data.statoContratto || 'PROSPECT'
+                dataCreazione: new Date().toISOString()
             });
             return docRef.id;
         } catch (error) {

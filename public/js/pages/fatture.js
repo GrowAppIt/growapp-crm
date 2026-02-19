@@ -11,7 +11,18 @@ const Fatture = {
         UI.showLoading();
 
         try {
-            const fatture = await DataService.getFatture({ limit: 200 });
+            // Se agente, carica solo fatture dei propri clienti
+            let fatture;
+            const _isAgente = AuthService.canViewOnlyOwnData();
+            const _agenteNome = _isAgente ? AuthService.getAgenteFilterName() : null;
+            if (_isAgente && _agenteNome) {
+                const datiAgente = await DataService.getDatiAgente(_agenteNome);
+                fatture = datiAgente.fatture;
+                this._clienteIdsAgente = datiAgente.clienteIds; // Salva per i filtri
+            } else {
+                fatture = await DataService.getFatture({ limit: 200 });
+                this._clienteIdsAgente = null;
+            }
 
             const mainContent = document.getElementById('mainContent');
             mainContent.innerHTML = `
@@ -129,12 +140,16 @@ const Fatture = {
             const tipoBadge = tipoCliente === 'PA' ? '<span style="display:inline-block; background:#0288D1; color:white; font-size:0.7rem; padding:0.15rem 0.4rem; border-radius:4px; font-weight:700; margin-left:0.5rem;">PA</span>' :
                               tipoCliente === 'PR' ? '<span style="display:inline-block; background:#9B9B9B; color:white; font-size:0.7rem; padding:0.15rem 0.4rem; border-radius:4px; font-weight:700; margin-left:0.5rem;">PR</span>' : '';
 
+            // Nota di credito badge
+            const isNotaCredito = fattura.tipoDocumento === 'NOTA_DI_CREDITO' || (fattura.numeroFatturaCompleto || '').startsWith('NC-');
+            const ncBadge = isNotaCredito ? '<span style="display:inline-block; background:#D32F2F; color:white; font-size:0.7rem; padding:0.15rem 0.4rem; border-radius:4px; font-weight:700; margin-left:0.5rem;">NC</span>' : '';
+
             html += UI.createListItem({
-                title: `${fattura.numeroFatturaCompleto}${tipoBadge}`,
-                subtitle: `${clienteInfo} • ${DataService.formatDate(fattura.dataEmissione)} • ${DataService.formatCurrency(fattura.importoTotale)}`,
-                badge: fattura.statoPagamento?.replace('_', ' '),
-                badgeClass,
-                icon: 'file-invoice',
+                title: `${fattura.numeroFatturaCompleto}${tipoBadge}${ncBadge}`,
+                subtitle: `${clienteInfo} • ${DataService.formatDate(fattura.dataEmissione)} • ${isNotaCredito ? '-' : ''}${DataService.formatCurrency(fattura.importoTotale)}`,
+                badge: isNotaCredito ? 'NOTA CREDITO' : fattura.statoPagamento?.replace('_', ' '),
+                badgeClass: isNotaCredito ? 'badge-danger' : badgeClass,
+                icon: isNotaCredito ? 'file-invoice-dollar' : 'file-invoice',
                 onclick: `UI.showPage('dettaglio-fattura', '${fattura.id}')`
             });
         }
@@ -156,7 +171,15 @@ const Fatture = {
             if (this.filtri.anno) filtro.anno = parseInt(this.filtri.anno);
             if (this.filtri.stato) filtro.statoPagamento = this.filtri.stato;
 
-            DataService.getFatture(filtro).then(fatture => {
+            // Se agente, usa getDatiAgente; altrimenti carica normalmente
+            const __isAgente = AuthService.canViewOnlyOwnData();
+            const __agenteNome = __isAgente ? AuthService.getAgenteFilterName() : null;
+
+            const fatturePromise = (__isAgente && __agenteNome)
+                ? DataService.getDatiAgente(__agenteNome).then(d => { this._clienteIdsAgente = d.clienteIds; return d.fatture; })
+                : DataService.getFatture(filtro);
+
+            fatturePromise.then(fatture => {
                 let filtrate = fatture;
 
                 if (this.filtri.search) {
@@ -185,7 +208,16 @@ const Fatture = {
         if (this.filtri.anno) filtro.anno = parseInt(this.filtri.anno);
         if (this.filtri.stato) filtro.statoPagamento = this.filtri.stato;
 
-        const fatture = await DataService.getFatture(filtro);
+        // Se agente, carica solo fatture dei propri clienti
+        const _isAgenteExp = AuthService.canViewOnlyOwnData();
+        const _agenteNomeExp = _isAgenteExp ? AuthService.getAgenteFilterName() : null;
+        let fatture;
+        if (_isAgenteExp && _agenteNomeExp) {
+            const dati = await DataService.getDatiAgente(_agenteNomeExp);
+            fatture = dati.fatture;
+        } else {
+            fatture = await DataService.getFatture(filtro);
+        }
         let filtrate = fatture;
 
         if (this.filtri.search) {

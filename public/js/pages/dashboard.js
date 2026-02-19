@@ -4,6 +4,12 @@ const Dashboard = {
         UI.showLoading();
 
         try {
+            // === VISTA AGENTE: dati filtrati solo per i propri clienti ===
+            if (AuthService.canViewOnlyOwnData()) {
+                return await this.renderDashboardAgente();
+            }
+
+            // === VISTA NORMALE (admin, CTO, ecc.) ===
             // Carica dati base
             const stats = await DataService.getStatistiche();
 
@@ -349,7 +355,8 @@ const Dashboard = {
                     id: cliente.id
                 };
             }
-            fatturatoPerCliente[f.clienteId].totale += f.importoTotale || 0;
+            const isNC = f.tipoDocumento === 'NOTA_DI_CREDITO' || (f.numeroFatturaCompleto || '').startsWith('NC-');
+            fatturatoPerCliente[f.clienteId].totale += isNC ? -Math.abs(f.importoTotale || 0) : (f.importoTotale || 0);
         });
 
         // Ordina e prendi top 5 (solo clienti validi)
@@ -1090,5 +1097,390 @@ const Dashboard = {
             'RINNOVO_CONTRATTO': 'Rinnovo Contratto'
         };
         return labels[tipo] || tipo;
+    },
+
+    // ============================================
+    // === DASHBOARD DEDICATA PER AGENTE ===
+    // ============================================
+    async renderDashboardAgente() {
+        const agenteNome = AuthService.getAgenteFilterName();
+        if (!agenteNome) {
+            UI.hideLoading();
+            UI.showError('Impossibile identificare l\'agente. Contatta l\'amministratore.');
+            return;
+        }
+
+        // Carica tutti i dati filtrati per l'agente
+        const datiAgente = await DataService.getDatiAgente(agenteNome);
+        const { clienti, fatture, contratti, app, scadenze, clienteIds } = datiAgente;
+
+        // Calcola statistiche
+        const oggi = new Date();
+        const tra30giorni = new Date(oggi);
+        tra30giorni.setDate(tra30giorni.getDate() + 30);
+
+        // Fatture non pagate
+        const fattureNonPagate = fatture.filter(f => f.statoPagamento === 'NON_PAGATA');
+        const importoNonPagato = fattureNonPagate.reduce((sum, f) => sum + (f.importoTotale || 0), 0);
+
+        // Fatture scadute
+        const fattureScadute = fattureNonPagate.filter(f => {
+            if (!f.dataScadenza) return false;
+            return new Date(f.dataScadenza) < oggi;
+        });
+
+        // Helper: calcola importo considerando note di credito (sottraggono)
+        const calcolaImportoFattura = (f) => {
+            const importo = f.importoTotale || 0;
+            const isNC = f.tipoDocumento === 'NOTA_DI_CREDITO' || (f.numeroFatturaCompleto || '').startsWith('NC-');
+            return isNC ? -Math.abs(importo) : importo;
+        };
+
+        // Fatturato totale (pagate + note di credito)
+        const fatturatoTotale = fatture
+            .filter(f => f.statoPagamento === 'PAGATA' || f.tipoDocumento === 'NOTA_DI_CREDITO')
+            .reduce((sum, f) => sum + calcolaImportoFattura(f), 0);
+
+        // Fatturato anno corrente
+        const annoCorrente = oggi.getFullYear();
+        const fatturatoAnno = fatture
+            .filter(f => (f.statoPagamento === 'PAGATA' || f.tipoDocumento === 'NOTA_DI_CREDITO') && f.dataEmissione && new Date(f.dataEmissione).getFullYear() === annoCorrente)
+            .reduce((sum, f) => sum + calcolaImportoFattura(f), 0);
+
+        // Fatturato mese corrente
+        const meseCorrente = oggi.getMonth();
+        const fatturatoMese = fatture
+            .filter(f => (f.statoPagamento === 'PAGATA' || f.tipoDocumento === 'NOTA_DI_CREDITO') && f.dataEmissione && new Date(f.dataEmissione).getFullYear() === annoCorrente && new Date(f.dataEmissione).getMonth() === meseCorrente)
+            .reduce((sum, f) => sum + calcolaImportoFattura(f), 0);
+
+        // Contratti in scadenza
+        const contrattiInScadenza = contratti.filter(c => {
+            if (!c.dataScadenza || c.stato !== 'ATTIVO') return false;
+            const scadenza = new Date(c.dataScadenza);
+            return scadenza >= oggi && scadenza <= tra30giorni;
+        });
+
+        // Contratti scaduti (da rinnovare)
+        const contrattiScaduti = contratti.filter(c => {
+            if (!c.dataScadenza) return false;
+            return c.stato === 'SCADUTO' || (c.stato === 'ATTIVO' && new Date(c.dataScadenza) < oggi);
+        });
+
+        // Clienti attivi vs altri
+        const clientiAttivi = clienti.filter(c => c.statoContratto === 'ATTIVO');
+        const clientiSenzaContratto = clienti.filter(c => c.statoContratto === 'SENZA_CONTRATTO');
+
+        // Scadenze critiche
+        const scadenzeScadute = scadenze.filter(s => s.dataScadenza && new Date(s.dataScadenza) < oggi);
+        const scadenzeImminenti = scadenze.filter(s => {
+            if (!s.dataScadenza) return false;
+            const data = new Date(s.dataScadenza);
+            return data >= oggi && data <= tra30giorni;
+        });
+
+        // App attive
+        const appAttive = app.filter(a => a.statoApp === 'ATTIVA');
+
+        const mainContent = document.getElementById('mainContent');
+        mainContent.innerHTML = `
+            <div class="page-header mb-3">
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                    <div>
+                        <h1 style="font-size: 2rem; font-weight: 700; color: var(--blu-700); margin-bottom: 0.5rem;">
+                            <i class="fas fa-briefcase"></i> La mia Area
+                        </h1>
+                        <p style="color: var(--grigio-500);">
+                            Benvenuto, <strong>${agenteNome}</strong> — Panoramica del tuo portafoglio clienti
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- KPI PRINCIPALI AGENTE -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+                <div style="background: white; border-radius: 12px; padding: 1.2rem; box-shadow: 0 2px 8px rgba(0,0,0,0.06); border-left: 4px solid var(--blu-700); text-align: center;">
+                    <div style="font-size: 2rem; font-weight: 900; color: var(--blu-700);">${clienti.length}</div>
+                    <div style="font-size: 0.85rem; color: var(--grigio-500);">I miei Clienti</div>
+                    <div style="font-size: 0.75rem; color: var(--verde-700); margin-top: 4px;">${clientiAttivi.length} attivi</div>
+                </div>
+                <div style="background: white; border-radius: 12px; padding: 1.2rem; box-shadow: 0 2px 8px rgba(0,0,0,0.06); border-left: 4px solid var(--verde-700); text-align: center;">
+                    <div style="font-size: 2rem; font-weight: 900; color: var(--verde-700);">${contratti.filter(c => c.stato === 'ATTIVO').length}</div>
+                    <div style="font-size: 0.85rem; color: var(--grigio-500);">Contratti Attivi</div>
+                    <div style="font-size: 0.75rem; color: ${contrattiInScadenza.length > 0 ? '#FFCC00' : 'var(--grigio-500)'}; margin-top: 4px;">${contrattiInScadenza.length} in scadenza</div>
+                </div>
+                <div style="background: white; border-radius: 12px; padding: 1.2rem; box-shadow: 0 2px 8px rgba(0,0,0,0.06); border-left: 4px solid #0288D1; text-align: center;">
+                    <div style="font-size: 2rem; font-weight: 900; color: #0288D1;">${appAttive.length}</div>
+                    <div style="font-size: 0.85rem; color: var(--grigio-500);">App Attive</div>
+                    <div style="font-size: 0.75rem; color: var(--grigio-500); margin-top: 4px;">su ${app.length} totali</div>
+                </div>
+                <div style="background: white; border-radius: 12px; padding: 1.2rem; box-shadow: 0 2px 8px rgba(0,0,0,0.06); border-left: 4px solid ${fattureScadute.length > 0 ? '#D32F2F' : 'var(--grigio-300)'}; text-align: center;">
+                    <div style="font-size: 2rem; font-weight: 900; color: ${fattureNonPagate.length > 0 ? '#D32F2F' : 'var(--grigio-700)'};">${fattureNonPagate.length}</div>
+                    <div style="font-size: 0.85rem; color: var(--grigio-500);">Fatture da Incassare</div>
+                    <div style="font-size: 0.75rem; color: #D32F2F; margin-top: 4px;">${DataService.formatCurrency(importoNonPagato)}</div>
+                </div>
+            </div>
+
+            <!-- FATTURATO -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+                <div style="background: linear-gradient(135deg, var(--blu-700), var(--blu-500)); border-radius: 12px; padding: 1.5rem; color: white; text-align: center;">
+                    <div style="font-size: 0.85rem; opacity: 0.8; margin-bottom: 0.5rem;">
+                        <i class="fas fa-euro-sign"></i> Fatturato ${annoCorrente}
+                    </div>
+                    <div style="font-size: 1.8rem; font-weight: 900;">${DataService.formatCurrency(fatturatoAnno)}</div>
+                </div>
+                <div style="background: linear-gradient(135deg, var(--verde-700), var(--verde-500)); border-radius: 12px; padding: 1.5rem; color: white; text-align: center;">
+                    <div style="font-size: 0.85rem; opacity: 0.8; margin-bottom: 0.5rem;">
+                        <i class="fas fa-chart-line"></i> Fatturato Mese
+                    </div>
+                    <div style="font-size: 1.8rem; font-weight: 900;">${DataService.formatCurrency(fatturatoMese)}</div>
+                </div>
+                <div style="background: linear-gradient(135deg, #0D3A5C, #145284); border-radius: 12px; padding: 1.5rem; color: white; text-align: center;">
+                    <div style="font-size: 0.85rem; opacity: 0.8; margin-bottom: 0.5rem;">
+                        <i class="fas fa-coins"></i> Fatturato Totale
+                    </div>
+                    <div style="font-size: 1.8rem; font-weight: 900;">${DataService.formatCurrency(fatturatoTotale)}</div>
+                </div>
+            </div>
+
+            <!-- DUE COLONNE: ALERT + AZIONI -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem;">
+                ${this.renderAgenteAlerts(scadenzeScadute, scadenzeImminenti, contrattiInScadenza, contrattiScaduti, fattureScadute, clientiSenzaContratto)}
+                ${this.renderAgenteClientiRecap(clienti, contratti, fatture)}
+            </div>
+
+            <!-- LISTA FATTURE NON PAGATE -->
+            ${this.renderAgenteFattureNonPagate(fattureNonPagate, clienti)}
+
+            <!-- CONTRATTI IN SCADENZA -->
+            ${this.renderAgenteContrattiScadenza(contrattiInScadenza, contrattiScaduti)}
+
+            <!-- LISTA CLIENTI -->
+            ${this.renderAgenteListaClienti(clienti, contratti, fatture)}
+        `;
+
+        UI.hideLoading();
+    },
+
+    // === Widget Alert per Agente ===
+    renderAgenteAlerts(scadenzeScadute, scadenzeImminenti, contrattiInScadenza, contrattiScaduti, fattureScadute, clientiSenzaContratto) {
+        let alertItems = '';
+
+        if (scadenzeScadute.length > 0) {
+            alertItems += `<div style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; background: #FFF3F3; border-radius: 8px; margin-bottom: 0.5rem;">
+                <i class="fas fa-exclamation-circle" style="color: #D32F2F; font-size: 1.2rem;"></i>
+                <div><strong style="color: #D32F2F;">${scadenzeScadute.length} scadenze arretrate</strong><br><span style="font-size: 0.8rem; color: var(--grigio-700);">Da gestire al più presto</span></div>
+            </div>`;
+        }
+        if (fattureScadute.length > 0) {
+            const importo = fattureScadute.reduce((s, f) => s + (f.importoTotale || 0), 0);
+            alertItems += `<div style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; background: #FFF3F3; border-radius: 8px; margin-bottom: 0.5rem;">
+                <i class="fas fa-file-invoice-dollar" style="color: #D32F2F; font-size: 1.2rem;"></i>
+                <div><strong style="color: #D32F2F;">${fattureScadute.length} fatture scadute</strong> (${DataService.formatCurrency(importo)})<br><span style="font-size: 0.8rem; color: var(--grigio-700);">Sollecitare il pagamento</span></div>
+            </div>`;
+        }
+        if (contrattiScaduti.length > 0) {
+            alertItems += `<div style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; background: #FFF8E1; border-radius: 8px; margin-bottom: 0.5rem;">
+                <i class="fas fa-file-contract" style="color: #FFCC00; font-size: 1.2rem;"></i>
+                <div><strong style="color: #E6A800;">${contrattiScaduti.length} contratti scaduti</strong><br><span style="font-size: 0.8rem; color: var(--grigio-700);">Da rinnovare</span></div>
+            </div>`;
+        }
+        if (contrattiInScadenza.length > 0) {
+            alertItems += `<div style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; background: #FFF8E1; border-radius: 8px; margin-bottom: 0.5rem;">
+                <i class="fas fa-clock" style="color: #FFCC00; font-size: 1.2rem;"></i>
+                <div><strong style="color: #E6A800;">${contrattiInScadenza.length} contratti in scadenza</strong><br><span style="font-size: 0.8rem; color: var(--grigio-700);">Prossimi 30 giorni</span></div>
+            </div>`;
+        }
+        if (scadenzeImminenti.length > 0) {
+            alertItems += `<div style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; background: #E3F2FD; border-radius: 8px; margin-bottom: 0.5rem;">
+                <i class="fas fa-calendar-check" style="color: #0288D1; font-size: 1.2rem;"></i>
+                <div><strong style="color: #0288D1;">${scadenzeImminenti.length} scadenze imminenti</strong><br><span style="font-size: 0.8rem; color: var(--grigio-700);">Prossimi 30 giorni</span></div>
+            </div>`;
+        }
+        if (clientiSenzaContratto.length > 0) {
+            alertItems += `<div style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; background: #FFF3F3; border-radius: 8px; margin-bottom: 0.5rem;">
+                <i class="fas fa-exclamation-triangle" style="color: #D32F2F; font-size: 1.2rem;"></i>
+                <div><strong style="color: #D32F2F;">${clientiSenzaContratto.length} clienti senza contratto</strong><br><span style="font-size: 0.8rem; color: var(--grigio-700);">Collegare contratto o verificare anagrafica</span></div>
+            </div>`;
+        }
+
+        if (!alertItems) {
+            alertItems = `<div style="text-align: center; padding: 2rem; color: var(--grigio-500);">
+                <i class="fas fa-check-circle" style="font-size: 2rem; color: var(--verde-700); margin-bottom: 0.5rem;"></i>
+                <p>Tutto in ordine! Nessun alert.</p>
+            </div>`;
+        }
+
+        return `<div style="background: white; border-radius: 12px; padding: 1.5rem; box-shadow: 0 2px 8px rgba(0,0,0,0.06);">
+            <h3 style="font-size: 1.1rem; font-weight: 700; color: var(--blu-700); margin-bottom: 1rem;">
+                <i class="fas fa-bell"></i> Attenzione Richiesta
+            </h3>
+            ${alertItems}
+        </div>`;
+    },
+
+    // === Riepilogo clienti per agente ===
+    renderAgenteClientiRecap(clienti, contratti, fatture) {
+        // Top 5 clienti per fatturato (note di credito sottraggono)
+        const clientiFatturato = clienti.map(c => {
+            const ids = new Set([c.id, c.clienteIdLegacy].filter(Boolean));
+            const fattCliente = fatture.filter(f => ids.has(f.clienteId) && (f.statoPagamento === 'PAGATA' || f.tipoDocumento === 'NOTA_DI_CREDITO'));
+            const totale = fattCliente.reduce((sum, f) => {
+                const isNC = f.tipoDocumento === 'NOTA_DI_CREDITO' || (f.numeroFatturaCompleto || '').startsWith('NC-');
+                return sum + (isNC ? -Math.abs(f.importoTotale || 0) : (f.importoTotale || 0));
+            }, 0);
+            return { ...c, fatturato: totale };
+        }).sort((a, b) => b.fatturato - a.fatturato).slice(0, 5);
+
+        let topHtml = '';
+        clientiFatturato.forEach((c, i) => {
+            topHtml += `<div style="display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0; ${i < clientiFatturato.length - 1 ? 'border-bottom: 1px solid var(--grigio-100);' : ''}">
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <span style="width: 24px; height: 24px; border-radius: 50%; background: var(--blu-100); color: var(--blu-700); display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 700;">${i + 1}</span>
+                    <a href="#" onclick="UI.showPage('dettaglio-cliente', '${c.id}')" style="color: var(--blu-700); text-decoration: none; font-size: 0.9rem; font-weight: 500;">${c.ragioneSociale || 'N/D'}</a>
+                </div>
+                <span style="font-weight: 700; color: var(--verde-700); font-size: 0.9rem;">${DataService.formatCurrency(c.fatturato)}</span>
+            </div>`;
+        });
+
+        if (!topHtml) {
+            topHtml = '<p style="text-align: center; color: var(--grigio-500); padding: 1rem;">Nessun dato disponibile</p>';
+        }
+
+        return `<div style="background: white; border-radius: 12px; padding: 1.5rem; box-shadow: 0 2px 8px rgba(0,0,0,0.06);">
+            <h3 style="font-size: 1.1rem; font-weight: 700; color: var(--blu-700); margin-bottom: 1rem;">
+                <i class="fas fa-trophy"></i> Top Clienti per Fatturato
+            </h3>
+            ${topHtml}
+            <div style="text-align: center; margin-top: 1rem;">
+                <button class="btn btn-primary btn-sm" onclick="UI.showPage('clienti')">
+                    <i class="fas fa-users"></i> Tutti i miei clienti (${clienti.length})
+                </button>
+            </div>
+        </div>`;
+    },
+
+    // === Fatture non pagate per agente ===
+    renderAgenteFattureNonPagate(fattureNonPagate, clienti) {
+        if (fattureNonPagate.length === 0) return '';
+
+        // Mappa clienteId -> nome per lookup veloce
+        const clienteMap = {};
+        clienti.forEach(c => {
+            if (c.id) clienteMap[c.id] = c.ragioneSociale;
+            if (c.clienteIdLegacy) clienteMap[c.clienteIdLegacy] = c.ragioneSociale;
+        });
+
+        // Ordina per data scadenza (più urgenti prima)
+        const ordinate = [...fattureNonPagate].sort((a, b) => {
+            const dA = a.dataScadenza ? new Date(a.dataScadenza) : new Date('2099-01-01');
+            const dB = b.dataScadenza ? new Date(b.dataScadenza) : new Date('2099-01-01');
+            return dA - dB;
+        }).slice(0, 10);
+
+        const oggi = new Date();
+        let righe = '';
+        ordinate.forEach(f => {
+            const scaduta = f.dataScadenza && new Date(f.dataScadenza) < oggi;
+            const nomeCliente = clienteMap[f.clienteId] || f.clienteRagioneSociale || 'N/D';
+            righe += `<div style="display: flex; justify-content: space-between; align-items: center; padding: 0.6rem 0.5rem; border-bottom: 1px solid var(--grigio-100); ${scaduta ? 'background: #FFF3F3; border-radius: 6px; margin-bottom: 2px;' : ''}">
+                <div style="flex: 1;">
+                    <a href="#" onclick="UI.showPage('dettaglio-fattura', '${f.id}')" style="color: var(--blu-700); text-decoration: none; font-weight: 600; font-size: 0.9rem;">${f.numeroFattura || f.numeroFatturaCompleto || 'N/D'}</a>
+                    <div style="font-size: 0.8rem; color: var(--grigio-500);">${nomeCliente} • Scad. ${DataService.formatDate(f.dataScadenza)}</div>
+                </div>
+                <div style="text-align: right;">
+                    <div style="font-weight: 700; color: ${scaduta ? '#D32F2F' : 'var(--grigio-700)'};">${DataService.formatCurrency(f.importoTotale)}</div>
+                    ${scaduta ? '<span class="badge badge-danger" style="font-size: 0.7rem;">SCADUTA</span>' : ''}
+                </div>
+            </div>`;
+        });
+
+        return `<div style="background: white; border-radius: 12px; padding: 1.5rem; box-shadow: 0 2px 8px rgba(0,0,0,0.06); margin-bottom: 1.5rem;">
+            <h3 style="font-size: 1.1rem; font-weight: 700; color: #D32F2F; margin-bottom: 1rem;">
+                <i class="fas fa-file-invoice-dollar"></i> Fatture da Incassare (${fattureNonPagate.length})
+            </h3>
+            ${righe}
+            ${fattureNonPagate.length > 10 ? `<div style="text-align: center; margin-top: 1rem;">
+                <button class="btn btn-primary btn-sm" onclick="UI.showPage('fatture')">
+                    <i class="fas fa-list"></i> Vedi tutte (${fattureNonPagate.length})
+                </button>
+            </div>` : ''}
+        </div>`;
+    },
+
+    // === Contratti in scadenza per agente ===
+    renderAgenteContrattiScadenza(contrattiInScadenza, contrattiScaduti) {
+        const tutti = [...contrattiScaduti, ...contrattiInScadenza];
+        if (tutti.length === 0) return '';
+
+        let righe = '';
+        tutti.forEach(c => {
+            const scaduto = c.stato === 'SCADUTO' || (c.dataScadenza && new Date(c.dataScadenza) < new Date());
+            righe += `<div style="display: flex; justify-content: space-between; align-items: center; padding: 0.6rem 0.5rem; border-bottom: 1px solid var(--grigio-100); ${scaduto ? 'background: #FFF8E1; border-radius: 6px; margin-bottom: 2px;' : ''}">
+                <div style="flex: 1;">
+                    <a href="#" onclick="UI.showPage('dettaglio-contratto', '${c.id}')" style="color: var(--blu-700); text-decoration: none; font-weight: 600; font-size: 0.9rem;">${c.numeroContratto || 'N/D'}</a>
+                    <div style="font-size: 0.8rem; color: var(--grigio-500);">${c.clienteRagioneSociale || 'N/D'} • Scad. ${DataService.formatDate(c.dataScadenza)}</div>
+                </div>
+                <span class="badge ${scaduto ? 'badge-danger' : 'badge-warning'}" style="font-size: 0.75rem;">${scaduto ? 'SCADUTO' : 'IN SCADENZA'}</span>
+            </div>`;
+        });
+
+        return `<div style="background: white; border-radius: 12px; padding: 1.5rem; box-shadow: 0 2px 8px rgba(0,0,0,0.06); margin-bottom: 1.5rem;">
+            <h3 style="font-size: 1.1rem; font-weight: 700; color: #E6A800; margin-bottom: 1rem;">
+                <i class="fas fa-file-contract"></i> Contratti da Rinnovare (${tutti.length})
+            </h3>
+            ${righe}
+            <div style="text-align: center; margin-top: 1rem;">
+                <button class="btn btn-primary btn-sm" onclick="UI.showPage('contratti')">
+                    <i class="fas fa-file-alt"></i> Tutti i contratti
+                </button>
+            </div>
+        </div>`;
+    },
+
+    // === Lista clienti per agente ===
+    renderAgenteListaClienti(clienti, contratti, fatture) {
+        if (clienti.length === 0) {
+            return `<div style="background: white; border-radius: 12px; padding: 2rem; text-align: center; color: var(--grigio-500);">
+                <i class="fas fa-users" style="font-size: 2rem; margin-bottom: 1rem;"></i>
+                <p>Nessun cliente associato al tuo profilo.</p>
+            </div>`;
+        }
+
+        // Ordina per stato (attivi prima, poi scaduti, cessati, senza contratto)
+        const ordineStato = { 'ATTIVO': 0, 'SCADUTO': 1, 'SOSPESO': 2, 'CESSATO': 3, 'SENZA_CONTRATTO': 4 };
+        const ordinati = [...clienti].sort((a, b) => {
+            const oA = ordineStato[a.statoContratto] ?? 99;
+            const oB = ordineStato[b.statoContratto] ?? 99;
+            return oA - oB || (a.ragioneSociale || '').localeCompare(b.ragioneSociale || '');
+        });
+
+        let righe = '';
+        ordinati.forEach(c => {
+            const ids = new Set([c.id, c.clienteIdLegacy].filter(Boolean));
+            const nContratti = contratti.filter(ct => ids.has(ct.clienteId)).length;
+            const nFatture = fatture.filter(f => ids.has(f.clienteId)).length;
+
+            const statoClass = c.statoContratto === 'ATTIVO' ? 'badge-success' :
+                               c.statoContratto === 'SCADUTO' ? 'badge-danger' :
+                               c.statoContratto === 'SENZA_CONTRATTO' ? 'badge-danger' :
+                               c.statoContratto === 'SOSPESO' ? 'badge-warning' : 'badge-secondary';
+            const tipoBadge = c.tipo === 'PA' ? '<span style="background: var(--blu-100); color: var(--blu-700); padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; font-weight: 700; margin-left: 6px;">PA</span>' :
+                              '<span style="background: var(--grigio-100); color: var(--grigio-700); padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; font-weight: 700; margin-left: 6px;">PR</span>';
+
+            righe += `<div style="display: flex; justify-content: space-between; align-items: center; padding: 0.7rem 0.5rem; border-bottom: 1px solid var(--grigio-100);">
+                <div style="flex: 1;">
+                    <a href="#" onclick="UI.showPage('dettaglio-cliente', '${c.id}')" style="color: var(--blu-700); text-decoration: none; font-weight: 600;">${c.ragioneSociale || 'N/D'}</a>${tipoBadge}
+                    <div style="font-size: 0.8rem; color: var(--grigio-500); margin-top: 2px;">${c.provincia || ''} • ${nContratti} contratti • ${nFatture} fatture</div>
+                </div>
+                <span class="badge ${statoClass}" style="font-size: 0.75rem;">${c.statoContratto || 'N/D'}</span>
+            </div>`;
+        });
+
+        return `<div style="background: white; border-radius: 12px; padding: 1.5rem; box-shadow: 0 2px 8px rgba(0,0,0,0.06); margin-bottom: 1.5rem;">
+            <h3 style="font-size: 1.1rem; font-weight: 700; color: var(--blu-700); margin-bottom: 1rem;">
+                <i class="fas fa-users"></i> I miei Clienti (${clienti.length})
+            </h3>
+            ${righe}
+        </div>`;
     }
 };

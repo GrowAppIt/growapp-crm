@@ -10,7 +10,13 @@ const Clienti = {
         UI.showLoading();
 
         try {
-            const clienti = await DataService.getClienti();
+            // Se l'utente è un agente, carica solo i propri clienti
+            // Usa getClientiConStato per calcolare lo stato dai contratti
+            const isAgente = AuthService.canViewOnlyOwnData();
+            const agenteNome = isAgente ? AuthService.getAgenteFilterName() : null;
+            const clienti = isAgente && agenteNome
+                ? await DataService.getClientiConStato({ agente: agenteNome })
+                : await DataService.getClientiConStato();
 
             const mainContent = document.getElementById('mainContent');
             mainContent.innerHTML = `
@@ -92,10 +98,10 @@ const Clienti = {
                         <select class="filter-select" id="filtroStato" onchange="Clienti.applyFilters()">
                             <option value="">Tutti gli stati</option>
                             <option value="ATTIVO">Attivi</option>
-                            <option value="PROSPECT">Prospect</option>
                             <option value="SCADUTO">Scaduti</option>
                             <option value="CESSATO">Cessati</option>
-                            <option value="DA_DEFINIRE">Da Definire</option>
+                            <option value="SOSPESO">Sospesi</option>
+                            <option value="SENZA_CONTRATTO">Senza Contratto</option>
                         </select>
                         <select class="filter-select" id="filtroTipo" onchange="Clienti.applyFilters()">
                             <option value="">Tutti i tipi</option>
@@ -109,6 +115,9 @@ const Clienti = {
                     </div>
                 </div>
 
+                <!-- Alert clienti senza contratto -->
+                ${this.renderAlertSenzaContratto(clienti)}
+
                 <!-- Lista Clienti -->
                 <div id="clientiList">
                     ${this.renderClientiList(clienti)}
@@ -120,6 +129,33 @@ const Clienti = {
             console.error('Errore rendering clienti:', error);
             UI.hideLoading();
         }
+    },
+
+    renderAlertSenzaContratto(clienti) {
+        const senzaContratto = clienti.filter(c => c.statoContratto === 'SENZA_CONTRATTO');
+        if (senzaContratto.length === 0) return '';
+
+        return `
+            <div style="background: #FFEBEE; border-left: 4px solid #D32F2F; padding: 1rem 1.5rem; margin-bottom: 1.5rem; border-radius: 8px;">
+                <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
+                    <i class="fas fa-exclamation-triangle" style="color: #D32F2F; font-size: 1.2rem;"></i>
+                    <strong style="color: #D32F2F; font-size: 1rem;">
+                        ${senzaContratto.length} client${senzaContratto.length === 1 ? 'e' : 'i'} senza contratto collegato
+                    </strong>
+                </div>
+                <p style="color: var(--grigio-700); font-size: 0.875rem; margin: 0;">
+                    Questi clienti non hanno nessun contratto associato. Verifica se manca il collegamento o se l'anagrafica va rimossa.
+                </p>
+                <div style="margin-top: 0.75rem; display: flex; flex-wrap: wrap; gap: 0.5rem;">
+                    ${senzaContratto.slice(0, 10).map(c => `
+                        <span onclick="UI.showPage('dettaglio-cliente', '${c.id}')" style="cursor: pointer; background: white; border: 1px solid #D32F2F; color: #D32F2F; padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.8rem; font-weight: 600;">
+                            ${c.ragioneSociale}
+                        </span>
+                    `).join('')}
+                    ${senzaContratto.length > 10 ? `<span style="color: #D32F2F; font-size: 0.8rem; padding: 0.25rem 0.5rem;">...e altri ${senzaContratto.length - 10}</span>` : ''}
+                </div>
+            </div>
+        `;
     },
 
     renderClientiList(clienti) {
@@ -158,9 +194,10 @@ const Clienti = {
                     </div>
 
                     <div style="display: flex; gap: 0.5rem; align-items: center;">
-                        <span class="badge ${badgeClass}">
-                            ${cliente.statoContratto?.replace('_', ' ') || 'N/A'}
-                        </span>
+                        ${cliente.statoContratto === 'SENZA_CONTRATTO'
+                            ? '<span class="badge" style="background: #D32F2F; color: white;"><i class="fas fa-exclamation-triangle"></i> SENZA CONTRATTO</span>'
+                            : `<span class="badge ${badgeClass}">${(cliente.statoContratto || 'N/A').replace('_', ' ')}</span>`
+                        }
                         <button
                             class="btn-icon"
                             onclick="Clienti.eliminaCliente('${cliente.id}', '${cliente.ragioneSociale.replace(/'/g, "\\'")}')"
@@ -190,15 +227,24 @@ const Clienti = {
         this.filtri.search = document.getElementById('searchInput').value.toLowerCase();
         this.filtri.tipo = document.getElementById('filtroTipo')?.value || '';
 
-        DataService.getClienti().then(clienti => {
+        // Se agente, carica solo i propri clienti (con stato calcolato dai contratti)
+        const _isAgente = AuthService.canViewOnlyOwnData();
+        const _agenteNome = _isAgente ? AuthService.getAgenteFilterName() : null;
+        const _getClientiPromise = _isAgente && _agenteNome
+            ? DataService.getClientiConStato({ agente: _agenteNome })
+            : DataService.getClientiConStato();
+
+        _getClientiPromise.then(clienti => {
             let filtrati = clienti;
 
             if (this.filtri.stato) {
                 filtrati = filtrati.filter(c => c.statoContratto === this.filtri.stato);
             }
 
-            if (this.filtri.agente) {
-                filtrati = filtrati.filter(c => c.agente === this.filtri.agente);
+            // Filtro agente solo se non è già un agente (l'agente vede solo i suoi)
+            if (this.filtri.agente && !_isAgente) {
+                const _filtroAgLower = this.filtri.agente.toLowerCase();
+                filtrati = filtrati.filter(c => (c.agente || '').toLowerCase() === _filtroAgLower);
             }
 
             if (this.filtri.tipo) {
@@ -219,14 +265,19 @@ const Clienti = {
 
     async exportData() {
         // Prendi i clienti attualmente visualizzati (con filtri applicati)
-        const clienti = await DataService.getClienti();
+        const _isAgente = AuthService.canViewOnlyOwnData();
+        const _agenteNome = _isAgente ? AuthService.getAgenteFilterName() : null;
+        const clienti = _isAgente && _agenteNome
+            ? await DataService.getClientiConStato({ agente: _agenteNome })
+            : await DataService.getClientiConStato();
         let filtrati = clienti;
 
         if (this.filtri.stato) {
             filtrati = filtrati.filter(c => c.statoContratto === this.filtri.stato);
         }
         if (this.filtri.agente) {
-            filtrati = filtrati.filter(c => c.agente === this.filtri.agente);
+            const _filtroAgLowerExp = this.filtri.agente.toLowerCase();
+            filtrati = filtrati.filter(c => (c.agente || '').toLowerCase() === _filtroAgLowerExp);
         }
         if (this.filtri.search) {
             filtrati = filtrati.filter(c =>

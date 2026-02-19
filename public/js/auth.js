@@ -40,14 +40,14 @@ const AuthService = {
             'view_company_info', 'manage_business_card' // ✅ Può vedere Growapp + modificare biglietto
         ],
         SVILUPPATORE: [
-            'view_dev_tasks', 'manage_app_content', 'view_apps',
+            'view_dev_tasks', 'manage_dev_tasks', 'manage_app_content', 'view_apps',
             'view_clients', // ✅ Aggiunto accesso CLIENTI
             'view_company_info', 'manage_business_card' // ✅ Impostazioni base
         ],
         AGENTE: [
             'view_own_data', 'view_clients', 'view_contracts', 'view_apps',
             'view_invoices', 'manage_clients', 'manage_contracts',
-            'view_dev_tasks', // ✅ Aggiunto accesso TASK
+            'view_dev_tasks', 'manage_dev_tasks', // ✅ TASK: visualizzazione + creazione
             'view_company_info', 'manage_business_card' // ✅ Impostazioni base
         ],
         CONTENT_MANAGER: [
@@ -60,7 +60,7 @@ const AuthService = {
             'view_all_data', 'manage_invoices', 'manage_payments', 'view_reports',
             'export_data', 'view_clients', 'view_contracts',
             'view_apps', // ✅ Aggiunto APP
-            'view_dev_tasks', // ✅ Aggiunto TASK
+            'view_dev_tasks', 'manage_dev_tasks', // ✅ Aggiunto TASK + creazione task
             'view_company_info', 'manage_business_card' // ✅ Impostazioni base
         ]
     },
@@ -203,6 +203,14 @@ const AuthService = {
         return this.getUserRole() === this.ROLES.AGENTE;
     },
 
+    // Ritorna il nome dell'agente per filtrare i dati (campo 'agente' nei clienti)
+    getAgenteFilterName() {
+        if (!this.currentUserData) return null;
+        const nome = this.currentUserData.nome || '';
+        const cognome = this.currentUserData.cognome || '';
+        return `${nome} ${cognome}`.trim() || null;
+    },
+
     isContentManager() {
         return [this.ROLES.SUPER_ADMIN, this.ROLES.ADMIN, this.ROLES.CONTENT_MANAGER].includes(this.getUserRole());
     },
@@ -227,6 +235,8 @@ const AuthService = {
             'dettaglio-fattura': ['*', 'view_all_data', 'manage_invoices', 'view_invoices', 'view_own_data'],
             'scadenzario': ['*', 'view_all_data', 'manage_payments', 'view_own_data'],
             'dettaglio-scadenza': ['*', 'view_all_data', 'manage_payments', 'view_own_data'],
+            'mappa': ['*', 'view_all_data', 'view_own_data', 'view_clients', 'manage_clients', 'view_apps', 'view_dev_tasks', 'manage_dev_tasks', 'view_company_info'],
+            'promemoria': ['*', 'view_all_data', 'view_own_data', 'view_clients', 'manage_clients', 'view_apps', 'view_dev_tasks', 'manage_dev_tasks', 'view_company_info'],
             'report': ['*', 'view_reports', 'view_all_data'],
             'impostazioni': ['*', 'manage_settings', 'manage_users', 'view_company_info', 'manage_business_card'] // ✅ Tutti possono vedere Impostazioni (almeno le card base)
         };

@@ -69,6 +69,12 @@ const UI = {
             case 'report':
                 Report.render();
                 break;
+            case 'mappa':
+                MappaClienti.render();
+                break;
+            case 'promemoria':
+                Promemoria.render();
+                break;
             case 'impostazioni':
                 Settings.render();
                 break;

@@ -125,11 +125,19 @@ const App = {
         // Aggiorna info utente
         UI.setUserInfo(AuthService.getUserName(), AuthService.getUserRole());
 
+        // Filtra menu in base ai permessi dell'utente
+        UI.initializeMenuByPermissions();
+
         // Inizializza sistema notifiche
         NotificationUI.init();
 
         // Verifica task in scadenza (notifiche automatiche)
         TaskService.checkAndNotifyDueTasks();
+
+        // Verifica promemoria in scadenza (badge nel menu)
+        if (typeof Promemoria !== 'undefined') {
+            Promemoria.checkPromemoriaInScadenza();
+        }
 
         // Carica pagina iniziale (controlla se c'è un hash nell'URL, altrimenti prima pagina accessibile)
         if (!this.handleHashChange()) {
@@ -168,8 +176,8 @@ const App = {
 
         // Lista pagine valide (tutte le pagine del CRM)
         const validPages = [
-            'dashboard', 'scadenzario', 'clienti', 'app', 'task',
-            'contratti', 'fatture', 'report', 'impostazioni',
+            'dashboard', 'scadenzario', 'clienti', 'mappa', 'app', 'task',
+            'contratti', 'fatture', 'report', 'promemoria', 'impostazioni',
             'dettaglio-cliente', 'dettaglio-contratto', 'dettaglio-app',
             'dettaglio-fattura', 'dettaglio-scadenza'
         ];
