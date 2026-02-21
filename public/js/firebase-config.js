@@ -43,4 +43,9 @@ const storage = firebase.storage();
 // Configura persistenza locale
 auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
 
+// Esponi su window per accesso da iframe (Monitor RSS)
+window.db = db;
+window.auth = auth;
+window.storage = storage;
+
 console.log('✅ Firebase inizializzato correttamente');

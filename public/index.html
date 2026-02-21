@@ -70,7 +70,9 @@
                 <button class="menu-toggle" id="menuToggle">
                     <i class="fas fa-bars"></i>
                 </button>
-                <img src="img/logo.png" alt="Comune.Digital" class="app-logo" style="height: 110px; max-width: 600px; object-fit: contain; filter: brightness(1.1);">
+                <a href="#" id="logoHome" style="display:flex;align-items:center;text-decoration:none;cursor:pointer;" title="Torna alla Dashboard">
+                    <img src="img/logo.png" alt="Comune.Digital" class="app-logo" style="height: 110px; max-width: 600px; object-fit: contain; filter: brightness(1.1);">
+                </a>
                 <div style="display: flex; align-items: center; gap: 1rem;">
                     <!-- Pulsante Notifiche -->
                     <button class="notification-toggle" id="notificationToggle" style="position: relative; background: none; border: none; color: white; font-size: 1.5rem; cursor: pointer;">
@@ -135,6 +137,9 @@
                 </li>
                 <li class="menu-item" data-page="task">
                     <i class="fas fa-tasks"></i> <span>Task</span>
+                </li>
+                <li class="menu-item" data-page="monitor-rss">
+                    <i class="fas fa-rss"></i> <span>Monitor RSS</span>
                 </li>
 
                 <!-- Sezione Utility -->
@@ -240,6 +245,7 @@
     <script src="js/pages/dettaglio-contratto.js"></script>
     <script src="js/pages/mappa-clienti.js"></script>
     <script src="js/pages/promemoria.js"></script>
+    <script src="js/pages/monitor-rss.js"></script>
     <script src="js/app.js"></script>
 </body>
 </html>

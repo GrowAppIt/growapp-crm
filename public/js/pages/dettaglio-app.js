@@ -51,20 +51,48 @@ const DettaglioApp = {
                         </div>
                         ` : ''}
                     </div>
-                    <h1 style="font-size: 2rem; font-weight: 700; color: var(--blu-700); margin-bottom: 0.5rem;">
-                        <i class="fas fa-mobile-alt"></i> ${app.nome}
-                    </h1>
-                    <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
-                        <span class="badge ${DataService.getStatoBadgeClass(app.statoApp)}">
-                            ${app.statoApp?.replace('_', ' ') || 'N/A'}
-                        </span>
-                        ${app.provincia ? `<span style="color: var(--grigio-500);"><i class="fas fa-map-marker-alt"></i> ${app.provincia}</span>` : ''}
-                        ${clientePagante ? `<span style="color: var(--grigio-500);"><i class="fas fa-building"></i> ${clientePagante.ragioneSociale}</span>` : ''}
-                        ${(() => {
-                            const agente = clientePagante?.agente || app.agente;
-                            return agente ? `<span style="color: var(--blu-500);"><i class="fas fa-user-tie"></i> ${agente}</span>` : '';
-                        })()}
+                    <!-- Header con icona app -->
+                    <div style="display: flex; align-items: center; gap: 1.25rem; margin-bottom: 0.5rem;">
+                        ${app.iconaUrl ? `
+                            <img src="${app.iconaUrl}" alt="${app.nome}" style="width: 72px; height: 72px; border-radius: 16px; object-fit: cover; box-shadow: 0 2px 10px rgba(0,0,0,0.18); border: 1px solid rgba(0,0,0,0.08); flex-shrink: 0;" />
+                        ` : `
+                            <div style="width: 72px; height: 72px; border-radius: 16px; background: var(--blu-100); display: flex; align-items: center; justify-content: center; flex-shrink: 0; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
+                                <i class="fas fa-mobile-alt" style="font-size: 2rem; color: var(--blu-700);"></i>
+                            </div>
+                        `}
+                        <div style="flex: 1;">
+                            <h1 style="font-size: 2rem; font-weight: 700; color: var(--blu-700); margin-bottom: 0.25rem;">
+                                ${app.nome}
+                            </h1>
+                            <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+                                <span class="badge ${DataService.getStatoBadgeClass(app.statoApp)}">
+                                    ${app.statoApp?.replace('_', ' ') || 'N/A'}
+                                </span>
+                                ${app.provincia ? `<span style="color: var(--grigio-500);"><i class="fas fa-map-marker-alt"></i> ${app.provincia}</span>` : ''}
+                                ${clientePagante ? `<span style="color: var(--grigio-500);"><i class="fas fa-building"></i> ${clientePagante.ragioneSociale}</span>` : ''}
+                                ${(() => {
+                                    const agente = clientePagante?.agente || app.agente;
+                                    return agente ? `<span style="color: var(--blu-500);"><i class="fas fa-user-tie"></i> ${agente}</span>` : '';
+                                })()}
+                            </div>
+                        </div>
                     </div>
+
+                    <!-- Link App e Cruscotto -->
+                    ${app.urlSito || app.urlCruscotto ? `
+                    <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; margin-top: 0.75rem;">
+                        ${app.urlSito ? `
+                            <a href="${app.urlSito}" target="_blank" rel="noopener" style="display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.5rem 1rem; background: var(--blu-700); color: white; border-radius: 8px; text-decoration: none; font-size: 0.875rem; font-weight: 600; transition: background 0.2s;" onmouseover="this.style.background='var(--blu-500)'" onmouseout="this.style.background='var(--blu-700)'">
+                                <i class="fas fa-external-link-alt"></i> Vai all'App
+                            </a>
+                        ` : ''}
+                        ${app.urlCruscotto ? `
+                            <a href="${app.urlCruscotto}" target="_blank" rel="noopener" style="display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.5rem 1rem; background: var(--verde-700); color: white; border-radius: 8px; text-decoration: none; font-size: 0.875rem; font-weight: 600; transition: background 0.2s;" onmouseover="this.style.background='var(--verde-500)'" onmouseout="this.style.background='var(--verde-700)'">
+                                <i class="fas fa-cogs"></i> Gestione App
+                            </a>
+                        ` : ''}
+                    </div>
+                    ` : ''}
                 </div>
 
                 <!-- Tabs Navigation -->
@@ -130,6 +158,7 @@ const DettaglioApp = {
         if (this.currentTab === 'info') {
             return `
                 <div style="display: grid; gap: 1.5rem;">
+                    ${AuthService.isSuperAdmin() ? this.renderConfigurazioneApp(app) : ''}
                     ${this.renderDatiComune(app)}
                     ${this.renderGestioneCommerciale(app, clientePagante)}
                     ${this.renderPubblicazioneStore(app)}
@@ -1095,6 +1124,160 @@ const DettaglioApp = {
         } catch (error) {
             console.error('Errore eliminazione app:', error);
             UI.showError('Errore nell\'eliminazione: ' + error.message);
+        }
+    },
+
+    // =====================================================
+    // CONFIGURAZIONE APP (Solo Super Admin)
+    // =====================================================
+
+    renderConfigurazioneApp(app) {
+        const defaultUrlSito = app.nome ? `https://${app.nome.toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9]/g, '')}.comune.digital` : '';
+        const defaultUrlCruscotto = defaultUrlSito ? `${defaultUrlSito}/manage` : '';
+
+        return `
+            <div class="card" style="border: 2px solid var(--blu-300);">
+                <div class="card-header" style="background: var(--blu-100);">
+                    <h2 class="card-title" style="color: var(--blu-700);">
+                        <i class="fas fa-sliders-h"></i> Configurazione App
+                        <span style="font-size: 0.7rem; background: var(--blu-700); color: white; padding: 0.15rem 0.5rem; border-radius: 4px; margin-left: 0.5rem; vertical-align: middle;">SUPER ADMIN</span>
+                    </h2>
+                </div>
+                <div class="card-body" style="padding: 1.5rem;">
+                    <!-- Icona App -->
+                    <div style="margin-bottom: 1.5rem;">
+                        <label style="display: block; font-size: 0.85rem; font-weight: 700; color: var(--grigio-700); margin-bottom: 0.75rem;">
+                            <i class="fas fa-image"></i> Icona App
+                        </label>
+                        <div style="display: flex; align-items: center; gap: 1rem;">
+                            ${app.iconaUrl ? `
+                                <img id="configIconaPreview" src="${app.iconaUrl}" alt="Icona" style="width: 64px; height: 64px; border-radius: 14px; object-fit: cover; box-shadow: 0 2px 6px rgba(0,0,0,0.1);" />
+                            ` : `
+                                <div id="configIconaPreview" style="width: 64px; height: 64px; border-radius: 14px; background: var(--grigio-100); display: flex; align-items: center; justify-content: center; border: 2px dashed var(--grigio-300);">
+                                    <i class="fas fa-camera" style="color: var(--grigio-400); font-size: 1.2rem;"></i>
+                                </div>
+                            `}
+                            <div>
+                                <input type="file" id="configIconaFile" accept="image/*" style="display: none;" onchange="DettaglioApp.onIconaSelected()" />
+                                <button class="btn btn-secondary btn-sm" onclick="document.getElementById('configIconaFile').click()">
+                                    <i class="fas fa-upload"></i> ${app.iconaUrl ? 'Cambia Icona' : 'Carica Icona'}
+                                </button>
+                                <p style="font-size: 0.75rem; color: var(--grigio-500); margin-top: 0.25rem;">Immagine quadrata, max 2MB</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- URL Sito e Cruscotto -->
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem;">
+                        <div>
+                            <label style="display: block; font-size: 0.85rem; font-weight: 700; color: var(--grigio-700); margin-bottom: 0.35rem;">
+                                <i class="fas fa-globe"></i> URL Sito Pubblico
+                            </label>
+                            <input type="url" id="configUrlSito" value="${app.urlSito || defaultUrlSito}" placeholder="https://nomecomune.comune.digital"
+                                style="width: 100%; padding: 0.6rem; border: 1px solid var(--grigio-300); border-radius: 6px; font-family: 'Titillium Web', sans-serif; font-size: 0.9rem;" />
+                        </div>
+                        <div>
+                            <label style="display: block; font-size: 0.85rem; font-weight: 700; color: var(--grigio-700); margin-bottom: 0.35rem;">
+                                <i class="fas fa-cogs"></i> URL Cruscotto Gestione
+                            </label>
+                            <input type="url" id="configUrlCruscotto" value="${app.urlCruscotto || defaultUrlCruscotto}" placeholder="https://nomecomune.comune.digital/manage"
+                                style="width: 100%; padding: 0.6rem; border: 1px solid var(--grigio-300); border-radius: 6px; font-family: 'Titillium Web', sans-serif; font-size: 0.9rem;" />
+                        </div>
+                    </div>
+
+                    <!-- Pulsante Salva -->
+                    <button id="btnSalvaConfigApp" class="btn btn-primary" onclick="DettaglioApp.salvaConfigApp()" style="width: 100%;">
+                        <i class="fas fa-save"></i> Salva Configurazione
+                    </button>
+                </div>
+            </div>
+        `;
+    },
+
+    // Preview icona selezionata
+    onIconaSelected() {
+        const fileInput = document.getElementById('configIconaFile');
+        if (!fileInput.files || !fileInput.files[0]) return;
+
+        const file = fileInput.files[0];
+
+        // Validazione
+        if (file.size > 2 * 1024 * 1024) {
+            UI.showError('Immagine troppo grande (max 2MB)');
+            fileInput.value = '';
+            return;
+        }
+        if (!file.type.startsWith('image/')) {
+            UI.showError('Seleziona un file immagine');
+            fileInput.value = '';
+            return;
+        }
+
+        // Preview
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const preview = document.getElementById('configIconaPreview');
+            if (preview.tagName === 'IMG') {
+                preview.src = e.target.result;
+            } else {
+                preview.outerHTML = `<img id="configIconaPreview" src="${e.target.result}" alt="Icona" style="width: 64px; height: 64px; border-radius: 14px; object-fit: cover; box-shadow: 0 2px 6px rgba(0,0,0,0.1);" />`;
+            }
+        };
+        reader.readAsDataURL(file);
+    },
+
+    /**
+     * Salva configurazione app: icona (su Storage) + URL (su Firestore)
+     */
+    async salvaConfigApp() {
+        const btn = document.getElementById('btnSalvaConfigApp');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Salvataggio...';
+
+        try {
+            const urlSito = document.getElementById('configUrlSito')?.value?.trim() || '';
+            const urlCruscotto = document.getElementById('configUrlCruscotto')?.value?.trim() || '';
+            const fileInput = document.getElementById('configIconaFile');
+            let iconaUrl = this.app.iconaUrl || '';
+
+            // Upload icona se selezionata
+            if (fileInput.files && fileInput.files[0]) {
+                const file = fileInput.files[0];
+                const timestamp = Date.now();
+                const ext = file.name.split('.').pop().toLowerCase();
+                const storagePath = `documenti/app/${this.appId}/icona_${timestamp}.${ext}`;
+
+                const storageRef = storage.ref();
+                const fileRef = storageRef.child(storagePath);
+                await fileRef.put(file, { contentType: file.type });
+                iconaUrl = await fileRef.getDownloadURL();
+            }
+
+            // Salva su Firestore
+            await db.collection('app').doc(this.appId).update({
+                iconaUrl: iconaUrl,
+                urlSito: urlSito,
+                urlCruscotto: urlCruscotto
+            });
+
+            // Aggiorna dati locali
+            this.app.iconaUrl = iconaUrl;
+            this.app.urlSito = urlSito;
+            this.app.urlCruscotto = urlCruscotto;
+
+            UI.showSuccess('Configurazione salvata!');
+
+            // Ricarica la pagina per aggiornare header
+            this.render(this.appId);
+
+        } catch (error) {
+            console.error('Errore salvataggio configurazione app:', error);
+            UI.showError('Errore nel salvataggio: ' + error.message);
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-save"></i> Salva Configurazione';
+            }
         }
     }
 };

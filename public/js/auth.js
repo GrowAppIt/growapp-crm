@@ -248,7 +248,8 @@ const AuthService = {
             'mappa': ['*', 'view_all_data', 'view_own_data', 'view_clients', 'manage_clients', 'view_apps', 'view_dev_tasks', 'manage_dev_tasks', 'view_company_info'],
             'promemoria': ['*', 'view_all_data', 'view_own_data', 'view_clients', 'manage_clients', 'view_apps', 'view_dev_tasks', 'manage_dev_tasks', 'view_company_info'],
             'report': ['*', 'view_reports', 'view_all_data'],
-            'impostazioni': ['*', 'manage_settings', 'manage_users', 'view_company_info', 'manage_business_card'] // ✅ Tutti possono vedere Impostazioni (almeno le card base)
+            'impostazioni': ['*', 'manage_settings', 'manage_users', 'view_company_info', 'manage_business_card'], // ✅ Tutti possono vedere Impostazioni (almeno le card base)
+            'monitor-rss': ['*', 'view_all_data', 'view_own_data', 'view_clients', 'view_apps', 'manage_clients', 'manage_apps', 'manage_app_content', 'view_dev_tasks', 'manage_dev_tasks', 'view_company_info'] // Monitor RSS visibile a TUTTI i ruoli
         };
 
         const requiredPermissions = pagePermissions[pageName] || [];
@@ -289,3 +290,6 @@ const AuthService = {
         });
     }
 };
+
+// Esponi su window per accesso da iframe (Monitor RSS)
+window.AuthService = AuthService;

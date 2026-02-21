@@ -26,6 +26,15 @@ const App = {
         }
 
         // Menu toggle
+        // Logo → Dashboard
+        const logoHome = document.getElementById('logoHome');
+        if (logoHome) {
+            logoHome.addEventListener('click', (e) => {
+                e.preventDefault();
+                UI.showPage('dashboard');
+            });
+        }
+
         const menuToggle = document.getElementById('menuToggle');
         if (menuToggle) {
             menuToggle.addEventListener('click', () => UI.toggleSidebar());

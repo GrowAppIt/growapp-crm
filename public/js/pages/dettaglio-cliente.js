@@ -9,13 +9,16 @@ const DettaglioCliente = {
         UI.showLoading();
 
         try {
-            // Carica dati cliente, fatture, contratti e documenti
-            const [cliente, fatture, contratti, documenti] = await Promise.all([
+            // Carica dati cliente, fatture, contratti, documenti e app
+            const [cliente, fatture, contratti, documenti, appSnapshot] = await Promise.all([
                 DataService.getCliente(clienteId),
                 DataService.getFattureCliente(clienteId),
                 DataService.getContrattiCliente(clienteId),
-                DocumentService.getDocumenti('cliente', clienteId)
+                DocumentService.getDocumenti('cliente', clienteId),
+                db.collection('app').where('clientePaganteId', '==', clienteId).get()
             ]);
+            const appCliente = appSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+            this._appCliente = appCliente;
 
             if (!cliente) {
                 UI.hideLoading();
@@ -330,6 +333,47 @@ const DettaglioCliente = {
                                 ${DataService.formatDate(cliente.dataProssimaFattura)}
                             </div>
                         </div>
+                    ` : ''}
+
+                    <!-- App Associate -->
+                    ${this._appCliente && this._appCliente.length > 0 ? `
+                    <div style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--grigio-300);">
+                        <h3 style="font-size: 0.95rem; font-weight: 700; color: var(--blu-700); margin-bottom: 0.75rem;">
+                            <i class="fas fa-mobile-alt"></i> App Associate (${this._appCliente.length})
+                        </h3>
+                        <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                            ${this._appCliente.map(a => `
+                                <div style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; background: var(--grigio-100); border-radius: 10px;">
+                                    ${a.iconaUrl
+                                        ? `<img src="${a.iconaUrl}" alt="${a.nome}" style="width: 44px; height: 44px; border-radius: 10px; object-fit: cover; flex-shrink: 0; box-shadow: 0 2px 6px rgba(0,0,0,0.18); border: 1px solid rgba(0,0,0,0.08);" />`
+                                        : `<div style="width: 44px; height: 44px; border-radius: 10px; background: var(--blu-100); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                                            <i class="fas fa-mobile-alt" style="color: var(--blu-700);"></i>
+                                          </div>`
+                                    }
+                                    <div style="flex: 1; min-width: 0;">
+                                        <div style="font-weight: 600; font-size: 0.9rem; color: var(--grigio-900); cursor: pointer;" onclick="UI.showPage('dettaglio-app', '${a.id}')">
+                                            ${a.nome}
+                                        </div>
+                                        <span class="badge ${DataService.getStatoBadgeClass(a.statoApp)}" style="font-size: 0.7rem; margin-top: 0.15rem;">
+                                            ${a.statoApp?.replace('_', ' ') || 'N/A'}
+                                        </span>
+                                    </div>
+                                    <div style="display: flex; gap: 0.5rem; flex-shrink: 0;">
+                                        ${a.urlSito ? `
+                                            <a href="${a.urlSito}" target="_blank" rel="noopener" title="Vedi l'app" style="display: flex; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 8px; background: var(--blu-700); color: white; text-decoration: none; font-size: 0.8rem;" onmouseover="this.style.background='var(--blu-500)'" onmouseout="this.style.background='var(--blu-700)'">
+                                                <i class="fas fa-external-link-alt"></i>
+                                            </a>
+                                        ` : ''}
+                                        ${a.urlCruscotto ? `
+                                            <a href="${a.urlCruscotto}" target="_blank" rel="noopener" title="Vedi il cruscotto dell'app" style="display: flex; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 8px; background: var(--verde-700); color: white; text-decoration: none; font-size: 0.8rem;" onmouseover="this.style.background='var(--verde-500)'" onmouseout="this.style.background='var(--verde-700)'">
+                                                <i class="fas fa-cogs"></i>
+                                            </a>
+                                        ` : ''}
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
                     ` : ''}
 
                     <!-- Pulsante Genera Comunicazione -->

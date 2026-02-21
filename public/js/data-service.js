@@ -941,12 +941,10 @@ const DataService = {
             // 5. Filtra contratti per clienti dell'agente
             const contratti = tuttiContratti.filter(c => clienteIds.has(c.clienteId));
 
-            // 6. Filtra app per clienti dell'agente
+            // 6. Filtra app per clienti dell'agente (solo match esatti su ID)
             const app = tutteApp.filter(a => {
                 if (a.clientePaganteId && clienteIds.has(a.clientePaganteId)) return true;
                 if (a.clienteId && clienteIds.has(a.clienteId)) return true;
-                const nomiClienti = clienti.map(c => (c.ragioneSociale || '').toLowerCase());
-                if (a.comune && nomiClienti.some(n => n.includes(a.comune.toLowerCase()) || a.comune.toLowerCase().includes(n))) return true;
                 return false;
             });
 

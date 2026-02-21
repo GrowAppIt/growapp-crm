@@ -1290,6 +1290,38 @@ const Dashboard = {
             ${this.renderAgenteListaClienti(clienti, contratti, fatture)}
 
             <!-- NUOVI WIDGET: Prossime Attività, Task Aperti, Azioni Rapide -->
+            <!-- LE MIE APP -->
+            ${app.length > 0 ? `
+            <div style="background: white; border-radius: 12px; padding: 1.5rem; box-shadow: 0 2px 8px rgba(0,0,0,0.06); margin-top: 1.5rem;">
+                <h3 style="font-size: 1rem; font-weight: 700; color: var(--blu-700); margin-bottom: 1rem;">
+                    <i class="fas fa-mobile-alt"></i> Le Mie App (${app.length})
+                </h3>
+                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 0.75rem;">
+                    ${app.map(a => {
+                        const clienteApp = clienti.find(c => c.id === a.clientePaganteId);
+                        return `
+                        <div style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; background: var(--grigio-100); border-radius: 10px; cursor: pointer;" onclick="UI.showPage('dettaglio-app', '${a.id}')">
+                            ${a.iconaUrl
+                                ? `<img src="${a.iconaUrl}" alt="${a.nome}" style="width: 40px; height: 40px; border-radius: 10px; object-fit: cover; flex-shrink: 0; box-shadow: 0 2px 6px rgba(0,0,0,0.18); border: 1px solid rgba(0,0,0,0.08);" />`
+                                : `<div style="width: 40px; height: 40px; border-radius: 10px; background: var(--blu-100); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                                    <i class="fas fa-mobile-alt" style="color: var(--blu-700); font-size: 0.9rem;"></i>
+                                  </div>`
+                            }
+                            <div style="flex: 1; min-width: 0;">
+                                <div style="font-weight: 600; font-size: 0.85rem; color: var(--grigio-900); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${a.nome}</div>
+                                <div style="font-size: 0.7rem; color: var(--grigio-500);">${clienteApp?.ragioneSociale || ''}</div>
+                            </div>
+                            <div style="display: flex; gap: 0.35rem; flex-shrink: 0;">
+                                ${a.urlSito ? `<a href="${a.urlSito}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="Vedi l'app" style="display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 6px; background: var(--blu-700); color: white; text-decoration: none; font-size: 0.7rem;"><i class="fas fa-external-link-alt"></i></a>` : ''}
+                                ${a.urlCruscotto ? `<a href="${a.urlCruscotto}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="Cruscotto" style="display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 6px; background: var(--verde-700); color: white; text-decoration: none; font-size: 0.7rem;"><i class="fas fa-cogs"></i></a>` : ''}
+                            </div>
+                        </div>
+                        `;
+                    }).join('')}
+                </div>
+            </div>
+            ` : ''}
+
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem; margin-top: 1.5rem;">
                 <!-- PROSSIME ATTIVITÀ (7gg) -->
                 <div id="widgetProssimeAttivita" style="background: white; border-radius: 12px; padding: 1.5rem; box-shadow: 0 2px 8px rgba(0,0,0,0.06);">

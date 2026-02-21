@@ -327,8 +327,11 @@ const GestioneApp = {
             <div class="list-item" style="display: grid; grid-template-columns: 1fr auto auto; gap: 1rem; align-items: center;">
                 <div onclick="UI.showPage('dettaglio-app', '${app.id}')" style="cursor: pointer;">
                     <div style="display: flex; align-items: center; gap: 0.75rem;">
-                        <div style="width: 40px; height: 40px; background: var(--blu-100); border-radius: 8px; display: flex; align-items: center; justify-content: center; position: relative;">
-                            <i class="fas fa-mobile-alt" style="color: var(--blu-700);"></i>
+                        <div style="width: 40px; height: 40px; border-radius: 10px; overflow: hidden; display: flex; align-items: center; justify-content: center; position: relative; flex-shrink: 0; box-shadow: 0 1px 4px rgba(0,0,0,0.15); ${app.iconaUrl ? '' : 'background: var(--blu-100);'}">
+                            ${app.iconaUrl
+                                ? `<img src="${app.iconaUrl}" alt="${app.nome}" style="width: 40px; height: 40px; object-fit: cover;" />`
+                                : `<i class="fas fa-mobile-alt" style="color: var(--blu-700);"></i>`
+                            }
                             ${numAlert > 0 ? `
                             <span style="position: absolute; top: -4px; right: -4px; width: 18px; height: 18px; background: var(--rosso-errore); color: white; border-radius: 50%; font-size: 0.65rem; font-weight: 700; display: flex; align-items: center; justify-content: center; border: 2px solid white;">
                                 ${numAlert}

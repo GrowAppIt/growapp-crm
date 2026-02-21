@@ -1,0 +1,2911 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Growapp – Monitor RSS Comuni</title>
+  <!-- Titillium Web -->
+  <link href="https://fonts.googleapis.com/css2?family=Titillium+Web:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+  <style>
+    :root{
+      /* Palette Comune.Digital */
+      --primary:#145284;
+      --primary-dark:#0D3A5C;
+      --primary-hover:#2E6DA8;
+      --primary-light:#7BA7CE;
+      --primary-bg:#D1E2F2;
+      --success:#3CA434;
+      --success-dark:#2A752F;
+      --success-light:#E2F8DE;
+      --error:#D32F2F;
+      --error-light:#fdeaea;
+      --warning:#FFCC00;
+      --info:#0288D1;
+      --bg:#F5F5F5;
+      --card:#ffffff;
+      --border:#D9D9D9;
+      --text:#1E1E1E;
+      --text-muted:#4A4A4A;
+      --shadow: 0 2px 8px rgba(20,82,132,.08);
+      --shadow-hover: 0 4px 16px rgba(20,82,132,.12);
+    }
+    *{box-sizing:border-box; margin:0; padding:0;}
+    html,body{height:100%}
+    body{
+      font-family:"Titillium Web", system-ui, -apple-system, sans-serif;
+      color:var(--text);
+      background:var(--bg);
+      -webkit-font-smoothing:antialiased;
+      line-height:1.5;
+    }
+    .container{
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 20px 24px;
+    }
+
+    /* LOGIN SCREEN */
+    .login-screen{
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, #145284 0%, #0D3A5C 100%);
+      padding: 20px;
+    }
+    .login-box{
+      background: #fff;
+      border-radius: 20px;
+      padding: 48px 40px;
+      box-shadow: 0 20px 60px rgba(0,0,0,.3);
+      text-align: center;
+      max-width: 440px;
+      width: 100%;
+    }
+    .login-logo{
+      width: 80px;
+      height: 80px;
+      background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+      border-radius: 20px;
+      display: grid;
+      place-items: center;
+      margin: 0 auto 24px;
+      font-size: 36px;
+      color: #fff;
+    }
+    .login-box h1{
+      font-size: 28px;
+      font-weight: 900;
+      color: var(--primary);
+      margin: 0 0 8px;
+    }
+    .login-box p{
+      color: var(--text-muted);
+      font-size: 15px;
+      margin: 0 0 32px;
+    }
+    .login-btn{
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      width: 100%;
+      padding: 16px 24px;
+      background: #fff;
+      border: 2px solid var(--border);
+      border-radius: 12px;
+      font-family: inherit;
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--text);
+      cursor: pointer;
+      transition: all .2s ease;
+      box-shadow: 0 4px 12px rgba(0,0,0,.08);
+    }
+    .login-btn:hover{
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(0,0,0,.12);
+      border-color: var(--primary);
+    }
+    .login-btn img{
+      width: 24px;
+      height: 24px;
+    }
+
+    /* HEADER */
+    header{
+      background: linear-gradient(135deg, var(--primary-dark), var(--primary));
+      padding: 16px 0;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 4px 20px rgba(13,58,92,.2);
+    }
+    .header-main{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:16px;
+      flex-wrap:wrap;
+    }
+    .header-brand{
+      display:flex;
+      align-items:center;
+      gap:14px;
+      min-width: 280px;
+    }
+    .header-icon{
+      width:48px;
+      height:48px;
+      background: rgba(255,255,255,.15);
+      backdrop-filter: blur(10px);
+      border-radius: 14px;
+      display:grid;
+      place-items:center;
+      color:#fff;
+      font-size:22px;
+      flex-shrink:0;
+      border: 1px solid rgba(255,255,255,.2);
+    }
+    .header-text h1{
+      font-size: 20px;
+      font-weight: 900;
+      color: #fff;
+      margin:0 0 2px;
+      letter-spacing:.3px;
+    }
+    .header-text .subtitle{
+      font-size: 13px;
+      color: rgba(255,255,255,.7);
+      font-weight: 400;
+    }
+    .header-actions{
+      display:flex;
+      gap:10px;
+      align-items:center;
+    }
+    .user-info{
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 14px;
+      background: rgba(255,255,255,.12);
+      backdrop-filter: blur(10px);
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,.2);
+    }
+    .user-avatar{
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      border: 2px solid rgba(255,255,255,.5);
+      box-shadow: 0 2px 8px rgba(0,0,0,.15);
+    }
+    .user-name{
+      font-size: 13px;
+      font-weight: 700;
+      color: #fff;
+    }
+    .btn{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding:10px 20px;
+      border:none;
+      border-radius: 10px;
+      font-family:inherit;
+      font-size:14px;
+      font-weight:700;
+      cursor:pointer;
+      transition: all .2s ease;
+      white-space:nowrap;
+    }
+    .btn-primary{
+      background: linear-gradient(135deg, var(--primary), var(--primary-hover));
+      color:#fff;
+      box-shadow: 0 3px 12px rgba(20,82,132,.25);
+    }
+    .btn-primary:hover{
+      background: linear-gradient(135deg, var(--primary-dark), var(--primary));
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(20,82,132,.3);
+    }
+    .btn-secondary{
+      background: #fff;
+      color: var(--primary);
+      border: 1.5px solid var(--border);
+    }
+    .btn-secondary:hover{
+      background: var(--primary-bg);
+      border-color: var(--primary);
+      transform: translateY(-1px);
+    }
+    .btn-toggle{
+      background: transparent;
+      border: 2px solid var(--border);
+      color: var(--text-muted);
+      padding: 8px 14px;
+      border-radius:8px;
+    }
+    .btn-toggle.active{
+      background: linear-gradient(135deg, var(--primary), var(--primary-hover));
+      border-color: var(--primary);
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(20,82,132,.2);
+    }
+
+    /* HEADER BUTTONS — adattati per sfondo scuro */
+    header .btn-toggle{
+      background: rgba(255,255,255,.1);
+      border-color: rgba(255,255,255,.25);
+      color: #fff;
+    }
+    header .btn-toggle:hover{
+      background: rgba(255,255,255,.2);
+      border-color: rgba(255,255,255,.4);
+    }
+    header .btn-toggle.active{
+      background: #fff;
+      border-color: #fff;
+      color: var(--primary);
+    }
+    header .btn-secondary{
+      background: rgba(255,255,255,.1);
+      border-color: rgba(255,255,255,.2);
+      color: #fff;
+    }
+    header .btn-secondary:hover{
+      background: rgba(255,255,255,.2);
+      border-color: rgba(255,255,255,.4);
+      transform: translateY(-1px);
+    }
+    header .btn-primary{
+      background: #fff;
+      color: var(--primary);
+      box-shadow: 0 2px 8px rgba(0,0,0,.15);
+    }
+    header .btn-primary:hover{
+      background: #f0f3f7;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 16px rgba(0,0,0,.2);
+    }
+
+    /* KPI dentro header — sfondo semi-trasparente */
+    header .kpi{
+      background: rgba(255,255,255,.1);
+      border-color: rgba(255,255,255,.15);
+    }
+    header .kpi:hover{
+      background: rgba(255,255,255,.18);
+    }
+    header .kpi-value{
+      color: #fff;
+    }
+    header .kpi-label{
+      color: rgba(255,255,255,.7);
+    }
+    header .kpi.error .kpi-value{color: #ff8a80;}
+    header .kpi.success .kpi-value{color: #a4e89a;}
+
+    /* Progress bar dentro header */
+    header .progress-bar{
+      background: rgba(255,255,255,.15);
+    }
+    header .progress-text{
+      color: rgba(255,255,255,.6);
+    }
+
+    /* KPI */
+    .kpi-bar{
+      display:flex;
+      gap:10px;
+      padding:16px 0 8px;
+      overflow-x: auto;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+    }
+    .kpi-bar::-webkit-scrollbar{display:none;}
+    .kpi{
+      display:inline-flex;
+      align-items:center;
+      gap:10px;
+      padding:12px 18px;
+      background: var(--card);
+      border-radius: 10px;
+      border:1px solid var(--border);
+      white-space:nowrap;
+      font-size:13px;
+      box-shadow: 0 1px 4px rgba(20,82,132,.04);
+      transition: all .15s ease;
+    }
+    .kpi:hover{
+      box-shadow: 0 4px 12px rgba(20,82,132,.08);
+      transform: translateY(-1px);
+    }
+    .kpi-value{
+      font-weight:900;
+      font-size:20px;
+      color: var(--primary);
+      line-height:1;
+    }
+    .kpi-label{
+      color: var(--text-muted);
+      font-weight:600;
+      font-size:12px;
+    }
+    .kpi.error .kpi-value{color: var(--error);}
+    .kpi.success .kpi-value{color: var(--success);}
+
+    /* FILTERS PANEL */
+    .filters-panel{
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      margin: 20px 0;
+      overflow: hidden;
+      box-shadow: 0 2px 12px rgba(20,82,132,.05);
+    }
+    .filters-toggle{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      padding:16px 20px;
+      cursor:pointer;
+      user-select:none;
+      background: #fafbfc;
+      border-bottom: 1px solid var(--border);
+      transition: background .15s ease;
+    }
+    .filters-toggle:hover{
+      background: var(--primary-bg);
+    }
+    .filters-toggle-left{
+      display:flex;
+      align-items:center;
+      gap:10px;
+    }
+    .filters-toggle-left i{
+      color: var(--primary);
+      font-size:16px;
+    }
+    .filters-toggle-left strong{
+      font-weight:700;
+      color: var(--text);
+      font-size:14px;
+    }
+    .filters-toggle-right{
+      display:flex;
+      align-items:center;
+      gap:6px;
+      font-size:12px;
+      color: var(--text-muted);
+    }
+    .filters-toggle-right i{
+      transition: transform .2s ease;
+    }
+    .filters-toggle.open .filters-toggle-right i{
+      transform: rotate(180deg);
+    }
+    .filters-content{
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height .3s ease;
+    }
+    .filters-content.open{
+      max-height: 800px;
+    }
+    .filters-grid{
+      padding:16px;
+      display:grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap:14px;
+    }
+    .filter-group{
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+    }
+    .filter-label{
+      font-size:13px;
+      font-weight:700;
+      color: var(--text);
+      display:flex;
+      align-items:center;
+      gap:6px;
+    }
+    .filter-label i{
+      color: var(--primary);
+      font-size:14px;
+    }
+    .filter-input{
+      padding:10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-family:inherit;
+      font-size:14px;
+      color: var(--text);
+      background: #fff;
+      transition: border-color .15s ease;
+    }
+    .filter-input:focus{
+      outline:none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(26,86,163,.1);
+    }
+    .filter-checks{
+      display:flex;
+      flex-wrap:wrap;
+      gap:10px;
+    }
+    .check-item{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      padding:8px 12px;
+      background: #f8f9fb;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      cursor:pointer;
+      user-select:none;
+      transition: all .15s ease;
+    }
+    .check-item:hover{
+      background: #fff;
+      border-color: var(--primary);
+    }
+    .check-item input{
+      accent-color: var(--success);
+      cursor:pointer;
+    }
+    .check-item label{
+      font-size:13px;
+      color: var(--text);
+      cursor:pointer;
+    }
+    .filters-actions{
+      display:flex;
+      gap:10px;
+      padding:0 16px 16px;
+      justify-content:flex-end;
+      flex-wrap: wrap;
+    }
+
+    /* NEWS LIST */
+    .news-list{
+      display:flex;
+      flex-direction:column;
+      gap:16px;
+      margin-top:20px;
+    }
+    .news-item{
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-left: 5px solid var(--primary-light);
+      border-radius: 12px;
+      padding:20px;
+      display:flex;
+      gap:20px;
+      align-items:flex-start;
+      cursor: pointer;
+      transition: all .2s ease;
+      position:relative;
+      box-shadow: 0 1px 4px rgba(20,82,132,.04);
+    }
+    .news-item:hover{
+      border-left-color: var(--primary);
+      box-shadow: 0 6px 24px rgba(20,82,132,.1);
+      transform: translateY(-2px);
+    }
+    .news-item.unread{
+      border-left-color: var(--success);
+      background: linear-gradient(135deg, var(--success-light) 0%, #fff 40%);
+    }
+    .news-item.unread:hover{
+      border-left-color: var(--success-dark);
+    }
+    .news-item.assigned{
+      border-left-color: var(--info);
+      background: linear-gradient(135deg, #e6f5ff 0%, #fff 40%);
+    }
+    .news-badge{
+      position:absolute;
+      top:14px;
+      right:14px;
+      padding:5px 12px;
+      background: linear-gradient(135deg, var(--success), var(--success-dark));
+      color:#fff;
+      font-size:11px;
+      font-weight:700;
+      border-radius: 6px;
+      text-transform:uppercase;
+      letter-spacing:.5px;
+      display:flex;
+      align-items:center;
+      gap:8px;
+      z-index:2;
+      box-shadow: 0 2px 8px rgba(60,164,52,.3);
+    }
+    .news-badge-close{
+      width:18px;
+      height:18px;
+      border-radius:50%;
+      background: rgba(255,255,255,.25);
+      display:grid;
+      place-items:center;
+      cursor:pointer;
+      transition: background .15s ease;
+      font-size:10px;
+    }
+    .news-badge-close:hover{
+      background: rgba(255,255,255,.5);
+    }
+    .news-main{
+      flex:1;
+      min-width:0;
+    }
+    .news-header{
+      display:flex;
+      align-items:center;
+      gap:12px;
+      flex-wrap:wrap;
+      margin-bottom: 12px;
+    }
+    .news-source{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding:8px 16px;
+      background: linear-gradient(135deg, var(--primary), var(--primary-hover));
+      border-radius: 8px;
+      font-size:15px;
+      font-weight:900;
+      color: #fff;
+      letter-spacing:.2px;
+      box-shadow: 0 2px 8px rgba(20,82,132,.2);
+    }
+    .news-source i{
+      font-size:13px;
+      opacity:.8;
+    }
+    .news-date{
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+      font-size:13px;
+      color: var(--text-muted);
+      font-weight:600;
+      padding:6px 12px;
+      background: #f8f9fb;
+      border-radius:6px;
+      border:1px solid var(--border);
+    }
+    .news-date i{
+      font-size:12px;
+      color: var(--primary-light);
+    }
+    .news-text{
+      font-size:15px;
+      line-height:1.7;
+      color: var(--text);
+      display: -webkit-box;
+      -webkit-line-clamp: 5;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      word-break: break-word;
+    }
+    .news-actions{
+      display:flex;
+      gap:10px;
+      margin-top:14px;
+      flex-wrap:wrap;
+      padding-top:12px;
+      border-top:1px solid #f0f2f5;
+    }
+    .news-action-btn{
+      display:inline-flex;
+      align-items:center;
+      gap:7px;
+      padding:8px 16px;
+      border:1.5px solid var(--border);
+      border-radius:8px;
+      background:#fff;
+      font-size:13px;
+      font-weight:700;
+      color: var(--text);
+      cursor:pointer;
+      transition: all .2s ease;
+      white-space:nowrap;
+    }
+    .news-action-btn:hover{
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0,0,0,.08);
+    }
+    .news-action-btn i{
+      font-size:14px;
+    }
+    .news-action-btn.read{
+      color: var(--success);
+      border-color: var(--success);
+      background: var(--success-light);
+    }
+    .news-action-btn.read:hover{
+      background: var(--success);
+      color: #fff;
+    }
+    .news-action-btn.telegram{
+      color: #0088cc;
+      border-color: #0088cc;
+      background: #e6f5ff;
+    }
+    .news-action-btn.telegram:hover{
+      background: #0088cc;
+      color: #fff;
+    }
+    .news-assignment-info{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding:8px 16px;
+      border:1.5px solid #b8dff7;
+      border-radius:8px;
+      background:#e6f5ff;
+      font-size:13px;
+      font-weight:600;
+      color: #0077b6;
+    }
+    .news-assignment-info i{
+      font-size:14px;
+    }
+    .news-thumb{
+      width: 130px;
+      height: 130px;
+      border-radius: 10px;
+      object-fit: cover;
+      border: 1px solid var(--border);
+      flex-shrink: 0;
+      background: #f8f9fb;
+      box-shadow: 0 2px 8px rgba(0,0,0,.06);
+    }
+    .news-thumb-placeholder{
+      width: 130px;
+      height: 130px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: linear-gradient(135deg, var(--primary-bg), #fafbfc);
+      display:grid;
+      place-items:center;
+      color: var(--primary-light);
+      font-size:42px;
+      flex-shrink: 0;
+      opacity:.5;
+    }
+
+    /* EMPTY STATE */
+    .empty-state{
+      text-align:center;
+      padding:80px 20px;
+      color: var(--text-muted);
+    }
+    .empty-state i{
+      font-size:56px;
+      color: var(--primary-light);
+      margin-bottom:20px;
+      opacity:.5;
+    }
+    .empty-state h3{
+      font-size:20px;
+      font-weight:900;
+      margin:0 0 10px;
+      color: var(--text);
+    }
+    .empty-state p{
+      font-size:15px;
+      margin:0;
+      max-width:400px;
+      margin:0 auto;
+      line-height:1.6;
+    }
+
+    /* PROGRESS */
+    .progress-bar{
+      height:6px;
+      background: var(--border);
+      position:relative;
+      overflow:hidden;
+      border-radius: 3px;
+      margin:12px 0 0;
+    }
+    .progress-fill{
+      height:100%;
+      background: linear-gradient(90deg, var(--primary), var(--success));
+      width:0%;
+      transition: width .3s ease;
+      border-radius:3px;
+    }
+    .progress-text{
+      font-size:13px;
+      color: var(--text-muted);
+      margin:8px 0 0;
+      text-align:center;
+      font-weight:600;
+    }
+
+    /* MODAL */
+    .modal-overlay{
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(26,35,50,.75);
+      backdrop-filter: blur(4px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      padding: 20px;
+      animation: fadeIn .2s ease;
+    }
+    .modal-overlay.show{
+      display: flex;
+    }
+    @keyframes fadeIn{
+      from{ opacity: 0; }
+      to{ opacity: 1; }
+    }
+    .modal-box{
+      background: #fff;
+      border-radius: 16px;
+      box-shadow: 0 24px 80px rgba(13,58,92,.25);
+      max-width: 900px;
+      width: 100%;
+      max-height: 85vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      animation: slideUp .3s ease;
+    }
+    @keyframes slideUp{
+      from{
+        opacity: 0;
+        transform: translateY(30px);
+      }
+      to{
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    .modal-header{
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      background: linear-gradient(135deg, var(--primary-dark), var(--primary));
+    }
+    .modal-title{
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 0;
+      font-size: 18px;
+      font-weight: 900;
+      color: #fff;
+    }
+    .modal-title i{
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
+      background: rgba(255,255,255,.15);
+      display: grid;
+      place-items: center;
+      font-size: 17px;
+      color: #fff;
+    }
+    .modal-close{
+      width: 38px;
+      height: 38px;
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,.2);
+      background: rgba(255,255,255,.1);
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+      transition: all .15s ease;
+      flex-shrink: 0;
+    }
+    .modal-close:hover{
+      background: rgba(255,255,255,.25);
+    }
+    .modal-close i{
+      color: #fff;
+      font-size: 16px;
+    }
+    .modal-body{
+      padding: 20px;
+      overflow-y: auto;
+      flex: 1;
+    }
+    .alert{
+      padding:12px 16px;
+      border-radius: 8px;
+      margin-bottom:20px;
+      display:flex;
+      gap:12px;
+      align-items:flex-start;
+    }
+    .alert i{
+      font-size:18px;
+      flex-shrink:0;
+      margin-top:2px;
+    }
+    .alert-info{
+      background: #e8f4fd;
+      border: 1px solid #b8dff7;
+      color: #0d5a8f;
+    }
+    .alert-info i{
+      color: #0d5a8f;
+    }
+
+    /* COLLEAGUES LIST */
+    .colleagues-list{
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+      max-height:300px;
+      overflow-y:auto;
+      margin:16px 0;
+    }
+    .colleague-item{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      padding:14px 16px;
+      border:1px solid var(--border);
+      border-radius:10px;
+      background:#fff;
+      cursor:pointer;
+      transition: all .2s ease;
+    }
+    .colleague-item:hover{
+      background: var(--primary-bg);
+      border-color: var(--primary);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(20,82,132,.08);
+    }
+    .colleague-info{
+      display:flex;
+      align-items:center;
+      gap:10px;
+    }
+    .colleague-avatar{
+      width:36px;
+      height:36px;
+      border-radius:50%;
+      background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+      color:#fff;
+      display:grid;
+      place-items:center;
+      font-weight:700;
+      font-size:14px;
+    }
+    .colleague-details{
+      display:flex;
+      flex-direction:column;
+    }
+    .colleague-name{
+      font-weight:700;
+      font-size:14px;
+      color: var(--text);
+    }
+    .colleague-username{
+      font-size:12px;
+      color: var(--text-muted);
+    }
+    .colleague-delete{
+      width:32px;
+      height:32px;
+      border-radius:6px;
+      border:1px solid var(--border);
+      background:#fff;
+      display:grid;
+      place-items:center;
+      cursor:pointer;
+      transition: all .15s ease;
+    }
+    .colleague-delete:hover{
+      background: var(--error-light);
+      border-color: var(--error);
+      color: var(--error);
+    }
+    .add-colleague-form{
+      display:flex;
+      flex-direction:column;
+      gap:12px;
+      padding:16px;
+      border:1px solid var(--border);
+      border-radius:8px;
+      background:#fafbfc;
+      margin:16px 0;
+    }
+    .form-row{
+      display:flex;
+      gap:10px;
+    }
+    .form-input{
+      flex:1;
+      padding:10px 12px;
+      border:1px solid var(--border);
+      border-radius:6px;
+      font-family:inherit;
+      font-size:14px;
+      background:#fff;
+    }
+    .form-input:focus{
+      outline:none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(26,86,163,.1);
+    }
+
+    /* STATUS TABLE */
+    .status-table{
+      width:100%;
+      border-collapse:collapse;
+    }
+    .status-table thead th{
+      text-align:left;
+      font-size:12px;
+      color: var(--text-muted);
+      font-weight:700;
+      padding: 10px 12px;
+      border-bottom: 2px solid var(--border);
+      background: #fafbfc;
+    }
+    .status-table tbody tr{
+      border-bottom: 1px solid var(--border);
+    }
+    .status-table tbody tr:last-child{
+      border-bottom:none;
+    }
+    .status-table tbody td{
+      padding: 12px;
+      font-size: 13px;
+      color: var(--text);
+      vertical-align:top;
+    }
+    .status-table tbody td:first-child{
+      font-weight:700;
+      width: 50%;
+    }
+    .status-badge{
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+      padding:5px 12px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight:700;
+      text-transform:uppercase;
+      letter-spacing:.5px;
+    }
+    .status-badge.ok{
+      background: var(--success-light);
+      color: var(--success-dark);
+    }
+    .status-badge.error{
+      background: var(--error-light);
+      color: var(--error);
+    }
+    .status-note{
+      margin-top:6px;
+      font-size:12px;
+      color: var(--text-muted);
+    }
+
+    /* FEED MANAGEMENT */
+    .feed-list{
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+      max-height:400px;
+      overflow-y:auto;
+      margin:16px 0;
+    }
+    .feed-item{
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      padding:14px 16px;
+      border:1px solid var(--border);
+      border-left:4px solid var(--primary-light);
+      border-radius:10px;
+      background:#fff;
+      gap:14px;
+      transition: all .15s ease;
+    }
+    .feed-item:hover{
+      border-left-color: var(--primary);
+      box-shadow: 0 2px 12px rgba(20,82,132,.06);
+    }
+    .feed-info{
+      flex:1;
+      min-width:0;
+    }
+    .feed-name{
+      font-weight:900;
+      font-size:15px;
+      color: var(--primary);
+      margin-bottom:4px;
+    }
+    .feed-url{
+      font-size:12px;
+      color: var(--text-muted);
+      word-break: break-all;
+    }
+    .feed-meta{
+      font-size:11px;
+      color: var(--text-muted);
+      margin-top:6px;
+    }
+
+    /* RESPONSIVE */
+    @media (max-width: 768px){
+      .container{
+        padding:14px 12px;
+      }
+      .header-brand{
+        min-width: auto;
+      }
+      .header-actions{
+        width:100%;
+        justify-content:flex-end;
+      }
+      .filters-grid{
+        grid-template-columns: 1fr;
+      }
+      .news-item{
+        flex-direction:column-reverse;
+        padding:14px;
+        gap:12px;
+      }
+      .news-thumb,
+      .news-thumb-placeholder{
+        width: 100%;
+        height: 180px;
+      }
+      .news-source{
+        font-size:13px;
+        padding:6px 12px;
+      }
+      .news-text{
+        -webkit-line-clamp: 4;
+        font-size:13px;
+      }
+      .news-action-btn{
+        padding:7px 12px;
+        font-size:12px;
+      }
+      .kpi{
+        padding:10px 14px;
+      }
+      .kpi-value{
+        font-size:17px;
+      }
+      .form-row{
+        flex-direction: column;
+      }
+    }
+
+    /* LOADING */
+    .loading{
+      text-align:center;
+      padding:40px 20px;
+      color: var(--text-muted);
+    }
+    .loading i{
+      font-size:32px;
+      color: var(--primary);
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin{
+      to{ transform: rotate(360deg); }
+    }
+    @keyframes slideInRight{
+      from{
+        opacity: 0;
+        transform: translateX(100px);
+      }
+      to{
+        opacity: 1;
+        transform: translateX(0);
+      }
+    }
+    @keyframes slideOutRight{
+      from{
+        opacity: 1;
+        transform: translateX(0);
+      }
+      to{
+        opacity: 0;
+        transform: translateX(100px);
+      }
+    }
+
+    /* MOBILE RESPONSIVE */
+    @media (max-width: 768px) {
+      .container {
+        padding: 12px;
+      }
+
+      .header-main {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .header-brand {
+        min-width: auto;
+      }
+
+      .header-actions {
+        flex-wrap: wrap;
+        justify-content: space-between;
+      }
+
+      .user-info {
+        order: -1;
+        width: 100%;
+        justify-content: center;
+      }
+
+      .news-item {
+        flex-direction: column;
+        padding: 14px;
+        gap: 12px;
+      }
+
+      .news-main {
+        order: 2;
+      }
+
+      .news-thumb,
+      .news-thumb-placeholder {
+        width: 100%;
+        height: 180px;
+        order: 1;
+      }
+
+      .news-source{
+        font-size:13px;
+        padding:6px 12px;
+      }
+
+      .news-text {
+        font-size: 13px;
+        line-height: 1.6;
+        -webkit-line-clamp: 4;
+      }
+
+      .news-badge {
+        top: 8px;
+        right: 8px;
+        font-size: 10px;
+        padding: 4px 10px;
+      }
+
+      .news-actions {
+        gap: 8px;
+      }
+
+      .news-action-btn {
+        font-size: 12px;
+        padding: 7px 12px;
+      }
+
+      .filters-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .kpi-bar {
+        justify-content: flex-start;
+      }
+
+      .modal-box {
+        margin: 0;
+        max-height: 95vh;
+      }
+
+      .login-box {
+        padding: 32px 24px;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .header-text h1 {
+        font-size: 16px;
+      }
+
+      .header-text .subtitle {
+        font-size: 11px;
+      }
+
+      .news-item {
+        padding: 12px;
+      }
+
+      .news-source{
+        font-size:12px;
+        padding:5px 10px;
+      }
+
+      .news-text {
+        font-size: 12px;
+        -webkit-line-clamp: 3;
+      }
+
+      .news-date {
+        font-size: 11px;
+      }
+
+      .kpi-value{
+        font-size:15px;
+      }
+
+      .btn {
+        padding: 8px 12px;
+        font-size: 13px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- LOGIN SCREEN -->
+  <div id="loginScreen" class="login-screen">
+    <div class="login-box">
+      <div class="login-logo">
+        <i class="fa-solid fa-rss"></i>
+      </div>
+      <h1>Monitor RSS Comuni</h1>
+      <p>Dashboard interna Growapp<br>Accedi con il tuo account Google per continuare</p>
+      <button class="login-btn" id="googleLoginBtn">
+        <svg width="24" height="24" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+        Accedi con Google
+      </button>
+    </div>
+  </div>
+
+  <!-- MAIN APP -->
+  <div id="mainApp" style="display:none;">
+    <!-- HEADER -->
+    <header>
+      <div class="container">
+        <div class="header-main">
+          <div class="header-brand">
+            <div class="header-icon">
+              <i class="fa-solid fa-rss"></i>
+            </div>
+            <div class="header-text">
+              <h1>Monitor RSS Comuni</h1>
+              <div class="subtitle">Dashboard interna Growapp</div>
+            </div>
+          </div>
+          <div class="header-actions">
+            <div class="user-info" id="userInfo"></div>
+            <button class="btn btn-toggle" id="filtersBtn">
+              <i class="fa-solid fa-sliders"></i>
+              <span>Filtri</span>
+            </button>
+            <button class="btn btn-secondary" id="statusBtn">
+              <i class="fa-solid fa-signal"></i>
+            </button>
+            <button class="btn btn-primary" id="refreshBtn">
+              <i class="fa-solid fa-rotate"></i>
+              <span>Aggiorna</span>
+            </button>
+            <button class="btn btn-secondary" id="logoutBtn">
+              <i class="fa-solid fa-right-from-bracket"></i>
+            </button>
+          </div>
+        </div>
+
+        <div class="kpi-bar">
+          <div class="kpi">
+            <span class="kpi-value" id="kpiFeeds">0</span>
+            <span class="kpi-label">feed</span>
+          </div>
+          <div class="kpi">
+            <span class="kpi-value" id="kpiItems">0</span>
+            <span class="kpi-label">notizie</span>
+          </div>
+          <div class="kpi success">
+            <span class="kpi-value" id="kpiNew">0</span>
+            <span class="kpi-label">nuove</span>
+          </div>
+          <div class="kpi error">
+            <span class="kpi-value" id="kpiErr">0</span>
+            <span class="kpi-label">errori</span>
+          </div>
+        </div>
+
+        <div class="progress-bar" id="progressBar">
+          <div class="progress-fill" id="progressFill"></div>
+        </div>
+        <div class="progress-text" id="progressText">Pronto</div>
+      </div>
+    </header>
+
+    <div class="container">
+      <!-- FILTERS PANEL -->
+      <div class="filters-panel">
+        <div class="filters-toggle" id="filtersToggle">
+          <div class="filters-toggle-left">
+            <i class="fa-solid fa-filter"></i>
+            <strong>Filtri e Opzioni</strong>
+          </div>
+          <div class="filters-toggle-right">
+            <span>Clicca per espandere</span>
+            <i class="fa-solid fa-chevron-down"></i>
+          </div>
+        </div>
+        <div class="filters-content" id="filtersContent">
+          <div class="filters-grid">
+            <div class="filter-group">
+              <label class="filter-label">
+                <i class="fa-solid fa-magnifying-glass"></i>
+                Cerca testo
+              </label>
+              <input type="text" id="searchInput" class="filter-input" placeholder="Cerca in titolo, comune, contenuto...">
+            </div>
+
+            <div class="filter-group">
+              <label class="filter-label">
+                <i class="fa-solid fa-rss"></i>
+                Filtra per Feed/RSS
+              </label>
+              <select id="feedFilter" class="filter-input">
+                <option value="__ALL__">Tutti i feed</option>
+              </select>
+            </div>
+
+            <div class="filter-group">
+              <label class="filter-label">
+                <i class="fa-solid fa-clock-rotate-left"></i>
+                Auto-refresh
+              </label>
+              <select id="autoRefresh" class="filter-input">
+                <option value="0">Mai (manuale)</option>
+                <option value="5">Ogni 5 minuti</option>
+                <option value="10" selected>Ogni 10 minuti</option>
+                <option value="15">Ogni 15 minuti</option>
+                <option value="30">Ogni 30 minuti</option>
+              </select>
+            </div>
+
+            <div class="filter-group">
+              <label class="filter-label">
+                <i class="fa-solid fa-toggle-on"></i>
+                Filtri visualizzazione
+              </label>
+              <div class="filter-checks">
+                <div class="check-item">
+                  <input type="checkbox" id="showRead">
+                  <label for="showRead">Mostra già letti</label>
+                </div>
+                <div class="check-item">
+                  <input type="checkbox" id="showAssigned">
+                  <label for="showAssigned">Mostra già assegnati</label>
+                </div>
+                <div class="check-item">
+                  <input type="checkbox" id="last48h">
+                  <label for="last48h">Solo ultime 48h</label>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="filters-actions">
+            <button class="btn btn-secondary" id="manageFeedsBtn">
+              <i class="fa-solid fa-rss"></i>
+              Gestisci Feed RSS
+            </button>
+            <button class="btn btn-secondary" id="markAllReadBtn">
+              <i class="fa-solid fa-check-double"></i>
+              Segna tutte lette
+            </button>
+            <button class="btn btn-secondary" id="resetFiltersBtn">
+              <i class="fa-solid fa-rotate-left"></i>
+              Reset filtri
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- NEWS LIST -->
+      <div id="loadingState" class="loading" style="display:none;">
+        <i class="fa-solid fa-spinner"></i>
+        <p>Caricamento in corso...</p>
+      </div>
+
+      <div id="newsList" class="news-list"></div>
+
+      <div id="emptyState" class="empty-state" style="display:none;">
+        <i class="fa-solid fa-inbox"></i>
+        <h3>Nessuna notizia trovata</h3>
+        <p>Prova a modificare i filtri o aggiorna i feed</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODALS -->
+  <div class="modal-overlay" id="assignModal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 class="modal-title">
+          <i class="fa-brands fa-telegram"></i>
+          Assegna notizia via Telegram
+        </h3>
+        <button class="modal-close" onclick="closeAssignModal()">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="alert alert-info">
+          <i class="fa-solid fa-circle-info"></i>
+          <div>
+            <strong>Seleziona un utente del CRM</strong> a cui assegnare questa notizia. Il link verrà condiviso via Telegram.
+          </div>
+        </div>
+        <div id="assignNewsInfo" style="margin:16px 0; padding:12px; background:#fafbfc; border-radius:10px; font-size:13px;"></div>
+        <div style="position:relative; margin-bottom:14px;">
+          <i class="fa-solid fa-search" style="position:absolute; left:14px; top:50%; transform:translateY(-50%); color:var(--primary-light); font-size:14px;"></i>
+          <input type="text" id="assignSearchInput" class="form-input" placeholder="Cerca utente per nome, ruolo o username..." style="width:100%; padding-left:40px; border-radius:10px;">
+        </div>
+        <div class="colleagues-list" id="assignColleaguesList" style="max-height:350px; overflow-y:auto;"></div>
+      </div>
+    </div>
+  </div>
+
+
+  <div class="modal-overlay" id="feedsModal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 class="modal-title">
+          <i class="fa-solid fa-rss"></i>
+          Gestisci Feed RSS
+        </h3>
+        <button class="modal-close" onclick="closeFeedsModal()">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="alert alert-info">
+          <i class="fa-solid fa-circle-info"></i>
+          <div>
+            <strong>Aggiungi o rimuovi feed RSS</strong> da monitorare. Ogni modifica è immediata per tutto il team.
+          </div>
+        </div>
+
+        <div class="add-colleague-form">
+          <div class="form-row">
+            <input type="text" id="feedName" class="form-input" placeholder="Nome Comune (es. Termini Imerese)">
+            <input type="text" id="feedUrl" class="form-input" placeholder="URL RSS (es. https://rss.app/feeds/...)">
+          </div>
+          <button class="btn btn-primary" id="addFeedBtn" style="align-self:flex-start;">
+            <i class="fa-solid fa-plus"></i>
+            Aggiungi feed
+          </button>
+        </div>
+
+        <div class="feed-list" id="feedsList"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="statusModal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 class="modal-title">
+          <i class="fa-solid fa-signal"></i>
+          Stato Feed
+        </h3>
+        <button class="modal-close" id="modalClose">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="alert alert-info">
+          <i class="fa-solid fa-circle-info"></i>
+          <div>
+            <strong>Nota:</strong> Se un feed non risponde o ha timeout, considera l'utilizzo di un proxy aggregatore interno per evitare problemi CORS e timeout.
+          </div>
+        </div>
+
+        <table class="status-table">
+          <thead>
+            <tr>
+              <th>Comune / Feed</th>
+              <th>Stato</th>
+            </tr>
+          </thead>
+          <tbody id="statusTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Script NON module: accede al Firestore del CRM tramite window.parent -->
+  <script>
+
+    /******************************************************************
+     * CONNESSIONE AL CRM (Firestore + AuthService dal parent)
+     * Questa webapp gira dentro un iframe nel CRM.
+     * Usa direttamente il Firestore e l'autenticazione del CRM.
+     ******************************************************************/
+
+    // Riferimenti al CRM (parent window — stessa origine)
+    let crmDb = null;        // Firestore del CRM
+    let crmAuth = null;      // AuthService del CRM
+
+    // Global state
+    window.currentUser = null;
+    window.allFeeds = [];
+    window.allItems = [];
+    window.statusMap = {};
+    window.autoRefreshTimer = null;
+
+    const $ = (id) => document.getElementById(id);
+
+    /******************************************************************
+     * INIZIALIZZAZIONE — collegamento al CRM
+     ******************************************************************/
+    function initFromCRM() {
+      try {
+        // Accedi al Firestore e AuthService del CRM (stessa origine)
+        crmDb = window.parent.db;
+        crmAuth = window.parent.AuthService;
+
+        if (!crmDb || !crmAuth) {
+          console.error('[Monitor RSS] Impossibile accedere al CRM parent. db:', !!crmDb, 'AuthService:', !!crmAuth);
+          showStandaloneError();
+          return false;
+        }
+
+        // Prendi i dati utente dal CRM
+        const user = crmAuth.currentUser;
+        const userData = crmAuth.currentUserData;
+
+        if (!user) {
+          console.error('[Monitor RSS] Nessun utente autenticato nel CRM');
+          showStandaloneError();
+          return false;
+        }
+
+        // Imposta utente corrente
+        window.currentUser = {
+          email: user.email,
+          displayName: userData ? (userData.nome + ' ' + (userData.cognome || '')).trim() : user.displayName,
+          photoURL: user.photoURL || '',
+          uid: user.uid
+        };
+
+        // Nascondi login, mostra app
+        $('loginScreen').style.display = 'none';
+        $('mainApp').style.display = 'block';
+
+        // Nascondi il pulsante di logout (si esce dal CRM)
+        const logoutBtn = $('logoutBtn');
+        if (logoutBtn) logoutBtn.style.display = 'none';
+
+        // Aggiorna info utente nell'header
+        const userInfo = $('userInfo');
+        if (userInfo) {
+          if (window.currentUser.photoURL) {
+            userInfo.innerHTML = `
+              <img src="${window.currentUser.photoURL}" alt="${window.currentUser.displayName}" class="user-avatar">
+              <span class="user-name">${window.currentUser.displayName}</span>
+            `;
+          } else {
+            const initials = window.currentUser.displayName.split(' ').map(n => n[0]).join('').toUpperCase();
+            userInfo.innerHTML = `
+              <div style="width:32px;height:32px;border-radius:50%;background:var(--primary);color:#fff;display:grid;place-items:center;font-weight:700;font-size:13px;">${initials}</div>
+              <span class="user-name">${window.currentUser.displayName}</span>
+            `;
+          }
+        }
+
+        console.log('[Monitor RSS] Connesso al CRM come:', window.currentUser.displayName);
+        return true;
+
+      } catch (e) {
+        console.error('[Monitor RSS] Errore connessione al CRM:', e);
+        showStandaloneError();
+        return false;
+      }
+    }
+
+    function showStandaloneError() {
+      $('loginScreen').innerHTML = `
+        <div class="login-box">
+          <div class="login-logo" style="background: linear-gradient(135deg, var(--error), #a52a2a);">
+            <i class="fa-solid fa-triangle-exclamation"></i>
+          </div>
+          <h1 style="color: var(--error);">Accesso non disponibile</h1>
+          <p>Questa webapp funziona solo all'interno del CRM Comune.Digital.<br>Accedi al CRM e clicca su <strong>"Monitor RSS"</strong> nel menu laterale.</p>
+        </div>
+      `;
+    }
+
+    /******************************************************************
+     * FEED INIZIALI (bootstrap automatico)
+     ******************************************************************/
+    const INITIAL_FEEDS = [
+      { name: "Aci Sant'Antonio", url: "https://rss.app/feeds/OOdwe2cmMbUhoWJa.xml" },
+      { name: "Acri Sindaco", url: "https://rss.app/feeds/ATjw6UhCNEGksOik.xml" },
+      { name: "Agrigento Sindaco", url: "https://rss.app/feeds/NpB1oROJc9KULL6e.xml" },
+      { name: "Arcola", url: "https://rss.app/feeds/0sQd07EfgsIAh99h.xml" },
+      { name: "Arcola Eventi, Cultura e Turismo", url: "https://rss.app/feeds/4wZtnkmWqkhaQyPh.xml" },
+      { name: "Bagaladi", url: "https://rss.app/feeds/yk4UXxXei91L2FsZ.xml" },
+      { name: "Baragiano", url: "https://rss.app/feeds/9GrIsMcGtjlK0tlh.xml" },
+      { name: "Barrafranca Comune", url: "https://rss.app/feeds/SvuD8qXGCXGLIaSi.xml" },
+      { name: "Barrafranca Social", url: "https://rss.app/feeds/qEpPdhYZo4xeW95K.xml" },
+      { name: "Cammarata", url: "https://rss.app/feeds/hJedxhkIBuP2z3VP.xml" },
+      { name: "Campana", url: "https://rss.app/feeds/00PyddyHxV7GUVx4.xml" },
+      { name: "Capo d'Orlando", url: "https://rss.app/feeds/gvvuwi8mRsF8fKlY.xml" },
+      { name: "Castel San Niccolò Social", url: "https://rss.app/feeds/ZRJwHEI7mNsURXE0.xml" },
+      { name: "Castroreale", url: "https://rss.app/feeds/Ax1rk4RXZANpSrIc.xml" },
+      { name: "Cinisi", url: "https://rss.app/feeds/iqgDckaFutaHUBvz.xml" },
+      { name: "Cinisi Sindaco", url: "https://rss.app/feeds/7UwK9ToNkh9wK1tP.xml" },
+      { name: "Cropani", url: "https://rss.app/feeds/82x6rropdendZt1u.xml" },
+      { name: "Diamante Comune", url: "https://rss.app/feeds/C0EWVy1UhhWCBdue.xml" },
+      { name: "Enna Eventi", url: "https://rss.app/feeds/ptR8x6VMpQCki2au.xml" },
+      { name: "Favara", url: "https://rss.app/feeds/x3tI6BwVMynYmCqu.xml" },
+      { name: "Francavilla Fontana", url: "https://rss.app/feeds/ARpdSP71JVoSRGlY.xml" },
+      { name: "Gasperina", url: "https://rss.app/feeds/EqabUz49hxLY47QL.xml" },
+      { name: "Gioiosa Marea", url: "https://rss.app/feeds/cSGBkJSNyD8LmvL1.xml" },
+      { name: "Golfo Aranci Mon Amour", url: "https://rss.app/feeds/8TiYcIfe6UBDh2My.xml" },
+      { name: "Itala", url: "https://rss.app/feeds/8wZkNJygqk1gL787.xml" },
+      { name: "Joppolo Giancaxio", url: "https://rss.app/feeds/uqLek4kWsBI6yvQZ.xml" },
+      { name: "La Spezia", url: "https://rss.app/feeds/OUno5LDebSaemJ80.xml" },
+      { name: "Lake Bolsena", url: "https://rss.app/feeds/xFZxIhYBrztluhRo.xml" },
+      { name: "Lappano", url: "https://rss.app/feeds/f06ks3znxwwtKPrW.xml" },
+      { name: "Letojanni", url: "https://rss.app/feeds/YHwF7atMAOWv9fP2.xml" },
+      { name: "Licata", url: "https://rss.app/feeds/u9HY3ZqP7eI2y5Za.xml" },
+      { name: "Licodia Eubea", url: "https://rss.app/feeds/mFX8jOTCgbmlU3HR.xml" },
+      { name: "Locri", url: "https://rss.app/feeds/lZt0ifAoa5kgUTZf.xml" },
+      { name: "Longobucco", url: "https://rss.app/feeds/gmTyrMe33Bp7AyF7.xml" },
+      { name: "Maruggio", url: "https://rss.app/feeds/CrZgJp0XDKDdXnXx.xml" },
+      { name: "Mezzolombardo", url: "https://rss.app/feeds/NwOlinNmfo5BWF8Q.xml" },
+      { name: "Milazzo", url: "https://rss.app/feeds/McLzrOboDdxoy9y8.xml" },
+      { name: "Montelepre Sindaco", url: "https://rss.app/feeds/Fp46TMgrJkK8oY9u.xml" },
+      { name: "Montelepre Comune", url: "https://rss.app/feeds/ZUxNn4UoPwJjMHf6.xml" },
+      { name: "Montepaone Sindaco", url: "https://rss.app/feeds/IT3sMk2frPJFRRyu.xml" },
+      { name: "Nocera Inferiore", url: "https://rss.app/feeds/aOk788Ll6vSbGsK7.xml" },
+      { name: "Noventa Vicentina Social", url: "https://rss.app/feeds/8aREyZVpgBASLOEu.xml" },
+      { name: "Palma di Montechiaro Sindaco", url: "https://rss.app/feeds/qQbV3VWvBq64qPRS.xml" },
+      { name: "Palmoli", url: "https://rss.app/feeds/Pd0MHBfZCEMgdevj.xml" },
+      { name: "Pantelleria", url: "https://rss.app/feeds/ZZjaE6rJVwdA0P4v.xml" },
+      { name: "Parghelia", url: "https://rss.app/feeds/e5q1OtxIfcmtGiXJ.xml" },
+      { name: "Partinico", url: "https://rss.app/feeds/Gx167DdUEIQSE2N6.xml" },
+      { name: "Petralia Sottana", url: "https://rss.app/feeds/w2oguyY3FPjlbUUg.xml" },
+      { name: "Pettineo", url: "https://rss.app/feeds/2vYj9ZfDDIDwN9Vc.xml" },
+      { name: "Piazzola sul Brenta", url: "https://rss.app/feeds/KQc1LZG9uvfHTT4u.xml" },
+      { name: "Pietrapaola", url: "https://rss.app/feeds/LPZyDkTHPSXznXT4.xml" },
+      { name: "Piraino", url: "https://rss.app/feeds/OcJMOPKbHFAnq1LV.xml" },
+      { name: "Polistena", url: "https://rss.app/feeds/4MKLE5nc386QwDKE.xml" },
+      { name: "Racalmuto Social", url: "https://rss.app/feeds/wOCtXeE8qSEB4Hao.xml" },
+      { name: "Ricadi", url: "https://rss.app/feeds/cIZqwZ0w6vM4xw8B.xml" },
+      { name: "Riccò del Golfo", url: "https://rss.app/feeds/QzIy47N9pmwe6wLu.xml" },
+      { name: "Riesi", url: "https://rss.app/feeds/tO3uiDDFc02FS1Gk.xml" },
+      { name: "Robecco sul Naviglio Social news", url: "https://rss.app/feeds/VmVi4XG0G0zyRBOa.xml" },
+      { name: "Roccalumera", url: "https://rss.app/feeds/jAKyMMaMElvGqu59.xml" },
+      { name: "Roccapalumba", url: "https://rss.app/feeds/xTLcnzLm153czs9I.xml" },
+      { name: "Rutigliano", url: "https://rss.app/feeds/yiDueLODrN1xs8v7.xml" },
+      { name: "San Cataldo", url: "https://rss.app/feeds/l47JG4ZeSR7bE41h.xml" },
+      { name: "San Fili", url: "https://rss.app/feeds/J05w6uq5hmU0aCE4.xml" },
+      { name: "San Filippo del Mela", url: "https://rss.app/feeds/UA40YpZmuBzdVu9Y.xml" },
+      { name: "San Giorgio Morgeto", url: "https://rss.app/feeds/UhCjxXufwjWC0vei.xml" },
+      { name: "San Giovanni Gemini", url: "https://rss.app/feeds/PLpRcr4Y75o0tgvY.xml" },
+      { name: "San Gregorio Magno", url: "https://rss.app/feeds/jdtOP3FYH4QwBgyA.xml" },
+      { name: "Santa Domenica Vittoria", url: "https://rss.app/feeds/AWaq4HB7c0DUOPqq.xml" },
+      { name: "Santa Giustina in Colle Comune", url: "https://rss.app/feeds/ORziESPpRRnGYOYt.xml" },
+      { name: "Santa Giustina in Colle Social", url: "https://rss.app/feeds/XG9OG9LUnlU1ugdY.xml" },
+      { name: "Santa Maria del Cedro Social", url: "https://rss.app/feeds/OIwg9YxwhiJKNTXM.xml" },
+      { name: "Santa Teresa di Riva", url: "https://rss.app/feeds/gbIvivwqxoeJoOQ2.xml" },
+      { name: "Santo Stefano di Camastra", url: "https://rss.app/feeds/45wwxmm3p7IcqGjr.xml" },
+      { name: "Santo Stefano di Magra", url: "https://rss.app/feeds/IfavQoUi16K5Gkyt.xml" },
+      { name: "Santo Stefano Ticino", url: "https://rss.app/feeds/ONPBajScR1cDk9ph.xml" },
+      { name: "Sciacca", url: "https://rss.app/feeds/be8uXyLATNKolW3a.xml" },
+      { name: "Sciacca Carnevale", url: "https://rss.app/feeds/vfQfbrOejqe1O5Uj.xml" },
+      { name: "Sciacca Cinema", url: "https://rss.app/feeds/cej5Wpu6VJwakGFH.xml" },
+      { name: "Sinagra", url: "https://rss.app/feeds/AvPvRCAgViG42iNY.xml" },
+      { name: "Soverato", url: "https://rss.app/feeds/jCCsVfCTychHlUJn.xml" },
+      { name: "Taormina", url: "https://rss.app/feeds/A6xV0azcBUXh2cQU.xml" },
+      { name: "Tarvisio", url: "https://rss.app/feeds/11oUi2ROhiYHEUwo.xml" },
+      { name: "Termini Imerese", url: "https://rss.app/feeds/ZPwgMBRKVTHymtsc.xml" },
+      { name: "Terrasini Sindaco", url: "https://rss.app/feeds/e5XF6GinEmNFwlIu.xml" },
+      { name: "Tripi", url: "https://rss.app/feeds/YPz7uRkdGqnvZsvo.xml" },
+      { name: "Valguarnera Caropepe", url: "https://rss.app/feeds/syS6DeoGiEz0qHZM.xml" },
+      { name: "Vezzano Ligure", url: "https://rss.app/feeds/Fg5TmeilyBI0AlaV.xml" },
+      { name: "Villa San Giovanni", url: "https://rss.app/feeds/wk2WeX7TABQmS7Rj.xml" },
+      { name: "Villarosa", url: "https://rss.app/feeds/DdqqjTcv50215iHK.xml" },
+      { name: "Villarosa Social News", url: "https://rss.app/feeds/R1SXkTORnWgVIhpQ.xml" }
+    ];
+
+    /******************************************************************
+     * FIRESTORE DATA MANAGEMENT (usa il Firestore del CRM)
+     * Collezioni: rss_feeds, rss_read, rss_assignments (+ utenti del CRM)
+     *
+     * NOTA: gli oggetti creati nell'iframe hanno un prototipo diverso
+     * da quelli del parent window. Firestore li rifiuta.
+     * La funzione purify() converte in oggetti "puri" via JSON.
+     ******************************************************************/
+    function purify(obj) {
+      // Usa il JSON.parse del PARENT per creare l'oggetto nel realm del CRM
+      // Così Firestore lo riconosce come un oggetto "normale"
+      return window.parent.JSON.parse(JSON.stringify(obj));
+    }
+
+    async function loadFeeds() {
+      const snapshot = await crmDb.collection('rss_feeds').orderBy('name').get();
+      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    }
+
+    async function initializeDefaultFeeds() {
+      const existingFeeds = await loadFeeds();
+      if (existingFeeds.length > 0) {
+        console.log(`Database già popolato con ${existingFeeds.length} feed`);
+        return false;
+      }
+
+      console.log(`Inizializzazione database con ${INITIAL_FEEDS.length} feed...`);
+      // Firestore batch max 500 operazioni — splittiamo se necessario
+      const chunks = [];
+      for (let i = 0; i < INITIAL_FEEDS.length; i += 450) {
+        chunks.push(INITIAL_FEEDS.slice(i, i + 450));
+      }
+      for (const chunk of chunks) {
+        const batch = crmDb.batch();
+        for (const feed of chunk) {
+          const docRef = crmDb.collection('rss_feeds').doc();
+          batch.set(docRef, purify({
+            name: feed.name,
+            url: feed.url,
+            addedBy: window.currentUser.email,
+            addedByName: window.currentUser.displayName,
+            addedAt: Date.now()
+          }));
+        }
+        await batch.commit();
+      }
+      console.log(`${INITIAL_FEEDS.length} feed caricati con successo!`);
+      return true;
+    }
+
+    async function addFeed(name, url) {
+      const docRef = await crmDb.collection('rss_feeds').add(purify({
+        name: name.trim(),
+        url: url.trim(),
+        addedBy: window.currentUser.email,
+        addedByName: window.currentUser.displayName,
+        addedAt: Date.now()
+      }));
+      return docRef.id;
+    }
+
+    async function deleteFeed(feedId) {
+      await crmDb.collection('rss_feeds').doc(feedId).delete();
+    }
+
+    async function markAsRead(newsId) {
+      await crmDb.collection('rss_read').doc(newsId).set(purify({
+        readAt: Date.now(),
+        readBy: window.currentUser.email,
+        readByName: window.currentUser.displayName || window.currentUser.email
+      }));
+    }
+
+    async function isRead(newsId) {
+      const doc = await crmDb.collection('rss_read').doc(newsId).get();
+      return doc.exists;
+    }
+
+    async function getUserReadItems() {
+      const snapshot = await crmDb.collection('rss_read').get();
+      return new Set(snapshot.docs.map(doc => doc.id));
+    }
+
+    async function assignNews(newsId, newsTitle, newsLink, colleague) {
+      await crmDb.collection('rss_assignments').doc(newsId).set(purify({
+        assignedBy: window.currentUser.email,
+        assignedByName: window.currentUser.displayName,
+        colleagueId: colleague.id,
+        colleagueName: colleague.name,
+        colleagueUsername: colleague.username,
+        newsTitle: newsTitle,
+        newsLink: newsLink,
+        assignedAt: Date.now()
+      }));
+    }
+
+    async function getAssignment(newsId) {
+      const doc = await crmDb.collection('rss_assignments').doc(newsId).get();
+      return doc.exists ? doc.data() : null;
+    }
+
+    async function getAllAssignments() {
+      const snapshot = await crmDb.collection('rss_assignments').get();
+      const result = {};
+      snapshot.docs.forEach(doc => { result[doc.id] = doc.data(); });
+      return result;
+    }
+
+    async function cleanupOldItems() {
+      console.log('[Cleanup] Avvio pulizia post più vecchi di 10 giorni...');
+      const cutoffTime = Date.now() - (10 * 24 * 60 * 60 * 1000);
+      let deletedCount = 0;
+
+      try {
+        // Pulizia rss_read
+        const readSnapshot = await crmDb.collection('rss_read').where('readAt', '<', cutoffTime).get();
+        const batch1 = crmDb.batch();
+        readSnapshot.docs.forEach(doc => {
+          batch1.delete(doc.ref);
+          deletedCount++;
+        });
+        if (readSnapshot.docs.length > 0) await batch1.commit();
+
+        // Pulizia rss_assignments
+        const assignSnapshot = await crmDb.collection('rss_assignments').where('assignedAt', '<', cutoffTime).get();
+        const batch2 = crmDb.batch();
+        assignSnapshot.docs.forEach(doc => {
+          batch2.delete(doc.ref);
+          deletedCount++;
+        });
+        if (assignSnapshot.docs.length > 0) await batch2.commit();
+
+        console.log(`[Cleanup] Completata! Rimossi ${deletedCount} record vecchi.`);
+      } catch (error) {
+        console.error('[Cleanup] Errore durante la pulizia:', error);
+      }
+    }
+
+    async function loadCRMUsers() {
+      const snapshot = await crmDb.collection('utenti').orderBy('nome').get();
+      return snapshot.docs.map(doc => {
+        const d = doc.data();
+        return {
+          id: doc.id,
+          name: `${d.nome || ''} ${d.cognome || ''}`.trim() || d.email || 'Utente',
+          email: d.email || '',
+          ruolo: d.ruolo || '',
+          telegramUsername: d.telegramUsername || '',
+          photoURL: d.photoURL || ''
+        };
+      });
+    }
+
+    /******************************************************************
+     * RSS FEED PARSING
+     ******************************************************************/
+    const CONCURRENCY = 10;
+    const TIMEOUT_MS = 12000;
+    const MAX_ITEMS_PER_FEED = 20;
+
+    function fetchWithTimeout(url, ms) {
+      return new Promise((resolve, reject) => {
+        const ctrl = new AbortController();
+        const t = setTimeout(() => ctrl.abort(), ms);
+        fetch(url, { signal: ctrl.signal, cache: "no-store" })
+          .then(res => {
+            clearTimeout(t);
+            if (!res.ok) throw new Error("HTTP " + res.status);
+            resolve(res);
+          })
+          .catch(err => {
+            clearTimeout(t);
+            reject(err);
+          });
+      });
+    }
+
+    function parseFeedXML(xmlText, feedName) {
+      const doc = new DOMParser().parseFromString(xmlText, "text/xml");
+      const items = [...doc.querySelectorAll("item")];
+      const entries = [...doc.querySelectorAll("entry")];
+      const nodes = items.length ? items : entries;
+      const out = [];
+
+      for (const node of nodes.slice(0, MAX_ITEMS_PER_FEED)) {
+        const isAtom = node.tagName.toLowerCase() === "entry";
+        const title = (node.querySelector("title")?.textContent || "").trim();
+
+        let link = "";
+        if (isAtom) {
+          const linkEl = node.querySelector("link");
+          link = linkEl?.getAttribute("href") || linkEl?.textContent || "";
+        } else {
+          link = (node.querySelector("link")?.textContent || "").trim();
+        }
+
+        const pub =
+          (node.querySelector(isAtom ? "updated" : "pubDate")?.textContent ||
+            node.querySelector(isAtom ? "published" : "dc\\:date")?.textContent ||
+            node.querySelector("date")?.textContent || "").trim();
+
+        const desc =
+          (node.querySelector(isAtom ? "summary" : "description")?.textContent ||
+            node.querySelector("content")?.textContent || "").trim();
+
+        let image = "";
+        const mediaContent = node.querySelector("content");
+        if (mediaContent && mediaContent.getAttribute("url")) {
+          image = mediaContent.getAttribute("url");
+        }
+        if (!image) {
+          const mediaThumbnail = node.querySelector("thumbnail");
+          if (mediaThumbnail && mediaThumbnail.getAttribute("url")) {
+            image = mediaThumbnail.getAttribute("url");
+          }
+        }
+        if (!image) {
+          const enclosure = node.querySelector("enclosure");
+          if (enclosure && enclosure.getAttribute("type")?.startsWith("image")) {
+            image = enclosure.getAttribute("url") || "";
+          }
+        }
+        if (!image && desc) {
+          const imgMatch = desc.match(/<img[^>]+src=["']([^"']+)["']/i);
+          if (imgMatch && imgMatch[1]) {
+            image = imgMatch[1];
+          }
+        }
+
+        const guid =
+          (node.querySelector("guid")?.textContent ||
+            node.querySelector("id")?.textContent ||
+            (title + "|" + link + "|" + pub)).trim();
+
+        const dateObj = pub ? new Date(pub) : null;
+        const ts = dateObj && !isNaN(dateObj.getTime()) ? dateObj.getTime() : 0;
+
+        out.push({
+          feedName,
+          title: title || "(Senza titolo)",
+          link: link || "#",
+          pubRaw: pub || "",
+          ts,
+          desc: desc || "",
+          image: image || "",
+          guid
+        });
+      }
+      return out;
+    }
+
+    async function mapLimit(arr, limit, mapper, onProgress) {
+      const ret = [];
+      let i = 0;
+      let active = 0;
+      return new Promise((resolve) => {
+        const next = () => {
+          if (i >= arr.length && active === 0) {
+            resolve(ret);
+            return;
+          }
+          while (active < limit && i < arr.length) {
+            const idx = i++;
+            active++;
+            Promise.resolve(mapper(arr[idx], idx))
+              .then(v => ret[idx] = v)
+              .catch(e => ret[idx] = e)
+              .finally(() => {
+                active--;
+                if (onProgress) onProgress(idx + 1, arr.length);
+                next();
+              });
+          }
+        };
+        next();
+      });
+    }
+
+    function stableId(it) {
+      const base = `${it.feedName}||${it.link}||${it.ts || ""}||${it.title}`;
+      let h = 0;
+      for (let i = 0; i < base.length; i++) {
+        h = ((h << 5) - h) + base.charCodeAt(i);
+        h |= 0;
+      }
+      return "id_" + Math.abs(h);
+    }
+
+    /******************************************************************
+     * UI UTILITIES
+     ******************************************************************/
+    function fmtDate(ts) {
+      if (!ts) return "Data non disponibile";
+      try {
+        return new Intl.DateTimeFormat("it-IT", {
+          day: "2-digit", month: "2-digit", year: "numeric",
+          hour: "2-digit", minute: "2-digit"
+        }).format(new Date(ts));
+      } catch (e) {
+        return "Data non disponibile";
+      }
+    }
+
+    function cleanText(html, maxLength = 400) {
+      if (!html) return "";
+      const tmp = document.createElement("div");
+      tmp.innerHTML = html;
+      let text = tmp.textContent || tmp.innerText || "";
+      if (text.length > maxLength) {
+        text = text.substring(0, maxLength) + "...";
+      }
+      return text.trim();
+    }
+
+    function getFullText(item) {
+      // Usa la descrizione se disponibile (è il testo completo), altrimenti il titolo
+      if (item.desc && item.desc.trim()) {
+        return cleanText(item.desc, 600) || item.title;
+      }
+      return item.title;
+    }
+
+    function formatNewsText(fullText) {
+      const words = fullText.split(/\s+/);
+      if (words.length <= 20) {
+        return `<span style="font-weight:700;">${escapeHtml(fullText)}</span>`;
+      }
+      const boldPart = words.slice(0, 20).join(' ');
+      const restPart = words.slice(20).join(' ');
+      return `<span style="font-weight:700;">${escapeHtml(boldPart)}</span> ${escapeHtml(restPart)}`;
+    }
+
+    function escapeHtml(s) {
+      return (s || "").replace(/[&<>"']/g, (m) => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;"
+      }[m]));
+    }
+
+    function showNotification(message, isError = false) {
+      const notif = document.createElement("div");
+      notif.style.cssText = `
+        position: fixed;
+        top: 80px;
+        right: 20px;
+        background: ${isError ? 'linear-gradient(135deg, var(--error), #a52a2a)' : 'linear-gradient(135deg, var(--success), #25863d)'};
+        color: white;
+        padding: 14px 20px;
+        border-radius: 10px;
+        box-shadow: 0 8px 24px rgba(45,159,75,.4);
+        font-weight: 700;
+        font-size: 14px;
+        z-index: 10000;
+        animation: slideInRight .3s ease;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      `;
+      notif.innerHTML = `<i class="fa-solid fa-${isError ? 'triangle-exclamation' : 'bell'}"></i> ${escapeHtml(message)}`;
+      document.body.appendChild(notif);
+
+      setTimeout(() => {
+        notif.style.animation = "slideOutRight .3s ease";
+        setTimeout(() => notif.remove(), 300);
+      }, 4000);
+    }
+
+    /******************************************************************
+     * LOAD ALL RSS FEEDS
+     ******************************************************************/
+    async function loadAllFeeds() {
+      const feeds = await loadFeeds();
+      if (feeds.length === 0) {
+        showNotification('Nessun feed configurato! Vai in "Gestisci Feed RSS" per aggiungerne.', true);
+        $('emptyState').style.display = 'block';
+        return;
+      }
+
+      window.allFeeds = feeds;
+      const readSet = await getUserReadItems();
+      const statusMap = {};
+
+      $('progressFill').style.width = "0%";
+      $('progressText').textContent = `Caricamento in corso... (0/${feeds.length})`;
+      $('loadingState').style.display = "block";
+      $('newsList').style.display = "none";
+      $('emptyState').style.display = "none";
+
+      const results = await mapLimit(
+        feeds,
+        CONCURRENCY,
+        async (feed) => {
+          try {
+            const res = await fetchWithTimeout(feed.url, TIMEOUT_MS);
+            const txt = await res.text();
+            const items = parseFeedXML(txt, feed.name);
+            statusMap[feed.name] = {
+              state: "OK",
+              note: `Ultimo check: ${fmtDate(Date.now())} • ${items.length} item caricati`
+            };
+            return { feed, items };
+          } catch (err) {
+            statusMap[feed.name] = {
+              state: "ERR",
+              note: `Ultimo check: ${fmtDate(Date.now())} • ${err?.name === "AbortError" ? "Timeout superato" : (err?.message || "Errore sconosciuto")}`
+            };
+            return { feed, items: [], error: err };
+          }
+        },
+        (done, total) => {
+          const pct = Math.round((done / total) * 100);
+          $('progressFill').style.width = pct + "%";
+          $('progressText').textContent = `Caricamento... (${done}/${total})`;
+        }
+      );
+
+      let allItems = [];
+      for (const r of results) {
+        if (r && r.items && r.items.length) {
+          allItems = allItems.concat(r.items);
+        }
+      }
+
+      // Data soglia: i post prima del 19 febbraio 2026 sono considerati già letti
+      // (migrazione dal vecchio sistema)
+      const cutoffMigrazione = new Date('2026-02-19T00:00:00').getTime();
+      const daArchiviare = []; // post da marcare come letti su Firestore
+
+      for (const it of allItems) {
+        const id = stableId(it);
+        it._id = id;
+
+        if (readSet.has(id)) {
+          // Già marcato come letto su Firestore
+          it._isNew = false;
+        } else if (it.ts && it.ts < cutoffMigrazione) {
+          // Post prima del 19/02/2026 → consideralo letto (migrazione)
+          it._isNew = false;
+          daArchiviare.push(id);
+        } else {
+          // Post nuovo (dal 19/02/2026 in poi e non ancora letto)
+          it._isNew = true;
+        }
+      }
+
+      // Archivia automaticamente su Firestore i post pre-19/02 (in background, senza bloccare)
+      if (daArchiviare.length > 0) {
+        console.log(`[Migrazione] Archiviazione automatica di ${daArchiviare.length} post precedenti al 19/02/2026...`);
+        (async () => {
+          try {
+            // Batch da 450 alla volta (limite Firestore 500)
+            for (let i = 0; i < daArchiviare.length; i += 450) {
+              const chunk = daArchiviare.slice(i, i + 450);
+              const batch = crmDb.batch();
+              for (const newsId of chunk) {
+                const docRef = crmDb.collection('rss_read').doc(newsId);
+                batch.set(docRef, purify({
+                  readAt: Date.now(),
+                  readBy: 'sistema',
+                  readByName: 'Migrazione automatica (pre 19/02/2026)'
+                }));
+              }
+              await batch.commit();
+            }
+            console.log(`[Migrazione] Completata! ${daArchiviare.length} post archiviati.`);
+          } catch (e) {
+            console.warn('[Migrazione] Errore archiviazione automatica:', e);
+          }
+        })();
+      }
+
+      window.allItems = allItems;
+      window.statusMap = statusMap;
+
+      renderStatus(statusMap);
+      await renderItems(allItems);
+
+      const minutes = parseInt($("autoRefresh").value);
+      const autoRefreshText = minutes > 0 ? ` • Auto-refresh: ${minutes}min` : "";
+      $("progressText").textContent = `Aggiornato: ${fmtDate(Date.now())}${autoRefreshText}`;
+      $("progressFill").style.width = "100%";
+      $("loadingState").style.display = "none";
+      $("newsList").style.display = "flex";
+      $("kpiFeeds").textContent = feeds.length.toString();
+
+      setupAutoRefresh();
+    }
+
+    /******************************************************************
+     * RENDER ITEMS
+     ******************************************************************/
+    async function renderItems(items) {
+      const q = $("searchInput").value.trim().toLowerCase();
+      const feedSel = $("feedFilter").value;
+      const showRead = $("showRead").checked;
+      const showAssigned = $("showAssigned").checked;
+      const last48h = $("last48h").checked;
+      const now = Date.now();
+      const cutoff48 = now - 48 * 60 * 60 * 1000;
+
+      // Filtro data: mostra solo notizie dal 1° gennaio 2026 in poi
+      const jan1st2026 = new Date('2026-01-01T00:00:00').getTime();
+
+      const readSet = await getUserReadItems();
+      const assignments = await getAllAssignments();
+
+      let filtered = items.filter(it => {
+        const id = stableId(it);
+        const isReadItem = readSet.has(id);
+        const assigned = assignments[id];
+
+        // Filtro data: escludi notizie prima del 1° gennaio 2026
+        if (it.ts && it.ts < jan1st2026) return false;
+
+        if (feedSel !== "__ALL__" && it.feedName !== feedSel) return false;
+        if (last48h && it.ts && it.ts < cutoff48) return false;
+
+        // Logica modificata: se showAssigned è attivo, mostra TUTTI gli assigned indipendentemente da lettura
+        if (showAssigned) {
+          if (!assigned) return false;
+          // Non filtriamo per stato di lettura quando showAssigned è attivo
+        } else {
+          // Se non showAssigned, filtra via gli assigned
+          if (assigned) return false;
+
+          // Applica filtro lettura solo se non stiamo filtrando per assigned
+          if (showRead) {
+            if (!isReadItem) return false;
+          } else {
+            if (isReadItem) return false;
+          }
+        }
+
+        if (!q) return true;
+        const hay = (it.title + " " + it.feedName + " " + it.desc).toLowerCase();
+        return hay.includes(q);
+      });
+
+      filtered.sort((a, b) => (b.ts || 0) - (a.ts || 0));
+
+      // Conta solo le notizie dal 1° gennaio 2026 in poi
+      const itemsDal2026 = items.filter(x => x.ts && x.ts >= jan1st2026);
+      $("kpiItems").textContent = itemsDal2026.length.toString();
+      $("kpiNew").textContent = itemsDal2026.filter(x => x._isNew).length.toString();
+
+      const list = $("newsList");
+      list.innerHTML = "";
+
+      if (filtered.length === 0) {
+        $("emptyState").style.display = "block";
+        return;
+      }
+
+      $("emptyState").style.display = "none";
+
+      for (const it of filtered) {
+        const id = stableId(it);
+        const assignment = assignments[id];
+        const isReadItem = readSet.has(id);
+
+        const row = document.createElement("div");
+        row.className = "news-item";
+        if (it._isNew) row.classList.add("unread");
+        if (assignment) row.classList.add("assigned");
+
+        row.addEventListener("click", (e) => {
+          if (!e.target.closest('.news-action-btn') && !e.target.closest('.news-badge-close')) {
+            window.open(it.link, "_blank");
+          }
+        });
+
+        const main = document.createElement("div");
+        main.className = "news-main";
+
+        if (it._isNew) {
+          const badge = document.createElement("div");
+          badge.className = "news-badge";
+          badge.title = "Notizia mai vista prima";
+
+          const badgeText = document.createElement("span");
+          badgeText.textContent = "Nuova";
+
+          const badgeClose = document.createElement("span");
+          badgeClose.className = "news-badge-close";
+          badgeClose.innerHTML = '<i class="fa-solid fa-xmark"></i>';
+          badgeClose.title = "Marca come letta";
+
+          badgeClose.addEventListener("click", async (e) => {
+            e.stopPropagation();
+            await markAsRead(id);
+            it._isNew = false;
+            await renderItems(window.allItems);
+          });
+
+          badge.appendChild(badgeText);
+          badge.appendChild(badgeClose);
+          row.appendChild(badge);
+        }
+
+        const header = document.createElement("div");
+        header.className = "news-header";
+
+        const source = document.createElement("span");
+        source.className = "news-source";
+        source.innerHTML = `<i class="fa-solid fa-rss"></i> ${escapeHtml(it.feedName)}`;
+
+        const date = document.createElement("span");
+        date.className = "news-date";
+        date.innerHTML = `<i class="fa-regular fa-clock"></i> ${escapeHtml(fmtDate(it.ts))}`;
+
+        header.appendChild(source);
+        header.appendChild(date);
+
+        const text = document.createElement("div");
+        text.className = "news-text";
+        text.innerHTML = formatNewsText(getFullText(it));
+
+        main.appendChild(header);
+        main.appendChild(text);
+
+        const actions = document.createElement("div");
+        actions.className = "news-actions";
+
+        if (!isReadItem) {
+          const readBtn = document.createElement("button");
+          readBtn.className = "news-action-btn read";
+          readBtn.innerHTML = '<i class="fa-solid fa-check"></i> Marca come letta';
+          readBtn.onclick = async (e) => {
+            e.stopPropagation();
+            await markAsRead(id);
+            it._isNew = false;
+            await renderItems(window.allItems);
+          };
+          actions.appendChild(readBtn);
+        }
+
+        if (!assignment) {
+          const assignBtn = document.createElement("button");
+          assignBtn.className = "news-action-btn telegram";
+          assignBtn.innerHTML = '<i class="fa-brands fa-telegram"></i> Assegna via Telegram';
+          assignBtn.onclick = (e) => {
+            e.stopPropagation();
+            openAssignModal(it);
+          };
+          actions.appendChild(assignBtn);
+        }
+
+        if (assignment) {
+          const assignInfo = document.createElement("div");
+          assignInfo.className = "news-assignment-info";
+          assignInfo.innerHTML = `<i class="fa-brands fa-telegram"></i> Assegnata a <strong>${escapeHtml(assignment.colleagueName)}</strong> da ${escapeHtml(assignment.assignedByName)}`;
+          assignInfo.title = `Assegnata il ${fmtDate(assignment.assignedAt)}`;
+          actions.appendChild(assignInfo);
+        }
+
+        main.appendChild(actions);
+        row.appendChild(main);
+
+        if (it.image) {
+          const img = document.createElement("img");
+          img.className = "news-thumb";
+          img.src = it.image;
+          img.alt = it.title;
+          img.loading = "lazy";
+          img.onerror = function () {
+            this.style.display = "none";
+            const placeholder = document.createElement("div");
+            placeholder.className = "news-thumb-placeholder";
+            placeholder.innerHTML = '<i class="fa-solid fa-image"></i>';
+            row.appendChild(placeholder);
+          };
+          row.appendChild(img);
+        } else {
+          const placeholder = document.createElement("div");
+          placeholder.className = "news-thumb-placeholder";
+          placeholder.innerHTML = '<i class="fa-solid fa-image"></i>';
+          row.appendChild(placeholder);
+        }
+
+        list.appendChild(row);
+      }
+    }
+
+    /******************************************************************
+     * RENDER STATUS
+     ******************************************************************/
+    function renderStatus(statusMap) {
+      const tbody = $("statusTableBody");
+      tbody.innerHTML = "";
+      let errCount = 0;
+      const rows = Object.entries(statusMap)
+        .sort((a, b) => a[0].localeCompare(b[0], "it"));
+
+      for (const [feedName, st] of rows) {
+        if (st.state === "ERR") errCount++;
+        const tr = document.createElement("tr");
+
+        const td1 = document.createElement("td");
+        td1.textContent = feedName;
+
+        const td2 = document.createElement("td");
+        const badge = document.createElement("span");
+        badge.className = "status-badge " + (st.state === "OK" ? "ok" : "error");
+        badge.innerHTML = st.state === "OK"
+          ? `<i class="fa-solid fa-circle-check"></i> OK`
+          : `<i class="fa-solid fa-triangle-exclamation"></i> ERRORE`;
+
+        const note = document.createElement("div");
+        note.className = "status-note";
+        note.textContent = st.note;
+
+        td2.appendChild(badge);
+        td2.appendChild(note);
+        tr.appendChild(td1);
+        tr.appendChild(td2);
+        tbody.appendChild(tr);
+      }
+      $("kpiErr").textContent = errCount.toString();
+    }
+
+    /******************************************************************
+     * AUTO-REFRESH
+     ******************************************************************/
+    function setupAutoRefresh() {
+      if (window.autoRefreshTimer) {
+        clearTimeout(window.autoRefreshTimer);
+        window.autoRefreshTimer = null;
+      }
+
+      const minutes = parseInt($("autoRefresh").value);
+      if (minutes > 0) {
+        const ms = minutes * 60 * 1000;
+        window.autoRefreshTimer = setTimeout(() => {
+          console.log(`Auto-refresh: ricarico dopo ${minutes} minuti`);
+          loadAllFeeds();
+        }, ms);
+      }
+    }
+
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) {
+        if (window.autoRefreshTimer) {
+          clearTimeout(window.autoRefreshTimer);
+          window.autoRefreshTimer = null;
+        }
+      } else {
+        setupAutoRefresh();
+      }
+    });
+
+    /******************************************************************
+     * MODAL MANAGEMENT
+     ******************************************************************/
+    let currentAssignNews = null;
+
+    // Cache utenti per il filtro ricerca
+    let _assignUsersList = [];
+    let _assignNewsItem = null;
+
+    function renderAssignUsersList(filterText) {
+      const list = $("assignColleaguesList");
+      list.innerHTML = "";
+
+      const query = (filterText || "").toLowerCase().trim();
+      const filtered = query
+        ? _assignUsersList.filter(u =>
+            u.name.toLowerCase().includes(query) ||
+            u.ruolo.toLowerCase().includes(query) ||
+            u.email.toLowerCase().includes(query) ||
+            (u.telegramUsername && u.telegramUsername.toLowerCase().includes(query))
+          )
+        : _assignUsersList;
+
+      if (filtered.length === 0) {
+        list.innerHTML = '<div style="text-align:center; padding:30px; color:var(--text-muted);"><i class="fa-solid fa-search" style="font-size:24px; margin-bottom:8px; display:block; opacity:.4;"></i>Nessun utente trovato per questa ricerca.</div>';
+        return;
+      }
+
+      for (const user of filtered) {
+        const isSelf = user.email === window.currentUser.email;
+
+        const item = document.createElement("div");
+        item.className = "colleague-item";
+        if (isSelf) {
+          item.style.cssText = "position:relative; border-left:4px solid var(--primary); background: var(--primary-bg);";
+        } else {
+          item.style.cssText = "position:relative;";
+        }
+
+        const info = document.createElement("div");
+        info.className = "colleague-info";
+
+        const avatar = document.createElement("div");
+        avatar.className = "colleague-avatar";
+        if (isSelf) {
+          avatar.style.cssText = "background: linear-gradient(135deg, var(--primary), var(--primary-dark));";
+        }
+        avatar.textContent = user.name.charAt(0).toUpperCase();
+
+        const details = document.createElement("div");
+        details.className = "colleague-details";
+
+        const nameEl = document.createElement("div");
+        nameEl.className = "colleague-name";
+        nameEl.innerHTML = isSelf
+          ? `${escapeHtml(user.name)} <span style="font-size:11px; font-weight:700; color:var(--primary); background:var(--primary-bg); border:1px solid var(--primary-light); padding:2px 8px; border-radius:4px; margin-left:6px;">TU</span>`
+          : escapeHtml(user.name);
+
+        const metaEl = document.createElement("div");
+        metaEl.className = "colleague-username";
+        const ruoloLabel = user.ruolo ? user.ruolo.charAt(0).toUpperCase() + user.ruolo.slice(1) : '';
+        const telegramLabel = user.telegramUsername ? ` · @${user.telegramUsername.replace('@','')}` : '';
+        metaEl.textContent = `${ruoloLabel}${telegramLabel}`;
+
+        details.appendChild(nameEl);
+        details.appendChild(metaEl);
+        info.appendChild(avatar);
+        info.appendChild(details);
+        item.appendChild(info);
+
+        // Badge Telegram
+        if (user.telegramUsername) {
+          const tgBadge = document.createElement("span");
+          tgBadge.style.cssText = "display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:6px;background:#e6f5ff;color:#0088cc;font-size:11px;font-weight:700;flex-shrink:0;";
+          tgBadge.innerHTML = '<i class="fa-brands fa-telegram"></i> Telegram';
+          item.appendChild(tgBadge);
+        } else {
+          const noTg = document.createElement("span");
+          noTg.style.cssText = "display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:6px;background:#f5f5f5;color:#9B9B9B;font-size:11px;font-weight:600;flex-shrink:0;";
+          noTg.innerHTML = '<i class="fa-solid fa-comment-slash"></i> No Telegram';
+          item.appendChild(noTg);
+        }
+
+        item.onclick = () => {
+          if (!user.telegramUsername) {
+            alert(`${user.name} non ha uno username Telegram configurato nel CRM.\n\nPuoi aggiungerlo nelle Impostazioni > Gestione Utenti.`);
+            return;
+          }
+          assignAndShare(_assignNewsItem, user);
+        };
+
+        list.appendChild(item);
+      }
+    }
+
+    window.openAssignModal = async function(newsItem) {
+      currentAssignNews = newsItem;
+      _assignNewsItem = newsItem;
+      const users = await loadCRMUsers();
+
+      if (users.length === 0) {
+        alert("Nessun utente trovato nel CRM.");
+        return;
+      }
+
+      // Metti l'utente corrente in cima, poi gli altri
+      const self = users.filter(u => u.email === window.currentUser.email);
+      const others = users.filter(u => u.email !== window.currentUser.email);
+      _assignUsersList = [...self, ...others];
+
+      const newsInfo = $("assignNewsInfo");
+      newsInfo.innerHTML = `<strong>Notizia:</strong> ${escapeHtml(newsItem.title)}`;
+
+      // Reset ricerca
+      const searchInput = $("assignSearchInput");
+      searchInput.value = "";
+
+      renderAssignUsersList("");
+
+      $("assignModal").classList.add("show");
+      document.body.style.overflow = "hidden";
+
+      // Focus sul campo ricerca dopo apertura
+      setTimeout(() => searchInput.focus(), 200);
+    };
+
+    window.closeAssignModal = function() {
+      $("assignModal").classList.remove("show");
+      document.body.style.overflow = "";
+      currentAssignNews = null;
+      _assignNewsItem = null;
+      _assignUsersList = [];
+      $("assignSearchInput").value = "";
+    };
+
+    async function assignAndShare(newsItem, user) {
+      const id = stableId(newsItem);
+      const username = user.telegramUsername.replace('@', '');
+
+      await assignNews(id, newsItem.title, newsItem.link, {
+        id: user.id,
+        name: user.name,
+        username: username
+      });
+
+      const message = `📰 Ti assegno questa notizia:\n\n${newsItem.title}\n\n${newsItem.link}`;
+      const encodedMessage = encodeURIComponent(message);
+      const telegramUrl = `https://t.me/${username}?text=${encodedMessage}`;
+      window.open(telegramUrl, '_blank');
+
+      closeAssignModal();
+      await renderItems(window.allItems);
+      showNotification(`Notizia assegnata a ${user.name}!`);
+    }
+
+
+    window.openFeedsModal = async function() {
+      await renderFeedsList();
+      $("feedsModal").classList.add("show");
+      document.body.style.overflow = "hidden";
+    };
+
+    window.closeFeedsModal = function() {
+      $("feedsModal").classList.remove("show");
+      document.body.style.overflow = "";
+    };
+
+    async function renderFeedsList() {
+      const feeds = await loadFeeds();
+      const list = $("feedsList");
+      list.innerHTML = "";
+
+      if (feeds.length === 0) {
+        list.innerHTML = '<div style="text-align:center; padding:40px; color:var(--text-muted);">Nessun feed aggiunto. Usa il form sopra per aggiungerne.</div>';
+        return;
+      }
+
+      for (const feed of feeds) {
+        const item = document.createElement("div");
+        item.className = "feed-item";
+
+        const info = document.createElement("div");
+        info.className = "feed-info";
+
+        const name = document.createElement("div");
+        name.className = "feed-name";
+        name.innerHTML = `<i class="fa-solid fa-rss"></i> ${escapeHtml(feed.name)}`;
+
+        const url = document.createElement("div");
+        url.className = "feed-url";
+        url.textContent = feed.url;
+
+        const meta = document.createElement("div");
+        meta.className = "feed-meta";
+        meta.textContent = `Aggiunto da ${feed.addedByName} il ${fmtDate(feed.addedAt)}`;
+
+        info.appendChild(name);
+        info.appendChild(url);
+        info.appendChild(meta);
+
+        const deleteBtn = document.createElement("button");
+        deleteBtn.className = "colleague-delete";
+        deleteBtn.innerHTML = '<i class="fa-solid fa-trash"></i>';
+        deleteBtn.title = "Elimina feed";
+        deleteBtn.onclick = async (e) => {
+          e.stopPropagation();
+          if (confirm(`Eliminare il feed "${feed.name}"?`)) {
+            await deleteFeed(feed.id);
+            await renderFeedsList();
+            showNotification(`Feed "${feed.name}" eliminato`);
+          }
+        };
+
+        item.appendChild(info);
+        item.appendChild(deleteBtn);
+        list.appendChild(item);
+      }
+    }
+
+    function closeModal() {
+      $("statusModal").classList.remove("show");
+      document.body.style.overflow = "";
+    }
+
+    /******************************************************************
+     * POPULATE FEED FILTER
+     ******************************************************************/
+    function populateFeedFilter() {
+      const sel = $("feedFilter");
+      sel.innerHTML = `<option value="__ALL__">Tutti i feed</option>`;
+      const names = window.allFeeds.map(f => f.name);
+      names.sort((a, b) => a.localeCompare(b, "it"));
+      for (const n of names) {
+        const opt = document.createElement("option");
+        opt.value = n;
+        opt.textContent = n;
+        sel.appendChild(opt);
+      }
+    }
+
+    /******************************************************************
+     * EVENT LISTENERS
+     ******************************************************************/
+    function wireUI() {
+      $("refreshBtn").addEventListener("click", () => loadAllFeeds());
+
+      $("searchInput").addEventListener("input", () => {
+        renderItems(window.allItems);
+      });
+
+      $("feedFilter").addEventListener("change", () => {
+        renderItems(window.allItems);
+      });
+
+      $("showRead").addEventListener("change", () => {
+        renderItems(window.allItems);
+      });
+
+      $("showAssigned").addEventListener("change", () => {
+        renderItems(window.allItems);
+      });
+
+      $("last48h").addEventListener("change", () => {
+        renderItems(window.allItems);
+      });
+
+      $("autoRefresh").addEventListener("change", () => {
+        setupAutoRefresh();
+        const minutes = parseInt($("autoRefresh").value);
+        if (minutes > 0) {
+          showNotification(`Auto-refresh attivato: ogni ${minutes} minuti`);
+        } else {
+          showNotification(`Auto-refresh disattivato`);
+        }
+      });
+
+      $("markAllReadBtn").addEventListener("click", async () => {
+        const items = window.allItems || [];
+        for (const it of items) {
+          await markAsRead(stableId(it));
+          it._isNew = false;
+        }
+        await renderItems(items);
+        showNotification("Tutte le notizie marcate come lette!");
+      });
+
+      $("resetFiltersBtn").addEventListener("click", () => {
+        $("searchInput").value = "";
+        $("feedFilter").value = "__ALL__";
+        $("showRead").checked = false;
+        $("showAssigned").checked = false;
+        $("last48h").checked = false;
+        renderItems(window.allItems);
+      });
+
+      $("manageFeedsBtn").addEventListener("click", () => {
+        openFeedsModal();
+      });
+
+      $("addFeedBtn").addEventListener("click", async () => {
+        const name = $("feedName").value.trim();
+        const url = $("feedUrl").value.trim();
+
+        if (!name || !url) {
+          alert("Inserisci sia il nome che l'URL del feed!");
+          return;
+        }
+
+        if (!url.startsWith('http')) {
+          alert("L'URL deve iniziare con http:// o https://");
+          return;
+        }
+
+        await addFeed(name, url);
+        $("feedName").value = "";
+        $("feedUrl").value = "";
+        await renderFeedsList();
+        showNotification(`Feed "${name}" aggiunto!`);
+
+        // Ricarica i feed
+        await loadAllFeeds();
+      });
+
+      const filtersToggle = $("filtersToggle");
+      const filtersContent = $("filtersContent");
+      const filtersBtn = $("filtersBtn");
+
+      function toggleFilters() {
+        const isOpen = filtersContent.classList.toggle("open");
+        filtersToggle.classList.toggle("open");
+        filtersBtn.classList.toggle("active");
+      }
+
+      filtersToggle.addEventListener("click", toggleFilters);
+      filtersBtn.addEventListener("click", toggleFilters);
+
+      $("statusBtn").addEventListener("click", () => {
+        if (window.statusMap) {
+          renderStatus(window.statusMap);
+        }
+        $("statusModal").classList.add("show");
+        document.body.style.overflow = "hidden";
+      });
+
+      $("modalClose").addEventListener("click", closeModal);
+
+      $("statusModal").addEventListener("click", (e) => {
+        if (e.target === $("statusModal")) {
+          closeModal();
+        }
+      });
+
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") {
+          if ($("statusModal").classList.contains("show")) {
+            closeModal();
+          }
+          if ($("assignModal").classList.contains("show")) {
+            closeAssignModal();
+          }
+          if ($("feedsModal").classList.contains("show")) {
+            closeFeedsModal();
+          }
+        }
+      });
+
+      // Ricerca utenti nel modal assegnazione
+      $("assignSearchInput").addEventListener("input", (e) => {
+        renderAssignUsersList(e.target.value);
+      });
+
+      $("assignModal").addEventListener("click", (e) => {
+        if (e.target === $("assignModal")) {
+          closeAssignModal();
+        }
+      });
+
+      $("feedsModal").addEventListener("click", (e) => {
+        if (e.target === $("feedsModal")) {
+          closeFeedsModal();
+        }
+      });
+    }
+
+    /******************************************************************
+     * INITIALIZE APP
+     ******************************************************************/
+    async function startMonitorApp() {
+      wireUI();
+
+      // Inizializza feed predefiniti se il database è vuoto
+      const initialized = await initializeDefaultFeeds();
+      if (initialized) {
+        showNotification(`${INITIAL_FEEDS.length} feed caricati automaticamente!`);
+      }
+
+      // Pulizia automatica dei post più vecchi di 10 giorni
+      await cleanupOldItems();
+
+      await loadAllFeeds();
+      populateFeedFilter();
+    }
+
+    // Make functions global for onclick handlers
+    window.closeAssignModal = closeAssignModal;
+    window.closeFeedsModal = closeFeedsModal;
+
+    /******************************************************************
+     * AVVIO — si collega al CRM e parte
+     ******************************************************************/
+    // Attendi che il DOM sia pronto, poi collegati al CRM
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', () => {
+        if (initFromCRM()) {
+          startMonitorApp();
+        }
+      });
+    } else {
+      // DOM già pronto
+      if (initFromCRM()) {
+        startMonitorApp();
+      }
+    }
+  </script>
+</body>
+</html>

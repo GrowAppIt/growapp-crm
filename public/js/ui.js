@@ -16,6 +16,11 @@ const UI = {
             return;
         }
 
+        // Cleanup pagina precedente (se necessario)
+        if (typeof MonitorRSS !== 'undefined' && this.currentPage === 'monitor-rss' && pageName !== 'monitor-rss') {
+            MonitorRSS.cleanup();
+        }
+
         // Salva pagina corrente
         this.currentPage = pageName;
         this.currentPageId = id;
@@ -77,6 +82,9 @@ const UI = {
                 break;
             case 'impostazioni':
                 Settings.render();
+                break;
+            case 'monitor-rss':
+                MonitorRSS.render();
                 break;
             // Pagine di dettaglio
             case 'dettaglio-cliente':
