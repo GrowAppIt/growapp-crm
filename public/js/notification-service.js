@@ -253,3 +253,6 @@ const NotificationService = {
         return colors[type] || 'var(--grigio-600)';
     }
 };
+
+// Esponi su window per accesso da iframe (Monitor RSS)
+window.NotificationService = NotificationService;

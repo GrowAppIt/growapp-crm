@@ -912,3 +912,6 @@ const TaskService = {
         }
     }
 };
+
+// Esponi su window per accesso da iframe (Monitor RSS)
+window.TaskService = TaskService;

@@ -47,5 +47,6 @@ auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
 window.db = db;
 window.auth = auth;
 window.storage = storage;
+window.firebase = firebase;
 
 console.log('✅ Firebase inizializzato correttamente');
