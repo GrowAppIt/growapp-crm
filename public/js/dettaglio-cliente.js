@@ -116,7 +116,7 @@ const DettaglioCliente = {
                     </h2>
                 </div>
                 <div style="padding: 1.5rem;">
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1.5rem;">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(250px, 100%), 1fr)); gap: 1.5rem;">
                         ${this.renderInfoField('Ragione Sociale', cliente.ragioneSociale, 'building')}
                         ${this.renderInfoField('Comune', cliente.comune, 'map-marker-alt')}
                         ${this.renderInfoField('Provincia', cliente.provincia, 'map')}
@@ -199,7 +199,7 @@ const DettaglioCliente = {
 
                 <!-- Statistiche Fatture -->
                 <div style="padding: 1.5rem; background: var(--grigio-100); border-bottom: 1px solid var(--grigio-300);">
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem;">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr)); gap: 1rem;">
                         <div style="text-align: center;">
                             <div style="font-size: 1.5rem; font-weight: 700; color: var(--blu-700);">
                                 ${DataService.formatCurrency(totale)}
@@ -267,7 +267,7 @@ const DettaglioCliente = {
                     </h2>
                 </div>
                 <div style="padding: 1.5rem;">
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1.5rem;">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(250px, 100%), 1fr)); gap: 1.5rem;">
                         ${this.renderInfoField('Stato Contratto', cliente.statoContratto, 'file-contract')}
                         ${cliente.dataScadenzaContratto ? this.renderInfoField('Data Scadenza', DataService.formatDate(cliente.dataScadenzaContratto), 'calendar-alt') : ''}
                         ${cliente.dataProssimaFattura ? this.renderInfoField('Prossima Fatturazione', DataService.formatDate(cliente.dataProssimaFattura), 'file-invoice') : ''}

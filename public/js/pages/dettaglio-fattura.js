@@ -115,7 +115,7 @@ const DettaglioFattura = {
                     </h2>
                 </div>
                 <div style="padding: 1.5rem;">
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem;">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr)); gap: 1.5rem;">
                         ${this.renderInfoField('Numero Fattura', fattura.numeroFatturaCompleto, 'file-invoice')}
                         ${this.renderInfoField('Anno', fattura.anno, 'calendar')}
                         ${this.renderInfoField('Data Emissione', DataService.formatDate(fattura.dataEmissione), 'calendar-day')}
@@ -137,7 +137,7 @@ const DettaglioFattura = {
                     </h2>
                 </div>
                 <div style="padding: 1.5rem;">
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem;">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr)); gap: 1.5rem;">
                         ${fattura.imponibile ? this.renderImportoField('Imponibile', fattura.imponibile, 'receipt') : ''}
                         ${fattura.importoIva ? this.renderImportoField('IVA' + (fattura.aliquotaIva ? ` (${fattura.aliquotaIva}%)` : ''), fattura.importoIva, 'percent') : ''}
                         ${this.renderImportoField('Totale Fattura', fattura.importoTotale, 'file-invoice-dollar', true)}

@@ -300,7 +300,7 @@ const DettaglioCliente = {
                     </h2>
                 </div>
                 <div style="padding: 1.5rem;">
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1.5rem;">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(250px, 100%), 1fr)); gap: 1.5rem;">
                         ${this.renderInfoField('Ragione Sociale', cliente.ragioneSociale, 'building')}
                         ${this.renderInfoField('Comune', cliente.comune, 'map-marker-alt')}
                         ${this.renderInfoField('Provincia', cliente.provincia, 'map')}
@@ -323,7 +323,7 @@ const DettaglioCliente = {
 
                     <!-- Riepilogo Contratti (calcolato dai dati reali) -->
                     ${contrattiAttivi.length > 0 ? `
-                        <div style="margin-top: 1.5rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+                        <div style="margin-top: 1.5rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr)); gap: 1rem;">
                             <div style="padding: 1rem; background: var(--blu-100); border-radius: 8px;">
                                 <div style="font-size: 0.75rem; font-weight: 600; color: var(--blu-700); text-transform: uppercase; margin-bottom: 0.25rem;">
                                     <i class="fas fa-file-contract"></i> Contratti Attivi
@@ -458,7 +458,7 @@ const DettaglioCliente = {
 
                 <!-- Statistiche Fatture -->
                 <div style="padding: 1.5rem; background: var(--grigio-100); border-bottom: 1px solid var(--grigio-300);">
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem;">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr)); gap: 1rem;">
                         <div style="text-align: center;">
                             <div style="font-size: 1.5rem; font-weight: 700; color: var(--blu-700);">
                                 ${DataService.formatCurrency(totale)}

@@ -39,8 +39,8 @@ const SettingsService = {
         },
         andamentoMensile: {
             id: 'andamentoMensile',
-            nome: 'Andamento Generale del Mese',
-            descrizione: 'Grafici animati: nuovi clienti, contratti attivati/scaduti, app in sviluppo',
+            nome: 'Riepilogo Finanziario del Mese',
+            descrizione: 'Emesso, incassato, da incassare con confronto mese precedente (solo ruoli amministrativi)',
             enabled: true,
             order: 5
         },

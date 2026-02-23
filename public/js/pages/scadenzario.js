@@ -48,7 +48,7 @@ const Scadenzario = {
                 </div>
 
                 <!-- Widget Scadenze Rapide -->
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
                     ${this.renderContrattiWidget(contrattiDaRinnovare)}
                     ${this.renderFattureScaduteWidget(fattureDaIncassare)}
                     ${this.renderFattureDaEmettereWidget(fattureDaEmettere)}

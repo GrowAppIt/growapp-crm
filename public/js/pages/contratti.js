@@ -71,7 +71,7 @@ const Contratti = {
                 <!-- Filtri -->
                 <div class="card mb-3">
                     <div class="card-body" style="padding: 1rem;">
-                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr)); gap: 1rem;">
                             <input
                                 type="text"
                                 id="searchContratto"
@@ -189,6 +189,20 @@ const Contratti = {
                 return c.stato === 'ATTIVO' && dataScadenza <= limite;
             });
         }
+
+        // Ordinamento: Stato + scadenza urgente
+        // Priorità stato: ATTIVO (0) → SCADUTO (1) → IN_RINNOVO (2) → SOSPESO (3) → CESSATO (4)
+        // Dentro ogni stato: data scadenza crescente (i più urgenti in cima)
+        const prioritaStato = { 'ATTIVO': 0, 'SCADUTO': 1, 'IN_RINNOVO': 2, 'SOSPESO': 3, 'CESSATO': 4 };
+        filtrati.sort((a, b) => {
+            const statoA = prioritaStato[a.stato] ?? 5;
+            const statoB = prioritaStato[b.stato] ?? 5;
+            if (statoA !== statoB) return statoA - statoB;
+            // Stesso stato → ordina per data scadenza crescente (urgenti prima)
+            const dataA = a.dataScadenza ? new Date(a.dataScadenza).getTime() : Infinity;
+            const dataB = b.dataScadenza ? new Date(b.dataScadenza).getTime() : Infinity;
+            return dataA - dataB;
+        });
 
         if (filtrati.length === 0) {
             return `

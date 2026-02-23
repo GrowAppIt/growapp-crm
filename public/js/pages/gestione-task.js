@@ -131,7 +131,7 @@ const GestioneTask = {
                         </div>
                     </div>
 
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr)); gap: 1rem;">
                         <!-- Filtro App -->
                         <div>
                             <label style="display: block; font-size: 0.875rem; font-weight: 600; color: var(--grigio-700); margin-bottom: 0.5rem;">
@@ -209,7 +209,7 @@ const GestioneTask = {
         const scadutiCount = tasksFiltered.filter(t => TaskService.isScaduto(t)).length;
 
         return `
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 2rem;">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr)); gap: 1rem; margin-bottom: 2rem;">
                 ${this.renderStatCard('TODO', todoCount, 'circle', 'blu-700')}
                 ${this.renderStatCard('IN PROGRESS', inProgressCount, 'spinner', 'giallo-avviso')}
                 ${this.renderStatCard('DONE', doneCount, 'check-circle', 'verde-700')}
@@ -239,7 +239,7 @@ const GestioneTask = {
         const doneTasks = tasksFiltered.filter(t => t.stato === TaskService.STATI.DONE);
 
         return `
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1.5rem;">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 1.5rem;">
                 ${this.renderTaskColumn('TODO', todoTasks, 'blu-700')}
                 ${this.renderTaskColumn('IN_PROGRESS', inProgressTasks, 'giallo-avviso')}
                 ${this.renderTaskColumn('DONE', doneTasks, 'verde-700')}
@@ -521,7 +521,7 @@ const GestioneTask = {
         return actions.length > 0 ? `
             <div style="
                 display: grid;
-                grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+                grid-template-columns: repeat(auto-fit, minmax(min(140px, 100%), 1fr));
                 gap: 0.5rem;
                 padding-top: 0.75rem;
                 border-top: 2px solid var(--grigio-200);
@@ -962,7 +962,7 @@ const GestioneTask = {
                         ` : ''}
 
                         <!-- Info Grid -->
-                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1.5rem; margin-bottom: 1.5rem;">
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(250px, 100%), 1fr)); gap: 1.5rem; margin-bottom: 1.5rem;">
                             <!-- Assegnati -->
                             <div>
                                 <h4 style="font-size: 0.875rem; font-weight: 700; color: var(--grigio-600); margin-bottom: 0.5rem; text-transform: uppercase;">

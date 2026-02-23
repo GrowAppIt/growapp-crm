@@ -219,14 +219,14 @@ const DettaglioApp = {
                 </div>
 
                 <!-- Statistiche rapide -->
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 2rem;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr)); gap: 1rem; margin-bottom: 2rem;">
                     ${this.renderTaskStatCard('TODO', todoTasks.length, 'circle', 'blu-700')}
                     ${this.renderTaskStatCard('IN PROGRESS', inProgressTasks.length, 'spinner', 'giallo-avviso')}
                     ${this.renderTaskStatCard('DONE', doneTasks.length, 'check-circle', 'verde-700')}
                 </div>
 
                 <!-- Colonne Task -->
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 1.5rem;">
                     ${this.renderTaskColumn('TODO', todoTasks, 'blu-700')}
                     ${this.renderTaskColumn('IN_PROGRESS', inProgressTasks, 'giallo-avviso')}
                     ${this.renderTaskColumn('DONE', doneTasks, 'verde-700')}
@@ -430,7 +430,7 @@ const DettaglioApp = {
                     </h2>
                 </div>
                 <div class="card-body">
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1.5rem;">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(250px, 100%), 1fr)); gap: 1.5rem;">
                         ${this.renderInfoItem('Comune', app.comune, 'map-marker-alt')}
                         ${this.renderInfoItem('Provincia', app.provincia, 'map')}
                         ${this.renderInfoItem('Regione', app.regione, 'globe-europe')}
@@ -454,7 +454,7 @@ const DettaglioApp = {
                     </h2>
                 </div>
                 <div class="card-body">
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1.5rem;">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(250px, 100%), 1fr)); gap: 1.5rem;">
                         ${this.renderInfoItem('Cliente Pagante', clientePagante?.ragioneSociale || 'Non collegata', 'building', !clientePagante)}
                         ${this.renderInfoItem('Tipo Pagamento', app.tipoPagamento, 'credit-card')}
                         ${this.renderInfoItem('Stato App', app.statoApp?.replace('_', ' '), 'toggle-on')}
@@ -473,7 +473,7 @@ const DettaglioApp = {
                     </h2>
                 </div>
                 <div class="card-body">
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1.5rem;">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(250px, 100%), 1fr)); gap: 1.5rem;">
                         ${this.renderInfoItem('Pubblicazione Apple', app.dataPubblicazioneApple ? DataService.formatDate(app.dataPubblicazioneApple) : 'Non pubblicata', 'apple')}
                         ${this.renderInfoItem('Pubblicazione Android', app.dataPubblicazioneAndroid ? DataService.formatDate(app.dataPubblicazioneAndroid) : 'Non pubblicata', 'android')}
                         ${this.renderInfoItem('Referente Comune', app.referenteComune, 'user')}
@@ -602,7 +602,7 @@ const DettaglioApp = {
                         </div>
                         ` : ''}
 
-                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem;">
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr)); gap: 1rem;">
                             ${app.ultimaDataRaccoltaDifferenziata ? `
                             <div class="stat-box" style="background: var(--grigio-100); padding: 1rem; border-radius: 8px;">
                                 <div style="font-size: 0.75rem; color: var(--grigio-500); margin-bottom: 0.25rem; font-weight: 600; text-transform: uppercase;">📅 Raccolta Differenziata</div>
@@ -653,7 +653,7 @@ const DettaglioApp = {
                     </h2>
                 </div>
                 <div class="card-body">
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1.5rem;">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(250px, 100%), 1fr)); gap: 1.5rem;">
                         <div>
                             <div style="font-size: 2rem; font-weight: 700; color: var(--blu-700);">
                                 ${app.numDownloads || 0}

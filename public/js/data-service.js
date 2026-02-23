@@ -1572,19 +1572,39 @@ const DataService = {
      */
     async getScadenzeCompute(opzioni = {}) {
         try {
-            let contratti, fatture;
+            let contratti, fatture, clienti;
 
             if (opzioni.contratti && opzioni.fatture) {
                 // Dati già disponibili (es. da getDatiAgente)
                 contratti = opzioni.contratti;
                 fatture = opzioni.fatture;
+                clienti = opzioni.clienti || [];
             } else {
                 // Carica tutto in parallelo
-                [contratti, fatture] = await Promise.all([
+                [contratti, fatture, clienti] = await Promise.all([
                     this.getContratti(),
-                    this.getFatture({ limit: 5000 })
+                    this.getFatture({ limit: 5000 }),
+                    this.getClienti()
                 ]);
             }
+
+            // Mappa clienteId → ragioneSociale per arricchire le scadenze
+            const clientiMap = {};
+            clienti.forEach(c => { clientiMap[c.id] = c.ragioneSociale; });
+
+            // Arricchisci contratti con clienteRagioneSociale se mancante
+            contratti.forEach(c => {
+                if (!c.clienteRagioneSociale && c.clienteId && clientiMap[c.clienteId]) {
+                    c.clienteRagioneSociale = clientiMap[c.clienteId];
+                }
+            });
+
+            // Arricchisci fatture con clienteRagioneSociale se mancante
+            fatture.forEach(f => {
+                if (!f.clienteRagioneSociale && f.clienteId && clientiMap[f.clienteId]) {
+                    f.clienteRagioneSociale = clientiMap[f.clienteId];
+                }
+            });
 
             // Filtra per agente se richiesto
             if (opzioni.agente) {

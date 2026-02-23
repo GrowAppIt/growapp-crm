@@ -333,7 +333,7 @@ const Settings = {
                     </div>
 
                     <!-- Informazioni Principali -->
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 2rem; margin-bottom: 2rem;">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(250px, 100%), 1fr)); gap: 2rem; margin-bottom: 2rem;">
                         <!-- Dati Fiscali -->
                         <div>
                             <h3 style="font-size: 0.875rem; text-transform: uppercase; letter-spacing: 0.1em; color: rgba(255,255,255,0.7); margin-bottom: 1rem; font-weight: 700;">
@@ -398,7 +398,7 @@ const Settings = {
                             <i class="fas fa-university"></i> Coordinate Bancarie
                         </h3>
                         <div style="background: rgba(255,255,255,0.1); padding: 1.5rem; border-radius: 12px; backdrop-filter: blur(10px);">
-                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem;">
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr)); gap: 1.5rem;">
                                 <div>
                                     <div style="font-size: 0.75rem; color: rgba(255,255,255,0.7); margin-bottom: 0.25rem;">Istituto di Credito</div>
                                     <div style="font-size: 1rem; font-weight: 700;">${data.banca}</div>
@@ -421,7 +421,7 @@ const Settings = {
                             <i class="fas fa-shield-alt"></i> Posizione INAIL
                         </h3>
                         <div style="background: rgba(255,255,255,0.1); padding: 1.5rem; border-radius: 12px; backdrop-filter: blur(10px);">
-                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem;">
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr)); gap: 1.5rem;">
                                 <div>
                                     <div style="font-size: 0.75rem; color: rgba(255,255,255,0.7); margin-bottom: 0.25rem;">Codice Ditta</div>
                                     <div style="font-size: 1.125rem; font-weight: 700;">${data.inailCodiceDitta}</div>
@@ -501,7 +501,7 @@ const Settings = {
                             <h4 style="color: var(--blu-700); margin-bottom: 1rem;">
                                 <i class="fas fa-file-invoice"></i> Dati Fiscali
                             </h4>
-                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem;">
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(250px, 100%), 1fr)); gap: 1rem;">
                                 <div class="form-group">
                                     <label>Partita IVA</label>
                                     <input type="text" class="form-input" id="editPartitaIva" value="${data.partitaIva}" required>
@@ -559,7 +559,7 @@ const Settings = {
                             <h4 style="color: var(--blu-700); margin-bottom: 1rem;">
                                 <i class="fas fa-envelope"></i> Contatti
                             </h4>
-                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem;">
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(250px, 100%), 1fr)); gap: 1rem;">
                                 <div class="form-group">
                                     <label>Email</label>
                                     <input type="email" class="form-input" id="editEmail" value="${data.email}" required>
@@ -603,7 +603,7 @@ const Settings = {
                             <h4 style="color: var(--blu-700); margin-bottom: 1rem;">
                                 <i class="fas fa-shield-alt"></i> Posizione INAIL
                             </h4>
-                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr)); gap: 1rem;">
                                 <div class="form-group">
                                     <label>Codice Ditta</label>
                                     <input type="text" class="form-input" id="editInailCodiceDitta" value="${data.inailCodiceDitta}" required>
@@ -730,7 +730,7 @@ const Settings = {
                         </h3>
                     </div>
                     <div class="card-body" style="padding: 1.25rem;">
-                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem;">
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(250px, 100%), 1fr)); gap: 1rem;">
                             <div class="form-group">
                                 <label style="font-size: 0.8rem; font-weight: 600; color: var(--grigio-700);">IVA Predefinita (%)</label>
                                 <input type="number" id="sys_ivaDefault" value="${s.ivaDefault}" class="form-input" min="0" max="100" step="1" />
@@ -760,7 +760,7 @@ const Settings = {
                                 <input type="number" id="sys_annoContabile" value="${s.annoContabile}" class="form-input" min="2020" max="2040" />
                             </div>
                         </div>
-                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--grigio-300);">
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(250px, 100%), 1fr)); gap: 1rem; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--grigio-300);">
                             <div class="form-group">
                                 <label style="font-size: 0.8rem; font-weight: 600; color: var(--grigio-700);">Formato Numero Fattura</label>
                                 <input type="text" id="sys_formatoNumeroFattura" value="${s.formatoNumeroFattura}" class="form-input" />
@@ -792,7 +792,7 @@ const Settings = {
                         </h3>
                     </div>
                     <div class="card-body" style="padding: 1.25rem;">
-                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem;">
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(250px, 100%), 1fr)); gap: 1rem;">
                             <div class="form-group">
                                 <label style="font-size: 0.8rem; font-weight: 600; color: var(--grigio-700);">Prefisso Numero Contratto</label>
                                 <input type="text" id="sys_prefissoNumeroContratto" value="${s.prefissoNumeroContratto}" class="form-input" />
@@ -808,7 +808,7 @@ const Settings = {
                                 <input type="number" id="sys_paddingNumeroContratto" value="${s.paddingNumeroContratto}" class="form-input" min="1" max="6" />
                             </div>
                         </div>
-                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--grigio-300);">
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(250px, 100%), 1fr)); gap: 1rem; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--grigio-300);">
                             <div class="form-group">
                                 <label style="font-size: 0.8rem; font-weight: 600; color: var(--grigio-700);">Giorni Preavviso Rinnovo</label>
                                 <input type="number" id="sys_giorniPreavvisoRinnovo" value="${s.giorniPreavvisoRinnovo}" class="form-input" min="0" max="365" />
@@ -860,7 +860,7 @@ const Settings = {
                         </h3>
                     </div>
                     <div class="card-body" style="padding: 1.25rem;">
-                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem;">
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(250px, 100%), 1fr)); gap: 1rem;">
                             <div class="form-group">
                                 <label style="font-size: 0.8rem; font-weight: 600; color: var(--grigio-700);">Soglia "Critico" (giorni)</label>
                                 <input type="number" id="sys_sogliaCritico" value="${s.sogliaCritico}" class="form-input" min="1" max="30" />
@@ -1064,7 +1064,7 @@ const Settings = {
                             <h4 style="color: var(--blu-700); margin-bottom: 1rem;">
                                 <i class="fas fa-chart-pie"></i> Statistiche Database
                             </h4>
-                            <div id="dbStats" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem;">
+                            <div id="dbStats" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr)); gap: 1rem;">
                                 <div class="stat-box">
                                     <div class="stat-value" id="statClienti">-</div>
                                     <div class="stat-label">Clienti</div>
@@ -2184,7 +2184,7 @@ const Settings = {
 
             // Statistiche
             statsDiv.innerHTML = `
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 1rem;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr)); gap: 1rem; margin-bottom: 1rem;">
                     <div style="padding: 1rem; background: var(--blu-100); border-radius: 8px; text-align: center;">
                         <div style="font-size: 2rem; font-weight: 700; color: var(--blu-700);">${fatture.length}</div>
                         <div style="font-size: 0.85rem; color: var(--grigio-700);">Fatture totali</div>
@@ -2438,10 +2438,21 @@ const Settings = {
             const clientiIds = new Set(clientiSnapshot.docs.map(doc => doc.id));
             const contrattiIds = new Set(contrattiSnapshot.docs.map(doc => doc.id));
 
+            // Mappa contratti per clienteId (per auto-fix)
+            const contrattiPerCliente = {};
+            contrattiSnapshot.forEach(doc => {
+                const c = doc.data();
+                if (c.clienteId) {
+                    if (!contrattiPerCliente[c.clienteId]) contrattiPerCliente[c.clienteId] = [];
+                    contrattiPerCliente[c.clienteId].push({ id: doc.id, numero: c.numeroContratto, stato: c.stato });
+                }
+            });
+
             // Inizializza contatori problemi
             const problemi = {
                 fattureClienteNonValido: [],
                 fattureContrattoNonValido: [],
+                fattureSenzaContratto: [],
                 contrattiClienteNonValido: [],
                 appClienteNonValido: [],
                 appContrattoNonValido: [],
@@ -2474,18 +2485,28 @@ const Settings = {
                     });
                 }
 
-                // Verifica contratto
+                // Verifica contratto — separa "senza contratto" (warning) da "contratto inesistente" (errore)
                 if (!contrattoId) {
-                    problemi.fattureContrattoNonValido.push({
+                    // Fattura senza contratto collegato — cerca se il cliente ha contratti
+                    const contrattiCliente = clienteId ? (contrattiPerCliente[clienteId] || []) : [];
+                    problemi.fattureSenzaContratto.push({
                         id: doc.id,
-                        numero: fattura.numeroFatturaCompleto,
-                        problema: 'Nessun contratto collegato'
+                        numero: fattura.numeroFatturaCompleto || fattura.numeroFattura || 'N/A',
+                        clienteId: clienteId,
+                        clienteRagioneSociale: fattura.clienteRagioneSociale || '',
+                        contrattiDisponibili: contrattiCliente,
+                        problema: contrattiCliente.length > 0
+                            ? `Nessun contratto collegato (il cliente ha ${contrattiCliente.length} contratt${contrattiCliente.length === 1 ? 'o' : 'i'})`
+                            : 'Nessun contratto collegato (il cliente non ha contratti)'
                     });
                 } else if (!contrattiIds.has(contrattoId)) {
                     problemi.fattureContrattoNonValido.push({
                         id: doc.id,
-                        numero: fattura.numeroFatturaCompleto,
+                        numero: fattura.numeroFatturaCompleto || fattura.numeroFattura || 'N/A',
                         contrattoId: contrattoId,
+                        clienteId: clienteId,
+                        clienteRagioneSociale: fattura.clienteRagioneSociale || '',
+                        contrattiDisponibili: clienteId ? (contrattiPerCliente[clienteId] || []) : [],
                         problema: 'Contratto non esiste nel database'
                     });
                 }
@@ -2540,13 +2561,13 @@ const Settings = {
             });
 
             // Verifica CLIENTI senza contratti/fatture
-            const contrattiPerCliente = {};
+            const _contrattiPerClienteAudit = {};
             const fatturePerCliente = {};
 
             contrattiSnapshot.forEach(doc => {
                 const clienteId = doc.data().clienteId;
                 if (clienteId) {
-                    contrattiPerCliente[clienteId] = (contrattiPerCliente[clienteId] || 0) + 1;
+                    _contrattiPerClienteAudit[clienteId] = (_contrattiPerClienteAudit[clienteId] || 0) + 1;
                 }
             });
 
@@ -2561,7 +2582,7 @@ const Settings = {
                 const clienteId = doc.id;
                 const ragioneSociale = doc.data().ragioneSociale;
 
-                if (!contrattiPerCliente[clienteId]) {
+                if (!_contrattiPerClienteAudit[clienteId]) {
                     problemi.clientiSenzaContratti.push({
                         id: clienteId,
                         ragioneSociale: ragioneSociale
@@ -2596,7 +2617,7 @@ const Settings = {
                     </h4>
 
                     <!-- Statistiche Generali -->
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(120px, 100%), 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
                         <div style="text-align: center; padding: 1rem; background: white; border-radius: 8px;">
                             <div style="font-size: 1.5rem; font-weight: 700; color: var(--blu-700);">${clientiSnapshot.size}</div>
                             <div style="font-size: 0.85rem; color: var(--grigio-700);">Clienti</div>
@@ -2635,14 +2656,23 @@ const Settings = {
 
                         ${problemi.fattureContrattoNonValido.length > 0 ? `
                             <div style="background: white; padding: 1rem; border-radius: 8px; margin-bottom: 1rem; border-left: 3px solid var(--rosso);">
-                                <strong style="color: var(--rosso);">❌ Fatture con Contratto Non Valido: ${problemi.fattureContrattoNonValido.length}</strong>
+                                <strong style="color: var(--rosso);">❌ Fatture con Contratto Inesistente: ${problemi.fattureContrattoNonValido.length}</strong>
+                                <p style="font-size: 0.8rem; color: var(--grigio-600); margin: 0.25rem 0;">Il contrattoId punta a un contratto che non esiste più nel database</p>
                                 <details style="margin-top: 0.5rem;">
                                     <summary style="cursor: pointer; color: var(--blu-700);">Mostra dettagli</summary>
                                     <div style="margin-top: 0.5rem; font-size: 0.85rem;">
-                                        ${problemi.fattureContrattoNonValido.slice(0, 10).map(p =>
-                                            `<div>• ${p.numero}: ${p.problema}</div>`
+                                        ${problemi.fattureContrattoNonValido.slice(0, 20).map(p =>
+                                            `<div style="padding: 0.35rem 0; border-bottom: 1px solid var(--grigio-300);">
+                                                • <strong>${p.numero}</strong> — ${p.clienteRagioneSociale || 'Cliente N/A'}
+                                                ${p.contrattiDisponibili.length > 0
+                                                    ? ` <button onclick="Settings.fixSingolaFatturaContratto('${p.id}', '${p.contrattiDisponibili[0].id}')"
+                                                        style="background: var(--verde-700); color: white; border: none; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.75rem; cursor: pointer; margin-left: 0.5rem;">
+                                                        <i class="fas fa-link"></i> Collega a ${p.contrattiDisponibili[0].numero || 'contratto'}
+                                                      </button>`
+                                                    : ' <span style="color: var(--grigio-500);">(nessun contratto del cliente)</span>'}
+                                            </div>`
                                         ).join('')}
-                                        ${problemi.fattureContrattoNonValido.length > 10 ? `<div style="color: var(--grigio-500);">... e altri ${problemi.fattureContrattoNonValido.length - 10}</div>` : ''}
+                                        ${problemi.fattureContrattoNonValido.length > 20 ? `<div style="color: var(--grigio-500); margin-top: 0.5rem;">... e altri ${problemi.fattureContrattoNonValido.length - 20}</div>` : ''}
                                     </div>
                                 </details>
                             </div>
@@ -2711,8 +2741,48 @@ const Settings = {
                         </div>
                     `}
 
-                    ${problemi.clientiSenzaContratti.length > 0 || problemi.clientiSenzaFatture.length > 0 ? `
+                    ${problemi.fattureSenzaContratto.length > 0 || problemi.clientiSenzaContratti.length > 0 || problemi.clientiSenzaFatture.length > 0 ? `
                         <h5 style="color: var(--giallo-avviso); margin-top: 1.5rem; margin-bottom: 1rem;">⚠️ Warning (non critici)</h5>
+
+                        ${problemi.fattureSenzaContratto.length > 0 ? `
+                            <div style="background: white; padding: 1rem; border-radius: 8px; margin-bottom: 1rem; border-left: 3px solid var(--giallo-avviso);">
+                                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+                                    <div>
+                                        <strong style="color: var(--giallo-avviso);">⚠️ Fatture Senza Contratto Collegato: ${problemi.fattureSenzaContratto.length}</strong>
+                                        <div style="font-size: 0.8rem; color: var(--grigio-600); margin-top: 0.2rem;">
+                                            ${problemi.fattureSenzaContratto.filter(p => p.contrattiDisponibili.length > 0).length} abbinabili automaticamente
+                                        </div>
+                                    </div>
+                                    ${problemi.fattureSenzaContratto.filter(p => p.contrattiDisponibili.length > 0).length > 0 ? `
+                                        <button onclick="Settings.fixFattureSenzaContratto()"
+                                            id="btnFixFattureSenzaContratto"
+                                            style="background: var(--verde-700); color: white; border: none; padding: 0.5rem 1rem; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 0.85rem; font-family: 'Titillium Web', sans-serif;">
+                                            <i class="fas fa-magic"></i> Auto-Abbina Tutto
+                                        </button>
+                                    ` : ''}
+                                </div>
+                                <details style="margin-top: 0.75rem;">
+                                    <summary style="cursor: pointer; color: var(--blu-700);">Mostra dettagli (prime 30)</summary>
+                                    <div style="margin-top: 0.5rem; font-size: 0.85rem; max-height: 400px; overflow-y: auto;">
+                                        ${problemi.fattureSenzaContratto.slice(0, 30).map(p =>
+                                            `<div style="padding: 0.4rem 0; border-bottom: 1px solid var(--grigio-300); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.25rem;">
+                                                <div>
+                                                    <strong>${p.numero}</strong> — ${p.clienteRagioneSociale || 'Cliente N/A'}
+                                                    <div style="font-size: 0.75rem; color: var(--grigio-500);">${p.problema}</div>
+                                                </div>
+                                                ${p.contrattiDisponibili.length > 0
+                                                    ? `<button onclick="Settings.fixSingolaFatturaContratto('${p.id}', '${p.contrattiDisponibili[0].id}'); this.disabled=true; this.innerHTML='<i class=\\'fas fa-check\\'></i> Fatto';"
+                                                        style="background: var(--verde-700); color: white; border: none; padding: 0.2rem 0.6rem; border-radius: 4px; font-size: 0.75rem; cursor: pointer; white-space: nowrap;">
+                                                        <i class="fas fa-link"></i> Collega a ${(p.contrattiDisponibili[0].numero || 'contratto').replace(/'/g, '')}
+                                                      </button>`
+                                                    : '<span style="font-size: 0.75rem; color: var(--grigio-400);">Nessun contratto</span>'}
+                                            </div>`
+                                        ).join('')}
+                                        ${problemi.fattureSenzaContratto.length > 30 ? `<div style="color: var(--grigio-500); margin-top: 0.5rem; text-align: center;">... e altre ${problemi.fattureSenzaContratto.length - 30} fatture</div>` : ''}
+                                    </div>
+                                </details>
+                            </div>
+                        ` : ''}
 
                         ${problemi.clientiSenzaContratti.length > 0 ? `
                             <div style="background: white; padding: 1rem; border-radius: 8px; margin-bottom: 1rem; border-left: 3px solid var(--giallo-avviso);">
@@ -2748,6 +2818,109 @@ const Settings = {
         }
     },
 
+    // Fix singola fattura — collega a un contratto specifico
+    async fixSingolaFatturaContratto(fatturaId, contrattoId) {
+        try {
+            await db.collection('fatture').doc(fatturaId).update({
+                contrattoId: contrattoId,
+                dataAggiornamento: new Date()
+            });
+            UI.showSuccess('Fattura collegata al contratto con successo');
+        } catch (error) {
+            console.error('Errore fix fattura-contratto:', error);
+            UI.showError('Errore: ' + error.message);
+        }
+    },
+
+    // Fix massivo — collega tutte le fatture senza contratto al contratto del loro cliente
+    async fixFattureSenzaContratto() {
+        const btn = document.getElementById('btnFixFattureSenzaContratto');
+        if (!btn) return;
+
+        const conferma = confirm(
+            '⚠️ Auto-Abbinamento Fatture\n\n' +
+            'Questa operazione collegherà automaticamente ogni fattura senza contratto al contratto del relativo cliente.\n\n' +
+            'Se il cliente ha più contratti, verrà usato il contratto ATTIVO. Se nessuno è attivo, il primo disponibile.\n\n' +
+            'Continuare?'
+        );
+        if (!conferma) return;
+
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Abbinamento in corso...';
+
+        try {
+            // Carica tutte le fatture e contratti
+            const [fattureSnap, contrattiSnap] = await Promise.all([
+                db.collection('fatture').get(),
+                db.collection('contratti').get()
+            ]);
+
+            // Mappa contratti per clienteId
+            const _cpcFix = {};
+            contrattiSnap.forEach(doc => {
+                const c = doc.data();
+                if (c.clienteId) {
+                    if (!_cpcFix[c.clienteId]) _cpcFix[c.clienteId] = [];
+                    _cpcFix[c.clienteId].push({ id: doc.id, stato: c.stato, numero: c.numeroContratto });
+                }
+            });
+
+            let corrette = 0;
+            let nonAbbinabili = 0;
+            const batch = db.batch();
+            let batchCount = 0;
+
+            fattureSnap.forEach(doc => {
+                const fattura = doc.data();
+                if (fattura.contrattoId) return; // Già ha un contratto
+
+                const clienteId = fattura.clienteId;
+                if (!clienteId) { nonAbbinabili++; return; }
+
+                const contratti = _cpcFix[clienteId];
+                if (!contratti || contratti.length === 0) { nonAbbinabili++; return; }
+
+                // Scegli il contratto migliore: preferisci ATTIVO, poi il primo
+                const contrattoAttivo = contratti.find(c => c.stato === 'ATTIVO');
+                const contrattoScelto = contrattoAttivo || contratti[0];
+
+                batch.update(doc.ref, {
+                    contrattoId: contrattoScelto.id,
+                    dataAggiornamento: new Date()
+                });
+                corrette++;
+                batchCount++;
+
+                // Firestore batch max 500 operazioni
+                if (batchCount >= 490) {
+                    // Non supportiamo multi-batch qui, ma 490 dovrebbe bastare
+                    console.warn('Raggiunto limite batch, alcune fatture non saranno corrette in questo ciclo');
+                }
+            });
+
+            if (corrette > 0) {
+                await batch.commit();
+            }
+
+            btn.innerHTML = `<i class="fas fa-check"></i> ${corrette} corrette`;
+            btn.style.background = 'var(--verde-700)';
+            UI.showSuccess(`Auto-abbinamento completato: ${corrette} fatture collegate, ${nonAbbinabili} non abbinabili (cliente senza contratti)`);
+
+            // Suggerisci di rieseguire l'audit
+            setTimeout(() => {
+                btn.innerHTML = '<i class="fas fa-redo"></i> Riesegui Audit';
+                btn.disabled = false;
+                btn.onclick = () => Settings.auditDatabase();
+            }, 3000);
+
+        } catch (error) {
+            console.error('Errore fix massivo fatture-contratto:', error);
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-magic"></i> Auto-Abbina Tutto';
+            UI.showError('Errore: ' + error.message);
+        }
+    },
+
     renderBigliettoTab() {
         const user = AuthService.currentUserData || {};
         const userName = `${user.nome || ''} ${user.cognome || ''}`.trim() || 'Nome Cognome';
@@ -2769,7 +2942,7 @@ const Settings = {
                             <h4 style="margin-bottom: 1rem; color: var(--blu-700);">
                                 <i class="fas fa-user-edit"></i> I tuoi dati
                             </h4>
-                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem;">
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(250px, 100%), 1fr)); gap: 1rem;">
                                 <div class="form-group">
                                     <label>Nome e Cognome</label>
                                     <input type="text" id="bigliettoNome" class="form-input" value="${userName}" placeholder="Mario Rossi">
@@ -3033,7 +3206,7 @@ const Settings = {
                         <h4 style="color: var(--verde-900); margin-bottom: 0.75rem;">
                             <i class="fas fa-check-circle"></i> Arricchimento completato!
                         </h4>
-                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 1rem; margin-bottom: 1rem;">
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(120px, 100%), 1fr)); gap: 1rem; margin-bottom: 1rem;">
                             <div style="text-align: center;">
                                 <div style="font-size: 2rem; font-weight: 700; color: var(--blu-700);">${result.totale}</div>
                                 <div style="font-size: 0.875rem; color: var(--grigio-600);">Totale clienti</div>

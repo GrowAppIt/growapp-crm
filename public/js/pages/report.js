@@ -53,13 +53,13 @@ const Report = {
                 ${this.renderConfrontoAnnoSuAnno()}
 
                 <!-- Grafici Principali -->
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(500px, 1fr)); gap: 1.5rem; margin-top: 1.5rem;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(500px, 100%), 1fr)); gap: 1.5rem; margin-top: 1.5rem;">
                     ${this.renderFatturatoMensile()}
                     ${this.renderTipoClientiChart()}
                 </div>
 
                 <!-- Grafici Secondari -->
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 1.5rem; margin-top: 1.5rem;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(400px, 100%), 1fr)); gap: 1.5rem; margin-top: 1.5rem;">
                     ${this.renderSemestraleChart()}
                     ${this.renderDistribuzioneGestione()}
                 </div>
@@ -68,7 +68,7 @@ const Report = {
                 ${this.renderTopClienti()}
 
                 <!-- Statistiche Dettagliate -->
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 1.5rem; margin-top: 1.5rem;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(350px, 100%), 1fr)); gap: 1.5rem; margin-top: 1.5rem;">
                     ${this.renderStatsApp()}
                     ${this.renderStatsContratti()}
                     ${this.renderStatsFatture()}
@@ -94,7 +94,7 @@ const Report = {
 
         return `
             <div style="margin-top: 2rem; padding: 1.5rem; background: rgba(255,255,255,0.15); backdrop-filter: blur(10px); border-radius: 12px;">
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr)); gap: 1rem;">
                     <!-- Anno -->
                     <div>
                         <label style="display: block; font-size: 0.875rem; font-weight: 700; margin-bottom: 0.5rem; opacity: 0.95;">
@@ -189,7 +189,7 @@ const Report = {
         ];
 
         return `
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; margin-top: 1.5rem;">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr)); gap: 1.5rem; margin-top: 1.5rem;">
                 ${cards.map((card, index) => this.renderAnimatedKPI(card, index)).join('')}
             </div>
         `;
@@ -272,7 +272,7 @@ const Report = {
                     </h2>
                 </div>
                 <div style="padding: 2rem;">
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 2rem;">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(250px, 100%), 1fr)); gap: 2rem;">
                         ${this.renderConfrontoItem('Fatturato Totale', datiPrec.fatturatoTotale, datiAttuale.fatturatoTotale, varFatturato, 'currency')}
                         ${this.renderConfrontoItem('Numero Fatture', datiPrec.numeroFatture, datiAttuale.numeroFatture, varFatture, 'number')}
                         ${this.renderConfrontoItem('Ticket Medio', datiPrec.ticketMedio, datiAttuale.ticketMedio, varTicket, 'currency')}

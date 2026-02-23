@@ -83,7 +83,7 @@ const GestioneApp = {
                 <!-- Filtri -->
                 <div class="card mb-3">
                     <div class="card-body" style="padding: 1rem;">
-                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr)); gap: 1rem;">
                             <input
                                 type="text"
                                 id="searchApp"

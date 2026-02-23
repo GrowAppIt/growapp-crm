@@ -35,7 +35,7 @@ const Dashboard = {
             ] = await Promise.all([
                 canClients ? DataService.getClienti().catch(e => { console.warn('Dashboard: errore getClienti', e); return []; }) : Promise.resolve([]),
                 canContracts ? DataService.getContratti().catch(e => { console.warn('Dashboard: errore getContratti', e); return []; }) : Promise.resolve([]),
-                canInvoices ? DataService.getFatture().catch(e => { console.warn('Dashboard: errore getFatture', e); return []; }) : Promise.resolve([]),
+                canInvoices ? DataService.getFatture({ limit: 5000 }).catch(e => { console.warn('Dashboard: errore getFatture', e); return []; }) : Promise.resolve([]),
                 canApps ? DataService.getApps().catch(e => { console.warn('Dashboard: errore getApps', e); return []; }) : Promise.resolve([]),
                 DataService.getScadenze().catch(e => { console.warn('Dashboard: errore getScadenze', e); return []; }),
                 canTasks ? TaskService.getAllTasks({ limit: 100 }).catch(e => { console.warn('Dashboard: errore getAllTasks', e); return { tasks: [] }; }) : Promise.resolve({ tasks: [] })
@@ -82,8 +82,15 @@ const Dashboard = {
                     const isNC = f.tipoDocumento === 'NOTA_DI_CREDITO' || (f.numeroFatturaCompleto || '').startsWith('NC-');
                     return sum + (isNC ? -Math.abs(importo) : importo);
                 }, 0);
-            const fattureNonPagateStats = fatture.filter(f => f.statoPagamento === 'NON_PAGATA' && f.tipoDocumento !== 'NOTA_DI_CREDITO');
-            const importoNonPagato = fattureNonPagateStats.reduce((sum, f) => sum + (f.importoTotale || 0), 0);
+            const fattureNonPagateStats = fatture.filter(f => (f.statoPagamento === 'NON_PAGATA' || f.statoPagamento === 'PARZIALMENTE_PAGATA') && f.tipoDocumento !== 'NOTA_DI_CREDITO');
+            const importoNonPagato = fattureNonPagateStats.reduce((sum, f) => {
+                // Per parzialmente pagate, calcola il saldo residuo
+                if (f.statoPagamento === 'PARZIALMENTE_PAGATA') {
+                    const totAcconti = (f.acconti || []).reduce((s, a) => s + (a.importo || 0), 0);
+                    return sum + Math.max(0, (f.importoTotale || 0) - totAcconti);
+                }
+                return sum + (f.importoTotale || 0);
+            }, 0);
             const contrattiPerStato = {};
             contrattiTutti.forEach(c => { contrattiPerStato[c.stato] = (contrattiPerStato[c.stato] || 0) + 1; });
             const appPerStato = {};
@@ -113,17 +120,17 @@ const Dashboard = {
                 c.stato === 'ATTIVO' && c.dataScadenza && new Date(c.dataScadenza) <= _dataLimiteContratti
             ).sort((a, b) => new Date(a.dataScadenza) - new Date(b.dataScadenza));
 
-            // Fatture scadute (filtro in memoria)
+            // Fatture scadute (filtro in memoria) — include anche PARZIALMENTE_PAGATA
             const fattureScadute = fatture.filter(f =>
-                f.statoPagamento === 'NON_PAGATA' && f.dataScadenza && new Date(f.dataScadenza) < oggi
+                (f.statoPagamento === 'NON_PAGATA' || f.statoPagamento === 'PARZIALMENTE_PAGATA') && f.dataScadenza && new Date(f.dataScadenza) < oggi
             );
 
-            // Fatture in scadenza (filtro in memoria)
+            // Fatture in scadenza (filtro in memoria) — include anche PARZIALMENTE_PAGATA
             const _finestraFatture = _sysDash2.finestraFattureDashboard || 30;
             const _dataLimiteFatture = new Date(oggi);
             _dataLimiteFatture.setDate(_dataLimiteFatture.getDate() + _finestraFatture);
             const fattureInScadenza = fatture.filter(f => {
-                if (f.statoPagamento !== 'NON_PAGATA' || !f.dataScadenza) return false;
+                if ((f.statoPagamento !== 'NON_PAGATA' && f.statoPagamento !== 'PARZIALMENTE_PAGATA') || !f.dataScadenza) return false;
                 const ds = new Date(f.dataScadenza);
                 return ds >= oggi && ds <= _dataLimiteFatture;
             });
@@ -132,7 +139,7 @@ const Dashboard = {
             let scadenzeScadute = [];
             let scadenzeImminenti = [];
             try {
-                const scadenzeCalcolateResult = await DataService.getScadenzeCompute({ contratti: contrattiTutti, fatture: fatture });
+                const scadenzeCalcolateResult = await DataService.getScadenzeCompute({ contratti: contrattiTutti, fatture: fatture, clienti: clienti });
                 const finestraImminente = new Date(oggi);
                 finestraImminente.setDate(finestraImminente.getDate() + (_sysDash2.sogliaImminente || 30));
                 scadenzeScadute = scadenzeCalcolateResult.tutteLeScadenze.filter(s =>
@@ -265,31 +272,58 @@ const Dashboard = {
     async renderEnabledWidgets(widgets, data) {
         let html = '';
 
-        // Mappa permessi richiesti per ogni widget
-        // NOTA: '_always_' = visibile a tutti gli utenti autenticati
+        // Ruolo corrente dell'utente
+        const ruoloCorrente = AuthService.getUserRole();
+
+        // Ruoli AMMINISTRATIVI/FINANZIARI: vedono fatture, scadenze, riepilogo finanziario
+        const ruoliAmministrativi = ['SUPER_ADMIN', 'ADMIN', 'CONTABILE'];
+        const isAmministrativo = ruoliAmministrativi.includes(ruoloCorrente);
+
+        // Ruoli TECNICI: vedono app, task, clienti (NO dati finanziari)
+        const ruoliTecnici = ['CTO', 'SVILUPPATORE', 'CONTENT_MANAGER'];
+        const isTecnico = ruoliTecnici.includes(ruoloCorrente);
+
+        // Widget FINANZIARI: visibili SOLO ai ruoli amministrativi
+        const widgetFinanziari = ['andamentoMensile', 'fattureNonPagate', 'topClienti', 'scadenzeImminenti'];
+
+        // Widget TECNICI: visibili a tutti ma prioritari per i ruoli tecnici
+        // contrattiInScadenza: visibile anche al CTO (ha responsabilità gestionale)
+        const widgetSoloAdmin = ['andamentoMensile', 'fattureNonPagate', 'topClienti'];
+
+        // Mappa permessi richiesti per ogni widget (permessi base)
         const widgetPermissions = {
             'statistiche': ['_always_'],
             'scadenzeImminenti': ['manage_payments', 'view_all_data'],
             'fattureNonPagate': ['manage_invoices', 'view_invoices', 'view_all_data'],
             'contrattiInScadenza': ['manage_contracts', 'view_contracts', 'view_all_data'],
-            'andamentoMensile': ['view_all_data'],
+            'andamentoMensile': ['manage_invoices', 'view_reports'],
             'statoApp': ['view_apps', 'manage_apps', 'manage_app_content', 'view_all_data'],
-            'topClienti': ['manage_invoices', 'view_invoices', 'view_clients', 'manage_clients', 'view_all_data'],
+            'topClienti': ['manage_invoices', 'view_invoices', 'view_all_data'],
             'ultimiClienti': ['view_clients', 'manage_clients', 'view_all_data']
         };
 
         for (const widget of widgets) {
-            // Verifica se l'utente ha i permessi per vedere questo widget
+            // 1. Se è un widget finanziario e l'utente è un ruolo tecnico → NASCOSTO
+            if (isTecnico && widgetFinanziari.includes(widget.id)) {
+                continue;
+            }
+
+            // 2. Per scadenzeImminenti: solo CTO tra i tecnici può vederle (gestione contratti)
+            if (widget.id === 'scadenzeImminenti' && isTecnico && ruoloCorrente !== 'CTO') {
+                continue;
+            }
+
+            // 3. Verifica permessi standard
             const requiredPerms = widgetPermissions[widget.id] || [];
             const hasPermission = requiredPerms.includes('_always_') || requiredPerms.some(perm => AuthService.hasPermission(perm));
 
             if (!hasPermission) {
-                continue; // Salta questo widget
+                continue;
             }
 
             switch (widget.id) {
                 case 'statistiche':
-                    html += this.renderStatisticheKPI(data.stats, data.scadenzeScadute, data.contrattiTutti, data.fattureScadute, data.tasks);
+                    html += this.renderStatisticheKPI(data.stats, data.scadenzeScadute, data.contrattiTutti, data.fattureScadute, data.tasks, data.app);
                     break;
                 case 'scadenzeImminenti':
                     // Usa versione compatta se impostato nel widget
@@ -306,7 +340,7 @@ const Dashboard = {
                     html += this.renderContrattiInScadenza(data.contrattiInScadenza);
                     break;
                 case 'andamentoMensile':
-                    html += await this.renderAndamentoMensile(data.fatture, data.clienti, data.contrattiTutti, data.app);
+                    html += await this.renderAndamentoMensile(data.fatture);
                     break;
                 case 'statoApp':
                     html += this.renderStatoAppCorretto(data.app);
@@ -530,8 +564,14 @@ const Dashboard = {
     },
 
     renderFattureNonPagate(fattureScadute) {
-        // Usa direttamente le fatture scadute da DataService.getFattureScadute()
-        const totaleScaduto = fattureScadute.reduce((sum, f) => sum + (f.importoTotale || 0), 0);
+        // Calcola saldo residuo: per PARZIALMENTE_PAGATA sottrai gli acconti
+        const totaleScaduto = fattureScadute.reduce((sum, f) => {
+            if (f.statoPagamento === 'PARZIALMENTE_PAGATA') {
+                const totAcconti = (f.acconti || []).reduce((s, a) => s + (a.importo || 0), 0);
+                return sum + Math.max(0, (f.importoTotale || 0) - totAcconti);
+            }
+            return sum + (f.importoTotale || 0);
+        }, 0);
 
         return `
             <div class="card fade-in">
@@ -541,7 +581,7 @@ const Dashboard = {
                     </h2>
                 </div>
                 <div class="card-body">
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1.5rem;">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr)); gap: 1.5rem;">
                         <div class="stat-box">
                             <div class="stat-value">${fattureScadute.length}</div>
                             <div class="stat-label">Fatture</div>
@@ -610,176 +650,95 @@ const Dashboard = {
         return html;
     },
 
-    async renderAndamentoMensile(fatture, clienti, contratti, app) {
-        const metrics = this.calculateMonthlyMetrics(clienti, contratti, app);
+    async renderAndamentoMensile(fatture) {
+        const metrics = this.calculateMonthlyMetrics(fatture);
 
-        const chartId1 = 'chart-nuovi-clienti-' + Date.now();
-        const chartId2 = 'chart-contratti-' + (Date.now() + 1);
-        const chartId3 = 'chart-app-sviluppo-' + (Date.now() + 2);
+        // Helper per freccia variazione
+        const renderVariazione = (variazione, mesePrec) => {
+            if (variazione === 0) return `<span style="font-size: 0.75rem; color: var(--grigio-500);">= vs ${mesePrec}</span>`;
+            const colore = variazione > 0 ? 'var(--verde-700)' : 'var(--rosso-errore)';
+            const icona = variazione > 0 ? 'fa-arrow-up' : 'fa-arrow-down';
+            return `<span style="font-size: 0.75rem; color: ${colore}; font-weight: 600;">
+                <i class="fas ${icona}" style="font-size: 0.65rem;"></i> ${variazione > 0 ? '+' : ''}${variazione}% vs ${mesePrec}
+            </span>`;
+        };
 
-        setTimeout(() => {
-            this.createChartNuoviClienti(chartId1, metrics.nuoviClienti);
-            this.createChartContratti(chartId2, metrics.contrattiAttivati, metrics.contrattiScaduti);
-            this.createChartApps(chartId3, metrics.appInSviluppo);
-        }, 100);
+        // Barra tasso incasso
+        const tassoClampato = Math.min(metrics.tassoIncasso, 100);
+        const coloreBarra = tassoClampato >= 70 ? 'var(--verde-700)' : tassoClampato >= 40 ? '#FFCC00' : 'var(--rosso-errore)';
 
         return `
             <div class="card fade-in">
                 <div class="card-header">
                     <h2 class="card-title">
-                        <i class="fas fa-chart-line"></i> Andamento Generale del Mese
+                        <i class="fas fa-euro-sign"></i> Riepilogo Finanziario
                     </h2>
-                    <div class="card-subtitle">${metrics.mese}</div>
+                    <div class="card-subtitle" style="text-transform: capitalize;">${metrics.mese}</div>
                 </div>
-                <div class="card-body">
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 2rem;">
-                        <!-- Grafico 1: Nuovi Clienti -->
-                        <div style="text-align: center;">
-                            <h3 style="font-size: 1rem; color: var(--blu-700); margin-bottom: 1rem;">
-                                <i class="fas fa-user-plus"></i> Nuovi Clienti
-                            </h3>
-                            <canvas id="${chartId1}" width="200" height="200"></canvas>
-                            <div style="margin-top: 0.5rem; font-size: 1.5rem; font-weight: 700; color: var(--blu-700);">
-                                ${metrics.nuoviClienti}
-                            </div>
-                        </div>
+                <div class="card-body" style="padding: 0;">
 
-                        <!-- Grafico 2: Contratti -->
-                        <div style="text-align: center;">
-                            <h3 style="font-size: 1rem; color: var(--verde-700); margin-bottom: 1rem;">
-                                <i class="fas fa-file-contract"></i> Contratti
-                            </h3>
-                            <canvas id="${chartId2}" width="200" height="200"></canvas>
-                            <div style="margin-top: 0.5rem; font-size: 0.875rem; color: var(--grigio-700);">
-                                <span style="color: var(--verde-700); font-weight: 700;">${metrics.contrattiAttivati} attivati</span> •
-                                <span style="color: var(--rosso-errore); font-weight: 700;">${metrics.contrattiScaduti} scaduti</span>
-                            </div>
+                    <!-- Emesso -->
+                    <div style="padding: 1rem 1.25rem; border-bottom: 1px solid var(--grigio-300);">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem;">
+                            <span style="font-size: 0.8rem; color: var(--grigio-700); font-weight: 500;">
+                                <i class="fas fa-file-invoice" style="color: var(--blu-700); width: 18px;"></i> Emesso nel mese
+                            </span>
+                            <span style="font-size: 0.75rem; color: var(--grigio-500);">${metrics.numFattureEmesse} fatture</span>
                         </div>
-
-                        <!-- Grafico 3: App in Sviluppo -->
-                        <div style="text-align: center;">
-                            <h3 style="font-size: 1rem; color: var(--azzurro-info); margin-bottom: 1rem;">
-                                <i class="fas fa-mobile-alt"></i> Nuove App
-                            </h3>
-                            <canvas id="${chartId3}" width="200" height="200"></canvas>
-                            <div style="margin-top: 0.5rem; font-size: 1.5rem; font-weight: 700; color: var(--azzurro-info);">
-                                ${metrics.appInSviluppo}
-                            </div>
+                        <div style="display: flex; justify-content: space-between; align-items: baseline;">
+                            <span style="font-size: 1.5rem; font-weight: 700; color: var(--blu-900);">
+                                ${DataService.formatCurrency(metrics.emessoNettoMese)}
+                            </span>
+                            ${renderVariazione(metrics.varEmesso, metrics.mesePrec)}
                         </div>
                     </div>
+
+                    <!-- Incassato -->
+                    <div style="padding: 1rem 1.25rem; border-bottom: 1px solid var(--grigio-300);">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem;">
+                            <span style="font-size: 0.8rem; color: var(--grigio-700); font-weight: 500;">
+                                <i class="fas fa-hand-holding-usd" style="color: var(--verde-700); width: 18px;"></i> Incassato nel mese
+                            </span>
+                            <span style="font-size: 0.75rem; color: var(--grigio-500);">${metrics.numPagamentiMese} pagamenti ricevuti</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; align-items: baseline;">
+                            <span style="font-size: 1.5rem; font-weight: 700; color: var(--verde-900);">
+                                ${DataService.formatCurrency(metrics.incassatoMese)}
+                            </span>
+                            ${renderVariazione(metrics.varIncassato, metrics.mesePrec)}
+                        </div>
+                    </div>
+
+                    <!-- Da incassare -->
+                    <div style="padding: 1rem 1.25rem; border-bottom: 1px solid var(--grigio-300);">
+                        <div style="font-size: 0.8rem; color: var(--grigio-700); font-weight: 500; margin-bottom: 0.25rem;">
+                            <i class="fas fa-clock" style="color: var(--rosso-errore); width: 18px;"></i> Da incassare (totale)
+                        </div>
+                        <span style="font-size: 1.5rem; font-weight: 700; color: ${metrics.daIncassare > 0 ? 'var(--rosso-errore)' : 'var(--verde-700)'};">
+                            ${DataService.formatCurrency(metrics.daIncassare)}
+                        </span>
+                    </div>
+
+                    <!-- Tasso di incasso -->
+                    <div style="padding: 1rem 1.25rem;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                            <span style="font-size: 0.8rem; color: var(--grigio-700); font-weight: 500;">
+                                <i class="fas fa-percentage" style="color: var(--blu-500); width: 18px;"></i> Recupero crediti del mese
+                            </span>
+                            <span style="font-size: 1rem; font-weight: 700; color: ${coloreBarra};">
+                                ${metrics.tassoIncasso}%
+                            </span>
+                        </div>
+                        <div style="width: 100%; height: 8px; background: var(--grigio-100); border-radius: 4px; overflow: hidden;">
+                            <div style="width: ${tassoClampato}%; height: 100%; background: ${coloreBarra}; border-radius: 4px; transition: width 1s ease-out;"></div>
+                        </div>
+                    </div>
+
                 </div>
             </div>
         `;
     },
 
-    createChartNuoviClienti(canvasId, count) {
-        const ctx = document.getElementById(canvasId);
-        if (!ctx) return;
-
-        new Chart(ctx, {
-            type: 'doughnut',
-            data: {
-                labels: ['Nuovi', 'Obiettivo rimanente'],
-                datasets: [{
-                    data: [count, Math.max(0, 10 - count)],
-                    backgroundColor: [
-                        'rgb(20, 82, 132)',  // blu-700
-                        'rgb(209, 226, 242)'  // blu-100
-                    ],
-                    borderWidth: 0
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: true,
-                plugins: {
-                    legend: { display: false },
-                    tooltip: { enabled: true }
-                },
-                cutout: '70%',
-                animation: {
-                    animateRotate: true,
-                    animateScale: true,
-                    duration: 1000,
-                    easing: 'easeOutQuart'
-                }
-            }
-        });
-    },
-
-    createChartContratti(canvasId, attivati, scaduti) {
-        const ctx = document.getElementById(canvasId);
-        if (!ctx) return;
-
-        new Chart(ctx, {
-            type: 'bar',
-            data: {
-                labels: ['Attivati', 'Scaduti'],
-                datasets: [{
-                    label: 'Contratti',
-                    data: [attivati, scaduti],
-                    backgroundColor: [
-                        'rgb(60, 164, 52)',   // verde-700
-                        'rgb(211, 47, 47)'    // rosso-errore
-                    ],
-                    borderRadius: 8
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: true,
-                plugins: {
-                    legend: { display: false },
-                    tooltip: { enabled: true }
-                },
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        ticks: { stepSize: 1 }
-                    }
-                },
-                animation: {
-                    duration: 1000,
-                    easing: 'easeOutBounce'
-                }
-            }
-        });
-    },
-
-    createChartApps(canvasId, count) {
-        const ctx = document.getElementById(canvasId);
-        if (!ctx) return;
-
-        new Chart(ctx, {
-            type: 'doughnut',
-            data: {
-                labels: ['In Sviluppo', 'Altre'],
-                datasets: [{
-                    data: [count, Math.max(0, 5 - count)],
-                    backgroundColor: [
-                        'rgb(2, 136, 209)',   // azzurro-info
-                        'rgb(245, 245, 245)'  // grigio-100
-                    ],
-                    borderWidth: 0
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: true,
-                plugins: {
-                    legend: { display: false },
-                    tooltip: { enabled: true }
-                },
-                cutout: '70%',
-                animation: {
-                    animateRotate: true,
-                    animateScale: true,
-                    duration: 1000,
-                    easing: 'easeOutQuart'
-                }
-            }
-        });
-    },
 
 
     renderStatoApp(clienti) {
@@ -798,7 +757,7 @@ const Dashboard = {
                     </h2>
                 </div>
                 <div class="card-body">
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 1rem;">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(120px, 100%), 1fr)); gap: 1rem;">
                         <div class="stat-box">
                             <div class="stat-value" style="color: var(--verde-700);">${stati.ATTIVA}</div>
                             <div class="stat-label">Attive</div>
@@ -873,52 +832,142 @@ const Dashboard = {
 
     // === HELPER FUNCTIONS ===
 
-    calculateMonthlyMetrics(clienti, contratti, app) {
+    calculateMonthlyMetrics(fatture) {
         const oggi = new Date();
         const primoGiornoMese = new Date(oggi.getFullYear(), oggi.getMonth(), 1);
-        const ultimoGiornoMese = new Date(oggi.getFullYear(), oggi.getMonth() + 1, 0);
+        const ultimoGiornoMese = new Date(oggi.getFullYear(), oggi.getMonth() + 1, 0, 23, 59, 59);
 
-        // Nuovi clienti del mese
-        const nuoviClienti = clienti.filter(c => {
-            if (!c.dataInserimento) return false;
-            const data = new Date(c.dataInserimento);
-            return data >= primoGiornoMese && data <= ultimoGiornoMese;
-        }).length;
+        // Mese precedente per confronto
+        const primoGiornoMesePrec = new Date(oggi.getFullYear(), oggi.getMonth() - 1, 1);
+        const ultimoGiornoMesePrec = new Date(oggi.getFullYear(), oggi.getMonth(), 0, 23, 59, 59);
 
-        // Contratti attivati nel mese
-        const contrattiAttivati = contratti.filter(c => {
-            if (!c.dataInizio || c.stato !== 'ATTIVO') return false;
-            const data = new Date(c.dataInizio);
-            return data >= primoGiornoMese && data <= ultimoGiornoMese;
-        }).length;
+        // Helper: controlla se data è nel range
+        const isInRange = (dataStr, inizio, fine) => {
+            if (!dataStr) return false;
+            const d = new Date(dataStr);
+            return d >= inizio && d <= fine;
+        };
 
-        // Contratti scaduti nel mese
-        const contrattiScaduti = contratti.filter(c => {
-            if (!c.dataScadenza) return false;
-            const data = new Date(c.dataScadenza);
-            return data >= primoGiornoMese && data <= ultimoGiornoMese && c.stato === 'SCADUTO';
-        }).length;
+        // Helper: calcola saldo residuo
+        const saldoResiduo = (f) => {
+            if (f.statoPagamento === 'PARZIALMENTE_PAGATA' && f.acconti && f.acconti.length > 0) {
+                const totAcconti = f.acconti.reduce((s, a) => s + (a.importo || 0), 0);
+                return Math.max(0, (f.importoTotale || 0) - totAcconti);
+            }
+            return f.importoTotale || 0;
+        };
 
-        // App in sviluppo del mese
-        const appInSviluppo = app.filter(a => {
-            if (!a.dataCreazione) return false;
-            const data = new Date(a.dataCreazione);
-            return data >= primoGiornoMese && data <= ultimoGiornoMese &&
-                   (a.statoApp === 'SVILUPPO' || a.statoApp === 'IN_SVILUPPO');
-        }).length;
+        // Fatture escluse note di credito per calcoli emesso
+        const fattureReali = fatture.filter(f => f.tipoDocumento !== 'NOTA_DI_CREDITO');
+        const noteDiCredito = fatture.filter(f => f.tipoDocumento === 'NOTA_DI_CREDITO');
+
+        // --- EMESSO NEL MESE (fatture emesse questo mese) ---
+        const emessoMese = fattureReali
+            .filter(f => isInRange(f.dataEmissione, primoGiornoMese, ultimoGiornoMese))
+            .reduce((s, f) => s + (f.importoTotale || 0), 0);
+        const ncMese = noteDiCredito
+            .filter(f => isInRange(f.dataEmissione, primoGiornoMese, ultimoGiornoMese))
+            .reduce((s, f) => s + Math.abs(f.importoTotale || 0), 0);
+        const emessoNettoMese = emessoMese - ncMese;
+
+        // Emesso mese precedente per confronto
+        const emessoMesePrec = fattureReali
+            .filter(f => isInRange(f.dataEmissione, primoGiornoMesePrec, ultimoGiornoMesePrec))
+            .reduce((s, f) => s + (f.importoTotale || 0), 0);
+        const ncMesePrec = noteDiCredito
+            .filter(f => isInRange(f.dataEmissione, primoGiornoMesePrec, ultimoGiornoMesePrec))
+            .reduce((s, f) => s + Math.abs(f.importoTotale || 0), 0);
+        const emessoNettoMesePrec = emessoMesePrec - ncMesePrec;
+
+        // --- INCASSATO NEL MESE ---
+        // Calcola il denaro effettivamente entrato nel mese, evitando doppi conteggi:
+        // - Se fattura ha acconti: conta SOLO gli acconti nel periodo (gli acconti sono i pagamenti reali)
+        // - Se fattura PAGATA senza acconti: conta importoTotale su dataSaldo
+        // - Se fattura PAGATA con acconti ma saldo finale non coperto da acconti: conta la differenza
+        const _calcolaIncassatoPeriodo = (listaFatture, inizio, fine) => {
+            let totale = 0;
+            let numPagamenti = 0;
+            listaFatture.forEach(f => {
+                if (f.tipoDocumento === 'NOTA_DI_CREDITO') return;
+
+                const haAcconti = f.acconti && f.acconti.length > 0;
+                let accontiNelPeriodo = 0;
+                let totaleAcconti = 0;
+
+                if (haAcconti) {
+                    f.acconti.forEach(a => {
+                        totaleAcconti += (a.importo || 0);
+                        if (isInRange(a.data, inizio, fine)) {
+                            accontiNelPeriodo += (a.importo || 0);
+                        }
+                    });
+                    totale += accontiNelPeriodo;
+                    if (accontiNelPeriodo > 0) numPagamenti++;
+
+                    // Se PAGATA nel periodo e c'è un residuo non coperto dagli acconti
+                    // (es: utente ha marcato manualmente come pagata)
+                    if (f.statoPagamento === 'PAGATA' && isInRange(f.dataSaldo, inizio, fine)) {
+                        const residuoNonAcconti = Math.max(0, (f.importoTotale || 0) - totaleAcconti);
+                        if (residuoNonAcconti > 0) {
+                            totale += residuoNonAcconti;
+                        }
+                    }
+                } else if (f.statoPagamento === 'PAGATA' && isInRange(f.dataSaldo, inizio, fine)) {
+                    // Fattura pagata senza acconti: intero importo nel periodo del saldo
+                    totale += (f.importoTotale || 0);
+                    numPagamenti++;
+                }
+            });
+            return { totale, numPagamenti };
+        };
+
+        const incMese = _calcolaIncassatoPeriodo(fatture, primoGiornoMese, ultimoGiornoMese);
+        const incassatoMese = incMese.totale;
+        const numPagamentiMese = incMese.numPagamenti;
+
+        // Incassato mese precedente per confronto
+        const incMesePrec = _calcolaIncassatoPeriodo(fatture, primoGiornoMesePrec, ultimoGiornoMesePrec);
+        const incassatoMesePrec = incMesePrec.totale;
+
+        // --- DA INCASSARE (totale residuo) ---
+        const daIncassare = fattureReali
+            .filter(f => f.statoPagamento === 'NON_PAGATA' || f.statoPagamento === 'PARZIALMENTE_PAGATA')
+            .reduce((s, f) => s + saldoResiduo(f), 0);
+
+        // --- CONTEGGIO FATTURE MESE ---
+        const numFattureEmesse = fattureReali
+            .filter(f => isInRange(f.dataEmissione, primoGiornoMese, ultimoGiornoMese)).length;
+
+        // --- TASSO DI RECUPERO CREDITI ---
+        // Rapporto tra incassato nel mese e totale da incassare (quanto stai recuperando)
+        const totaleEsposto = daIncassare + incassatoMese; // crediti inizio mese (approssimato)
+        const tassoIncasso = totaleEsposto > 0 ? Math.min(100, Math.round((incassatoMese / totaleEsposto) * 100)) : 0;
+
+        // --- VARIAZIONE PERCENTUALE ---
+        const varEmesso = emessoNettoMesePrec > 0
+            ? Math.round(((emessoNettoMese - emessoNettoMesePrec) / emessoNettoMesePrec) * 100)
+            : (emessoNettoMese > 0 ? 100 : 0);
+        const varIncassato = incassatoMesePrec > 0
+            ? Math.round(((incassatoMese - incassatoMesePrec) / incassatoMesePrec) * 100)
+            : (incassatoMese > 0 ? 100 : 0);
 
         return {
-            nuoviClienti,
-            contrattiAttivati,
-            contrattiScaduti,
-            appInSviluppo,
-            mese: oggi.toLocaleDateString('it-IT', { month: 'long', year: 'numeric' })
+            emessoNettoMese,
+            incassatoMese,
+            daIncassare,
+            numFattureEmesse,
+            numPagamentiMese,
+            tassoIncasso,
+            varEmesso,
+            varIncassato,
+            mese: oggi.toLocaleDateString('it-IT', { month: 'long', year: 'numeric' }),
+            mesePrec: primoGiornoMesePrec.toLocaleDateString('it-IT', { month: 'long' })
         };
     },
 
     // === NUOVI WIDGET KPI ===
 
-    renderStatisticheKPI(stats, scadenzeScadute, contrattiTutti, fattureScadute, tasks) {
+    renderStatisticheKPI(stats, scadenzeScadute, contrattiTutti, fattureScadute, tasks, app) {
         // Contratti scaduti: data scadenza passata e non cessati
         const oggi = new Date();
         oggi.setHours(0, 0, 0, 0);
@@ -928,8 +977,14 @@ const Dashboard = {
         });
         const contrattiScadutiCount = contrattiScadutiList.length;
 
-        // Calcola fatturato scaduto da recuperare
-        const fatturatoScaduto = fattureScadute.reduce((sum, f) => sum + (f.importoTotale || 0), 0);
+        // Calcola fatturato scaduto da recuperare (saldo residuo per parzialmente pagate)
+        const fatturatoScaduto = fattureScadute.reduce((sum, f) => {
+            if (f.statoPagamento === 'PARZIALMENTE_PAGATA') {
+                const totAcconti = (f.acconti || []).reduce((s, a) => s + (a.importo || 0), 0);
+                return sum + Math.max(0, (f.importoTotale || 0) - totAcconti);
+            }
+            return sum + (f.importoTotale || 0);
+        }, 0);
 
         // Salva in cache per drill-down
         this._kpiData = {
@@ -945,11 +1000,17 @@ const Dashboard = {
             (t.priorita === 'ALTA' || t.priorita === 'URGENTE')
         ).length;
 
-        // Costruisci KPI in base ai permessi
+        // Costruisci KPI in base al RUOLO (non solo permessi)
+        const _ruoloKPI = AuthService.getUserRole();
+        const _ruoliTecniciKPI = ['CTO', 'SVILUPPATORE', 'CONTENT_MANAGER'];
+        const _isTecnicoKPI = _ruoliTecniciKPI.includes(_ruoloKPI);
+
         let kpiCards = [];
 
-        // Scadenze Critiche - visibile se può gestire pagamenti o vedere tutto
-        if (AuthService.hasPermission('manage_payments') || AuthService.hasPermission('view_all_data')) {
+        // === KPI FINANZIARI (solo ruoli amministrativi: SUPER_ADMIN, ADMIN, CONTABILE) ===
+
+        // Scadenze Critiche
+        if (!_isTecnicoKPI && (AuthService.hasPermission('manage_payments') || AuthService.hasPermission('view_all_data'))) {
             kpiCards.push(UI.createKPICard({
                 icon: 'exclamation-triangle',
                 iconClass: 'critical',
@@ -959,8 +1020,8 @@ const Dashboard = {
             }));
         }
 
-        // Contratti Scaduti - visibile se può gestire contratti
-        if (AuthService.hasPermission('manage_contracts') || AuthService.hasPermission('view_contracts') || AuthService.hasPermission('view_all_data')) {
+        // Contratti Scaduti — visibile anche al CTO (gestione contratti)
+        if ((_ruoloKPI === 'CTO' || !_isTecnicoKPI) && (AuthService.hasPermission('manage_contracts') || AuthService.hasPermission('view_contracts') || AuthService.hasPermission('view_all_data'))) {
             kpiCards.push(UI.createKPICard({
                 icon: 'file-contract',
                 iconClass: 'warning',
@@ -970,8 +1031,8 @@ const Dashboard = {
             }));
         }
 
-        // Fatturato da Incassare - visibile se può gestire fatture
-        if (AuthService.hasPermission('manage_invoices') || AuthService.hasPermission('view_invoices') || AuthService.hasPermission('view_all_data')) {
+        // Fatturato da Incassare — SOLO ruoli amministrativi
+        if (!_isTecnicoKPI && (AuthService.hasPermission('manage_invoices') || AuthService.hasPermission('view_invoices'))) {
             kpiCards.push(UI.createKPICard({
                 icon: 'euro-sign',
                 iconClass: 'danger',
@@ -981,14 +1042,37 @@ const Dashboard = {
             }));
         }
 
-        // Task Urgenti - visibile se può vedere task
+        // === KPI TECNICI (per tutti, ma prioritari per ruoli tecnici) ===
+
+        // Task Urgenti — visibile a tutti
         if (AuthService.hasPermission('view_dev_tasks') || AuthService.hasPermission('manage_dev_tasks') || AuthService.hasPermission('view_all_data')) {
             kpiCards.push(UI.createKPICard({
                 icon: 'tasks',
-                iconClass: 'info',
+                iconClass: _isTecnicoKPI ? 'critical' : 'info',
                 label: 'Task Urgenti',
                 value: taskUrgenti,
                 onclick: 'UI.showPage("task")'
+            }));
+        }
+
+        // App in Sviluppo — KPI aggiuntivo per ruoli tecnici
+        if (_isTecnicoKPI && (AuthService.hasPermission('view_apps') || AuthService.hasPermission('manage_apps') || AuthService.hasPermission('manage_app_content'))) {
+            const _appData = app || [];
+            const _appSviluppoCount = _appData.filter(a => a.statoApp === 'IN_SVILUPPO' || a.statoApp === 'SVILUPPO').length;
+            const _appAttiveCount = _appData.filter(a => a.statoApp === 'ATTIVA').length;
+            kpiCards.push(UI.createKPICard({
+                icon: 'code',
+                iconClass: 'warning',
+                label: 'App in Sviluppo',
+                value: _appSviluppoCount,
+                onclick: 'UI.showPage("app")'
+            }));
+            kpiCards.push(UI.createKPICard({
+                icon: 'mobile-alt',
+                iconClass: 'success',
+                label: 'App Attive',
+                value: _appAttiveCount,
+                onclick: 'UI.showPage("app")'
             }));
         }
 
@@ -1206,7 +1290,7 @@ const Dashboard = {
                     <div class="card-subtitle">Distribuzione ${totale} app per stato</div>
                 </div>
                 <div class="card-body">
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 1rem;">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(120px, 100%), 1fr)); gap: 1rem;">
                         ${statsHTML}
                     </div>
                     <div style="text-align: center; margin-top: 1.5rem;">
@@ -1332,9 +1416,15 @@ const Dashboard = {
         const tra30giorni = new Date(oggi);
         tra30giorni.setDate(tra30giorni.getDate() + 30);
 
-        // Fatture non pagate
-        const fattureNonPagate = fatture.filter(f => f.statoPagamento === 'NON_PAGATA');
-        const importoNonPagato = fattureNonPagate.reduce((sum, f) => sum + (f.importoTotale || 0), 0);
+        // Fatture non pagate (include PARZIALMENTE_PAGATA)
+        const fattureNonPagate = fatture.filter(f => f.statoPagamento === 'NON_PAGATA' || f.statoPagamento === 'PARZIALMENTE_PAGATA');
+        const importoNonPagato = fattureNonPagate.reduce((sum, f) => {
+            if (f.statoPagamento === 'PARZIALMENTE_PAGATA') {
+                const totAcconti = (f.acconti || []).reduce((s, a) => s + (a.importo || 0), 0);
+                return sum + Math.max(0, (f.importoTotale || 0) - totAcconti);
+            }
+            return sum + (f.importoTotale || 0);
+        }, 0);
 
         // Fatture scadute
         const fattureScadute = fattureNonPagate.filter(f => {
@@ -1389,7 +1479,8 @@ const Dashboard = {
         try {
             const scadenzeCalcolate = await DataService.getScadenzeCompute({
                 contratti: contratti,
-                fatture: fatture
+                fatture: fatture,
+                clienti: clienti
             });
             scadenzeScadute = scadenzeCalcolate.tutteLeScadenze.filter(s =>
                 s.dataScadenza && new Date(s.dataScadenza) < oggi
@@ -1425,7 +1516,7 @@ const Dashboard = {
             </div>
 
             <!-- KPI PRINCIPALI AGENTE -->
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(160px, 100%), 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
                 <div style="background: white; border-radius: 12px; padding: 1.2rem; box-shadow: 0 2px 8px rgba(0,0,0,0.06); border-left: 4px solid var(--blu-700); text-align: center;">
                     <div style="font-size: 2rem; font-weight: 900; color: var(--blu-700);">${clienti.length}</div>
                     <div style="font-size: 0.85rem; color: var(--grigio-500);">I miei Clienti</div>
@@ -1449,7 +1540,7 @@ const Dashboard = {
             </div>
 
             <!-- FATTURATO -->
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
                 <div style="background: linear-gradient(135deg, var(--blu-700), var(--blu-500)); border-radius: 12px; padding: 1.5rem; color: white; text-align: center;">
                     <div style="font-size: 0.85rem; opacity: 0.8; margin-bottom: 0.5rem;">
                         <i class="fas fa-euro-sign"></i> Fatturato ${annoCorrente}
@@ -1471,7 +1562,7 @@ const Dashboard = {
             </div>
 
             <!-- DUE COLONNE: ALERT + AZIONI -->
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem;">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 1.5rem; margin-bottom: 1.5rem;">
                 ${this.renderAgenteAlerts(scadenzeScadute, scadenzeImminenti, contrattiInScadenza, contrattiScaduti, fattureScadute, clientiSenzaContratto)}
                 ${this.renderAgenteClientiRecap(clienti, contratti, fatture)}
             </div>
@@ -1492,7 +1583,7 @@ const Dashboard = {
                 <h3 style="font-size: 1rem; font-weight: 700; color: var(--blu-700); margin-bottom: 1rem;">
                     <i class="fas fa-mobile-alt"></i> Le Mie App (${app.length})
                 </h3>
-                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 0.75rem;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(min(250px, 100%), 1fr)); gap: 0.75rem;">
                     ${app.map(a => {
                         const clienteApp = clienti.find(c => c.id === a.clientePaganteId);
                         return `
@@ -1518,7 +1609,7 @@ const Dashboard = {
             </div>
             ` : ''}
 
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem; margin-top: 1.5rem;">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 1.5rem; margin-top: 1.5rem;">
                 <!-- PROSSIME ATTIVITÀ (7gg) -->
                 <div id="widgetProssimeAttivita" style="background: white; border-radius: 12px; padding: 1.5rem; box-shadow: 0 2px 8px rgba(0,0,0,0.06);">
                     <h3 style="font-size: 1rem; font-weight: 700; color: var(--blu-700); margin-bottom: 1rem;">
@@ -1717,7 +1808,13 @@ const Dashboard = {
             </div>`;
         }
         if (fattureScadute.length > 0) {
-            const importo = fattureScadute.reduce((s, f) => s + (f.importoTotale || 0), 0);
+            const importo = fattureScadute.reduce((s, f) => {
+                if (f.stato === 'PARZIALMENTE_PAGATA' && f.acconti && f.acconti.length > 0) {
+                    const totAcconti = f.acconti.reduce((sum, a) => sum + (a.importo || 0), 0);
+                    return s + Math.max(0, (f.importoTotale || 0) - totAcconti);
+                }
+                return s + (f.importoTotale || 0);
+            }, 0);
             alertItems += `<div style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; background: #FFF3F3; border-radius: 8px; margin-bottom: 0.5rem;">
                 <i class="fas fa-file-invoice-dollar" style="color: #D32F2F; font-size: 1.2rem;"></i>
                 <div><strong style="color: #D32F2F;">${fattureScadute.length} fatture scadute</strong> (${DataService.formatCurrency(importo)})<br><span style="font-size: 0.8rem; color: var(--grigio-700);">Sollecitare il pagamento</span></div>

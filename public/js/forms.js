@@ -305,7 +305,7 @@ const FormsManager = {
         }
 
         const content = `
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem;">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 1rem;">
                 ${this.createFormField('Ragione Sociale', 'ragioneSociale', 'text', cliente.ragioneSociale, { required: true })}
                 ${this.createFormField('Partita IVA', 'partitaIva', 'text', cliente.partitaIva)}
                 ${this.createFormField('Codice Fiscale', 'codiceFiscale', 'text', cliente.codiceFiscale)}
@@ -389,7 +389,7 @@ const FormsManager = {
                 </small>
             </div>
 
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem;">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 1rem;">
                 ${this.createFormField('Ragione Sociale', 'ragioneSociale', 'text', '', { required: true, placeholder: 'Nome azienda o ente' })}
                 ${this.createFormField('Partita IVA', 'partitaIva', 'text', '', { placeholder: '12345678901' })}
                 ${this.createFormField('Codice Fiscale', 'codiceFiscale', 'text', '')}
@@ -527,7 +527,7 @@ const FormsManager = {
         const totaleAcconti = accontiEsistenti.reduce((sum, a) => sum + (a.importo || 0), 0);
 
         const content = `
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem;">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 1rem;">
                 <div class="form-group" style="margin-bottom: 1rem;">
                     <label style="display: block; font-size: 0.875rem; font-weight: 600; color: var(--grigio-700); margin-bottom: 0.5rem;">
                         Cliente <span style="color: #D32F2F;">*</span>
@@ -622,7 +622,7 @@ const FormsManager = {
 
                 <!-- Nuovo acconto -->
                 <h4 style="font-size: 0.875rem; font-weight: 600; color: var(--verde-900); margin-bottom: 0.5rem;">Registra nuovo acconto:</h4>
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr)); gap: 1rem;">
                     ${this.createFormField('Importo Nuovo Acconto', 'nuovoAccontoImporto', 'number', '', { placeholder: '0.00' })}
                     ${this.createFormField('Data Acconto', 'nuovoAccontoData', 'date', new Date().toISOString().split('T')[0])}
                     ${this.createFormField('Nota Acconto', 'nuovoAccontoNote', 'text', '', { placeholder: 'Es: Acconto ricevuto' })}
@@ -815,7 +815,7 @@ const FormsManager = {
         }
 
         const content = `
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem;">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 1rem;">
                 ${clienteSelectHtml}
                 <div class="form-group" style="margin-bottom: 1rem;">
                     <label style="display: block; font-size: 0.875rem; font-weight: 600; color: var(--grigio-700); margin-bottom: 0.5rem;">
@@ -881,7 +881,7 @@ const FormsManager = {
                 <h3 style="font-size: 1rem; font-weight: 700; color: var(--verde-900); margin-bottom: 0.75rem;">
                     <i class="fas fa-hand-holding-usd"></i> Dettagli Acconto
                 </h3>
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(250px, 100%), 1fr)); gap: 1rem;">
                     ${this.createFormField('Importo Acconto', 'importoAcconto', 'number', '', { placeholder: '0.00' })}
                     ${this.createFormField('Data Acconto', 'dataAcconto', 'date', new Date().toISOString().split('T')[0])}
                 </div>
@@ -1027,7 +1027,7 @@ const FormsManager = {
         }
 
         const content = `
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem;">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 1rem;">
                 ${this.createFormField('Cliente ID', 'clienteId', 'text', scadenza.clienteId)}
                 ${this.createFormField('Ragione Sociale Cliente', 'clienteRagioneSociale', 'text', scadenza.clienteRagioneSociale)}
                 ${this.createFormField('Tipo', 'tipo', 'select', scadenza.tipo, {
@@ -1104,7 +1104,7 @@ const FormsManager = {
         `;
 
         const content = `
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem;">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 1rem;">
                 ${clienteSelectHtml}
                 ${this.createFormField('Tipo', 'tipo', 'select', 'PAGAMENTO', {
                     required: true,
@@ -1335,7 +1335,7 @@ const FormsManager = {
                 <h3 style="font-size: 1.1rem; font-weight: 700; color: var(--blu-700); margin-bottom: 0.5rem;">
                     📱 Dati App/Comune
                 </h3>
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr)); gap: 1rem;">
                     ${this.createFormField('Nome App/Comune', 'nome', 'text', app.nome, { required: true })}
                     ${this.createFormField('Comune', 'comune', 'text', app.comune)}
                     ${this.createFormField('Provincia', 'provincia', 'text', app.provincia)}
@@ -1352,7 +1352,7 @@ const FormsManager = {
                 <h3 style="font-size: 1.1rem; font-weight: 700; color: var(--blu-700); margin-bottom: 0.5rem;">
                     💼 Gestione Commerciale
                 </h3>
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr)); gap: 1rem;">
                     <div class="form-group">
                         <label>Cliente Pagante</label>
                         <select name="clientePaganteId" class="form-input" onchange="FormsManager.onClientePaganteChange(this.value, ${JSON.stringify(clienti).replace(/"/g, '&quot;')})">
@@ -1401,7 +1401,7 @@ const FormsManager = {
                 <h3 style="font-size: 1.1rem; font-weight: 700; color: var(--blu-700); margin-bottom: 0.5rem;">
                     📅 Pubblicazione Store
                 </h3>
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr)); gap: 1rem;">
                     ${this.createFormField('Data Pubblicazione Apple', 'dataPubblicazioneApple', 'date', app.dataPubblicazioneApple?.split('T')[0])}
                     ${this.createFormField('Data Pubblicazione Android', 'dataPubblicazioneAndroid', 'date', app.dataPubblicazioneAndroid?.split('T')[0])}
                     ${this.createFormField('Referente Comune', 'referenteComune', 'text', app.referenteComune)}
@@ -1416,7 +1416,7 @@ const FormsManager = {
                     <h4 style="font-size: 0.95rem; font-weight: 600; color: var(--grigio-700); margin-bottom: 0.75rem;">
                         Funzionalità Attive
                     </h4>
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem;">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr)); gap: 1rem;">
                         <div class="form-group">
                             <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
                                 <input type="checkbox" name="hasGruppoTelegram" value="true" ${app.hasGruppoTelegram ? 'checked' : ''} style="width: 20px; height: 20px;">
@@ -1435,7 +1435,7 @@ const FormsManager = {
                     <h4 style="font-size: 0.95rem; font-weight: 600; color: var(--giallo-avviso); margin-bottom: 0.75rem;">
                         ⚠️ Scadenze e Alert (Alert 3 giorni prima)
                     </h4>
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem;">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr)); gap: 1rem;">
                         ${this.createFormField('📅 Ultima Data Raccolta Differenziata', 'ultimaDataRaccoltaDifferenziata', 'date', app.ultimaDataRaccoltaDifferenziata?.split('T')[0], { placeholder: 'Data aggiornamento' })}
                         ${this.createFormField('💊 Ultima Data Farmacie di Turno', 'ultimaDataFarmacieTurno', 'date', app.ultimaDataFarmacieTurno?.split('T')[0], { placeholder: 'Data aggiornamento' })}
                         ${this.createFormField('🍎 Scadenza Certificato Apple', 'scadenzaCertificatoApple', 'date', app.scadenzaCertificatoApple?.split('T')[0], { placeholder: 'Data scadenza' })}
@@ -1451,7 +1451,7 @@ const FormsManager = {
                 <h3 style="font-size: 1.1rem; font-weight: 700; color: var(--blu-700); margin-bottom: 0.5rem;">
                     📊 Metriche
                 </h3>
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr)); gap: 1rem;">
                     ${this.createFormField('Numero Downloads', 'numDownloads', 'number', app.numDownloads || 0)}
                     ${this.createFormField('Data Rilevamento Downloads', 'dataRilevamentoDownloads', 'date', app.dataRilevamentoDownloads?.split('T')[0])}
                     ${this.createFormField('Numero Notifiche', 'numNotifiche', 'number', app.numNotifiche || 0)}
@@ -1566,7 +1566,7 @@ const FormsManager = {
                 <h3 style="font-size: 1.1rem; font-weight: 700; color: var(--blu-700); margin-bottom: 0.5rem;">
                     📱 Dati App/Comune
                 </h3>
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr)); gap: 1rem;">
                     ${this.createFormField('Nome App/Comune', 'nome', 'text', '', { required: true, placeholder: 'Comune di...' })}
                     ${this.createFormField('Comune', 'comune', 'text', '')}
                     ${this.createFormField('Provincia', 'provincia', 'text', '', { placeholder: 'UD' })}
@@ -1583,7 +1583,7 @@ const FormsManager = {
                 <h3 style="font-size: 1.1rem; font-weight: 700; color: var(--blu-700); margin-bottom: 0.5rem;">
                     💼 Gestione Commerciale
                 </h3>
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr)); gap: 1rem;">
                     <div class="form-group">
                         <label>Cliente Pagante</label>
                         <select name="clientePaganteId" class="form-input" onchange="FormsManager.onClientePaganteChange(this.value, ${JSON.stringify(clienti).replace(/"/g, '&quot;')})">
@@ -1628,7 +1628,7 @@ const FormsManager = {
                 <h3 style="font-size: 1.1rem; font-weight: 700; color: var(--blu-700); margin-bottom: 0.5rem;">
                     📅 Pubblicazione Store
                 </h3>
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr)); gap: 1rem;">
                     ${this.createFormField('Data Pubblicazione Apple', 'dataPubblicazioneApple', 'date', '')}
                     ${this.createFormField('Data Pubblicazione Android', 'dataPubblicazioneAndroid', 'date', '')}
                     ${this.createFormField('Referente Comune', 'referenteComune', 'text', '', { placeholder: 'Nome e cognome' })}
@@ -1643,7 +1643,7 @@ const FormsManager = {
                     <h4 style="font-size: 0.95rem; font-weight: 600; color: var(--grigio-700); margin-bottom: 0.75rem;">
                         Funzionalità Attive
                     </h4>
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem;">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr)); gap: 1rem;">
                         <div class="form-group">
                             <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
                                 <input type="checkbox" name="hasGruppoTelegram" value="true" style="width: 20px; height: 20px;">
@@ -1662,7 +1662,7 @@ const FormsManager = {
                     <h4 style="font-size: 0.95rem; font-weight: 600; color: var(--giallo-avviso); margin-bottom: 0.75rem;">
                         ⚠️ Scadenze e Alert (Alert 3 giorni prima)
                     </h4>
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem;">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr)); gap: 1rem;">
                         ${this.createFormField('📅 Ultima Data Raccolta Differenziata', 'ultimaDataRaccoltaDifferenziata', 'date', '', { placeholder: 'Data aggiornamento' })}
                         ${this.createFormField('💊 Ultima Data Farmacie di Turno', 'ultimaDataFarmacieTurno', 'date', '', { placeholder: 'Data aggiornamento' })}
                         ${this.createFormField('🍎 Scadenza Certificato Apple', 'scadenzaCertificatoApple', 'date', '', { placeholder: 'Data scadenza' })}
@@ -1678,7 +1678,7 @@ const FormsManager = {
                 <h3 style="font-size: 1.1rem; font-weight: 700; color: var(--blu-700); margin-bottom: 0.5rem;">
                     📊 Metriche
                 </h3>
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr)); gap: 1rem;">
                     ${this.createFormField('Numero Downloads', 'numDownloads', 'number', '0', { placeholder: '0' })}
                     ${this.createFormField('Data Rilevamento Downloads', 'dataRilevamentoDownloads', 'date', '')}
                     ${this.createFormField('Numero Notifiche', 'numNotifiche', 'number', '0', { placeholder: '0' })}
@@ -1800,18 +1800,31 @@ const FormsManager = {
         }
 
         // Genera numero contratto suggerito (da impostazioni sistema)
+        // Trova il numero SEQUENZIALE PIÙ ALTO tra i contratti dell'anno e propone il successivo
         const _sys = SettingsService.getSystemSettingsSync();
         const anno = _sys.annoContabile || new Date().getFullYear();
         const _pref = _sys.prefissoNumeroContratto || 'CTR';
         const _padC = _sys.paddingNumeroContratto || 3;
         const _fmtC = _sys.formatoNumeroContratto || '{PREF}-{ANNO}-{NUM}';
         const contratti = await DataService.getContratti();
-        const numeroContratti = contratti.filter(c => c.numeroContratto?.startsWith(`${_pref}-${anno}`)).length;
-        const _numC = String(numeroContratti + 1).padStart(_padC, '0');
+        const prefissoAnno = `${_pref}-${anno}`;
+        let maxNumContratto = 0;
+        contratti.forEach(c => {
+            const nc = c.numeroContratto || '';
+            if (nc.startsWith(prefissoAnno)) {
+                // Estrai la parte numerica finale (es. da "CTR-2026-003" → 3)
+                const match = nc.match(/(\d+)$/);
+                if (match) {
+                    const num = parseInt(match[1]);
+                    if (num > maxNumContratto) maxNumContratto = num;
+                }
+            }
+        });
+        const _numC = String(maxNumContratto + 1).padStart(_padC, '0');
         const numeroSuggerito = _fmtC.replace('{PREF}', _pref).replace('{ANNO}', anno).replace('{NUM}', _numC);
 
         const content = `
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem;">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 1rem;">
                 ${clienteSelectHtml}
                 ${this.createFormField('Numero Contratto', 'numeroContratto', 'text', numeroSuggerito, { required: true, placeholder: numeroSuggerito })}
                 ${this.createFormField('Oggetto', 'oggetto', 'text', '', { required: true, placeholder: 'Servizio App Comune' })}
@@ -1958,7 +1971,7 @@ const FormsManager = {
         }));
 
         const content = `
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem;">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 1rem;">
                 ${this.createFormField('Cliente', 'clienteDisplay', 'text', cliente?.ragioneSociale || 'Sconosciuto', { disabled: true })}
                 ${apps.length > 0 ? this.createFormField('App Collegata', 'appId', 'select', contratto.appId, {
                     options: [
@@ -2093,7 +2106,7 @@ const FormsManager = {
                 </p>
             </div>
 
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem;">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 1rem;">
                 ${this.createFormField('Cliente', 'clienteDisplay', 'text', cliente?.ragioneSociale || 'Sconosciuto', { disabled: true })}
                 ${this.createFormField('Contratto Originale', 'contrattoOriginale', 'text', contratto.numeroContratto, { disabled: true })}
                 ${this.createFormField('Nuova Data Scadenza', 'nuovaDataScadenza', 'date', nuovaScadenza.toISOString().split('T')[0], { required: true })}

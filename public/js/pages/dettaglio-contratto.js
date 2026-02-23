@@ -33,7 +33,7 @@ const DettaglioContratto = {
             mainContent.innerHTML = `
                 ${this.renderHeader()}
 
-                <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(350px, 100%), 1fr)); gap: 1.5rem; margin-bottom: 1.5rem;">
                     <!-- Colonna Principale -->
                     <div style="display: flex; flex-direction: column; gap: 1.5rem;">
                         ${this.renderDatiContratto()}
@@ -112,7 +112,7 @@ const DettaglioContratto = {
                     </h2>
                 </div>
                 <div class="card-body">
-                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem;">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr)); gap: 1rem;">
                         <div>
                             <label style="font-size: 0.75rem; color: var(--grigio-500); text-transform: uppercase; font-weight: 600;">Tipologia</label>
                             <div style="font-size: 1rem; color: var(--grigio-900); margin-top: 0.25rem;">
@@ -177,7 +177,7 @@ const DettaglioContratto = {
                     </h2>
                 </div>
                 <div class="card-body">
-                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem;">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr)); gap: 1rem;">
                         <div>
                             <label style="font-size: 0.75rem; color: var(--grigio-500); text-transform: uppercase; font-weight: 600;">Importo Contratto</label>
                             <div style="font-size: 1.5rem; font-weight: 700; color: var(--blu-700); margin-top: 0.25rem;">

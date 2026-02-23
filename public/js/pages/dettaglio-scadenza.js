@@ -149,7 +149,7 @@ const DettaglioScadenza = {
                     </h2>
                 </div>
                 <div style="padding: 1.5rem;">
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem;">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr)); gap: 1.5rem;">
                         ${this.renderInfoField('Tipo', this.getTipoLabel(scadenza.tipo), this.getTipoIcon(scadenza.tipo))}
                         ${this.renderInfoField('Data Scadenza', DataService.formatDate(scadenza.dataScadenza), 'calendar-alt')}
                         ${this.renderInfoField('Urgenza', this.getUrgenzaLabel(urgenza, giorniRimanenti), 'exclamation-triangle')}
