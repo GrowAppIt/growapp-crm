@@ -81,6 +81,15 @@ const DettaglioCliente = {
                 <div id="tabContent">
                     ${this.renderTabContent(cliente, fatture, contratti, documenti)}
                 </div>
+
+                <!-- Footer Audit -->
+                ${cliente.ultimaModificaDa ? `
+                <div style="margin-top: 1.5rem; padding: 0.75rem 1rem; background: var(--grigio-100); border-radius: 8px; display: flex; align-items: center; gap: 0.5rem; font-size: 0.8rem; color: var(--grigio-500);">
+                    <i class="fas fa-user-edit"></i>
+                    Ultima modifica: <strong style="color: var(--grigio-700);">${cliente.ultimaModificaNome || cliente.ultimaModificaDa}</strong>
+                    &mdash; ${new Date(cliente.ultimaModificaIl).toLocaleString('it-IT')}
+                </div>
+                ` : ''}
             `;
 
             UI.hideLoading();

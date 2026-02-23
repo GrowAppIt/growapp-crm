@@ -366,21 +366,34 @@ const Contratti = {
     },
 
     async eliminaContratto(contrattoId, numeroContratto, clienteRagioneSociale) {
-        const conferma = confirm(
-            `⚠️ ATTENZIONE!\n\nSei sicuro di voler eliminare il contratto "${numeroContratto}" di ${clienteRagioneSociale}?\n\n` +
-            `Questa operazione eliminerà:\n` +
-            `• Il contratto\n` +
-            `• I collegamenti dalle fatture (le fatture rimarranno)\n\n` +
-            `QUESTA OPERAZIONE NON PUÒ ESSERE ANNULLATA!`
-        );
-
-        if (!conferma) return;
-
         try {
+            // Controlla fatture collegate prima di cancellare
+            const fattureCollegate = await DataService.getFattureContratto(contrattoId);
+            let messaggio;
+
+            if (fattureCollegate && fattureCollegate.length > 0) {
+                messaggio = `⚠️ ATTENZIONE!\n\nIl contratto "${numeroContratto}" di ${clienteRagioneSociale} ha ${fattureCollegate.length} fattura/e collegata/e.\n\n` +
+                    `Eliminando il contratto, le fatture verranno scollegate (NON cancellate).\n\n` +
+                    `Vuoi procedere?`;
+            } else {
+                messaggio = `⚠️ ATTENZIONE!\n\nSei sicuro di voler eliminare il contratto "${numeroContratto}" di ${clienteRagioneSociale}?\n\n` +
+                    `QUESTA OPERAZIONE NON PUÒ ESSERE ANNULLATA!`;
+            }
+
+            if (!confirm(messaggio)) return;
+
             UI.showLoading();
+
+            // Scollega fatture se ce ne sono
+            if (fattureCollegate && fattureCollegate.length > 0) {
+                for (const fattura of fattureCollegate) {
+                    await DataService.updateFattura(fattura.id, { contrattoId: null });
+                }
+            }
+
             await DataService.deleteContratto(contrattoId);
             UI.hideLoading();
-            UI.showSuccess(`Contratto "${numeroContratto}" eliminato`);
+            UI.showSuccess(`Contratto "${numeroContratto}" eliminato${fattureCollegate.length > 0 ? ` (${fattureCollegate.length} fatture scollegate)` : ''}`);
             await this.render();
         } catch (error) {
             console.error('Errore eliminazione contratto:', error);

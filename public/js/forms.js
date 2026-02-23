@@ -915,8 +915,14 @@ const FormsManager = {
                     data.importoTotale = parseFloat((data.imponibile + (data.importoIva || 0)).toFixed(2));
                 }
 
-                // Gestione acconto
+                // Gestione acconto con validazione
                 if (data.statoPagamento === 'PARZIALMENTE_PAGATA' && data.importoAcconto) {
+                    if (data.importoAcconto <= 0) {
+                        throw new Error('L\'importo dell\'acconto deve essere maggiore di zero');
+                    }
+                    if (data.importoAcconto >= data.importoTotale) {
+                        throw new Error('L\'acconto non può essere uguale o superiore al totale fattura. Usa lo stato PAGATA se il pagamento è completo.');
+                    }
                     data.saldoResiduo = parseFloat((data.importoTotale - data.importoAcconto).toFixed(2));
                     data.acconti = [{
                         importo: data.importoAcconto,
@@ -1137,7 +1143,20 @@ const FormsManager = {
 
     // === AZIONI RAPIDE ===
     async marcaFatturaPagata(fatturaId) {
-        if (confirm('Confermi di voler marcare questa fattura come pagata?')) {
+        // Carica fattura per messaggio di conferma dettagliato
+        let messaggio = 'Confermi di voler marcare questa fattura come pagata?';
+        try {
+            const fattura = await DataService.getFattura(fatturaId);
+            if (fattura && fattura.acconti && fattura.acconti.length > 0) {
+                const totAcconti = fattura.acconti.reduce((s, a) => s + (a.importo || 0), 0);
+                const residuo = (fattura.importoTotale || 0) - totAcconti;
+                if (residuo > 0) {
+                    messaggio = `Questa fattura ha un saldo residuo di ${DataService.formatCurrency(residuo)}.\n\nIl sistema registrerà automaticamente il pagamento del saldo finale.\n\nConfermi il pagamento completo?`;
+                }
+            }
+        } catch (e) { /* usa messaggio default */ }
+
+        if (confirm(messaggio)) {
             UI.showLoading();
             try {
                 await DataService.marcaFatturaPagata(fatturaId);
@@ -1908,6 +1927,17 @@ const FormsManager = {
                     data.importoMensile = data.importoAnnuale / 12;
                 }
 
+                // Validazione date obbligatorie
+                if (!data.dataInizio) {
+                    throw new Error('La data di inizio contratto è obbligatoria');
+                }
+                if (!data.dataScadenza) {
+                    throw new Error('La data di scadenza contratto è obbligatoria');
+                }
+                if (new Date(data.dataScadenza) <= new Date(data.dataInizio)) {
+                    throw new Error('La data di scadenza deve essere successiva alla data di inizio contratto');
+                }
+
                 // Converti numeri
                 data.importoAnnuale = parseFloat(data.importoAnnuale) || 0;
                 data.importoMensile = parseFloat(data.importoMensile) || 0;
@@ -2061,6 +2091,11 @@ const FormsManager = {
                 // Calcola importo mensile se non fornito
                 if (!data.importoMensile && data.importoAnnuale) {
                     data.importoMensile = data.importoAnnuale / 12;
+                }
+
+                // Validazione date
+                if (data.dataInizio && data.dataScadenza && new Date(data.dataScadenza) <= new Date(data.dataInizio)) {
+                    throw new Error('La data di scadenza deve essere successiva alla data di inizio contratto');
                 }
 
                 // Converti numeri

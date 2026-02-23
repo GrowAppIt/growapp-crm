@@ -69,6 +69,15 @@ const DettaglioFattura = {
 
                 <!-- Dettagli Fattura -->
                 ${this.renderDettagliFattura(fattura, cliente)}
+
+                <!-- Footer Audit -->
+                ${fattura.ultimaModificaDa ? `
+                <div style="margin-top: 1.5rem; padding: 0.75rem 1rem; background: var(--grigio-100); border-radius: 8px; display: flex; align-items: center; gap: 0.5rem; font-size: 0.8rem; color: var(--grigio-500);">
+                    <i class="fas fa-user-edit"></i>
+                    Ultima modifica: <strong style="color: var(--grigio-700);">${fattura.ultimaModificaNome || fattura.ultimaModificaDa}</strong>
+                    &mdash; ${new Date(fattura.ultimaModificaIl).toLocaleString('it-IT')}
+                </div>
+                ` : ''}
             `;
 
             UI.hideLoading();
@@ -192,9 +201,16 @@ const DettaglioFattura = {
                                         ${DataService.formatDate(acconto.data)}
                                     </span>
                                 </div>
-                                <strong style="color: var(--verde-700); font-size: 1.125rem;">
-                                    + ${DataService.formatCurrency(acconto.importo)}
-                                </strong>
+                                <div style="display: flex; align-items: center; gap: 0.75rem;">
+                                    <strong style="color: var(--verde-700); font-size: 1.125rem;">
+                                        + ${DataService.formatCurrency(acconto.importo)}
+                                    </strong>
+                                    ${!AuthService.canViewOnlyOwnData() ? `
+                                        <button onclick="DettaglioFattura.eliminaAcconto(${i})" title="Elimina acconto" style="background: none; border: none; color: var(--grigio-500); cursor: pointer; padding: 0.25rem; font-size: 0.9rem; transition: color 0.2s;" onmouseenter="this.style.color='#D32F2F'" onmouseleave="this.style.color='var(--grigio-500)'">
+                                            <i class="fas fa-trash-alt"></i>
+                                        </button>
+                                    ` : ''}
+                                </div>
                             </div>
                         `).join('')}
 
@@ -329,7 +345,10 @@ const DettaglioFattura = {
             async () => {
                 const data = FormsManager.getFormData();
                 if (!data.accontoImporto || data.accontoImporto <= 0) {
-                    throw new Error('Inserisci un importo valido');
+                    throw new Error('Inserisci un importo valido (maggiore di zero)');
+                }
+                if (data.accontoImporto > saldoResiduo) {
+                    throw new Error(`L'acconto (${DataService.formatCurrency(data.accontoImporto)}) non può superare il saldo residuo di ${DataService.formatCurrency(saldoResiduo)}`);
                 }
 
                 const nuovoAcconto = {
@@ -356,9 +375,54 @@ const DettaglioFattura = {
                 }
 
                 await DataService.updateFattura(this.fatturaId, updateData);
+                DataService._logAudit('UPDATE', 'fatture', this.fatturaId, { azione: 'REGISTRA_ACCONTO', importo: data.accontoImporto });
                 UI.showSuccess(nuovoSaldo <= 0 ? 'Fattura saldata completamente!' : 'Acconto registrato!');
                 this.render(this.fatturaId);
             }
         );
+    },
+
+    async eliminaAcconto(index) {
+        if (!this.fattura || !this.fattura.acconti || !this.fattura.acconti[index]) return;
+
+        const acconto = this.fattura.acconti[index];
+        const conferma = confirm(
+            `Vuoi eliminare l'acconto di ${DataService.formatCurrency(acconto.importo)} del ${DataService.formatDate(acconto.data)}?\n\n` +
+            `Nota: ${acconto.note || 'Nessuna nota'}\n\nQuesta operazione non può essere annullata.`
+        );
+        if (!conferma) return;
+
+        try {
+            UI.showLoading();
+            const nuoviAcconti = [...this.fattura.acconti];
+            nuoviAcconti.splice(index, 1);
+
+            const nuovoTotale = nuoviAcconti.reduce((sum, a) => sum + (a.importo || 0), 0);
+            const nuovoSaldo = parseFloat(((this.fattura.importoTotale || 0) - nuovoTotale).toFixed(2));
+
+            const updateData = {
+                acconti: nuoviAcconti,
+                saldoResiduo: Math.max(nuovoSaldo, 0)
+            };
+
+            // Aggiorna stato pagamento
+            if (nuoviAcconti.length === 0) {
+                updateData.statoPagamento = 'NON_PAGATA';
+                updateData.dataSaldo = null;
+            } else if (nuovoSaldo > 0) {
+                updateData.statoPagamento = 'PARZIALMENTE_PAGATA';
+                updateData.dataSaldo = null;
+            } else {
+                updateData.statoPagamento = 'PAGATA';
+            }
+
+            await DataService.updateFattura(this.fatturaId, updateData);
+            DataService._logAudit('UPDATE', 'fatture', this.fatturaId, { azione: 'ELIMINA_ACCONTO', importoRimosso: acconto.importo, nota: acconto.note });
+            UI.showSuccess('Acconto eliminato');
+            this.render(this.fatturaId);
+        } catch (error) {
+            UI.hideLoading();
+            UI.showError('Errore nell\'eliminazione dell\'acconto: ' + error.message);
+        }
     }
 };

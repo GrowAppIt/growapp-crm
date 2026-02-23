@@ -1,5 +1,32 @@
 // Export Manager - Gestione export dati in Excel
 const ExportManager = {
+
+    // Verifica permesso export e restituisce dati filtrati per ruolo
+    async _checkAndLoadData() {
+        // Verifica permesso export
+        if (typeof AuthService !== 'undefined' && !AuthService.hasPermission('export_data') && !AuthService.hasPermission('*')) {
+            throw new Error('Non hai i permessi per esportare i dati');
+        }
+
+        // Se l'utente è un agente, carica solo i propri dati
+        const isAgente = typeof AuthService !== 'undefined' && AuthService.canViewOnlyOwnData();
+        if (isAgente) {
+            const nomeAgente = AuthService.getAgenteFilterName();
+            if (nomeAgente) {
+                const datiAgente = await DataService.getDatiAgente(nomeAgente);
+                return {
+                    clienti: datiAgente.clienti || [],
+                    fatture: datiAgente.fatture || [],
+                    app: datiAgente.app || [],
+                    filteredByAgent: true,
+                    nomeAgente: nomeAgente
+                };
+            }
+        }
+
+        return { filteredByAgent: false };
+    },
+
     // Colori tema Comune.Digital
     colors: {
         bluPrimario: 'FF145284',
@@ -13,6 +40,7 @@ const ExportManager = {
     // === EXPORT CLIENTI ===
     async exportClienti(clienti, nomeFile = 'Clienti_Comune_Digital') {
         try {
+            await this._checkAndLoadData(); // verifica permessi
             // Prepara i dati
             const dati = clienti.map(c => ({
                 'Ragione Sociale': c.ragioneSociale || '',
@@ -82,6 +110,7 @@ const ExportManager = {
     // === EXPORT FATTURE ===
     async exportFatture(fatture, nomeFile = 'Fatture_Comune_Digital') {
         try {
+            await this._checkAndLoadData(); // verifica permessi
             const dati = fatture.map(f => ({
                 'Numero Fattura': f.numeroFatturaCompleto || '',
                 'Anno': f.anno || '',
@@ -150,6 +179,7 @@ const ExportManager = {
     // === EXPORT APP ===
     async exportApp(apps, nomeFile = 'App_Comune_Digital') {
         try {
+            await this._checkAndLoadData(); // verifica permessi
             const dati = apps.map(a => ({
                 'Nome App': a.nome || '',
                 'Comune': a.comune || '',
@@ -223,6 +253,7 @@ const ExportManager = {
     // === EXPORT SCADENZE ===
     async exportScadenze(scadenze, nomeFile = 'Scadenze_Comune_Digital') {
         try {
+            await this._checkAndLoadData(); // verifica permessi
             const dati = scadenze.map(s => ({
                 'Cliente': s.clienteRagioneSociale || s.clienteId || '',
                 'Tipo': this.getTipoScadenzaLabel(s.tipo),
@@ -271,13 +302,23 @@ const ExportManager = {
         try {
             UI.showLoading();
 
-            // Carica tutti i dati
-            const [clienti, fatture, scadenze, stats] = await Promise.all([
-                DataService.getClienti(),
-                DataService.getFatture({ limit: 2000 }),
-                DataService.getScadenze(),
-                DataService.getStatistiche()
-            ]);
+            // Verifica permessi e carica dati filtrati per ruolo
+            const agentData = await this._checkAndLoadData();
+
+            let clienti, fatture, scadenze, stats;
+            if (agentData.filteredByAgent) {
+                clienti = agentData.clienti;
+                fatture = agentData.fatture;
+                scadenze = await DataService.getScadenze();
+                stats = await DataService.getStatistiche();
+            } else {
+                [clienti, fatture, scadenze, stats] = await Promise.all([
+                    DataService.getClienti(),
+                    DataService.getFatture({ limit: 2000 }),
+                    DataService.getScadenze(),
+                    DataService.getStatistiche()
+                ]);
+            }
 
             const wb = XLSX.utils.book_new();
 

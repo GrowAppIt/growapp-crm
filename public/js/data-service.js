@@ -1,6 +1,34 @@
 // Data Service - Gestione dati da Firestore
 const DataService = {
 
+    // === AUDIT TRAIL ===
+    async _logAudit(azione, collezione, documentoId, dettagli = {}) {
+        try {
+            const utente = typeof AuthService !== 'undefined' ? AuthService.getUtenteCorrente() : null;
+            await db.collection('audit_log').add({
+                timestamp: new Date().toISOString(),
+                utente: utente?.email || 'sistema',
+                utenteNome: utente ? `${utente.nome || ''} ${utente.cognome || ''}`.trim() : 'Sistema',
+                ruolo: utente?.ruolo || '',
+                azione: azione,
+                collezione: collezione,
+                documentoId: documentoId || '',
+                dettagli: dettagli
+            });
+        } catch (e) {
+            console.warn('Audit log non salvato:', e.message);
+        }
+    },
+
+    _getAuditFields() {
+        const utente = typeof AuthService !== 'undefined' ? AuthService.getUtenteCorrente() : null;
+        return {
+            ultimaModificaDa: utente?.email || 'sistema',
+            ultimaModificaNome: utente ? `${utente.nome || ''} ${utente.cognome || ''}`.trim() : 'Sistema',
+            ultimaModificaIl: new Date().toISOString()
+        };
+    },
+
     // === AGENTI (utenti con ruolo AGENTE oppure con flag ancheAgente) ===
     _cacheAgenti: null,
     _cacheAgentiTimestamp: 0,
@@ -190,9 +218,11 @@ const DataService = {
             const appData = {
                 ...data,
                 dataCreazione: new Date().toISOString(),
-                updatedAt: new Date().toISOString()
+                updatedAt: new Date().toISOString(),
+                ...this._getAuditFields()
             };
             const docRef = await db.collection('app').add(appData);
+            this._logAudit('CREATE', 'app', docRef.id, { nome: data.nome || '', comune: data.comune || '' });
             return docRef.id;
         } catch (error) {
             console.error('Errore creazione app:', error);
@@ -204,9 +234,11 @@ const DataService = {
         try {
             const updateData = {
                 ...data,
-                updatedAt: new Date().toISOString()
+                updatedAt: new Date().toISOString(),
+                ...this._getAuditFields()
             };
             await db.collection('app').doc(appId).update(updateData);
+            this._logAudit('UPDATE', 'app', appId, { campiModificati: Object.keys(data) });
             return true;
         } catch (error) {
             console.error('Errore aggiornamento app:', error);
@@ -217,6 +249,7 @@ const DataService = {
     async deleteApp(appId) {
         try {
             await db.collection('app').doc(appId).delete();
+            this._logAudit('DELETE', 'app', appId);
             return true;
         } catch (error) {
             console.error('Errore eliminazione app:', error);
@@ -431,8 +464,10 @@ const DataService = {
                 ...data,
                 dataCreazione: new Date().toISOString(),
                 dataAggiornamento: new Date().toISOString(),
-                stato: data.stato || 'ATTIVO'
+                stato: data.stato || 'ATTIVO',
+                ...this._getAuditFields()
             });
+            this._logAudit('CREATE', 'contratti', docRef.id, { numero: data.numeroContratto || '', importo: data.importoAnnuale || 0 });
             return docRef.id;
         } catch (error) {
             console.error('Errore creazione contratto:', error);
@@ -444,8 +479,10 @@ const DataService = {
         try {
             await db.collection('contratti').doc(contrattoId).update({
                 ...data,
-                dataAggiornamento: new Date().toISOString()
+                dataAggiornamento: new Date().toISOString(),
+                ...this._getAuditFields()
             });
+            this._logAudit('UPDATE', 'contratti', contrattoId, { campiModificati: Object.keys(data) });
             return true;
         } catch (error) {
             console.error('Errore aggiornamento contratto:', error);
@@ -456,6 +493,7 @@ const DataService = {
     async deleteContratto(contrattoId) {
         try {
             await db.collection('contratti').doc(contrattoId).delete();
+            this._logAudit('DELETE', 'contratti', contrattoId);
             return true;
         } catch (error) {
             console.error('Errore eliminazione contratto:', error);
@@ -465,11 +503,22 @@ const DataService = {
 
     async rinnovaContratto(contrattoId, nuovaDataScadenza, note = '') {
         try {
+            // Validazione: contratto CESSATO non rinnovabile
+            const contrattoCorrente = await this.getContratto(contrattoId);
+            if (contrattoCorrente && contrattoCorrente.stato === 'CESSATO') {
+                throw new Error('Non è possibile rinnovare un contratto cessato. Cambia prima lo stato del contratto.');
+            }
+            // Validazione: data scadenza deve essere futura
+            if (new Date(nuovaDataScadenza) <= new Date()) {
+                throw new Error('La nuova data di scadenza deve essere una data futura.');
+            }
+
             await this.updateContratto(contrattoId, {
                 dataScadenza: nuovaDataScadenza,
                 stato: 'ATTIVO',
                 note: note
             });
+            this._logAudit('STATO_CHANGE', 'contratti', contrattoId, { azione: 'RINNOVO', nuovaScadenza: nuovaDataScadenza });
 
             // Crea scadenza automatica per il prossimo rinnovo
             const contratto = await this.getContratto(contrattoId);
@@ -1108,7 +1157,11 @@ const DataService = {
     // CLIENTI
     async updateCliente(clienteId, data) {
         try {
-            await db.collection('clienti').doc(clienteId).update(data);
+            await db.collection('clienti').doc(clienteId).update({
+                ...data,
+                ...this._getAuditFields()
+            });
+            this._logAudit('UPDATE', 'clienti', clienteId, { campiModificati: Object.keys(data) });
             return true;
         } catch (error) {
             console.error('Errore aggiornamento cliente:', error);
@@ -1122,8 +1175,10 @@ const DataService = {
             delete data.statoContratto;
             const docRef = await db.collection('clienti').add({
                 ...data,
-                dataCreazione: new Date().toISOString()
+                dataCreazione: new Date().toISOString(),
+                ...this._getAuditFields()
             });
+            this._logAudit('CREATE', 'clienti', docRef.id, { ragioneSociale: data.ragioneSociale || '' });
             return docRef.id;
         } catch (error) {
             console.error('Errore creazione cliente:', error);
@@ -1134,6 +1189,7 @@ const DataService = {
     async deleteCliente(clienteId) {
         try {
             await db.collection('clienti').doc(clienteId).delete();
+            this._logAudit('DELETE', 'clienti', clienteId);
             return true;
         } catch (error) {
             console.error('Errore eliminazione cliente:', error);
@@ -1144,7 +1200,11 @@ const DataService = {
     // FATTURE
     async updateFattura(fatturaId, data) {
         try {
-            await db.collection('fatture').doc(fatturaId).update(data);
+            await db.collection('fatture').doc(fatturaId).update({
+                ...data,
+                ...this._getAuditFields()
+            });
+            this._logAudit('UPDATE', 'fatture', fatturaId, { campiModificati: Object.keys(data) });
             return true;
         } catch (error) {
             console.error('Errore aggiornamento fattura:', error);
@@ -1154,12 +1214,44 @@ const DataService = {
 
     async createFattura(data) {
         try {
-            const docRef = await db.collection('fatture').add({
-                ...data,
-                dataCreazione: new Date().toISOString(),
-                statoPagamento: data.statoPagamento || 'NON_PAGATA'
+            // Usa transaction atomica per il numero progressivo
+            const anno = data.anno || new Date().getFullYear();
+            const contatoreRef = db.collection('contatori').doc('fatture');
+            const auditFields = this._getAuditFields();
+
+            const result = await db.runTransaction(async (transaction) => {
+                const contatoreDoc = await transaction.get(contatoreRef);
+                let contatori = contatoreDoc.exists ? contatoreDoc.data() : {};
+                const annoKey = String(anno);
+                const nuovoProgressivo = (contatori[annoKey] || 0) + 1;
+
+                // Aggiorna contatore
+                transaction.set(contatoreRef, { ...contatori, [annoKey]: nuovoProgressivo }, { merge: true });
+
+                // Se il numero fattura non è stato già assegnato, genera quello atomico
+                if (!data._numeroConfermato) {
+                    const _sys = typeof SettingsService !== 'undefined' ? SettingsService.getSystemSettingsSync() : {};
+                    const _pad = _sys.paddingNumeroFattura || 3;
+                    const numPadded = String(nuovoProgressivo).padStart(_pad, '0');
+                    // Ricomponi il numero solo se il progressivo nel form coincide con quello atomico
+                    // Altrimenti usa il numero che l'utente ha inserito nel form
+                }
+
+                // Crea la fattura
+                const newDocRef = db.collection('fatture').doc();
+                transaction.set(newDocRef, {
+                    ...data,
+                    dataCreazione: new Date().toISOString(),
+                    statoPagamento: data.statoPagamento || 'NON_PAGATA',
+                    progressivoAtomico: nuovoProgressivo,
+                    ...auditFields
+                });
+
+                return newDocRef.id;
             });
-            return docRef.id;
+
+            this._logAudit('CREATE', 'fatture', result, { numero: data.numeroFatturaCompleto || '', importo: data.importoTotale || 0 });
+            return result;
         } catch (error) {
             console.error('Errore creazione fattura:', error);
             throw error;
@@ -1169,6 +1261,7 @@ const DataService = {
     async deleteFattura(fatturaId) {
         try {
             await db.collection('fatture').doc(fatturaId).delete();
+            this._logAudit('DELETE', 'fatture', fatturaId);
             return true;
         } catch (error) {
             console.error('Errore eliminazione fattura:', error);
@@ -1391,11 +1484,34 @@ const DataService = {
     // AZIONI RAPIDE
     async marcaFatturaPagata(fatturaId, dataPagamento = null) {
         try {
+            const dataSaldo = dataPagamento || new Date().toISOString();
             const updateData = {
                 statoPagamento: 'PAGATA',
-                dataSaldo: dataPagamento || new Date().toISOString()
+                dataSaldo: dataSaldo
             };
+
+            // Leggi la fattura corrente per gestire acconti parziali
+            const fattura = await this.getFattura(fatturaId);
+            if (fattura && fattura.acconti && fattura.acconti.length > 0) {
+                const totaleAcconti = fattura.acconti.reduce((s, a) => s + (a.importo || 0), 0);
+                const residuo = parseFloat(((fattura.importoTotale || 0) - totaleAcconti).toFixed(2));
+                if (residuo > 0) {
+                    // Registra il saldo finale come ultimo acconto
+                    updateData.acconti = [...fattura.acconti, {
+                        importo: residuo,
+                        data: dataSaldo,
+                        note: 'Saldo finale'
+                    }];
+                }
+                updateData.saldoResiduo = 0;
+            }
+
             await this.updateFattura(fatturaId, updateData);
+            this._logAudit('STATO_CHANGE', 'fatture', fatturaId, {
+                vecchioStato: fattura?.statoPagamento || 'N/D',
+                nuovoStato: 'PAGATA',
+                importo: fattura?.importoTotale || 0
+            });
             return true;
         } catch (error) {
             console.error('Errore marca fattura pagata:', error);
@@ -1409,6 +1525,7 @@ const DataService = {
                 completata: true,
                 dataCompletamento: new Date().toISOString()
             });
+            this._logAudit('STATO_CHANGE', 'scadenzario', scadenzaId, { azione: 'COMPLETATA' });
             return true;
         } catch (error) {
             console.error('Errore marca scadenza completata:', error);
