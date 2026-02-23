@@ -89,6 +89,20 @@ const AuthService = {
                 lastLogin: firebase.firestore.FieldValue.serverTimestamp()
             });
 
+            // Audit: log accesso
+            try {
+                await db.collection('audit_log').add({
+                    timestamp: new Date().toISOString(),
+                    utente: this.currentUser.email,
+                    utenteNome: `${this.currentUserData.nome || ''} ${this.currentUserData.cognome || ''}`.trim(),
+                    ruolo: this.currentUserData.ruolo || '',
+                    azione: 'LOGIN',
+                    collezione: 'auth',
+                    documentoId: this.currentUser.uid,
+                    dettagli: {}
+                });
+            } catch (e) { console.warn('Audit login non salvato:', e.message); }
+
             return { success: true, user: this.currentUser };
         } catch (error) {
             console.error('Errore login:', error);
@@ -98,6 +112,22 @@ const AuthService = {
 
     async logout() {
         try {
+            // Audit: log uscita (prima di signOut, altrimenti perdiamo i dati utente)
+            if (this.currentUser && this.currentUserData) {
+                try {
+                    await db.collection('audit_log').add({
+                        timestamp: new Date().toISOString(),
+                        utente: this.currentUser.email,
+                        utenteNome: `${this.currentUserData.nome || ''} ${this.currentUserData.cognome || ''}`.trim(),
+                        ruolo: this.currentUserData.ruolo || '',
+                        azione: 'LOGOUT',
+                        collezione: 'auth',
+                        documentoId: this.currentUser.uid,
+                        dettagli: {}
+                    });
+                } catch (e) { console.warn('Audit logout non salvato:', e.message); }
+            }
+
             await auth.signOut();
             this.currentUser = null;
             this.currentUserData = null;

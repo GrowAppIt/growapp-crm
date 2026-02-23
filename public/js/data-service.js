@@ -29,6 +29,38 @@ const DataService = {
         };
     },
 
+    // === CACHE INTELLIGENTE ===
+    // Cache generica con TTL per ridurre query Firestore ripetute.
+    // Ogni entry: { data, timestamp }. TTL default: 3 minuti.
+    _cache: {},
+    _cacheTTL: 3 * 60 * 1000, // 3 minuti
+
+    _cacheGet(key) {
+        const entry = this._cache[key];
+        if (!entry) return null;
+        if (Date.now() - entry.timestamp > this._cacheTTL) {
+            delete this._cache[key];
+            return null;
+        }
+        return entry.data;
+    },
+
+    _cacheSet(key, data) {
+        this._cache[key] = { data, timestamp: Date.now() };
+    },
+
+    // Invalida tutte le entry che iniziano con il prefisso dato
+    _cacheInvalidate(prefix) {
+        Object.keys(this._cache).forEach(k => {
+            if (k.startsWith(prefix)) delete this._cache[k];
+        });
+    },
+
+    // Svuota tutta la cache (utile al logout)
+    _cacheClear() {
+        this._cache = {};
+    },
+
     // === AGENTI (utenti con ruolo AGENTE oppure con flag ancheAgente) ===
     _cacheAgenti: null,
     _cacheAgentiTimestamp: 0,
@@ -94,6 +126,11 @@ const DataService = {
     // === CLIENTI ===
     async getClienti(filtri = {}) {
         try {
+            // Cache check
+            const cacheKey = 'clienti:' + JSON.stringify(filtri);
+            const cached = this._cacheGet(cacheKey);
+            if (cached) return cached;
+
             let query = db.collection('clienti');
             let hasCompositeFilter = false;
 
@@ -129,6 +166,7 @@ const DataService = {
                 risultati.sort((a, b) => (a.ragioneSociale || '').localeCompare(b.ragioneSociale || ''));
             }
 
+            this._cacheSet(cacheKey, risultati);
             return risultati;
         } catch (error) {
             console.error('Errore caricamento clienti:', error);
@@ -172,6 +210,11 @@ const DataService = {
     // === APP ===
     async getApps(filtri = {}) {
         try {
+            // Cache check
+            const cacheKey = 'app:' + JSON.stringify(filtri);
+            const cached = this._cacheGet(cacheKey);
+            if (cached) return cached;
+
             let query = db.collection('app');
 
             if (filtri.statoApp) {
@@ -187,10 +230,12 @@ const DataService = {
             query = query.orderBy('nome', 'asc');
 
             const snapshot = await query.get();
-            return snapshot.docs.map(doc => ({
+            const risultati = snapshot.docs.map(doc => ({
                 ...doc.data(),
                 id: doc.id
             }));
+            this._cacheSet(cacheKey, risultati);
+            return risultati;
         } catch (error) {
             console.error('Errore caricamento app:', error);
             return [];
@@ -222,6 +267,7 @@ const DataService = {
                 ...this._getAuditFields()
             };
             const docRef = await db.collection('app').add(appData);
+            this._cacheInvalidate('app:');
             this._logAudit('CREATE', 'app', docRef.id, { nome: data.nome || '', comune: data.comune || '' });
             return docRef.id;
         } catch (error) {
@@ -238,6 +284,7 @@ const DataService = {
                 ...this._getAuditFields()
             };
             await db.collection('app').doc(appId).update(updateData);
+            this._cacheInvalidate('app:');
             this._logAudit('UPDATE', 'app', appId, { campiModificati: Object.keys(data) });
             return true;
         } catch (error) {
@@ -249,6 +296,7 @@ const DataService = {
     async deleteApp(appId) {
         try {
             await db.collection('app').doc(appId).delete();
+            this._cacheInvalidate('app:');
             this._logAudit('DELETE', 'app', appId);
             return true;
         } catch (error) {
@@ -276,6 +324,11 @@ const DataService = {
     // === CONTRATTI ===
     async getContratti(filtri = {}) {
         try {
+            // Cache check
+            const cacheKey = 'contratti:' + JSON.stringify(filtri);
+            const cached = this._cacheGet(cacheKey);
+            if (cached) return cached;
+
             let query = db.collection('contratti');
 
             if (filtri.clienteId) {
@@ -291,7 +344,9 @@ const DataService = {
             query = query.orderBy('dataScadenza', 'desc');
 
             const snapshot = await query.get();
-            return snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+            const risultati = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+            this._cacheSet(cacheKey, risultati);
+            return risultati;
         } catch (error) {
             console.error('Errore caricamento contratti:', error);
             return [];
@@ -467,6 +522,7 @@ const DataService = {
                 stato: data.stato || 'ATTIVO',
                 ...this._getAuditFields()
             });
+            this._cacheInvalidate('contratti:');
             this._logAudit('CREATE', 'contratti', docRef.id, { numero: data.numeroContratto || '', importo: data.importoAnnuale || 0 });
             return docRef.id;
         } catch (error) {
@@ -482,6 +538,7 @@ const DataService = {
                 dataAggiornamento: new Date().toISOString(),
                 ...this._getAuditFields()
             });
+            this._cacheInvalidate('contratti:');
             this._logAudit('UPDATE', 'contratti', contrattoId, { campiModificati: Object.keys(data) });
             return true;
         } catch (error) {
@@ -493,6 +550,7 @@ const DataService = {
     async deleteContratto(contrattoId) {
         try {
             await db.collection('contratti').doc(contrattoId).delete();
+            this._cacheInvalidate('contratti:');
             this._logAudit('DELETE', 'contratti', contrattoId);
             return true;
         } catch (error) {
@@ -575,6 +633,11 @@ const DataService = {
     // === FATTURE ===
     async getFatture(filtri = {}) {
         try {
+            // Cache check
+            const cacheKey = 'fatture:' + JSON.stringify(filtri);
+            const cached = this._cacheGet(cacheKey);
+            if (cached) return cached;
+
             let query = db.collection('fatture');
 
             if (filtri.anno) {
@@ -598,6 +661,7 @@ const DataService = {
             // NON arricchire con dati cliente per performance
             // Il clienteId è già presente in ogni fattura
 
+            this._cacheSet(cacheKey, fatture);
             return fatture;
         } catch (error) {
             console.error('Errore caricamento fatture:', error);
@@ -701,7 +765,12 @@ const DataService = {
     },
 
     async getFattureNonPagate() {
-        return this.getFatture({ statoPagamento: 'NON_PAGATA', limit: 1000 });
+        // Include sia NON_PAGATA che PARZIALMENTE_PAGATA
+        const [nonPagate, parziali] = await Promise.all([
+            this.getFatture({ statoPagamento: 'NON_PAGATA', limit: 1000 }),
+            this.getFatture({ statoPagamento: 'PARZIALMENTE_PAGATA', limit: 1000 })
+        ]);
+        return [...nonPagate, ...parziali];
     },
 
     async getFattureScadute() {
@@ -875,9 +944,16 @@ const DataService = {
                     return sum + (isNC ? -Math.abs(importo) : importo);
                 }, 0);
 
-            // Fatture non pagate (escluse note di credito)
-            const fattureNonPagate = fatture.filter(f => f.statoPagamento === 'NON_PAGATA' && f.tipoDocumento !== 'NOTA_DI_CREDITO');
-            const importoNonPagato = fattureNonPagate.reduce((sum, f) => sum + (f.importoTotale || 0), 0);
+            // Fatture non pagate (include PARZIALMENTE_PAGATA, escluse note di credito)
+            const fattureNonPagate = fatture.filter(f => (f.statoPagamento === 'NON_PAGATA' || f.statoPagamento === 'PARZIALMENTE_PAGATA') && f.tipoDocumento !== 'NOTA_DI_CREDITO');
+            const importoNonPagato = fattureNonPagate.reduce((sum, f) => {
+                // Per parzialmente pagate, calcola il saldo residuo
+                if (f.statoPagamento === 'PARZIALMENTE_PAGATA') {
+                    const totAcconti = (f.acconti || []).reduce((s, a) => s + (a.importo || 0), 0);
+                    return sum + Math.max(0, (f.importoTotale || 0) - totAcconti);
+                }
+                return sum + (f.importoTotale || 0);
+            }, 0);
 
             // Scadenze critiche (scadute)
             const oggi = new Date();
@@ -933,7 +1009,7 @@ const DataService = {
                 fatture: {
                     totale: fatture.length,
                     pagate: fatturePerStato['PAGATA'] || 0,
-                    nonPagate: fatturePerStato['NON_PAGATA'] || 0,
+                    nonPagate: (fatturePerStato['NON_PAGATA'] || 0) + (fatturePerStato['PARZIALMENTE_PAGATA'] || 0),
                     perStato: fatturePerStato,
                     fatturatoTotale,
                     importoNonPagato
@@ -1057,9 +1133,16 @@ const DataService = {
                     return sum + (isNC ? -Math.abs(importo) : importo);
                 }, 0);
 
+            // Importo non pagato (include PARZIALMENTE_PAGATA con saldo residuo)
             const importoNonPagato = fatture
-                .filter(f => f.statoPagamento === 'NON_PAGATA' && f.tipoDocumento !== 'NOTA_DI_CREDITO')
-                .reduce((sum, f) => sum + (f.importoTotale || 0), 0);
+                .filter(f => (f.statoPagamento === 'NON_PAGATA' || f.statoPagamento === 'PARZIALMENTE_PAGATA') && f.tipoDocumento !== 'NOTA_DI_CREDITO')
+                .reduce((sum, f) => {
+                    if (f.statoPagamento === 'PARZIALMENTE_PAGATA') {
+                        const totAcconti = (f.acconti || []).reduce((s, a) => s + (a.importo || 0), 0);
+                        return sum + Math.max(0, (f.importoTotale || 0) - totAcconti);
+                    }
+                    return sum + (f.importoTotale || 0);
+                }, 0);
 
             // Contratti per stato
             const contrattiPerStato = {};
@@ -1084,11 +1167,14 @@ const DataService = {
                 return data >= oggi && data <= tra7giorni;
             });
 
+            // nonPagate nel conteggio include anche PARZIALMENTE_PAGATA
+            const conteggioNonPagate = (fatturePerStato['NON_PAGATA'] || 0) + (fatturePerStato['PARZIALMENTE_PAGATA'] || 0);
+
             return {
                 clienti: { totale: clienti.length, attivi: clientiPerStato['ATTIVO'] || 0, scaduti: clientiPerStato['SCADUTO'] || 0, cessati: clientiPerStato['CESSATO'] || 0, senzaContratto: clientiPerStato['SENZA_CONTRATTO'] || 0, perStato: clientiPerStato },
                 app: { totale: app.length, attive: appPerStato['ATTIVA'] || 0, inSviluppo: (appPerStato['SVILUPPO'] || 0) + (appPerStato['IN_SVILUPPO'] || 0), sospese: appPerStato['SOSPESA'] || 0, perStato: appPerStato },
                 contratti: { totale: contratti.length, attivi: contrattiPerStato['ATTIVO'] || 0, scaduti: contrattiPerStato['SCADUTO'] || 0, cessati: contrattiPerStato['CESSATO'] || 0, perStato: contrattiPerStato },
-                fatture: { totale: fatture.length, pagate: fatturePerStato['PAGATA'] || 0, nonPagate: fatturePerStato['NON_PAGATA'] || 0, perStato: fatturePerStato, fatturatoTotale, importoNonPagato },
+                fatture: { totale: fatture.length, pagate: fatturePerStato['PAGATA'] || 0, nonPagate: conteggioNonPagate, perStato: fatturePerStato, fatturatoTotale, importoNonPagato },
                 scadenze: { totale: scadenze.length, scadute: scadenzeScadute.length, imminenti: scadenzeImminenti.length }
             };
         } catch (error) {
@@ -1161,6 +1247,7 @@ const DataService = {
                 ...data,
                 ...this._getAuditFields()
             });
+            this._cacheInvalidate('clienti:');
             this._logAudit('UPDATE', 'clienti', clienteId, { campiModificati: Object.keys(data) });
             return true;
         } catch (error) {
@@ -1178,6 +1265,7 @@ const DataService = {
                 dataCreazione: new Date().toISOString(),
                 ...this._getAuditFields()
             });
+            this._cacheInvalidate('clienti:');
             this._logAudit('CREATE', 'clienti', docRef.id, { ragioneSociale: data.ragioneSociale || '' });
             return docRef.id;
         } catch (error) {
@@ -1189,6 +1277,7 @@ const DataService = {
     async deleteCliente(clienteId) {
         try {
             await db.collection('clienti').doc(clienteId).delete();
+            this._cacheInvalidate('clienti:');
             this._logAudit('DELETE', 'clienti', clienteId);
             return true;
         } catch (error) {
@@ -1204,6 +1293,7 @@ const DataService = {
                 ...data,
                 ...this._getAuditFields()
             });
+            this._cacheInvalidate('fatture:');
             this._logAudit('UPDATE', 'fatture', fatturaId, { campiModificati: Object.keys(data) });
             return true;
         } catch (error) {
@@ -1250,6 +1340,7 @@ const DataService = {
                 return newDocRef.id;
             });
 
+            this._cacheInvalidate('fatture:');
             this._logAudit('CREATE', 'fatture', result, { numero: data.numeroFatturaCompleto || '', importo: data.importoTotale || 0 });
             return result;
         } catch (error) {
@@ -1261,6 +1352,7 @@ const DataService = {
     async deleteFattura(fatturaId) {
         try {
             await db.collection('fatture').doc(fatturaId).delete();
+            this._cacheInvalidate('fatture:');
             this._logAudit('DELETE', 'fatture', fatturaId);
             return true;
         } catch (error) {

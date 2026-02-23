@@ -177,6 +177,21 @@ const Dashboard = {
                 `;
             }
 
+            // Aggiorna badge sidebar con dati già caricati (nessuna query extra)
+            const fattureNonPagateCount = fatture.filter(f =>
+                (f.statoPagamento === 'NON_PAGATA' || f.statoPagamento === 'PARZIALMENTE_PAGATA') &&
+                f.tipoDocumento !== 'NOTA_DI_CREDITO'
+            ).length;
+            const taskApertiCount = tasks.filter(t => (t.stato === 'TODO' || t.stato === 'IN_PROGRESS') && !t.archiviato).length;
+            UI.updateSidebarBadges({
+                scadenzeScadute: scadenzeScadute.length,
+                fattureNonPagate: fattureNonPagateCount,
+                taskAperti: taskApertiCount
+            });
+
+            // Aggiorna timestamp ultimo aggiornamento
+            this._updateTimestamp();
+
             UI.hideLoading();
         } catch (error) {
             console.error('Errore rendering dashboard:', error);
@@ -185,7 +200,23 @@ const Dashboard = {
         }
     },
 
-    // Flag per distinguere vista agente manuale vs automatica
+    // Aggiorna il timestamp visualizzato nell'header
+    _updateTimestamp() {
+        const el = document.getElementById('dashboardTimestamp');
+        if (!el) return;
+        const now = new Date();
+        const hh = String(now.getHours()).padStart(2, '0');
+        const mm = String(now.getMinutes()).padStart(2, '0');
+        el.innerHTML = `<i class="fas fa-clock" style="margin-right: 4px;"></i> Aggiornato alle ${hh}:${mm}`;
+    },
+
+    // Refresh manuale: invalida cache e ricarica
+    async refresh() {
+        if (typeof DataService !== 'undefined') DataService._cacheClear();
+        UI.showPage('dashboard');
+    },
+
+    // Flag per distinguire vista agente manuale vs automatica
     _vistaAgenteManuale: false,
 
     /**
@@ -218,6 +249,9 @@ const Dashboard = {
                         <p style="color: var(--grigio-500);">
                             Panoramica generale e metriche chiave
                         </p>
+                        <p id="dashboardTimestamp" style="font-size: 0.75rem; color: var(--grigio-500); margin-top: 4px;">
+                            <i class="fas fa-sync-alt fa-spin" style="margin-right: 4px;"></i> Caricamento dati...
+                        </p>
                     </div>
                     <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
                         ${AuthService.isAncheAgente() ? `
@@ -225,6 +259,9 @@ const Dashboard = {
                                 <i class="fas fa-user-tie"></i> Vista Agente
                             </button>
                         ` : ''}
+                        <button class="btn btn-secondary" onclick="Dashboard.refresh()" title="Aggiorna dati">
+                            <i class="fas fa-sync-alt"></i>
+                        </button>
                         <button class="btn btn-secondary" onclick="UI.showPage('impostazioni')">
                             <i class="fas fa-cog"></i> Personalizza
                         </button>
@@ -236,12 +273,12 @@ const Dashboard = {
             <div id="dashboardBody">
                 <div class="kpi-grid" style="margin-bottom: 1.5rem;">
                     ${[1,2,3,4,5,6].map(() => `
-                        <div style="background: white; border-radius: 12px; padding: 1.5rem; box-shadow: 0 2px 8px rgba(0,0,0,0.06);">
+                        <div class="sk-card">
                             <div style="display: flex; align-items: center; gap: 1rem;">
-                                <div style="width: 48px; height: 48px; border-radius: 12px; background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite;"></div>
+                                <div class="sk" style="width: 48px; height: 48px; border-radius: 12px; flex-shrink: 0;"></div>
                                 <div style="flex: 1;">
-                                    <div style="height: 14px; width: 60%; border-radius: 4px; background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; margin-bottom: 8px;"></div>
-                                    <div style="height: 24px; width: 40%; border-radius: 4px; background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite;"></div>
+                                    <div class="sk" style="height: 14px; width: 60%; margin-bottom: 8px;"></div>
+                                    <div class="sk" style="height: 24px; width: 40%;"></div>
                                 </div>
                             </div>
                         </div>
@@ -249,22 +286,15 @@ const Dashboard = {
                 </div>
                 <div style="display: grid; gap: 1.5rem;">
                     ${[1,2].map(() => `
-                        <div style="background: white; border-radius: 12px; padding: 1.5rem; box-shadow: 0 2px 8px rgba(0,0,0,0.06); min-height: 200px;">
-                            <div style="height: 20px; width: 30%; border-radius: 4px; background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; margin-bottom: 1rem;"></div>
-                            <div style="height: 14px; width: 90%; border-radius: 4px; background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; margin-bottom: 0.5rem;"></div>
-                            <div style="height: 14px; width: 75%; border-radius: 4px; background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; margin-bottom: 0.5rem;"></div>
-                            <div style="height: 14px; width: 85%; border-radius: 4px; background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite;"></div>
+                        <div class="sk-card" style="min-height: 200px;">
+                            <div class="sk" style="height: 20px; width: 30%; margin-bottom: 1rem;"></div>
+                            <div class="sk" style="height: 14px; width: 90%; margin-bottom: 0.5rem;"></div>
+                            <div class="sk" style="height: 14px; width: 75%; margin-bottom: 0.5rem;"></div>
+                            <div class="sk" style="height: 14px; width: 85%;"></div>
                         </div>
                     `).join('')}
                 </div>
             </div>
-
-            <style>
-                @keyframes shimmer {
-                    0% { background-position: 200% 0; }
-                    100% { background-position: -200% 0; }
-                }
-            </style>
         `;
         UI.hideLoading();
     },
@@ -677,20 +707,40 @@ const Dashboard = {
                 </div>
                 <div class="card-body" style="padding: 0;">
 
-                    <!-- Emesso -->
+                    <!-- Emesso lordo -->
                     <div style="padding: 1rem 1.25rem; border-bottom: 1px solid var(--grigio-300);">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem;">
                             <span style="font-size: 0.8rem; color: var(--grigio-700); font-weight: 500;">
-                                <i class="fas fa-file-invoice" style="color: var(--blu-700); width: 18px;"></i> Emesso nel mese
+                                <i class="fas fa-file-invoice" style="color: var(--blu-700); width: 18px;"></i> Fatturato emesso nel mese
                             </span>
                             <span style="font-size: 0.75rem; color: var(--grigio-500);">${metrics.numFattureEmesse} fatture</span>
                         </div>
                         <div style="display: flex; justify-content: space-between; align-items: baseline;">
                             <span style="font-size: 1.5rem; font-weight: 700; color: var(--blu-900);">
-                                ${DataService.formatCurrency(metrics.emessoNettoMese)}
+                                ${DataService.formatCurrency(metrics.emessoLordoMese)}
                             </span>
-                            ${renderVariazione(metrics.varEmesso, metrics.mesePrec)}
+                            ${renderVariazione(metrics.varEmessoLordo, metrics.mesePrec)}
                         </div>
+                        ${metrics.ncMese > 0 ? `
+                        <div style="margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px dashed var(--grigio-300);">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <span style="font-size: 0.75rem; color: #D32F2F; font-weight: 500;">
+                                    <i class="fas fa-file-invoice-dollar" style="width: 18px;"></i> Note di credito (${metrics.numNcMese})
+                                </span>
+                                <span style="font-size: 0.9rem; font-weight: 600; color: #D32F2F;">
+                                    -${DataService.formatCurrency(metrics.ncMese)}
+                                </span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.35rem;">
+                                <span style="font-size: 0.75rem; color: var(--grigio-500); font-style: italic;">
+                                    Netto mese
+                                </span>
+                                <span style="font-size: 0.9rem; font-weight: 700; color: var(--grigio-700);">
+                                    ${DataService.formatCurrency(metrics.emessoNettoMese)}
+                                </span>
+                            </div>
+                        </div>
+                        ` : ''}
                     </div>
 
                     <!-- Incassato -->
@@ -862,22 +912,27 @@ const Dashboard = {
         const noteDiCredito = fatture.filter(f => f.tipoDocumento === 'NOTA_DI_CREDITO');
 
         // --- EMESSO NEL MESE (fatture emesse questo mese) ---
-        const emessoMese = fattureReali
+        // Emesso lordo: solo fatture reali (no NC)
+        const emessoLordoMese = fattureReali
             .filter(f => isInRange(f.dataEmissione, primoGiornoMese, ultimoGiornoMese))
             .reduce((s, f) => s + (f.importoTotale || 0), 0);
+        // NC emesse nel mese (mostrate separatamente — possono riferirsi a fatture di altri mesi)
         const ncMese = noteDiCredito
             .filter(f => isInRange(f.dataEmissione, primoGiornoMese, ultimoGiornoMese))
             .reduce((s, f) => s + Math.abs(f.importoTotale || 0), 0);
-        const emessoNettoMese = emessoMese - ncMese;
+        const numNcMese = noteDiCredito
+            .filter(f => isInRange(f.dataEmissione, primoGiornoMese, ultimoGiornoMese)).length;
+        // Netto per compatibilità (emesso lordo - NC del mese)
+        const emessoNettoMese = emessoLordoMese - ncMese;
 
-        // Emesso mese precedente per confronto
-        const emessoMesePrec = fattureReali
+        // Emesso mese precedente per confronto (usa lordo per confronto corretto)
+        const emessoLordoMesePrec = fattureReali
             .filter(f => isInRange(f.dataEmissione, primoGiornoMesePrec, ultimoGiornoMesePrec))
             .reduce((s, f) => s + (f.importoTotale || 0), 0);
         const ncMesePrec = noteDiCredito
             .filter(f => isInRange(f.dataEmissione, primoGiornoMesePrec, ultimoGiornoMesePrec))
             .reduce((s, f) => s + Math.abs(f.importoTotale || 0), 0);
-        const emessoNettoMesePrec = emessoMesePrec - ncMesePrec;
+        const emessoNettoMesePrec = emessoLordoMesePrec - ncMesePrec;
 
         // --- INCASSATO NEL MESE ---
         // Calcola il denaro effettivamente entrato nel mese, evitando doppi conteggi:
@@ -951,7 +1006,15 @@ const Dashboard = {
             ? Math.round(((incassatoMese - incassatoMesePrec) / incassatoMesePrec) * 100)
             : (incassatoMese > 0 ? 100 : 0);
 
+        // Variazione su lordo (confronto più corretto)
+        const varEmessoLordo = emessoLordoMesePrec > 0
+            ? Math.round(((emessoLordoMese - emessoLordoMesePrec) / emessoLordoMesePrec) * 100)
+            : (emessoLordoMese > 0 ? 100 : 0);
+
         return {
+            emessoLordoMese,
+            ncMese,
+            numNcMese,
             emessoNettoMese,
             incassatoMese,
             daIncassare,
@@ -959,6 +1022,7 @@ const Dashboard = {
             numPagamentiMese,
             tassoIncasso,
             varEmesso,
+            varEmessoLordo,
             varIncassato,
             mese: oggi.toLocaleDateString('it-IT', { month: 'long', year: 'numeric' }),
             mesePrec: primoGiornoMesePrec.toLocaleDateString('it-IT', { month: 'long' })
@@ -1506,12 +1570,20 @@ const Dashboard = {
                         <p style="color: var(--grigio-500);">
                             Benvenuto, <strong>${agenteNome}</strong> — Panoramica del tuo portafoglio clienti
                         </p>
+                        <p id="dashboardTimestamp" style="font-size: 0.75rem; color: var(--grigio-500); margin-top: 4px;">
+                            <i class="fas fa-clock" style="margin-right: 4px;"></i> Caricamento...
+                        </p>
                     </div>
-                    ${this._vistaAgenteManuale ? `
-                        <button class="btn btn-secondary" onclick="Dashboard.switchToVistaAdmin()" style="border: 2px solid var(--blu-700);">
-                            <i class="fas fa-arrow-left"></i> Torna alla Dashboard
+                    <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                        ${this._vistaAgenteManuale ? `
+                            <button class="btn btn-secondary" onclick="Dashboard.switchToVistaAdmin()" style="border: 2px solid var(--blu-700);">
+                                <i class="fas fa-arrow-left"></i> Torna alla Dashboard
+                            </button>
+                        ` : ''}
+                        <button class="btn btn-secondary" onclick="Dashboard.refresh()" title="Aggiorna dati">
+                            <i class="fas fa-sync-alt"></i>
                         </button>
-                    ` : ''}
+                    </div>
                 </div>
             </div>
 
@@ -1654,6 +1726,20 @@ const Dashboard = {
         // Carica task aperti in modo asincrono
         this.loadWidgetTaskAperti();
 
+        // Aggiorna timestamp
+        this._updateTimestamp();
+
+        // Aggiorna badge sidebar con dati agente (nessuna query extra)
+        const _agFattureNP = fatture.filter(f =>
+            (f.statoPagamento === 'NON_PAGATA' || f.statoPagamento === 'PARZIALMENTE_PAGATA') &&
+            f.tipoDocumento !== 'NOTA_DI_CREDITO'
+        ).length;
+        UI.updateSidebarBadges({
+            scadenzeScadute: scadenzeScadute.length,
+            fattureNonPagate: _agFattureNP,
+            taskAperti: 0 // Task caricati async, verrà aggiornato da loadWidgetTaskAperti
+        });
+
         UI.hideLoading();
     },
 
@@ -1742,7 +1828,8 @@ const Dashboard = {
 
             // Filtra task dell'agente (assegnati o creati)
             const myTasks = allTasks.filter(task => {
-                if (task.stato === 'COMPLETATO') return false;
+                if (task.stato !== 'TODO' && task.stato !== 'IN_PROGRESS') return false;
+                if (task.archiviato) return false;
                 if (task.creatoDa === currentUserId) return true;
                 if (task.assegnatiA && Array.isArray(task.assegnatiA) && task.assegnatiA.includes(currentUserId)) return true;
                 return false;
@@ -1778,7 +1865,8 @@ const Dashboard = {
             }).join('');
 
             const totaleTasks = allTasks.filter(task => {
-                if (task.stato === 'COMPLETATO') return false;
+                if (task.stato !== 'TODO' && task.stato !== 'IN_PROGRESS') return false;
+                if (task.archiviato) return false;
                 return task.creatoDa === currentUserId || (task.assegnatiA && task.assegnatiA.includes(currentUserId));
             }).length;
 

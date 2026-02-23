@@ -125,7 +125,7 @@ const App = {
             // L'auth state observer gestirà il resto
         } else {
             UI.hideLoading();
-            alert('Errore di accesso: ' + result.error);
+            UI.showError('Errore di accesso: ' + result.error);
         }
     },
 
@@ -137,7 +137,7 @@ const App = {
             // L'auth state observer gestirà il resto
         } else {
             UI.hideLoading();
-            alert('Errore logout: ' + result.error);
+            UI.showError('Errore logout: ' + result.error);
         }
     },
 
@@ -172,6 +172,9 @@ const App = {
             Promemoria.checkPromemoriaInScadenza();
         }
 
+        // Carica badge sidebar (scadenze, fatture, task)
+        UI.loadSidebarBadges();
+
         // Carica pagina iniziale (controlla se c'è un hash nell'URL, altrimenti prima pagina accessibile)
         if (!this.handleHashChange()) {
             const firstPage = AuthService.getFirstAccessiblePage();
@@ -180,6 +183,8 @@ const App = {
     },
 
     onUserLoggedOut() {
+        // Svuota cache dati
+        if (typeof DataService !== 'undefined') DataService._cacheClear();
 
         // Nascondi app
         document.getElementById('app').classList.add('hidden');

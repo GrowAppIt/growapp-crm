@@ -72,12 +72,6 @@ const Settings = {
                     >
                         <i class="fas fa-wrench"></i> Bonifica Fatture
                     </button>
-                    <button
-                        class="settings-tab ${this.currentTab === 'unisciClienti' ? 'active' : ''}"
-                        onclick="Settings.switchTab('unisciClienti')"
-                    >
-                        <i class="fas fa-object-group"></i> Unisci Clienti
-                    </button>
                     ` : ''}
                     ${AuthService.hasPermission('manage_settings') ? `
                     <button
@@ -95,13 +89,28 @@ const Settings = {
                         <i class="fas fa-users-cog"></i> Utenti
                     </button>
                     ` : ''}
+                    ${AuthService.isSuperAdmin() ? `
+                    <button
+                        class="settings-tab ${this.currentTab === 'timeline' ? 'active' : ''}"
+                        onclick="Settings.switchTab('timeline')"
+                    >
+                        <i class="fas fa-history"></i> Timeline
+                    </button>
+                    ` : ''}
                 </div>
 
                 <!-- Tab Content -->
                 <div id="settingsTabContent" class="fade-in">
-                    ${this.currentTab === 'sistema' ? '<div style="text-align:center;padding:2rem;"><i class="fas fa-spinner fa-spin"></i> Caricamento...</div>' : this.renderTabContent()}
+                    ${(this.currentTab === 'sistema' || this.currentTab === 'timeline') ? '<div style="text-align:center;padding:2rem;"><i class="fas fa-spinner fa-spin"></i> Caricamento...</div>' : this.renderTabContent()}
                 </div>
             `;
+
+            // Se tab timeline, carica async e inietta
+            if (this.currentTab === 'timeline') {
+                const timelineHtml = await this.renderTimelineTab();
+                const tabContainer = document.getElementById('settingsTabContent');
+                if (tabContainer) tabContainer.innerHTML = timelineHtml;
+            }
 
             // Se tab sistema, carica async e inietta
             if (this.currentTab === 'sistema') {
@@ -139,12 +148,12 @@ const Settings = {
                 return this.renderDatiTab();
             case 'bonifica':
                 return this.renderBonificaTab();
-            case 'unisciClienti':
-                return this.renderUnisciClientiTab();
             case 'utenti':
                 return this.renderUtentiTab();
             case 'template':
                 return this.renderTemplateTab();
+            case 'timeline':
+                return '<div style="text-align:center;padding:2rem;"><i class="fas fa-spinner fa-spin"></i> Caricamento timeline...</div>';
             default:
                 return '';
         }
@@ -1684,398 +1693,219 @@ const Settings = {
         }
     },
 
-    // === TAB UNISCI CLIENTI DUPLICATI ===
-    renderUnisciClientiTab() {
+    // === TAB TIMELINE ATTIVITÀ (SUPER_ADMIN) ===
+    _timelineData: [],
+    _timelineFilters: { utente: '', azione: '', collezione: '', data: '' },
+    _timelineLimit: 50,
+
+    async renderTimelineTab() {
+        // Carica gli ultimi N log dall'audit_log
+        await this._loadTimelineData();
+
+        // Estrai utenti unici e azioni uniche per i filtri
+        const utentiUnici = [...new Set(this._timelineData.map(l => l.utenteNome || l.utente).filter(Boolean))].sort();
+        const azioniUniche = [...new Set(this._timelineData.map(l => l.azione).filter(Boolean))].sort();
+        const collezioniUniche = [...new Set(this._timelineData.map(l => l.collezione).filter(Boolean))].sort();
+
         return `
             <div class="card fade-in">
-                <div class="card-header">
-                    <h2 class="card-title">
-                        <i class="fas fa-object-group"></i> Unisci Clienti Duplicati
+                <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+                    <h2 class="card-title" style="margin: 0;">
+                        <i class="fas fa-history"></i> Timeline Attività
                     </h2>
+                    <button class="btn btn-secondary" onclick="Settings.refreshTimeline()" style="font-size: 0.85rem;">
+                        <i class="fas fa-sync-alt"></i> Aggiorna
+                    </button>
                 </div>
-                <div style="padding: 1.5rem;">
-                    <div style="padding: 1rem; background: #E1F5FE; border-left: 4px solid #0288D1; border-radius: 8px; margin-bottom: 1.5rem;">
-                        <p style="color: #01579B; margin: 0; font-size: 0.9rem; line-height: 1.6;">
-                            <i class="fas fa-info-circle"></i> Usa questo strumento quando hai <strong>due schede cliente per lo stesso soggetto</strong> (es. nome scritto diversamente).
-                            Scegli quale cliente tenere (il "principale") e quale eliminare (il "duplicato"). Tutte le fatture, i contratti, i documenti e le scadenze del duplicato verranno spostati al principale.
-                        </p>
+                <div style="padding: 1rem 1.5rem; background: var(--grigio-100); border-bottom: 1px solid var(--grigio-300);">
+                    <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: center;">
+                        <select id="tlFilterUtente" onchange="Settings.applyTimelineFilters()" style="padding: 0.5rem; border-radius: 6px; border: 1px solid var(--grigio-300); font-family: inherit; font-size: 0.85rem;">
+                            <option value="">Tutti gli utenti</option>
+                            ${utentiUnici.map(u => `<option value="${u}">${u}</option>`).join('')}
+                        </select>
+                        <select id="tlFilterAzione" onchange="Settings.applyTimelineFilters()" style="padding: 0.5rem; border-radius: 6px; border: 1px solid var(--grigio-300); font-family: inherit; font-size: 0.85rem;">
+                            <option value="">Tutte le azioni</option>
+                            ${azioniUniche.map(a => `<option value="${a}">${this._getAzioneLabel(a)}</option>`).join('')}
+                        </select>
+                        <select id="tlFilterCollezione" onchange="Settings.applyTimelineFilters()" style="padding: 0.5rem; border-radius: 6px; border: 1px solid var(--grigio-300); font-family: inherit; font-size: 0.85rem;">
+                            <option value="">Tutte le sezioni</option>
+                            ${collezioniUniche.map(c => `<option value="${c}">${this._getCollezioneLabel(c)}</option>`).join('')}
+                        </select>
+                        <input type="date" id="tlFilterData" onchange="Settings.applyTimelineFilters()" style="padding: 0.5rem; border-radius: 6px; border: 1px solid var(--grigio-300); font-family: inherit; font-size: 0.85rem;" />
                     </div>
-
-                    <!-- Step 1: Cerca duplicati -->
-                    <h3 style="font-size: 1.1rem; font-weight: 700; color: var(--blu-700); margin-bottom: 1rem;">
-                        <i class="fas fa-search"></i> 1. Cerca i due clienti
-                    </h3>
-
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem;">
-                        <!-- Cliente PRINCIPALE (da mantenere) -->
-                        <div style="padding: 1rem; border: 2px solid var(--verde-700); border-radius: 8px; background: var(--verde-100);">
-                            <label style="display: block; font-weight: 700; color: var(--verde-900); margin-bottom: 0.5rem;">
-                                <i class="fas fa-check-circle"></i> Cliente PRINCIPALE (da mantenere)
-                            </label>
-                            <input type="text" id="searchClientePrincipale" placeholder="Cerca per nome..."
-                                oninput="Settings.cercaClienteUnione('principale', this.value)"
-                                style="width: 100%; padding: 0.75rem; border: 1px solid var(--verde-700); border-radius: 6px; font-family: inherit; font-size: 1rem; margin-bottom: 0.5rem;"
-                            />
-                            <div id="risultatiPrincipale" style="max-height: 150px; overflow-y: auto;"></div>
-                            <div id="selezionatoPrincipale" style="display: none; margin-top: 0.5rem;"></div>
-                        </div>
-
-                        <!-- Cliente DUPLICATO (da eliminare) -->
-                        <div style="padding: 1rem; border: 2px solid #D32F2F; border-radius: 8px; background: #FFEBEE;">
-                            <label style="display: block; font-weight: 700; color: #C62828; margin-bottom: 0.5rem;">
-                                <i class="fas fa-times-circle"></i> Cliente DUPLICATO (da eliminare)
-                            </label>
-                            <input type="text" id="searchClienteDuplicato" placeholder="Cerca per nome..."
-                                oninput="Settings.cercaClienteUnione('duplicato', this.value)"
-                                style="width: 100%; padding: 0.75rem; border: 1px solid #D32F2F; border-radius: 6px; font-family: inherit; font-size: 1rem; margin-bottom: 0.5rem;"
-                            />
-                            <div id="risultatiDuplicato" style="max-height: 150px; overflow-y: auto;"></div>
-                            <div id="selezionatoDuplicato" style="display: none; margin-top: 0.5rem;"></div>
-                        </div>
-                    </div>
-
-                    <!-- Step 2: Anteprima -->
-                    <div id="unioneAnteprima" style="display: none;">
-                        <h3 style="font-size: 1.1rem; font-weight: 700; color: var(--blu-700); margin-bottom: 1rem;">
-                            <i class="fas fa-eye"></i> 2. Anteprima dell'unione
-                        </h3>
-                        <div id="unioneDettagli"></div>
-
-                        <div style="margin-top: 1.5rem; padding: 1rem; background: #FFF3E0; border-left: 4px solid #FFCC00; border-radius: 8px;">
-                            <p style="color: #E65100; margin: 0; font-weight: 600;">
-                                <i class="fas fa-exclamation-triangle"></i> Attenzione: il cliente duplicato verrà <strong>eliminato definitivamente</strong> dopo lo spostamento dei dati. Questa operazione non è reversibile.
-                            </p>
-                        </div>
-
-                        <button class="btn btn-success" id="btnEseguiUnione" onclick="Settings.eseguiUnione()" style="margin-top: 1rem;">
-                            <i class="fas fa-play"></i> Esegui Unione
-                        </button>
-                    </div>
-
-                    <div id="unioneProgress" style="display: none;"></div>
+                </div>
+                <div id="timelineContent" style="padding: 0; max-height: 65vh; overflow-y: auto;">
+                    ${this._renderTimelineItems(this._timelineData)}
                 </div>
             </div>
         `;
     },
 
-    _clientePrincipale: null,
-    _clienteDuplicato: null,
-    _unioneSearchTimeout: null,
-
-    async cercaClienteUnione(tipo, query) {
-        clearTimeout(this._unioneSearchTimeout);
-        this._unioneSearchTimeout = setTimeout(async () => {
-            const resultsDiv = document.getElementById(`risultati${tipo === 'principale' ? 'Principale' : 'Duplicato'}`);
-            if (!query || query.length < 2) {
-                resultsDiv.innerHTML = '';
-                return;
-            }
-
-            const clienti = await DataService.getClienti();
-            const filtrati = clienti.filter(c =>
-                c.ragioneSociale?.toLowerCase().includes(query.toLowerCase())
-            ).slice(0, 10);
-
-            if (filtrati.length === 0) {
-                resultsDiv.innerHTML = '<p style="color: var(--grigio-500); font-size: 0.85rem; padding: 0.5rem;">Nessun risultato</p>';
-                return;
-            }
-
-            resultsDiv.innerHTML = filtrati.map(c => `
-                <div onclick="Settings.selezionaClienteUnione('${tipo}', '${c.id}')"
-                     style="padding: 0.5rem 0.75rem; cursor: pointer; border-bottom: 1px solid var(--grigio-200); font-size: 0.9rem; transition: background 0.2s;"
-                     onmouseover="this.style.background='rgba(0,0,0,0.05)'"
-                     onmouseout="this.style.background='transparent'">
-                    <strong>${c.ragioneSociale}</strong>
-                    <span style="color: var(--grigio-500); font-size: 0.8rem;"> (${c.provincia || 'N/A'}) ${c.tipo === 'PA' ? '🏛️ PA' : ''}</span>
-                </div>
-            `).join('');
-        }, 300);
-    },
-
-    async selezionaClienteUnione(tipo, clienteId) {
-        const cliente = await DataService.getCliente(clienteId);
-        if (!cliente) return;
-
-        // Carica dati associati
-        const fatture = await DataService.getFattureCliente(cliente.clienteIdLegacy || clienteId);
-        const contratti = await DataService.getContrattiCliente(cliente.clienteIdLegacy || clienteId);
-
-        const selDiv = document.getElementById(`selezionato${tipo === 'principale' ? 'Principale' : 'Duplicato'}`);
-        const resultsDiv = document.getElementById(`risultati${tipo === 'principale' ? 'Principale' : 'Duplicato'}`);
-        const searchInput = document.getElementById(`searchCliente${tipo === 'principale' ? 'Principale' : 'Duplicato'}`);
-
-        // Salva il cliente selezionato
-        if (tipo === 'principale') {
-            this._clientePrincipale = { ...cliente, _fatture: fatture, _contratti: contratti };
-        } else {
-            this._clienteDuplicato = { ...cliente, _fatture: fatture, _contratti: contratti };
-        }
-
-        const colore = tipo === 'principale' ? 'var(--verde-700)' : '#D32F2F';
-        selDiv.innerHTML = `
-            <div style="padding: 0.75rem; background: white; border-radius: 6px; border: 1px solid ${colore};">
-                <strong style="color: ${colore}; font-size: 1rem;">${cliente.ragioneSociale}</strong>
-                <div style="font-size: 0.8rem; color: var(--grigio-600); margin-top: 0.25rem;">
-                    ID: ${cliente.clienteIdLegacy || cliente.id}<br/>
-                    Tipo: ${cliente.tipo || 'N/A'} • Provincia: ${cliente.provincia || 'N/A'}<br/>
-                    <strong>${fatture.length} fatture</strong> • <strong>${contratti.length} contratti</strong>
-                </div>
-                <button onclick="Settings.deselezionaClienteUnione('${tipo}')" style="margin-top: 0.5rem; font-size: 0.8rem; color: ${colore}; background: none; border: 1px solid ${colore}; border-radius: 4px; padding: 0.25rem 0.5rem; cursor: pointer;">
-                    <i class="fas fa-times"></i> Cambia
-                </button>
-            </div>
-        `;
-        selDiv.style.display = 'block';
-        resultsDiv.innerHTML = '';
-        searchInput.style.display = 'none';
-
-        // Se entrambi i clienti sono selezionati, mostra anteprima
-        if (this._clientePrincipale && this._clienteDuplicato) {
-            this.mostraAnteprimaUnione();
-        }
-    },
-
-    deselezionaClienteUnione(tipo) {
-        const selDiv = document.getElementById(`selezionato${tipo === 'principale' ? 'Principale' : 'Duplicato'}`);
-        const searchInput = document.getElementById(`searchCliente${tipo === 'principale' ? 'Principale' : 'Duplicato'}`);
-
-        selDiv.style.display = 'none';
-        selDiv.innerHTML = '';
-        searchInput.style.display = 'block';
-        searchInput.value = '';
-
-        if (tipo === 'principale') {
-            this._clientePrincipale = null;
-        } else {
-            this._clienteDuplicato = null;
-        }
-
-        document.getElementById('unioneAnteprima').style.display = 'none';
-    },
-
-    mostraAnteprimaUnione() {
-        const principale = this._clientePrincipale;
-        const duplicato = this._clienteDuplicato;
-
-        if (principale.id === duplicato.id) {
-            UI.showError('Non puoi unire un cliente con se stesso!');
-            return;
-        }
-
-        const dettagliDiv = document.getElementById('unioneDettagli');
-        dettagliDiv.innerHTML = `
-            <div style="display: grid; grid-template-columns: 1fr auto 1fr; gap: 1rem; align-items: start;">
-                <!-- Duplicato (sorgente) -->
-                <div style="padding: 1rem; background: #FFEBEE; border-radius: 8px; border: 2px solid #D32F2F;">
-                    <h4 style="color: #C62828; margin: 0 0 0.75rem 0; font-size: 0.95rem;">
-                        <i class="fas fa-times-circle"></i> DA ELIMINARE
-                    </h4>
-                    <p style="font-weight: 700; margin: 0 0 0.5rem 0;">${duplicato.ragioneSociale}</p>
-                    <p style="font-size: 0.85rem; color: var(--grigio-700); margin: 0;">
-                        ${duplicato._fatture.length} fatture da spostare<br/>
-                        ${duplicato._contratti.length} contratti da spostare
-                    </p>
-                </div>
-
-                <!-- Freccia -->
-                <div style="display: flex; align-items: center; justify-content: center; padding-top: 2rem;">
-                    <i class="fas fa-arrow-right" style="font-size: 2rem; color: var(--blu-700);"></i>
-                </div>
-
-                <!-- Principale (destinazione) -->
-                <div style="padding: 1rem; background: var(--verde-100); border-radius: 8px; border: 2px solid var(--verde-700);">
-                    <h4 style="color: var(--verde-900); margin: 0 0 0.75rem 0; font-size: 0.95rem;">
-                        <i class="fas fa-check-circle"></i> DA MANTENERE
-                    </h4>
-                    <p style="font-weight: 700; margin: 0 0 0.5rem 0;">${principale.ragioneSociale}</p>
-                    <p style="font-size: 0.85rem; color: var(--grigio-700); margin: 0;">
-                        ${principale._fatture.length} fatture esistenti<br/>
-                        ${principale._contratti.length} contratti esistenti<br/><br/>
-                        <strong style="color: var(--verde-700);">Dopo l'unione:</strong><br/>
-                        ${principale._fatture.length + duplicato._fatture.length} fatture totali<br/>
-                        ${principale._contratti.length + duplicato._contratti.length} contratti totali
-                    </p>
-                </div>
-            </div>
-
-            ${duplicato._fatture.length > 0 ? `
-                <div style="margin-top: 1rem;">
-                    <h4 style="font-size: 0.9rem; font-weight: 700; color: var(--grigio-700); margin-bottom: 0.5rem;">
-                        <i class="fas fa-file-invoice"></i> Fatture che verranno spostate:
-                    </h4>
-                    <div style="max-height: 200px; overflow-y: auto; background: var(--grigio-100); border-radius: 6px; padding: 0.5rem;">
-                        ${duplicato._fatture.map(f => `
-                            <div style="display: flex; justify-content: space-between; padding: 0.35rem 0.5rem; font-size: 0.85rem; border-bottom: 1px solid var(--grigio-200);">
-                                <span><strong>${f.numeroFatturaCompleto || 'N/A'}</strong> — ${DataService.formatDate(f.dataEmissione)}</span>
-                                <span style="font-weight: 600;">${DataService.formatCurrency(f.importoTotale)}</span>
-                            </div>
-                        `).join('')}
-                    </div>
-                </div>
-            ` : ''}
-        `;
-
-        document.getElementById('unioneAnteprima').style.display = 'block';
-    },
-
-    async eseguiUnione() {
-        const principale = this._clientePrincipale;
-        const duplicato = this._clienteDuplicato;
-
-        if (!principale || !duplicato) {
-            UI.showError('Seleziona entrambi i clienti');
-            return;
-        }
-
-        if (principale.id === duplicato.id) {
-            UI.showError('Non puoi unire un cliente con se stesso!');
-            return;
-        }
-
-        const conferma = confirm(
-            `Confermi l'unione?\n\n` +
-            `ELIMINARE: "${duplicato.ragioneSociale}"\n` +
-            `MANTENERE: "${principale.ragioneSociale}"\n\n` +
-            `${duplicato._fatture.length} fatture e ${duplicato._contratti.length} contratti verranno spostati.\n` +
-            `Il cliente duplicato verrà eliminato definitivamente.`
-        );
-        if (!conferma) return;
-
-        const progressDiv = document.getElementById('unioneProgress');
-        const btnEsegui = document.getElementById('btnEseguiUnione');
-        btnEsegui.disabled = true;
-        btnEsegui.innerHTML = '<i class="fas fa-spinner fa-spin"></i> In corso...';
-        progressDiv.style.display = 'block';
-
-        // Raccoglie TUTTI i possibili ID del cliente principale e duplicato
-        const idsPrincipale = [principale.id, principale.clienteIdLegacy].filter(Boolean);
-        const idsDuplicato = [duplicato.id, duplicato.clienteIdLegacy].filter(Boolean);
-        // ID da usare per il salvataggio (usa il legacy se esiste)
-        const idPrincipale = principale.clienteIdLegacy || principale.id;
-        let operazioni = 0;
-        let errori = 0;
-        const totaleOp = duplicato._fatture.length + duplicato._contratti.length + 1; // +1 per eliminazione
-
+    async _loadTimelineData() {
         try {
-            // 1. Sposta tutte le fatture (trovate tramite getFattureCliente che cerca entrambi gli ID)
-            for (const fattura of duplicato._fatture) {
-                try {
-                    await db.collection('fatture').doc(fattura.id).update({
-                        clienteId: idPrincipale,
-                        clienteRagioneSociale: principale.ragioneSociale
-                    });
-                    operazioni++;
-                } catch (e) {
-                    console.error(`Errore spostamento fattura ${fattura.id}:`, e);
-                    errori++;
-                }
-                this._aggiornaProgressUnione(progressDiv, operazioni + errori, totaleOp, 'Spostamento fatture...');
-            }
-
-            // 2. Sposta tutti i contratti (trovati tramite getContrattiCliente che cerca entrambi gli ID)
-            for (const contratto of duplicato._contratti) {
-                try {
-                    await db.collection('contratti').doc(contratto.id).update({
-                        clienteId: idPrincipale,
-                        clienteRagioneSociale: principale.ragioneSociale
-                    });
-                    operazioni++;
-                } catch (e) {
-                    console.error(`Errore spostamento contratto ${contratto.id}:`, e);
-                    errori++;
-                }
-                this._aggiornaProgressUnione(progressDiv, operazioni + errori, totaleOp, 'Spostamento contratti...');
-            }
-
-            // 3. Sposta scadenze (cerca per TUTTI gli ID del duplicato)
-            try {
-                for (const idDup of idsDuplicato) {
-                    const scadenzeSnapshot = await db.collection('scadenzario')
-                        .where('clienteId', '==', idDup).get();
-                    for (const doc of scadenzeSnapshot.docs) {
-                        await db.collection('scadenzario').doc(doc.id).update({
-                            clienteId: idPrincipale,
-                            clienteRagioneSociale: principale.ragioneSociale
-                        });
-                    }
-                }
-            } catch (e) {
-                console.error('Errore spostamento scadenze:', e);
-            }
-
-            // 4. Sposta documenti (cerca per TUTTI gli ID del duplicato)
-            try {
-                for (const idDup of idsDuplicato) {
-                    const documentiSnapshot = await db.collection('documenti')
-                        .where('entitaId', '==', idDup).get();
-                    for (const doc of documentiSnapshot.docs) {
-                        await db.collection('documenti').doc(doc.id).update({
-                            entitaId: principale.id
-                        });
-                    }
-                }
-            } catch (e) {
-                console.error('Errore spostamento documenti:', e);
-            }
-
-            // 5. Elimina il cliente duplicato
-            try {
-                await db.collection('clienti').doc(duplicato.id).delete();
-                operazioni++;
-            } catch (e) {
-                console.error('Errore eliminazione duplicato:', e);
-                errori++;
-            }
-
-            // Risultato finale
-            progressDiv.innerHTML = `
-                <div style="padding: 1.5rem; background: ${errori === 0 ? 'var(--verde-100)' : '#FFF3E0'}; border-radius: 8px; margin-top: 1rem; border-left: 4px solid ${errori === 0 ? 'var(--verde-700)' : '#FFCC00'};">
-                    <h3 style="font-size: 1.1rem; font-weight: 700; color: ${errori === 0 ? 'var(--verde-900)' : '#E65100'}; margin-bottom: 0.5rem;">
-                        <i class="fas ${errori === 0 ? 'fa-check-circle' : 'fa-exclamation-triangle'}"></i>
-                        Unione completata!
-                    </h3>
-                    <p style="margin: 0; color: var(--grigio-700); line-height: 1.6;">
-                        <strong>${duplicato._fatture.length}</strong> fatture spostate a "${principale.ragioneSociale}"<br/>
-                        <strong>${duplicato._contratti.length}</strong> contratti spostati<br/>
-                        Cliente "<strong>${duplicato.ragioneSociale}</strong>" eliminato
-                        ${errori > 0 ? `<br/><strong style="color: #D32F2F;">${errori} errori riscontrati</strong>` : ''}
-                    </p>
-                </div>
-            `;
-
-            btnEsegui.style.display = 'none';
-            document.getElementById('unioneAnteprima').style.display = 'none';
-            this._clientePrincipale = null;
-            this._clienteDuplicato = null;
-            UI.showSuccess('Unione completata con successo!');
-
-        } catch (error) {
-            console.error('Errore durante l\'unione:', error);
-            progressDiv.innerHTML = `
-                <div style="padding: 1rem; background: #FFEBEE; border-left: 4px solid #D32F2F; border-radius: 8px; margin-top: 1rem;">
-                    <p style="color: #D32F2F; font-weight: 700; margin: 0;">
-                        <i class="fas fa-times-circle"></i> Errore durante l'unione: ${error.message}
-                    </p>
-                </div>
-            `;
-            btnEsegui.disabled = false;
-            btnEsegui.innerHTML = '<i class="fas fa-play"></i> Riprova';
+            const snapshot = await db.collection('audit_log')
+                .orderBy('timestamp', 'desc')
+                .limit(200)
+                .get();
+            this._timelineData = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+        } catch (e) {
+            console.error('Errore caricamento timeline:', e);
+            this._timelineData = [];
         }
     },
 
-    _aggiornaProgressUnione(div, current, total, fase) {
-        div.innerHTML = `
-            <div style="padding: 1rem; background: var(--blu-100); border-radius: 8px; margin-top: 1rem;">
-                <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
-                    <span style="font-weight: 600; color: var(--blu-700);">${fase}</span>
-                    <span style="font-weight: 700; color: var(--blu-700);">${current}/${total}</span>
-                </div>
-                <div style="width: 100%; height: 8px; background: var(--grigio-300); border-radius: 4px; overflow: hidden;">
-                    <div style="width: ${(current / total * 100)}%; height: 100%; background: var(--verde-700); transition: width 0.3s;"></div>
-                </div>
-            </div>
-        `;
+    _renderTimelineItems(items) {
+        if (!items || items.length === 0) {
+            return `<div style="padding: 3rem; text-align: center; color: var(--grigio-500);">
+                <i class="fas fa-inbox" style="font-size: 2.5rem; opacity: 0.3; margin-bottom: 1rem; display: block;"></i>
+                Nessuna attività trovata
+            </div>`;
+        }
+
+        // Raggruppa per giorno
+        const perGiorno = {};
+        items.forEach(item => {
+            const d = item.timestamp ? item.timestamp.substring(0, 10) : 'sconosciuto';
+            if (!perGiorno[d]) perGiorno[d] = [];
+            perGiorno[d].push(item);
+        });
+
+        let html = '';
+        Object.keys(perGiorno).sort().reverse().forEach(giorno => {
+            const dataLabel = this._formatDataLabel(giorno);
+            html += `<div style="padding: 0.6rem 1.5rem; background: var(--blu-100); font-weight: 700; font-size: 0.8rem; color: var(--blu-700); letter-spacing: 0.03em; position: sticky; top: 0; z-index: 1;">
+                <i class="fas fa-calendar-day"></i> ${dataLabel}
+            </div>`;
+
+            perGiorno[giorno].forEach(item => {
+                const ora = item.timestamp ? item.timestamp.substring(11, 16) : '--:--';
+                const iconInfo = this._getAzioneIcon(item.azione);
+                const dettaglio = this._formatDettaglio(item);
+
+                html += `
+                    <div style="display: flex; gap: 12px; padding: 0.75rem 1.5rem; border-bottom: 1px solid var(--grigio-200); align-items: flex-start; transition: background 0.15s;"
+                         onmouseover="this.style.background='var(--grigio-100)'" onmouseout="this.style.background='transparent'">
+                        <div style="width: 34px; height: 34px; border-radius: 50%; background: ${iconInfo.bg}; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 2px;">
+                            <i class="fas ${iconInfo.icon}" style="font-size: 0.8rem; color: ${iconInfo.color};"></i>
+                        </div>
+                        <div style="flex: 1; min-width: 0;">
+                            <div style="display: flex; justify-content: space-between; align-items: baseline; gap: 0.5rem;">
+                                <strong style="font-size: 0.9rem; color: var(--grigio-900);">${item.utenteNome || item.utente || 'Sistema'}</strong>
+                                <span style="font-size: 0.75rem; color: var(--grigio-500); flex-shrink: 0;">${ora}</span>
+                            </div>
+                            <div style="font-size: 0.85rem; color: var(--grigio-700); margin-top: 2px;">
+                                ${this._getAzioneLabel(item.azione)} ${this._getCollezioneLabel(item.collezione)}${dettaglio}
+                            </div>
+                            ${item.ruolo ? `<span style="font-size: 0.7rem; color: var(--grigio-500); background: var(--grigio-100); padding: 1px 6px; border-radius: 3px; margin-top: 3px; display: inline-block;">${item.ruolo}</span>` : ''}
+                        </div>
+                    </div>
+                `;
+            });
+        });
+
+        return html;
+    },
+
+    applyTimelineFilters() {
+        const utente = document.getElementById('tlFilterUtente')?.value || '';
+        const azione = document.getElementById('tlFilterAzione')?.value || '';
+        const collezione = document.getElementById('tlFilterCollezione')?.value || '';
+        const data = document.getElementById('tlFilterData')?.value || '';
+
+        let filtrati = this._timelineData;
+
+        if (utente) filtrati = filtrati.filter(l => (l.utenteNome || l.utente) === utente);
+        if (azione) filtrati = filtrati.filter(l => l.azione === azione);
+        if (collezione) filtrati = filtrati.filter(l => l.collezione === collezione);
+        if (data) filtrati = filtrati.filter(l => l.timestamp && l.timestamp.startsWith(data));
+
+        const container = document.getElementById('timelineContent');
+        if (container) container.innerHTML = this._renderTimelineItems(filtrati);
+    },
+
+    async refreshTimeline() {
+        const container = document.getElementById('timelineContent');
+        if (container) container.innerHTML = '<div style="padding: 2rem; text-align: center;"><i class="fas fa-spinner fa-spin"></i> Aggiornamento...</div>';
+        await this._loadTimelineData();
+        this.applyTimelineFilters();
+    },
+
+    // Helper: etichette azioni leggibili
+    _getAzioneLabel(azione) {
+        const map = {
+            'CREATE': 'ha creato',
+            'UPDATE': 'ha modificato',
+            'DELETE': 'ha eliminato',
+            'LOGIN': 'ha effettuato l\'accesso',
+            'LOGOUT': 'è uscito dal CRM',
+            'STATO_CHANGE': 'ha cambiato stato',
+            'RINNOVO': 'ha rinnovato',
+            'ACCONTO': 'ha registrato acconto'
+        };
+        return map[azione] || azione;
+    },
+
+    // Helper: etichette collezioni leggibili
+    _getCollezioneLabel(collezione) {
+        const map = {
+            'clienti': 'un cliente',
+            'fatture': 'una fattura',
+            'contratti': 'un contratto',
+            'app': 'un\'app',
+            'scadenzario': 'una scadenza',
+            'auth': '',
+            'utenti': 'un utente',
+            'settings': 'le impostazioni'
+        };
+        return map[collezione] !== undefined ? map[collezione] : collezione;
+    },
+
+    // Helper: icona per tipo azione
+    _getAzioneIcon(azione) {
+        const map = {
+            'CREATE':       { icon: 'fa-plus',          bg: 'var(--verde-100)',  color: 'var(--verde-700)' },
+            'UPDATE':       { icon: 'fa-pen',           bg: 'var(--blu-100)',    color: 'var(--blu-700)' },
+            'DELETE':       { icon: 'fa-trash',          bg: '#FFEBEE',           color: '#D32F2F' },
+            'LOGIN':        { icon: 'fa-sign-in-alt',    bg: 'var(--verde-100)',  color: 'var(--verde-900)' },
+            'LOGOUT':       { icon: 'fa-sign-out-alt',   bg: 'var(--grigio-100)', color: 'var(--grigio-700)' },
+            'STATO_CHANGE': { icon: 'fa-exchange-alt',   bg: '#FFF3E0',           color: '#E65100' },
+            'RINNOVO':      { icon: 'fa-redo',           bg: 'var(--blu-100)',    color: 'var(--blu-700)' },
+            'ACCONTO':      { icon: 'fa-coins',          bg: '#FFF3E0',           color: '#F57C00' }
+        };
+        return map[azione] || { icon: 'fa-circle', bg: 'var(--grigio-100)', color: 'var(--grigio-500)' };
+    },
+
+    // Helper: formatta dettagli extra
+    _formatDettaglio(item) {
+        if (!item.dettagli || Object.keys(item.dettagli).length === 0) return '';
+        const d = item.dettagli;
+        let parts = [];
+        if (d.ragioneSociale) parts.push(d.ragioneSociale);
+        if (d.nome) parts.push(d.nome);
+        if (d.numero) parts.push(`n. ${d.numero}`);
+        if (d.importo) parts.push(`${DataService.formatCurrency(d.importo)}`);
+        if (d.azione) parts.push(d.azione);
+        if (d.nuovaScadenza) parts.push(`scadenza: ${DataService.formatDate(d.nuovaScadenza)}`);
+        if (d.campiModificati && Array.isArray(d.campiModificati)) {
+            parts.push(`(${d.campiModificati.slice(0, 3).join(', ')}${d.campiModificati.length > 3 ? '...' : ''})`);
+        }
+        return parts.length > 0 ? ` — <span style="color: var(--grigio-500);">${parts.join(' · ')}</span>` : '';
+    },
+
+    // Helper: formatta data label (Oggi, Ieri, o data estesa)
+    _formatDataLabel(dateStr) {
+        const oggi = new Date();
+        oggi.setHours(0, 0, 0, 0);
+        const ieri = new Date(oggi);
+        ieri.setDate(ieri.getDate() - 1);
+        const target = new Date(dateStr + 'T00:00:00');
+
+        if (target.getTime() === oggi.getTime()) return 'Oggi';
+        if (target.getTime() === ieri.getTime()) return 'Ieri';
+
+        const giorni = ['Domenica','Lunedì','Martedì','Mercoledì','Giovedì','Venerdì','Sabato'];
+        const mesi = ['Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
+        return `${giorni[target.getDay()]} ${target.getDate()} ${mesi[target.getMonth()]} ${target.getFullYear()}`;
     },
 
     // === TAB BONIFICA FATTURE ===

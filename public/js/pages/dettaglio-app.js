@@ -1146,61 +1146,82 @@ const DettaglioApp = {
 
         return `
             <div class="card" style="border: 2px solid var(--blu-300);">
-                <div class="card-header" style="background: var(--blu-100);">
-                    <h2 class="card-title" style="color: var(--blu-700);">
-                        <i class="fas fa-sliders-h"></i> Configurazione App
-                        <span style="font-size: 0.7rem; background: var(--blu-700); color: white; padding: 0.15rem 0.5rem; border-radius: 4px; margin-left: 0.5rem; vertical-align: middle;">SUPER ADMIN</span>
-                    </h2>
+                <div class="card-header" style="background: var(--blu-100); cursor: pointer; user-select: none;" onclick="DettaglioApp.toggleConfigApp()">
+                    <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                        <h2 class="card-title" style="color: var(--blu-700); margin: 0;">
+                            <i class="fas fa-sliders-h"></i> Configurazione App
+                            <span style="font-size: 0.7rem; background: var(--blu-700); color: white; padding: 0.15rem 0.5rem; border-radius: 4px; margin-left: 0.5rem; vertical-align: middle;">SUPER ADMIN</span>
+                        </h2>
+                        <i id="configAppChevron" class="fas fa-chevron-down" style="color: var(--blu-700); font-size: 0.9rem; transition: transform 0.3s ease;"></i>
+                    </div>
                 </div>
-                <div class="card-body" style="padding: 1.5rem;">
-                    <!-- Icona App -->
-                    <div style="margin-bottom: 1.5rem;">
-                        <label style="display: block; font-size: 0.85rem; font-weight: 700; color: var(--grigio-700); margin-bottom: 0.75rem;">
-                            <i class="fas fa-image"></i> Icona App
-                        </label>
-                        <div style="display: flex; align-items: center; gap: 1rem;">
-                            ${app.iconaUrl ? `
-                                <img id="configIconaPreview" src="${app.iconaUrl}" alt="Icona" style="width: 64px; height: 64px; border-radius: 14px; object-fit: cover; box-shadow: 0 2px 6px rgba(0,0,0,0.1);" />
-                            ` : `
-                                <div id="configIconaPreview" style="width: 64px; height: 64px; border-radius: 14px; background: var(--grigio-100); display: flex; align-items: center; justify-content: center; border: 2px dashed var(--grigio-300);">
-                                    <i class="fas fa-camera" style="color: var(--grigio-400); font-size: 1.2rem;"></i>
+                <div id="configAppBody" style="max-height: 0; overflow: hidden; transition: max-height 0.4s ease;">
+                    <div style="padding: 1.5rem;">
+                        <!-- Icona App -->
+                        <div style="margin-bottom: 1.5rem;">
+                            <label style="display: block; font-size: 0.85rem; font-weight: 700; color: var(--grigio-700); margin-bottom: 0.75rem;">
+                                <i class="fas fa-image"></i> Icona App
+                            </label>
+                            <div style="display: flex; align-items: center; gap: 1rem;">
+                                ${app.iconaUrl ? `
+                                    <img id="configIconaPreview" src="${app.iconaUrl}" alt="Icona" style="width: 64px; height: 64px; border-radius: 14px; object-fit: cover; box-shadow: 0 2px 6px rgba(0,0,0,0.1);" />
+                                ` : `
+                                    <div id="configIconaPreview" style="width: 64px; height: 64px; border-radius: 14px; background: var(--grigio-100); display: flex; align-items: center; justify-content: center; border: 2px dashed var(--grigio-300);">
+                                        <i class="fas fa-camera" style="color: var(--grigio-400); font-size: 1.2rem;"></i>
+                                    </div>
+                                `}
+                                <div>
+                                    <input type="file" id="configIconaFile" accept="image/*" style="display: none;" onchange="DettaglioApp.onIconaSelected()" />
+                                    <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); document.getElementById('configIconaFile').click()">
+                                        <i class="fas fa-upload"></i> ${app.iconaUrl ? 'Cambia Icona' : 'Carica Icona'}
+                                    </button>
+                                    <p style="font-size: 0.75rem; color: var(--grigio-500); margin-top: 0.25rem;">Immagine quadrata, max 2MB</p>
                                 </div>
-                            `}
-                            <div>
-                                <input type="file" id="configIconaFile" accept="image/*" style="display: none;" onchange="DettaglioApp.onIconaSelected()" />
-                                <button class="btn btn-secondary btn-sm" onclick="document.getElementById('configIconaFile').click()">
-                                    <i class="fas fa-upload"></i> ${app.iconaUrl ? 'Cambia Icona' : 'Carica Icona'}
-                                </button>
-                                <p style="font-size: 0.75rem; color: var(--grigio-500); margin-top: 0.25rem;">Immagine quadrata, max 2MB</p>
                             </div>
                         </div>
-                    </div>
 
-                    <!-- URL Sito e Cruscotto -->
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem;">
-                        <div>
-                            <label style="display: block; font-size: 0.85rem; font-weight: 700; color: var(--grigio-700); margin-bottom: 0.35rem;">
-                                <i class="fas fa-globe"></i> URL Sito Pubblico
-                            </label>
-                            <input type="url" id="configUrlSito" value="${app.urlSito || defaultUrlSito}" placeholder="https://nomecomune.comune.digital"
-                                style="width: 100%; padding: 0.6rem; border: 1px solid var(--grigio-300); border-radius: 6px; font-family: 'Titillium Web', sans-serif; font-size: 0.9rem;" />
+                        <!-- URL Sito e Cruscotto -->
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(250px, 100%), 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+                            <div>
+                                <label style="display: block; font-size: 0.85rem; font-weight: 700; color: var(--grigio-700); margin-bottom: 0.35rem;">
+                                    <i class="fas fa-globe"></i> URL Sito Pubblico
+                                </label>
+                                <input type="url" id="configUrlSito" value="${app.urlSito || defaultUrlSito}" placeholder="https://nomecomune.comune.digital"
+                                    style="width: 100%; padding: 0.6rem; border: 1px solid var(--grigio-300); border-radius: 6px; font-family: 'Titillium Web', sans-serif; font-size: 0.9rem;" />
+                            </div>
+                            <div>
+                                <label style="display: block; font-size: 0.85rem; font-weight: 700; color: var(--grigio-700); margin-bottom: 0.35rem;">
+                                    <i class="fas fa-cogs"></i> URL Cruscotto Gestione
+                                </label>
+                                <input type="url" id="configUrlCruscotto" value="${app.urlCruscotto || defaultUrlCruscotto}" placeholder="https://nomecomune.comune.digital/manage"
+                                    style="width: 100%; padding: 0.6rem; border: 1px solid var(--grigio-300); border-radius: 6px; font-family: 'Titillium Web', sans-serif; font-size: 0.9rem;" />
+                            </div>
                         </div>
-                        <div>
-                            <label style="display: block; font-size: 0.85rem; font-weight: 700; color: var(--grigio-700); margin-bottom: 0.35rem;">
-                                <i class="fas fa-cogs"></i> URL Cruscotto Gestione
-                            </label>
-                            <input type="url" id="configUrlCruscotto" value="${app.urlCruscotto || defaultUrlCruscotto}" placeholder="https://nomecomune.comune.digital/manage"
-                                style="width: 100%; padding: 0.6rem; border: 1px solid var(--grigio-300); border-radius: 6px; font-family: 'Titillium Web', sans-serif; font-size: 0.9rem;" />
-                        </div>
-                    </div>
 
-                    <!-- Pulsante Salva -->
-                    <button id="btnSalvaConfigApp" class="btn btn-primary" onclick="DettaglioApp.salvaConfigApp()" style="width: 100%;">
-                        <i class="fas fa-save"></i> Salva Configurazione
-                    </button>
+                        <!-- Pulsante Salva -->
+                        <button id="btnSalvaConfigApp" class="btn btn-primary" onclick="DettaglioApp.salvaConfigApp()" style="width: 100%;">
+                            <i class="fas fa-save"></i> Salva Configurazione
+                        </button>
+                    </div>
                 </div>
             </div>
         `;
+    },
+
+    // Toggle accordion configurazione app
+    toggleConfigApp() {
+        const body = document.getElementById('configAppBody');
+        const chevron = document.getElementById('configAppChevron');
+        if (!body) return;
+
+        const isOpen = body.style.maxHeight && body.style.maxHeight !== '0px';
+        if (isOpen) {
+            body.style.maxHeight = '0';
+            if (chevron) chevron.style.transform = 'rotate(0deg)';
+        } else {
+            body.style.maxHeight = body.scrollHeight + 'px';
+            if (chevron) chevron.style.transform = 'rotate(180deg)';
+        }
     },
 
     // Preview icona selezionata

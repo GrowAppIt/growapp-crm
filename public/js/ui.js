@@ -41,9 +41,11 @@ const UI = {
             });
         }
 
-        // Carica contenuto pagina
+        // Carica contenuto pagina — skeleton se disponibile, altrimenti spinner
         const mainContent = document.getElementById('mainContent');
-        mainContent.innerHTML = '<div class="loading-spinner"></div>';
+        const skeleton = this.getPageSkeleton(pageName);
+        mainContent.innerHTML = skeleton || '<div class="loading-spinner" style="margin:3rem auto;"></div>';
+        mainContent.scrollTop = 0;
 
         // Chiudi sidebar su mobile
         this.closeSidebar();
@@ -213,17 +215,177 @@ const UI = {
         `;
     },
 
-    // === NOTIFICHE ===
-    showNotification(message, type = 'info') {
-        // TODO: Implementare sistema notifiche toast
+    // === TOAST NOTIFICATIONS ===
+    _toastContainer: null,
+
+    _getToastContainer() {
+        if (!this._toastContainer || !document.body.contains(this._toastContainer)) {
+            this._toastContainer = document.createElement('div');
+            this._toastContainer.id = 'toastContainer';
+            this._toastContainer.className = 'toast-container';
+            document.body.appendChild(this._toastContainer);
+        }
+        return this._toastContainer;
+    },
+
+    showNotification(message, type = 'info', duration = 3500) {
+        const container = this._getToastContainer();
+
+        const icons = {
+            success: 'fa-check-circle',
+            error: 'fa-exclamation-circle',
+            warning: 'fa-exclamation-triangle',
+            info: 'fa-info-circle'
+        };
+
+        const toast = document.createElement('div');
+        toast.className = `toast toast-${type}`;
+        toast.innerHTML = `
+            <i class="fas ${icons[type] || icons.info}"></i>
+            <span class="toast-msg">${message}</span>
+            <button class="toast-close" onclick="this.parentElement.classList.add('toast-exit')">
+                <i class="fas fa-times"></i>
+            </button>
+        `;
+
+        container.appendChild(toast);
+
+        // Trigger animazione entrata (richiede un frame per la transizione CSS)
+        requestAnimationFrame(() => {
+            toast.classList.add('toast-enter');
+        });
+
+        // Auto-dismiss
+        const timer = setTimeout(() => {
+            toast.classList.add('toast-exit');
+        }, duration);
+
+        // Rimuovi dal DOM dopo animazione uscita
+        toast.addEventListener('animationend', (e) => {
+            if (e.animationName === 'toastSlideOut') {
+                clearTimeout(timer);
+                toast.remove();
+            }
+        });
     },
 
     showError(message) {
-        this.showNotification(message, 'error');
+        this.showNotification(message, 'error', 5000);
     },
 
     showSuccess(message) {
         this.showNotification(message, 'success');
+    },
+
+    showWarning(message) {
+        this.showNotification(message, 'warning', 4500);
+    },
+
+    // === SKELETON LOADING ===
+    _skeletonLine(w = '60%', h = '14px') {
+        return `<div class="sk" style="height:${h};width:${w};margin-bottom:0.5rem;"></div>`;
+    },
+
+    /**
+     * Genera HTML skeleton in base al tipo di pagina.
+     * Dashboard ha il suo skeleton custom (_renderSkeleton).
+     * Le altre pagine usano template generici.
+     */
+    getPageSkeleton(pageName) {
+        // Skeleton per pagine lista (clienti, fatture, contratti, app, task, scadenzario)
+        const skRow = `
+            <div style="display:flex;align-items:center;gap:1rem;padding:1rem 0;border-bottom:1px solid var(--grigio-100);">
+                <div class="sk sk-circle" style="width:40px;height:40px;flex-shrink:0;"></div>
+                <div style="flex:1;">
+                    <div class="sk" style="height:15px;width:55%;margin-bottom:6px;"></div>
+                    <div class="sk" style="height:12px;width:35%;"></div>
+                </div>
+                <div class="sk" style="height:24px;width:70px;border-radius:12px;"></div>
+            </div>`;
+
+        const skFilterBar = `
+            <div style="display:flex;gap:0.75rem;flex-wrap:wrap;margin-bottom:1.5rem;">
+                <div class="sk" style="height:40px;width:min(100%,280px);border-radius:8px;"></div>
+                <div class="sk" style="height:40px;width:120px;border-radius:8px;"></div>
+                <div class="sk" style="height:40px;width:120px;border-radius:8px;"></div>
+            </div>`;
+
+        const skHeader = (icon, title) => `
+            <div class="page-header mb-3">
+                <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;">
+                    <div>
+                        <h1 style="font-size:2rem;font-weight:700;color:var(--blu-700);margin-bottom:0.5rem;">
+                            <i class="fas ${icon}"></i> ${title}
+                        </h1>
+                        <div class="sk" style="height:14px;width:140px;"></div>
+                    </div>
+                    <div style="display:flex;gap:0.5rem;">
+                        <div class="sk" style="height:38px;width:100px;border-radius:8px;"></div>
+                    </div>
+                </div>
+            </div>`;
+
+        // Pagine dettaglio: skeleton più semplice (card singola)
+        const skDettaglio = (icon, title) => `
+            ${skHeader(icon, title)}
+            <div class="sk-card" style="margin-bottom:1rem;">
+                <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1.5rem;">
+                    <div class="sk" style="width:64px;height:64px;border-radius:14px;"></div>
+                    <div style="flex:1;">
+                        <div class="sk" style="height:22px;width:50%;margin-bottom:8px;"></div>
+                        <div class="sk" style="height:14px;width:30%;"></div>
+                    </div>
+                </div>
+                <div class="sk" style="height:14px;width:90%;margin-bottom:0.5rem;"></div>
+                <div class="sk" style="height:14px;width:75%;margin-bottom:0.5rem;"></div>
+                <div class="sk" style="height:14px;width:60%;"></div>
+            </div>`;
+
+        // Skeleton per pagine con griglia di card (report, mappa, promemoria)
+        const skCardGrid = (icon, title, n = 4) => `
+            ${skHeader(icon, title)}
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(280px,100%),1fr));gap:1rem;">
+                ${Array(n).fill(`
+                    <div class="sk-card">
+                        <div class="sk" style="height:18px;width:45%;margin-bottom:1rem;"></div>
+                        <div class="sk" style="height:60px;width:100%;margin-bottom:0.75rem;"></div>
+                        <div class="sk" style="height:14px;width:70%;"></div>
+                    </div>
+                `).join('')}
+            </div>`;
+
+        // Lista generica (tabella)
+        const skLista = (icon, title) => `
+            ${skHeader(icon, title)}
+            ${skFilterBar}
+            <div class="sk-card">
+                ${Array(6).fill(skRow).join('')}
+            </div>`;
+
+        const map = {
+            'clienti':       () => skLista('fa-users', 'Clienti'),
+            'fatture':       () => skLista('fa-file-invoice', 'Fatture'),
+            'contratti':     () => skLista('fa-file-contract', 'Contratti'),
+            'app':           () => skLista('fa-mobile-alt', 'App'),
+            'task':          () => skLista('fa-tasks', 'Task'),
+            'scadenzario':   () => skLista('fa-calendar-alt', 'Scadenzario'),
+            'report':        () => skCardGrid('fa-chart-bar', 'Report', 4),
+            'mappa':         () => skCardGrid('fa-map-marked-alt', 'Mappa Clienti', 1),
+            'promemoria':    () => skCardGrid('fa-bell', 'Promemoria', 3),
+            'impostazioni':  () => skCardGrid('fa-cog', 'Impostazioni', 3),
+            'monitor-rss':   () => skCardGrid('fa-rss', 'Monitor RSS', 2),
+            'dettaglio-cliente':   () => skDettaglio('fa-user', 'Dettaglio Cliente'),
+            'dettaglio-app':       () => skDettaglio('fa-mobile-alt', 'Dettaglio App'),
+            'dettaglio-contratto': () => skDettaglio('fa-file-contract', 'Dettaglio Contratto'),
+            'dettaglio-fattura':   () => skDettaglio('fa-file-invoice', 'Dettaglio Fattura'),
+            'dettaglio-scadenza':  () => skDettaglio('fa-calendar-alt', 'Dettaglio Scadenza'),
+        };
+
+        // La dashboard ha il suo skeleton custom, non serve qui
+        if (pageName === 'dashboard') return null;
+
+        const generator = map[pageName];
+        return generator ? generator() : null;
     },
 
     // === UTILITY ===
@@ -446,6 +608,66 @@ const UI = {
                 item.style.display = 'flex';
             }
         });
+    },
+
+    // === SIDEBAR BADGES ===
+    // Aggiorna i badge numerici nella sidebar con i dati già caricati dalla dashboard
+    updateSidebarBadges(data = {}) {
+        // Badge Scadenzario: scadenze scadute (rosso)
+        this._setSidebarBadge('badgeScadenzario', data.scadenzeScadute || 0);
+
+        // Badge Fatture: fatture da incassare (rosso)
+        this._setSidebarBadge('badgeFatture', data.fattureNonPagate || 0);
+
+        // Badge Task: task aperti non completati (info blu)
+        this._setSidebarBadge('badgeTask', data.taskAperti || 0, 'badge-info');
+    },
+
+    _setSidebarBadge(elementId, count, extraClass = '') {
+        const badge = document.getElementById(elementId);
+        if (!badge) return;
+
+        if (count > 0) {
+            badge.textContent = count > 99 ? '99+' : count;
+            badge.className = 'sidebar-badge' + (extraClass ? ' ' + extraClass : '');
+            badge.classList.remove('hidden');
+        } else {
+            badge.classList.add('hidden');
+        }
+    },
+
+    // Carica i badge sidebar in modo autonomo (usato al login, non dipende dalla dashboard)
+    async loadSidebarBadges() {
+        try {
+            const oggi = new Date();
+            oggi.setHours(0, 0, 0, 0);
+
+            // Carica dati in parallelo (query leggere, con limit basso)
+            const [fattureNP, fattureP, tasksResult] = await Promise.all([
+                DataService.getFatture({ statoPagamento: 'NON_PAGATA', limit: 200 }),
+                DataService.getFatture({ statoPagamento: 'PARZIALMENTE_PAGATA', limit: 200 }),
+                (typeof TaskService !== 'undefined' && AuthService.canAccessPage('task'))
+                    ? TaskService.getAllTasks({ limit: 100 }).catch(() => ({ tasks: [] }))
+                    : Promise.resolve({ tasks: [] })
+            ]);
+
+            const fattureNonPagate = [...fattureNP, ...fattureP].filter(f => f.tipoDocumento !== 'NOTA_DI_CREDITO').length;
+
+            const taskAperti = (tasksResult.tasks || []).filter(t => (t.stato === 'TODO' || t.stato === 'IN_PROGRESS') && !t.archiviato).length;
+
+            // Scadenze: usa getScadenzeCompute se disponibile
+            let scadenzeScadute = 0;
+            try {
+                const scadenze = await DataService.getScadenzeCompute({});
+                scadenzeScadute = (scadenze.tutteLeScadenze || []).filter(s =>
+                    s.dataScadenza && new Date(s.dataScadenza) < oggi
+                ).length;
+            } catch (e) { /* ignora */ }
+
+            this.updateSidebarBadges({ scadenzeScadute, fattureNonPagate, taskAperti });
+        } catch (e) {
+            console.warn('Sidebar badges: errore caricamento', e);
+        }
     },
 
     // Mostra schermata accesso negato
