@@ -4,113 +4,171 @@ const Dashboard = {
     _kpiData: null,
 
     async render() {
-        UI.showLoading();
-
         try {
             // === VISTA AGENTE: dati filtrati solo per i propri clienti ===
             if (AuthService.canViewOnlyOwnData()) {
+                UI.showLoading();
                 return await this.renderDashboardAgente();
             }
 
             // === VISTA NORMALE (admin, CTO, ecc.) ===
-            // Carica dati base
-            const stats = await DataService.getStatistiche();
+            // FASE 0: Mostra SUBITO lo skeleton della dashboard (senza attendere i dati)
+            this._renderSkeleton();
 
-            // Carica scadenze calcolate da contratti e fatture reali
+            // OTTIMIZZAZIONE: carica le 6 collezioni base UNA sola volta, poi calcola tutto in memoria
+            const _sysDash2 = SettingsService.getSystemSettingsSync();
+
+            const canContracts = AuthService.hasPermission('manage_contracts') || AuthService.hasPermission('view_contracts') || AuthService.hasPermission('view_all_data');
+            const canInvoices = AuthService.hasPermission('manage_invoices') || AuthService.hasPermission('view_invoices') || AuthService.hasPermission('view_all_data');
+            const canClients = AuthService.hasPermission('view_clients') || AuthService.hasPermission('manage_clients') || AuthService.hasPermission('view_all_data');
+            const canApps = AuthService.hasPermission('view_apps') || AuthService.hasPermission('manage_apps') || AuthService.hasPermission('manage_app_content') || AuthService.hasPermission('view_all_data');
+            const canTasks = AuthService.hasPermission('view_dev_tasks') || AuthService.hasPermission('manage_dev_tasks') || AuthService.hasPermission('view_all_data');
+
+            // ── FASE 1: Carica le 6 collezioni base in parallelo (6 query Firestore, non 16) ──
+            const [
+                _rawClienti,
+                _rawContratti,
+                _rawFatture,
+                _rawApp,
+                _rawScadenze,
+                _rawTasksResult
+            ] = await Promise.all([
+                canClients ? DataService.getClienti().catch(e => { console.warn('Dashboard: errore getClienti', e); return []; }) : Promise.resolve([]),
+                canContracts ? DataService.getContratti().catch(e => { console.warn('Dashboard: errore getContratti', e); return []; }) : Promise.resolve([]),
+                canInvoices ? DataService.getFatture().catch(e => { console.warn('Dashboard: errore getFatture', e); return []; }) : Promise.resolve([]),
+                canApps ? DataService.getApps().catch(e => { console.warn('Dashboard: errore getApps', e); return []; }) : Promise.resolve([]),
+                DataService.getScadenze().catch(e => { console.warn('Dashboard: errore getScadenze', e); return []; }),
+                canTasks ? TaskService.getAllTasks({ limit: 100 }).catch(e => { console.warn('Dashboard: errore getAllTasks', e); return { tasks: [] }; }) : Promise.resolve({ tasks: [] })
+            ]);
+
+            const clienti = _rawClienti;
+            const contrattiTutti = _rawContratti;
+            const fatture = _rawFatture;
+            const app = _rawApp;
+            const tasks = _rawTasksResult.tasks || [];
+
+            // ── FASE 2: Calcola tutto IN MEMORIA dai dati già caricati ──
+            const oggi = new Date();
+            oggi.setHours(0, 0, 0, 0);
+
+            // Stats: calcola clientiConStato in memoria
+            const _contrattiPerCliente = {};
+            contrattiTutti.forEach(c => {
+                if (!c.clienteId) return;
+                if (!_contrattiPerCliente[c.clienteId]) _contrattiPerCliente[c.clienteId] = [];
+                _contrattiPerCliente[c.clienteId].push(c);
+            });
+            const clientiConStato = clienti.map(cl => {
+                const ids = [cl.id, cl.clienteIdLegacy].filter(Boolean);
+                const contrattiCl = [];
+                const idsVisti = new Set();
+                ids.forEach(id => {
+                    (_contrattiPerCliente[id] || []).forEach(c => {
+                        if (!idsVisti.has(c.id)) { idsVisti.add(c.id); contrattiCl.push(c); }
+                    });
+                });
+                return { ...cl, statoContratto: DataService.calcolaStatoCliente(contrattiCl) };
+            });
+
+            // Statistiche KPI
+            const clientiPerStato = {};
+            clientiConStato.forEach(c => { clientiPerStato[c.statoContratto] = (clientiPerStato[c.statoContratto] || 0) + 1; });
+            const fatturePerStato = {};
+            fatture.forEach(f => { fatturePerStato[f.statoPagamento] = (fatturePerStato[f.statoPagamento] || 0) + 1; });
+            const fatturatoTotale = fatture
+                .filter(f => f.statoPagamento === 'PAGATA' || f.tipoDocumento === 'NOTA_DI_CREDITO')
+                .reduce((sum, f) => {
+                    const importo = f.importoTotale || 0;
+                    const isNC = f.tipoDocumento === 'NOTA_DI_CREDITO' || (f.numeroFatturaCompleto || '').startsWith('NC-');
+                    return sum + (isNC ? -Math.abs(importo) : importo);
+                }, 0);
+            const fattureNonPagateStats = fatture.filter(f => f.statoPagamento === 'NON_PAGATA' && f.tipoDocumento !== 'NOTA_DI_CREDITO');
+            const importoNonPagato = fattureNonPagateStats.reduce((sum, f) => sum + (f.importoTotale || 0), 0);
+            const contrattiPerStato = {};
+            contrattiTutti.forEach(c => { contrattiPerStato[c.stato] = (contrattiPerStato[c.stato] || 0) + 1; });
+            const appPerStato = {};
+            app.forEach(a => { appPerStato[a.statoApp] = (appPerStato[a.statoApp] || 0) + 1; });
+            const tra7giorni = new Date(oggi);
+            tra7giorni.setDate(tra7giorni.getDate() + 7);
+            const scadenzeScaduteStats = _rawScadenze.filter(s => s.dataScadenza && new Date(s.dataScadenza) < oggi);
+            const scadenzeImminentiStats = _rawScadenze.filter(s => {
+                if (!s.dataScadenza) return false;
+                const d = new Date(s.dataScadenza);
+                return d >= oggi && d <= tra7giorni;
+            });
+
+            const stats = {
+                clienti: { totale: clienti.length, attivi: clientiPerStato['ATTIVO'] || 0, scaduti: clientiPerStato['SCADUTO'] || 0, cessati: clientiPerStato['CESSATO'] || 0, senzaContratto: clientiPerStato['SENZA_CONTRATTO'] || 0, perStato: clientiPerStato },
+                app: { totale: app.length, attive: appPerStato['ATTIVA'] || 0, inSviluppo: (appPerStato['SVILUPPO'] || 0) + (appPerStato['IN_SVILUPPO'] || 0), sospese: appPerStato['SOSPESA'] || 0, perStato: appPerStato },
+                contratti: { totale: contrattiTutti.length, attivi: contrattiPerStato['ATTIVO'] || 0, scaduti: contrattiPerStato['SCADUTO'] || 0, cessati: contrattiPerStato['CESSATO'] || 0, perStato: contrattiPerStato },
+                fatture: { totale: fatture.length, pagate: fatturePerStato['PAGATA'] || 0, nonPagate: fatturePerStato['NON_PAGATA'] || 0, perStato: fatturePerStato, fatturatoTotale, importoNonPagato },
+                scadenze: { totale: _rawScadenze.length, scadute: scadenzeScaduteStats.length, imminenti: scadenzeImminentiStats.length }
+            };
+
+            // Contratti in scadenza (filtro in memoria)
+            const _finestraContratti = _sysDash2.finestraContrattiDashboard || 60;
+            const _dataLimiteContratti = new Date(oggi);
+            _dataLimiteContratti.setDate(_dataLimiteContratti.getDate() + _finestraContratti);
+            const contrattiInScadenza = contrattiTutti.filter(c =>
+                c.stato === 'ATTIVO' && c.dataScadenza && new Date(c.dataScadenza) <= _dataLimiteContratti
+            ).sort((a, b) => new Date(a.dataScadenza) - new Date(b.dataScadenza));
+
+            // Fatture scadute (filtro in memoria)
+            const fattureScadute = fatture.filter(f =>
+                f.statoPagamento === 'NON_PAGATA' && f.dataScadenza && new Date(f.dataScadenza) < oggi
+            );
+
+            // Fatture in scadenza (filtro in memoria)
+            const _finestraFatture = _sysDash2.finestraFattureDashboard || 30;
+            const _dataLimiteFatture = new Date(oggi);
+            _dataLimiteFatture.setDate(_dataLimiteFatture.getDate() + _finestraFatture);
+            const fattureInScadenza = fatture.filter(f => {
+                if (f.statoPagamento !== 'NON_PAGATA' || !f.dataScadenza) return false;
+                const ds = new Date(f.dataScadenza);
+                return ds >= oggi && ds <= _dataLimiteFatture;
+            });
+
+            // Scadenze compute (passa dati già caricati per evitare ulteriori query)
             let scadenzeScadute = [];
             let scadenzeImminenti = [];
-            if (AuthService.hasPermission('manage_payments') || AuthService.hasPermission('view_all_data')) {
-                try {
-                    const scadenzeCalcolate = await DataService.getScadenzeCompute();
-                    const _sysDash = SettingsService.getSystemSettingsSync();
-                    const oggi = new Date();
-                    oggi.setHours(0, 0, 0, 0);
-                    const finestraImminente = new Date(oggi);
-                    finestraImminente.setDate(finestraImminente.getDate() + (_sysDash.sogliaImminente || 30));
-                    scadenzeScadute = scadenzeCalcolate.tutteLeScadenze.filter(s =>
-                        s.dataScadenza && new Date(s.dataScadenza) < oggi
-                    );
-                    scadenzeImminenti = scadenzeCalcolate.tutteLeScadenze.filter(s => {
-                        if (!s.dataScadenza) return false;
-                        const ds = new Date(s.dataScadenza);
-                        return ds >= oggi && ds <= finestraImminente;
-                    });
-                } catch (e) { console.warn('Errore calcolo scadenze dashboard:', e); }
-            }
-            const _sysDash2 = SettingsService.getSystemSettingsSync();
-            const contrattiInScadenza = AuthService.hasPermission('manage_contracts') || AuthService.hasPermission('view_contracts') || AuthService.hasPermission('view_all_data')
-                ? await DataService.getContrattiInScadenza(_sysDash2.finestraContrattiDashboard || 60)
-                : [];
-            const fattureInScadenza = AuthService.hasPermission('manage_invoices') || AuthService.hasPermission('view_invoices') || AuthService.hasPermission('view_all_data')
-                ? await DataService.getFattureInScadenza(_sysDash2.finestraFattureDashboard || 30)
-                : [];
-            const clienti = AuthService.hasPermission('view_clients') || AuthService.hasPermission('manage_clients') || AuthService.hasPermission('view_all_data')
-                ? await DataService.getClienti()
-                : [];
-            const fatture = AuthService.hasPermission('manage_invoices') || AuthService.hasPermission('view_invoices') || AuthService.hasPermission('view_all_data')
-                ? await DataService.getFatture()
-                : [];
-            const fattureScadute = AuthService.hasPermission('manage_invoices') || AuthService.hasPermission('view_invoices') || AuthService.hasPermission('view_all_data')
-                ? await DataService.getFattureScadute()
-                : [];
-
-            // NUOVI DATI per widget aggiuntivi
-            const app = AuthService.hasPermission('view_apps') || AuthService.hasPermission('manage_apps') || AuthService.hasPermission('manage_app_content') || AuthService.hasPermission('view_all_data')
-                ? await DataService.getApps()
-                : [];
-            const tasksResult = AuthService.hasPermission('view_dev_tasks') || AuthService.hasPermission('manage_dev_tasks') || AuthService.hasPermission('view_all_data')
-                ? await TaskService.getAllTasks({ limit: 100 })
-                : { tasks: [] };
-            const tasks = tasksResult.tasks || [];
-            const contrattiTutti = AuthService.hasPermission('manage_contracts') || AuthService.hasPermission('view_contracts') || AuthService.hasPermission('view_all_data')
-                ? await DataService.getContratti()
-                : [];
+            try {
+                const scadenzeCalcolateResult = await DataService.getScadenzeCompute({ contratti: contrattiTutti, fatture: fatture });
+                const finestraImminente = new Date(oggi);
+                finestraImminente.setDate(finestraImminente.getDate() + (_sysDash2.sogliaImminente || 30));
+                scadenzeScadute = scadenzeCalcolateResult.tutteLeScadenze.filter(s =>
+                    s.dataScadenza && new Date(s.dataScadenza) < oggi
+                );
+                scadenzeImminenti = scadenzeCalcolateResult.tutteLeScadenze.filter(s => {
+                    if (!s.dataScadenza) return false;
+                    const ds = new Date(s.dataScadenza);
+                    return ds >= oggi && ds <= finestraImminente;
+                });
+            } catch (e) { console.warn('Dashboard: errore getScadenzeCompute', e); }
 
             // Get enabled widgets
             const enabledWidgets = SettingsService.getEnabledWidgets();
 
-            const mainContent = document.getElementById('mainContent');
-            mainContent.innerHTML = `
-                <div class="page-header mb-3">
-                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
-                        <div>
-                            <h1 style="font-size: 2rem; font-weight: 700; color: var(--blu-700); margin-bottom: 0.5rem;">
-                                <i class="fas fa-home"></i> Dashboard
-                            </h1>
-                            <p style="color: var(--grigio-500);">
-                                Panoramica generale e metriche chiave
-                            </p>
-                        </div>
-                        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
-                            ${AuthService.isAncheAgente() ? `
-                                <button class="btn btn-primary" onclick="Dashboard.switchToVistaAgente()" style="background: var(--verde-700);">
-                                    <i class="fas fa-user-tie"></i> Vista Agente
-                                </button>
-                            ` : ''}
-                            <button class="btn btn-secondary" onclick="UI.showPage('impostazioni')">
-                                <i class="fas fa-cog"></i> Personalizza
-                            </button>
-                        </div>
+            // FASE 2: Sostituisce l'intera area skeleton con i widget reali
+            const dashboardBody = document.getElementById('dashboardBody');
+            if (dashboardBody) {
+                dashboardBody.innerHTML = `
+                    <div style="display: grid; gap: 1.5rem;">
+                        ${await this.renderEnabledWidgets(enabledWidgets, {
+                            stats,
+                            scadenzeScadute,
+                            scadenzeImminenti,
+                            contrattiInScadenza,
+                            fattureInScadenza,
+                            clienti,
+                            fatture,
+                            fattureScadute,
+                            app,
+                            tasks,
+                            contrattiTutti
+                        })}
                     </div>
-                </div>
-
-                <!-- Widgets Dinamici -->
-                <div style="display: grid; gap: 1.5rem;">
-                    ${await this.renderEnabledWidgets(enabledWidgets, {
-                        stats,
-                        scadenzeScadute,
-                        scadenzeImminenti,
-                        contrattiInScadenza,
-                        fattureInScadenza,
-                        clienti,
-                        fatture,
-                        fattureScadute,
-                        app,
-                        tasks,
-                        contrattiTutti
-                    })}
-                </div>
-            `;
+                `;
+            }
 
             UI.hideLoading();
         } catch (error) {
@@ -140,16 +198,81 @@ const Dashboard = {
         await this.render();
     },
 
+    // Skeleton: mostra subito la struttura della dashboard con placeholder animati
+    _renderSkeleton() {
+        const mainContent = document.getElementById('mainContent');
+        mainContent.innerHTML = `
+            <div class="page-header mb-3">
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                    <div>
+                        <h1 style="font-size: 2rem; font-weight: 700; color: var(--blu-700); margin-bottom: 0.5rem;">
+                            <i class="fas fa-home"></i> Dashboard
+                        </h1>
+                        <p style="color: var(--grigio-500);">
+                            Panoramica generale e metriche chiave
+                        </p>
+                    </div>
+                    <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                        ${AuthService.isAncheAgente() ? `
+                            <button class="btn btn-primary" onclick="Dashboard.switchToVistaAgente()" style="background: var(--verde-700);">
+                                <i class="fas fa-user-tie"></i> Vista Agente
+                            </button>
+                        ` : ''}
+                        <button class="btn btn-secondary" onclick="UI.showPage('impostazioni')">
+                            <i class="fas fa-cog"></i> Personalizza
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Corpo dashboard: skeleton animato, verrà sostituito dai dati reali -->
+            <div id="dashboardBody">
+                <div class="kpi-grid" style="margin-bottom: 1.5rem;">
+                    ${[1,2,3,4,5,6].map(() => `
+                        <div style="background: white; border-radius: 12px; padding: 1.5rem; box-shadow: 0 2px 8px rgba(0,0,0,0.06);">
+                            <div style="display: flex; align-items: center; gap: 1rem;">
+                                <div style="width: 48px; height: 48px; border-radius: 12px; background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite;"></div>
+                                <div style="flex: 1;">
+                                    <div style="height: 14px; width: 60%; border-radius: 4px; background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; margin-bottom: 8px;"></div>
+                                    <div style="height: 24px; width: 40%; border-radius: 4px; background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite;"></div>
+                                </div>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+                <div style="display: grid; gap: 1.5rem;">
+                    ${[1,2].map(() => `
+                        <div style="background: white; border-radius: 12px; padding: 1.5rem; box-shadow: 0 2px 8px rgba(0,0,0,0.06); min-height: 200px;">
+                            <div style="height: 20px; width: 30%; border-radius: 4px; background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; margin-bottom: 1rem;"></div>
+                            <div style="height: 14px; width: 90%; border-radius: 4px; background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; margin-bottom: 0.5rem;"></div>
+                            <div style="height: 14px; width: 75%; border-radius: 4px; background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; margin-bottom: 0.5rem;"></div>
+                            <div style="height: 14px; width: 85%; border-radius: 4px; background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite;"></div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+
+            <style>
+                @keyframes shimmer {
+                    0% { background-position: 200% 0; }
+                    100% { background-position: -200% 0; }
+                }
+            </style>
+        `;
+        UI.hideLoading();
+    },
+
     async renderEnabledWidgets(widgets, data) {
         let html = '';
 
         // Mappa permessi richiesti per ogni widget
+        // NOTA: '_always_' = visibile a tutti gli utenti autenticati
         const widgetPermissions = {
-            'statistiche': ['*'], // Sempre visibile, si adatta ai permessi
+            'statistiche': ['_always_'],
             'scadenzeImminenti': ['manage_payments', 'view_all_data'],
             'fattureNonPagate': ['manage_invoices', 'view_invoices', 'view_all_data'],
             'contrattiInScadenza': ['manage_contracts', 'view_contracts', 'view_all_data'],
-            'andamentoMensile': ['view_all_data'], // Richiede molti dati
+            'andamentoMensile': ['view_all_data'],
             'statoApp': ['view_apps', 'manage_apps', 'manage_app_content', 'view_all_data'],
             'topClienti': ['manage_invoices', 'view_invoices', 'view_clients', 'manage_clients', 'view_all_data'],
             'ultimiClienti': ['view_clients', 'manage_clients', 'view_all_data']
@@ -158,7 +281,7 @@ const Dashboard = {
         for (const widget of widgets) {
             // Verifica se l'utente ha i permessi per vedere questo widget
             const requiredPerms = widgetPermissions[widget.id] || [];
-            const hasPermission = requiredPerms.some(perm => AuthService.hasPermission(perm));
+            const hasPermission = requiredPerms.includes('_always_') || requiredPerms.some(perm => AuthService.hasPermission(perm));
 
             if (!hasPermission) {
                 continue; // Salta questo widget

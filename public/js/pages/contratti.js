@@ -222,11 +222,13 @@ const Contratti = {
                             <i class="fas fa-file-contract" style="color: var(--blu-700);"></i>
                         </div>
                         <div style="flex: 1;">
-                            <h3 style="font-size: 1rem; font-weight: 600; margin: 0; color: var(--grigio-900);">
-                                ${contratto.numeroContratto || 'N/A'} ${isInScadenza ? '<i class="fas fa-exclamation-triangle" style="color: var(--rosso-errore);"></i>' : ''}
-                            </h3>
-                            <div style="font-size: 0.875rem; color: var(--grigio-500); margin-top: 0.25rem;">
-                                ${contratto.clienteRagioneSociale} • ${contratto.oggetto || 'Senza oggetto'}
+                            <div style="font-size: 1.05rem; font-weight: 700; color: var(--blu-700); margin: 0 0 0.15rem 0;">
+                                ${contratto.clienteRagioneSociale || 'Sconosciuto'}
+                            </div>
+                            <div style="font-size: 0.9rem; font-weight: 600; color: var(--grigio-900); display: flex; align-items: center; gap: 0.5rem;">
+                                ${contratto.numeroContratto || 'N/A'}
+                                ${isInScadenza ? '<i class="fas fa-exclamation-triangle" style="color: var(--rosso-errore); font-size: 0.85rem;"></i>' : ''}
+                                <span style="font-weight: 400; color: var(--grigio-500);">• ${contratto.oggetto || 'Senza oggetto'}</span>
                             </div>
                             <div style="font-size: 0.75rem; color: var(--grigio-400); margin-top: 0.25rem;">
                                 ${contratto.tipologia ? this.getTipologiaLabel(contratto.tipologia) : 'N/A'} •

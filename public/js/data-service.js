@@ -1269,6 +1269,18 @@ const DataService = {
                         numPeriodi = 1;
                         intervalloMesi = 24;
                         break;
+                    case 'TRIENNALE':
+                        numPeriodi = 1;
+                        intervalloMesi = 36;
+                        break;
+                    case 'QUADRIENNALE':
+                        numPeriodi = 1;
+                        intervalloMesi = 48;
+                        break;
+                    case 'QUINQUENNALE':
+                        numPeriodi = 1;
+                        intervalloMesi = 60;
+                        break;
                     case 'UNA_TANTUM':
                         numPeriodi = 1;
                         intervalloMesi = 0; // Nessun intervallo, una sola scadenza
@@ -1353,6 +1365,12 @@ const DataService = {
                 return 'Annuale';
             case 'BIENNALE':
                 return 'Biennale';
+            case 'TRIENNALE':
+                return 'Triennale';
+            case 'QUADRIENNALE':
+                return 'Quadriennale';
+            case 'QUINQUENNALE':
+                return 'Quinquennale';
             case 'UNA_TANTUM':
                 return 'Una Tantum';
             default:
@@ -1457,6 +1475,9 @@ const DataService = {
                 case 'SEMESTRALE':   numPeriodi = 2;  intervalloMesi = 6; break;
                 case 'ANNUALE':      numPeriodi = 1;  intervalloMesi = 12; break;
                 case 'BIENNALE':     numPeriodi = 1;  intervalloMesi = 24; break;
+                case 'TRIENNALE':    numPeriodi = 1;  intervalloMesi = 36; break;
+                case 'QUADRIENNALE': numPeriodi = 1;  intervalloMesi = 48; break;
+                case 'QUINQUENNALE': numPeriodi = 1;  intervalloMesi = 60; break;
             }
 
             const importoPerPeriodo = Math.round((importoAnnuale / numPeriodi) * 100) / 100;

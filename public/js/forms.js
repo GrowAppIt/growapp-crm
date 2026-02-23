@@ -137,6 +137,31 @@ const FormsManager = {
         }
     },
 
+    // Elimina fattura dal form di modifica (con doppia conferma)
+    async _eliminaFatturaDaModifica(fatturaId, numeroFattura) {
+        const conferma = confirm(
+            `⚠️ ATTENZIONE!\n\n` +
+            `Sei sicuro di voler eliminare DEFINITIVAMENTE la fattura "${numeroFattura}"?\n\n` +
+            `Questa operazione NON può essere annullata!`
+        );
+
+        if (!conferma) return;
+
+        try {
+            this.closeModal();
+            UI.showLoading();
+            await DataService.deleteFattura(fatturaId);
+            UI.hideLoading();
+            UI.showSuccess(`Fattura "${numeroFattura}" eliminata con successo`);
+            // Torna alla lista fatture
+            UI.showPage('fatture');
+        } catch (error) {
+            console.error('Errore eliminazione fattura:', error);
+            UI.hideLoading();
+            UI.showError('Errore nell\'eliminazione: ' + error.message);
+        }
+    },
+
     // === FORM HELPERS ===
     createFormField(label, name, type = 'text', value = '', options = {}) {
         const required = options.required ? 'required' : '';
@@ -480,13 +505,12 @@ const FormsManager = {
         const clientiSnapshot = await db.collection('clienti').get();
         const clienti = clientiSnapshot.docs.map(doc => ({
             id: doc.id,
-            legacyId: doc.data().id || doc.id,
             ragioneSociale: doc.data().ragioneSociale,
             tipo: doc.data().tipo || 'PRIVATO'
         })).sort((a, b) => a.ragioneSociale.localeCompare(b.ragioneSociale));
 
-        // Trova il tipo del cliente corrente (cerca per ENTRAMBI gli ID: legacy e Firestore)
-        const clienteCorrente = clienti.find(c => c.legacyId === fattura.clienteId || c.id === fattura.clienteId);
+        // Trova il tipo del cliente corrente
+        const clienteCorrente = clienti.find(c => c.id === fattura.clienteId);
         const tipoClienteCorrente = fattura.tipoCliente || clienteCorrente?.tipo || 'PRIVATO';
 
         // Carica contratti del cliente corrente
@@ -512,8 +536,9 @@ const FormsManager = {
                         style="width: 100%; padding: 0.75rem; border: 1px solid var(--grigio-300); border-radius: 8px; font-size: 1rem; font-family: 'Titillium Web', sans-serif;"
                         onchange="FormsManager.onClienteSelected()">
                         <option value="">-- Seleziona cliente --</option>
-                        ${clienti.map(c => `<option value="${c.legacyId}" data-tipo="${c.tipo}" ${(c.legacyId === fattura.clienteId || c.id === fattura.clienteId) ? 'selected' : ''}>${c.ragioneSociale} ${c.tipo === 'PA' ? '🏛️' : ''}</option>`).join('')}
+                        ${clienti.map(c => `<option value="${c.id}" data-ragione-sociale="${c.ragioneSociale}" data-tipo="${c.tipo}" ${c.id === fattura.clienteId ? 'selected' : ''}>${c.ragioneSociale} ${c.tipo === 'PA' ? '🏛️' : ''}</option>`).join('')}
                     </select>
+                    <input type="hidden" name="clienteRagioneSociale" id="clienteRagioneSociale" value="${clienteCorrente?.ragioneSociale || fattura.clienteRagioneSociale || ''}" />
                     <input type="hidden" id="tipoClienteSelezionato" value="${tipoClienteCorrente}" />
                     <div id="badgeTipoCliente" style="margin-top: 0.5rem;">
                         <span class="badge ${tipoClienteCorrente === 'PA' ? 'badge-info' : 'badge-secondary'}" style="font-size: 0.9rem; padding: 0.4rem 0.75rem;">
@@ -606,6 +631,25 @@ const FormsManager = {
 
             ${this.createFormField('Note', 'note', 'textarea', fattura.note)}
             ${this.createFormField('Note Consolidate', 'noteConsolidate', 'textarea', fattura.noteConsolidate)}
+
+            <!-- Sezione Elimina Fattura -->
+            <div style="margin-top: 1.5rem; padding: 1rem; background: #FFF3F3; border-left: 4px solid var(--rosso-errore); border-radius: 8px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
+                    <div>
+                        <div style="font-weight: 700; color: var(--rosso-errore); font-size: 0.95rem;">
+                            <i class="fas fa-exclamation-triangle"></i> Zona Pericolosa
+                        </div>
+                        <div style="font-size: 0.8rem; color: var(--grigio-600); margin-top: 0.25rem;">
+                            L'eliminazione è definitiva e non può essere annullata.
+                        </div>
+                    </div>
+                    <button type="button" onclick="FormsManager._eliminaFatturaDaModifica('${fattura.id}', '${(fattura.numeroFatturaCompleto || fattura.numeroFattura || 'N/A').replace(/'/g, "\\'")}')"
+                        style="background: var(--rosso-errore); color: white; border: none; padding: 0.6rem 1.25rem; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 0.875rem; font-family: 'Titillium Web', sans-serif; display: flex; align-items: center; gap: 0.5rem; transition: background 0.2s;"
+                        onmouseover="this.style.background='#B71C1C'" onmouseout="this.style.background='var(--rosso-errore)'">
+                        <i class="fas fa-trash-alt"></i> Elimina Fattura
+                    </button>
+                </div>
+            </div>
         `;
 
         this.showModal(
@@ -716,7 +760,7 @@ const FormsManager = {
                     >
                         <option value="">-- Seleziona un cliente --</option>
                         ${clienti.map(c =>
-                            `<option value="${c.clienteIdLegacy || c.id}" data-ragione-sociale="${c.ragioneSociale}" data-id-legacy="${c.clienteIdLegacy || c.id}" data-tipo="${c.tipo || 'PRIVATO'}">${c.ragioneSociale} (${c.provincia || 'N/A'}) ${c.tipo === 'PA' ? '🏛️' : ''}</option>`
+                            `<option value="${c.id}" data-ragione-sociale="${c.ragioneSociale}" data-tipo="${c.tipo || 'PRIVATO'}">${c.ragioneSociale} (${c.provincia || 'N/A'}) ${c.tipo === 'PA' ? '🏛️' : ''}</option>`
                         ).join('')}
                     </select>
                     <input type="hidden" name="clienteRagioneSociale" id="clienteRagioneSociale" />
@@ -728,7 +772,7 @@ const FormsManager = {
             const tipoClientePreselezionato = cliente?.tipo || 'PRIVATO';
             clienteSelectHtml = `
                 ${this.createFormField('Cliente', 'clienteRagioneSociale_display', 'text', cliente?.ragioneSociale || '', { disabled: true })}
-                <input type="hidden" name="clienteId" value="${cliente?.clienteIdLegacy || clienteId}" />
+                <input type="hidden" name="clienteId" value="${clienteId}" />
                 <input type="hidden" name="clienteRagioneSociale" value="${cliente?.ragioneSociale || ''}" />
                 <input type="hidden" id="tipoClienteSelezionato" value="${tipoClientePreselezionato}" />
                 <div style="margin-bottom: 1rem;">
@@ -788,7 +832,17 @@ const FormsManager = {
                 })}
                 ${this.createFormField('Tipo', 'tipo', 'text', 'VENDITA')}
                 ${this.createFormField('Periodicità', 'periodicita', 'text', '')}
-            </div>
+                <div class="form-group" id="contrattoSelectContainer" style="display:none;">
+                    <label style="display: block; font-size: 0.875rem; font-weight: 600; color: var(--grigio-700); margin-bottom: 0.5rem;">
+                        Contratto collegato
+                    </label>
+                    <select name="contrattoId" id="contrattoIdFattura" class="form-input"
+                        style="width: 100%; padding: 0.75rem; border: 1px solid var(--grigio-300); border-radius: 8px; font-size: 1rem; font-family: 'Titillium Web', sans-serif;">
+                        <option value="">-- Nessun contratto --</option>
+                    </select>
+                    <small style="color: var(--grigio-500);">Collega la fattura a un contratto del cliente</small>
+                </div>
+                </div>
 
             <!-- Sezione Acconto (visibile solo se stato = PARZIALMENTE_PAGATA) -->
             <div id="sezioneAcconto" style="display: none; margin-top: 1rem; padding: 1rem; background: var(--verde-100); border-left: 4px solid var(--verde-700); border-radius: 8px;">
@@ -846,7 +900,24 @@ const FormsManager = {
         );
 
         // Listener per mostrare/nascondere sezione acconto
-        setTimeout(() => {
+        setTimeout(async () => {
+            // Se cliente preselezionato, carica i contratti
+            if (clienteId) {
+                try {
+                    const contratti = await DataService.getContrattiCliente(clienteId);
+                    const attivi = contratti.filter(c => c.stato === 'ATTIVO' || c.stato === 'IN_RINNOVO');
+                    const contrattoContainer = document.getElementById('contrattoSelectContainer');
+                    const contrattoSelect = document.getElementById('contrattoIdFattura');
+                    if (contrattoSelect && attivi.length > 0) {
+                        contrattoSelect.innerHTML = '<option value="">-- Nessun contratto --</option>' +
+                            attivi.map(c => `<option value="${c.id}">${c.numeroContratto || 'N/D'} — ${c.oggetto || ''} (${c.periodicita || ''})</option>`).join('');
+                        if (contrattoContainer) contrattoContainer.style.display = 'block';
+                    }
+                } catch (e) {
+                    console.warn('Errore caricamento contratti cliente preselezionato:', e);
+                }
+            }
+
             const statoSelect = document.getElementById('statoPagamento');
             const sezioneAcconto = document.getElementById('sezioneAcconto');
             if (statoSelect && sezioneAcconto) {
@@ -990,7 +1061,7 @@ const FormsManager = {
                 >
                     <option value="">-- Seleziona un cliente (opzionale) --</option>
                     ${clienti.map(c =>
-                        `<option value="${c.clienteIdLegacy || c.id}" data-ragione-sociale="${c.ragioneSociale}">${c.ragioneSociale} (${c.provincia || 'N/A'})</option>`
+                        `<option value="${c.id}" data-ragione-sociale="${c.ragioneSociale}">${c.ragioneSociale} (${c.provincia || 'N/A'})</option>`
                     ).join('')}
                 </select>
                 <input type="hidden" name="clienteRagioneSociale" id="clienteRagioneSociale" />
@@ -1080,20 +1151,17 @@ const FormsManager = {
         }
     },
 
-    onClienteSelected() {
+    async onClienteSelected() {
         const select = document.getElementById('clienteId');
         const selectedOption = select.options[select.selectedIndex];
 
         if (selectedOption && selectedOption.value) {
-            // Popola i campi hidden con i dati del cliente
-            const clienteIdLegacy = selectedOption.getAttribute('data-id-legacy');
+            const clienteId = selectedOption.value;
             const ragioneSociale = selectedOption.getAttribute('data-ragione-sociale');
             const tipoCliente = selectedOption.getAttribute('data-tipo') || 'PRIVATO';
 
-            const hiddenLegacyId = document.getElementById('clienteIdLegacy');
+            // Popola ragione sociale
             const hiddenRagioneSociale = document.getElementById('clienteRagioneSociale');
-
-            if (hiddenLegacyId) hiddenLegacyId.value = clienteIdLegacy;
             if (hiddenRagioneSociale) hiddenRagioneSociale.value = ragioneSociale;
 
             // Salva il tipo cliente per la composizione del numero fattura
@@ -1119,6 +1187,26 @@ const FormsManager = {
                     ${tipoCliente === 'PA' ? '<i class="fas fa-landmark"></i> Pubblica Amministrazione (PA)' : '<i class="fas fa-building"></i> Privato (PR)'}
                 </span>
             `;
+
+            // Carica contratti del cliente e popola il select contratto
+            const contrattoContainer = document.getElementById('contrattoSelectContainer');
+            const contrattoSelect = document.getElementById('contrattoIdFattura');
+            if (contrattoSelect) {
+                try {
+                    const contratti = await DataService.getContrattiCliente(clienteId);
+                    const attivi = contratti.filter(c => c.stato === 'ATTIVO' || c.stato === 'IN_RINNOVO');
+                    if (attivi.length > 0) {
+                        contrattoSelect.innerHTML = '<option value="">-- Nessun contratto --</option>' +
+                            attivi.map(c => `<option value="${c.id}">${c.numeroContratto || 'N/D'} — ${c.oggetto || ''} (${c.periodicita || ''})</option>`).join('');
+                        if (contrattoContainer) contrattoContainer.style.display = 'block';
+                    } else {
+                        contrattoSelect.innerHTML = '<option value="">Nessun contratto attivo</option>';
+                        if (contrattoContainer) contrattoContainer.style.display = 'none';
+                    }
+                } catch (e) {
+                    console.warn('Errore caricamento contratti cliente:', e);
+                }
+            }
 
             // Aggiorna automaticamente il numero fattura
             this.aggiornaNumeroFattura();
@@ -1706,7 +1794,7 @@ const FormsManager = {
                 ${this.createFormField('Durata (mesi)', 'durataContratto', 'number', String(_sys.durataContrattoDefault), { required: true, placeholder: String(_sys.durataContrattoDefault) })}
                 ${this.createFormField('Data Scadenza', 'dataScadenza', 'date', '', { required: true })}
                 ${this.createFormField('Data Firma', 'dataFirma', 'date', '')}
-                ${this.createFormField('Importo Annuale €', 'importoAnnuale', 'number', '', { required: true, placeholder: '0.00' })}
+                ${this.createFormField('Importo Contratto €', 'importoAnnuale', 'number', '', { required: true, placeholder: '0.00' })}
                 ${this.createFormField('Importo Mensile €', 'importoMensile', 'number', '', { placeholder: 'Calcolato automaticamente se vuoto' })}
                 ${this.createFormField('Periodicità Fatturazione', 'periodicita', 'select', _sys.periodicitaDefault, {
                     options: [
@@ -1716,7 +1804,10 @@ const FormsManager = {
                         { value: 'TRIMESTRALE', label: 'Trimestrale' },
                         { value: 'SEMESTRALE', label: 'Semestrale' },
                         { value: 'ANNUALE', label: 'Annuale' },
-                        { value: 'BIENNALE', label: 'Biennale' }
+                        { value: 'BIENNALE', label: 'Biennale (2 anni)' },
+                        { value: 'TRIENNALE', label: 'Triennale (3 anni)' },
+                        { value: 'QUADRIENNALE', label: 'Quadriennale (4 anni)' },
+                        { value: 'QUINQUENNALE', label: 'Quinquennale (5 anni)' }
                     ]
                 })}
                 ${this.createFormField('Modalità Pagamento', 'modalitaPagamento', 'select', _sys.condizionePagamentoDefault, {
@@ -1856,7 +1947,7 @@ const FormsManager = {
                 ${this.createFormField('Durata (mesi)', 'durataContratto', 'number', contratto.durataContratto, { required: true })}
                 ${this.createFormField('Data Scadenza', 'dataScadenza', 'date', contratto.dataScadenza?.split('T')[0], { required: true })}
                 ${this.createFormField('Data Firma', 'dataFirma', 'date', contratto.dataFirma?.split('T')[0])}
-                ${this.createFormField('Importo Annuale €', 'importoAnnuale', 'number', contratto.importoAnnuale, { required: true })}
+                ${this.createFormField('Importo Contratto €', 'importoAnnuale', 'number', contratto.importoAnnuale, { required: true })}
                 ${this.createFormField('Importo Mensile €', 'importoMensile', 'number', contratto.importoMensile)}
                 ${this.createFormField('Periodicità Fatturazione', 'periodicita', 'select', contratto.periodicita, {
                     options: [
@@ -1866,7 +1957,10 @@ const FormsManager = {
                         { value: 'TRIMESTRALE', label: 'Trimestrale' },
                         { value: 'SEMESTRALE', label: 'Semestrale' },
                         { value: 'ANNUALE', label: 'Annuale' },
-                        { value: 'BIENNALE', label: 'Biennale' }
+                        { value: 'BIENNALE', label: 'Biennale (2 anni)' },
+                        { value: 'TRIENNALE', label: 'Triennale (3 anni)' },
+                        { value: 'QUADRIENNALE', label: 'Quadriennale (4 anni)' },
+                        { value: 'QUINQUENNALE', label: 'Quinquennale (5 anni)' }
                     ]
                 })}
                 ${this.createFormField('Modalità Pagamento', 'modalitaPagamento', 'select', contratto.modalitaPagamento, {
@@ -1968,7 +2062,7 @@ const FormsManager = {
                 ${this.createFormField('Cliente', 'clienteDisplay', 'text', cliente?.ragioneSociale || 'Sconosciuto', { disabled: true })}
                 ${this.createFormField('Contratto Originale', 'contrattoOriginale', 'text', contratto.numeroContratto, { disabled: true })}
                 ${this.createFormField('Nuova Data Scadenza', 'nuovaDataScadenza', 'date', nuovaScadenza.toISOString().split('T')[0], { required: true })}
-                ${this.createFormField('Importo Annuale €', 'nuovoImportoAnnuale', 'number', contratto.importoAnnuale, { required: true })}
+                ${this.createFormField('Importo Contratto €', 'nuovoImportoAnnuale', 'number', contratto.importoAnnuale, { required: true })}
                 ${this.createFormField('Importo Mensile €', 'nuovoImportoMensile', 'number', contratto.importoMensile)}
             </div>
             ${this.createFormField('Note Rinnovo', 'noteRinnovo', 'textarea', '', { placeholder: 'Note sul rinnovo...' })}

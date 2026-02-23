@@ -334,7 +334,7 @@ const DettaglioCliente = {
                             </div>
                             <div style="padding: 1rem; background: var(--verde-100); border-radius: 8px;">
                                 <div style="font-size: 0.75rem; font-weight: 600; color: var(--verde-700); text-transform: uppercase; margin-bottom: 0.25rem;">
-                                    <i class="fas fa-euro-sign"></i> Importo Annuale
+                                    <i class="fas fa-euro-sign"></i> Importo Contratto
                                 </div>
                                 <div style="font-size: 1.5rem; font-weight: 700; color: var(--verde-700);">
                                     ${DataService.formatCurrency(importoTotaleAttivi)}

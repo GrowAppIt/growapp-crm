@@ -4,7 +4,6 @@ const DettaglioContratto = {
     contratto: null,
     cliente: null,
     fatture: [],
-    scadenze: [],
 
     async render(contrattoId) {
         this.contrattoId = contrattoId;
@@ -21,16 +20,14 @@ const DettaglioContratto = {
                 return;
             }
 
-            // Carica dati collegati
-            const [cliente, fatture, scadenze] = await Promise.all([
+            // Carica dati collegati (no più scadenze vecchie da Firestore)
+            const [cliente, fatture] = await Promise.all([
                 DataService.getCliente(this.contratto.clienteId),
-                DataService.getFattureContratto(contrattoId),
-                DataService.getScadenze({ contrattoId })
+                DataService.getFattureContratto(contrattoId)
             ]);
 
             this.cliente = cliente;
             this.fatture = fatture || [];
-            this.scadenze = scadenze || [];
 
             const mainContent = document.getElementById('mainContent');
             mainContent.innerHTML = `
@@ -74,21 +71,20 @@ const DettaglioContratto = {
 
                 <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem; margin-top: 1rem;">
                     <div style="flex: 1;">
-                        <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 0.5rem;">
-                            <h1 style="font-size: 2rem; font-weight: 700; color: var(--blu-700); margin: 0;">
-                                <i class="fas fa-file-contract"></i> ${this.contratto.numeroContratto || 'N/A'}
-                            </h1>
+                        <div style="margin-bottom: 0.5rem;">
+                            <a href="#" onclick="UI.showPage('dettaglio-cliente', '${this.contratto.clienteId}'); return false;"
+                               style="font-size: 1.5rem; font-weight: 900; color: var(--blu-900); text-decoration: none; display: inline-block; line-height: 1.2; font-family: 'Titillium Web', sans-serif;">
+                                <i class="fas fa-building" style="font-size: 1.2rem; color: var(--blu-700); margin-right: 0.35rem;"></i>${this.cliente?.ragioneSociale || 'Sconosciuto'}
+                            </a>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
+                            <span style="font-size: 1.1rem; font-weight: 600; color: var(--grigio-700);">
+                                <i class="fas fa-file-contract" style="color: var(--blu-700); margin-right: 0.25rem;"></i> ${this.contratto.numeroContratto || 'N/A'}
+                            </span>
                             <span class="badge ${badgeClass}" style="font-size: 0.875rem;">
                                 ${this.contratto.stato?.replace('_', ' ') || 'N/A'}
                             </span>
-                            ${isInScadenza ? '<i class="fas fa-exclamation-triangle" style="color: var(--rosso-errore); font-size: 1.5rem;"></i>' : ''}
-                        </div>
-                        <div style="font-size: 1rem; color: var(--grigio-600); margin-bottom: 0.5rem;">
-                            <strong>Cliente:</strong>
-                            <a href="#" onclick="UI.showPage('dettaglio-cliente', '${this.contratto.clienteId}'); return false;"
-                               style="color: var(--blu-700); text-decoration: none;">
-                                ${this.cliente?.ragioneSociale || 'Sconosciuto'}
-                            </a>
+                            ${isInScadenza ? '<i class="fas fa-exclamation-triangle" style="color: var(--rosso-errore); font-size: 1.25rem;"></i>' : ''}
                         </div>
                         <div style="font-size: 0.875rem; color: var(--grigio-500);">
                             ${this.contratto.oggetto || 'Nessun oggetto'}
@@ -183,7 +179,7 @@ const DettaglioContratto = {
                 <div class="card-body">
                     <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem;">
                         <div>
-                            <label style="font-size: 0.75rem; color: var(--grigio-500); text-transform: uppercase; font-weight: 600;">Importo Annuale</label>
+                            <label style="font-size: 0.75rem; color: var(--grigio-500); text-transform: uppercase; font-weight: 600;">Importo Contratto</label>
                             <div style="font-size: 1.5rem; font-weight: 700; color: var(--blu-700); margin-top: 0.25rem;">
                                 ${this.contratto.importoAnnuale ? DataService.formatCurrency(this.contratto.importoAnnuale) : '-'}
                             </div>
@@ -307,38 +303,173 @@ const DettaglioContratto = {
     },
 
     renderScadenze() {
-        const scadenzeHtml = this.scadenze.length > 0 ? this.scadenze.map(s => {
-            const badgeClass = this.getScadenzaBadgeClass(s.stato);
-            return `
-                <div class="list-item" onclick="UI.showPage('dettaglio-scadenza', '${s.id}')" style="cursor: pointer;">
-                    <div>
-                        <div style="font-weight: 600; color: var(--grigio-900);">
-                            ${s.tipo?.replace('_', ' ') || 'N/A'} • ${s.dataScadenza ? DataService.formatDate(s.dataScadenza) : 'N/A'}
+        // --- Calcolo riepilogo scadenze da dati reali ---
+
+        // 1) Scadenza contratto
+        const giorniAllaScadenza = this.contratto.dataScadenza ? this.calcolaGiorniRimanenti(this.contratto.dataScadenza) : null;
+        const isAttivo = this.contratto.stato === 'ATTIVO';
+        let scadenzaContrattoHtml = '';
+        if (this.contratto.dataScadenza) {
+            let colore = 'var(--grigio-700)';
+            let icona = 'fa-calendar-check';
+            let label = '';
+            if (giorniAllaScadenza !== null && isAttivo) {
+                if (giorniAllaScadenza < 0) {
+                    colore = 'var(--rosso-errore)';
+                    icona = 'fa-exclamation-circle';
+                    label = 'SCADUTO';
+                } else if (giorniAllaScadenza <= 30) {
+                    colore = 'var(--rosso-errore)';
+                    icona = 'fa-exclamation-triangle';
+                    label = `tra ${giorniAllaScadenza} gg`;
+                } else if (giorniAllaScadenza <= 90) {
+                    colore = '#FFA000';
+                    icona = 'fa-clock';
+                    label = `tra ${giorniAllaScadenza} gg`;
+                } else {
+                    colore = 'var(--verde-700)';
+                    icona = 'fa-check-circle';
+                    label = `tra ${giorniAllaScadenza} gg`;
+                }
+            }
+            scadenzaContrattoHtml = `
+                <div style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; border-radius: 8px; background: ${giorniAllaScadenza !== null && giorniAllaScadenza <= 30 && isAttivo ? '#FFF3F3' : 'var(--grigio-100)'};">
+                    <i class="fas ${icona}" style="color: ${colore}; font-size: 1.25rem; flex-shrink: 0;"></i>
+                    <div style="flex: 1;">
+                        <div style="font-size: 0.7rem; color: var(--grigio-500); text-transform: uppercase; font-weight: 600;">Scadenza Contratto</div>
+                        <div style="font-weight: 600; color: var(--grigio-900); font-size: 0.95rem;">
+                            ${DataService.formatDate(this.contratto.dataScadenza)}
                         </div>
-                        <div style="font-size: 0.875rem; color: var(--grigio-500); margin-top: 0.25rem;">
-                            ${s.descrizione || 'Nessuna descrizione'}
-                        </div>
-                        <span class="badge ${badgeClass}" style="margin-top: 0.5rem;">
-                            ${s.stato || 'N/A'}
-                        </span>
                     </div>
+                    ${label ? `<span style="font-size: 0.75rem; font-weight: 700; color: ${colore};">${label}</span>` : ''}
                 </div>
             `;
-        }).join('') : `
-            <div style="padding: 1rem; text-align: center; color: var(--grigio-400);">
-                <i class="fas fa-calendar-alt"></i> Nessuna scadenza
-            </div>
-        `;
+        }
+
+        // 2) Fatture da incassare (non pagate di questo contratto)
+        const fattureDaIncassare = this.fatture.filter(f =>
+            f.stato === 'NON_PAGATA' || f.stato === 'PARZIALMENTE_PAGATA'
+        );
+
+        let fattureIncassoHtml = '';
+        if (fattureDaIncassare.length > 0) {
+            const totaleNonPagato = fattureDaIncassare.reduce((sum, f) => {
+                const importo = f.importo || 0;
+                const pagato = f.importoPagato || 0;
+                return sum + (importo - pagato);
+            }, 0);
+
+            fattureIncassoHtml = `
+                <div style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; border-radius: 8px; background: #FFF3F3; cursor: pointer;"
+                     onclick="document.getElementById('fattureIncassoDettaglio').style.display = document.getElementById('fattureIncassoDettaglio').style.display === 'none' ? 'block' : 'none'">
+                    <i class="fas fa-file-invoice-dollar" style="color: var(--rosso-errore); font-size: 1.25rem; flex-shrink: 0;"></i>
+                    <div style="flex: 1;">
+                        <div style="font-size: 0.7rem; color: var(--grigio-500); text-transform: uppercase; font-weight: 600;">Fatture da Incassare</div>
+                        <div style="font-weight: 600; color: var(--grigio-900); font-size: 0.95rem;">
+                            ${fattureDaIncassare.length} fattur${fattureDaIncassare.length === 1 ? 'a' : 'e'}
+                        </div>
+                    </div>
+                    <span style="font-size: 0.875rem; font-weight: 700; color: var(--rosso-errore);">
+                        ${DataService.formatCurrency(totaleNonPagato)}
+                    </span>
+                </div>
+                <div id="fattureIncassoDettaglio" style="display: none; padding: 0 0.5rem;">
+                    ${fattureDaIncassare.map(f => `
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.5rem; border-bottom: 1px solid var(--grigio-300); cursor: pointer;"
+                             onclick="UI.showPage('dettaglio-fattura', '${f.id}')">
+                            <div>
+                                <div style="font-size: 0.85rem; font-weight: 600; color: var(--grigio-900);">${f.numeroFattura || 'N/A'}</div>
+                                <div style="font-size: 0.75rem; color: var(--grigio-500);">${f.dataEmissione ? DataService.formatDate(f.dataEmissione) : ''}</div>
+                            </div>
+                            <div style="font-size: 0.85rem; font-weight: 700; color: var(--rosso-errore);">
+                                ${DataService.formatCurrency(f.importo || 0)}
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        // 3) Prossima fattura da emettere (calcolata dalla periodicità)
+        let prossimaFatturaHtml = '';
+        if (isAttivo && this.contratto.periodicita && this.contratto.dataInizio) {
+            try {
+                const fattureDaEmettere = DataService.calcolaFattureDaEmettere(
+                    [this.contratto],
+                    this.fatture
+                );
+                if (fattureDaEmettere.length > 0) {
+                    // Prendi la prima (più urgente)
+                    const prossima = fattureDaEmettere[0];
+                    const oggi = new Date();
+                    const dataScad = new Date(prossima.dataScadenza);
+                    const giorniMancanti = Math.ceil((dataScad - oggi) / (1000 * 60 * 60 * 24));
+                    const isScaduta = giorniMancanti < 0;
+
+                    prossimaFatturaHtml = `
+                        <div style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; border-radius: 8px; background: ${isScaduta ? '#FFF8E1' : '#E2F8DE'};">
+                            <i class="fas ${isScaduta ? 'fa-exclamation-triangle' : 'fa-file-alt'}" style="color: ${isScaduta ? '#FFA000' : 'var(--verde-700)'}; font-size: 1.25rem; flex-shrink: 0;"></i>
+                            <div style="flex: 1;">
+                                <div style="font-size: 0.7rem; color: var(--grigio-500); text-transform: uppercase; font-weight: 600;">
+                                    ${isScaduta ? 'Fattura da Emettere (in ritardo)' : 'Prossima Fattura da Emettere'}
+                                </div>
+                                <div style="font-weight: 600; color: var(--grigio-900); font-size: 0.95rem;">
+                                    ${prossima.periodo || DataService.formatDate(prossima.dataScadenza)}
+                                </div>
+                            </div>
+                            ${fattureDaEmettere.length > 1 ? `
+                                <span style="font-size: 0.75rem; color: var(--grigio-500);">+${fattureDaEmettere.length - 1} altr${fattureDaEmettere.length - 1 === 1 ? 'a' : 'e'}</span>
+                            ` : ''}
+                        </div>
+                    `;
+                }
+            } catch(e) {
+                console.warn('Errore calcolo fatture da emettere:', e);
+            }
+        }
+
+        // 4) Fatture pagate (conteggio rapido)
+        const fatturePagate = this.fatture.filter(f => f.stato === 'PAGATA');
+        let fatturePagateHtml = '';
+        if (fatturePagate.length > 0) {
+            const totalePagato = fatturePagate.reduce((sum, f) => sum + (f.importo || 0), 0);
+            fatturePagateHtml = `
+                <div style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; border-radius: 8px; background: #E2F8DE;">
+                    <i class="fas fa-check-circle" style="color: var(--verde-700); font-size: 1.25rem; flex-shrink: 0;"></i>
+                    <div style="flex: 1;">
+                        <div style="font-size: 0.7rem; color: var(--grigio-500); text-transform: uppercase; font-weight: 600;">Fatture Incassate</div>
+                        <div style="font-weight: 600; color: var(--grigio-900); font-size: 0.95rem;">
+                            ${fatturePagate.length} fattur${fatturePagate.length === 1 ? 'a' : 'e'}
+                        </div>
+                    </div>
+                    <span style="font-size: 0.875rem; font-weight: 700; color: var(--verde-700);">
+                        ${DataService.formatCurrency(totalePagato)}
+                    </span>
+                </div>
+            `;
+        }
+
+        // Se nessun dato disponibile
+        const hasContent = scadenzaContrattoHtml || prossimaFatturaHtml || fattureIncassoHtml || fatturePagateHtml;
 
         return `
             <div class="card">
                 <div class="card-header">
                     <h2 style="font-size: 1.25rem; font-weight: 600; color: var(--grigio-900); margin: 0;">
-                        <i class="fas fa-calendar-alt"></i> Scadenze
+                        <i class="fas fa-calendar-alt"></i> Situazione
                     </h2>
                 </div>
-                <div class="list-group">
-                    ${scadenzeHtml}
+                <div class="card-body" style="display: flex; flex-direction: column; gap: 0.75rem;">
+                    ${hasContent ? `
+                        ${scadenzaContrattoHtml}
+                        ${prossimaFatturaHtml}
+                        ${fattureIncassoHtml}
+                        ${fatturePagateHtml}
+                    ` : `
+                        <div style="padding: 1rem; text-align: center; color: var(--grigio-400);">
+                            <i class="fas fa-calendar-check"></i> Nessuna scadenza attiva
+                        </div>
+                    `}
                 </div>
             </div>
         `;
@@ -450,13 +581,5 @@ const DettaglioContratto = {
         return Math.ceil((scadenza - oggi) / (1000 * 60 * 60 * 24));
     },
 
-    getScadenzaBadgeClass(stato) {
-        const badgeMap = {
-            'COMPLETATA': 'badge-success',
-            'IN_SCADENZA': 'badge-warning',
-            'SCADUTA': 'badge-danger',
-            'DA_FARE': 'badge-info'
-        };
-        return badgeMap[stato] || 'badge-secondary';
-    }
+    // getScadenzaBadgeClass rimosso: le scadenze ora sono calcolate in tempo reale
 };

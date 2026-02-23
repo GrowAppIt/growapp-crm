@@ -5,11 +5,30 @@ const App = {
         // Setup event listeners
         this.setupEventListeners();
 
-        // Monitor auth state
+        const loading = document.getElementById('loading');
+        const loginScreen = document.getElementById('loginScreen');
+
+        // Strategia: lo splash screen (#loading) resta visibile come stato neutro
+        // finché Firebase non decide se l'utente è loggato o no.
+        // - Se loggato → splash → direttamente alla pagina (mai vedi login)
+        // - Se non loggato → splash → login
+        // Lo splash mostra solo lo spinner, testo rimosso per leggerezza
+        if (loading) {
+            const loadingText = loading.querySelector('p');
+            if (loadingText) loadingText.textContent = '';
+        }
+
+        // Monitor auth state — Firebase verifica token salvato in IndexedDB
         AuthService.onAuthStateChanged((user) => {
             if (user) {
+                // Autenticato → nascondi tutto e vai alla pagina corrente
+                if (loading) loading.classList.add('hidden');
+                if (loginScreen) loginScreen.classList.add('hidden');
                 this.onUserLoggedIn();
             } else {
+                // Non autenticato → mostra login
+                if (loading) loading.classList.add('hidden');
+                if (loginScreen) loginScreen.classList.remove('hidden');
                 this.onUserLoggedOut();
             }
         });

@@ -16,18 +16,11 @@
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 
-    <!-- Chart.js -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-
-    <!-- SheetJS for Excel Export -->
-    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
-
-    <!-- html2canvas e jsPDF per Biglietto da Visita -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-
-    <!-- Leaflet CSS (per Mappa Clienti) -->
+    <!-- Leaflet CSS (per Mappa Clienti) - solo CSS, leggero -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+    <!-- ⚡ Le librerie pesanti (Chart.js, SheetJS, html2canvas, jsPDF) sono caricate
+         in fondo al body con defer per non bloccare il rendering iniziale -->
 
     <!-- Custom CSS -->
     <link rel="stylesheet" href="css/styles.css">
@@ -203,14 +196,37 @@
         </div>
     </div>
 
-    <!-- Firebase SDK -->
+    <!-- Firebase SDK (essenziale per login) -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
 
-    <!-- Leaflet JS (per Mappa Clienti) -->
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- Librerie pesanti: caricate DOPO il login per non bloccare il rendering iniziale -->
+    <script>
+    // Lazy load: carica le librerie pesanti solo dopo che il login è visibile
+    function loadHeavyLibraries() {
+        const libs = [
+            'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js',
+            'https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js',
+            'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js',
+            'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
+            'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'
+        ];
+        libs.forEach(src => {
+            const s = document.createElement('script');
+            s.src = src;
+            s.async = true;
+            document.body.appendChild(s);
+        });
+    }
+    // Carica dopo che la pagina è interattiva (login visibile)
+    if (document.readyState === 'complete') {
+        loadHeavyLibraries();
+    } else {
+        window.addEventListener('load', loadHeavyLibraries);
+    }
+    </script>
 
     <!-- App Scripts -->
     <!-- ⚠️ IMPORTANTE: env.js deve essere caricato PRIMA di firebase-config.js -->

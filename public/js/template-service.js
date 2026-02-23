@@ -45,7 +45,7 @@ Cordiali saluti,
 siamo lieti di confermarVi il rinnovo del contratto n. {{numeroContratto}} relativo a "{{oggettoContratto}}".
 
 Il contratto è stato rinnovato con le seguenti condizioni:
-- Importo annuale: €{{importoContratto}}
+- Importo contratto: €{{importoContratto}}
 - Periodicità: {{periodicita}}
 - Nuova scadenza: {{dataScadenza}}
 
@@ -89,7 +89,7 @@ Un cordiale benvenuto,
 
 desideriamo informarVi che il contratto n. {{numeroContratto}} relativo a "{{oggettoContratto}}" è in scadenza il {{dataScadenza}}.
 
-L'importo annuale attuale è di €{{importoContratto}} con periodicità {{periodicita}}.
+L'importo contratto attuale è di €{{importoContratto}} con periodicità {{periodicita}}.
 
 Vi invitiamo a contattarci per discutere le condizioni di rinnovo e garantire la continuità del servizio.
 
