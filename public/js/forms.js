@@ -732,9 +732,40 @@ const FormsManager = {
     },
 
     // === FORM NUOVA FATTURA ===
-    async showNuovaFattura(clienteId = null) {
+    async showNuovaFattura(clienteId = null, contrattoId = null) {
         // Carica lista clienti per il selettore
         const clienti = await DataService.getClienti();
+
+        // Calcola prossimo numero progressivo automatico
+        let prossimoProgressivo = '';
+        try {
+            const annoCorrente = new Date().getFullYear();
+            const tuttefatture = await DataService.getFatture();
+            const fattureAnno = tuttefatture.filter(f => f.anno === annoCorrente || f.anno === String(annoCorrente));
+            // Trova il numero progressivo più alto dell'anno
+            let maxNum = 0;
+            fattureAnno.forEach(f => {
+                const nfc = f.numeroFatturaCompleto || f.numeroFattura || '';
+                // Estrai il numero dal formato ANNO/NUM/TIPO o similare
+                const match = nfc.match(/\/(\d+)\//);
+                if (match) {
+                    const num = parseInt(match[1]);
+                    if (num > maxNum) maxNum = num;
+                } else {
+                    // Prova con formato semplice numerico
+                    const numMatch = nfc.match(/(\d+)/);
+                    if (numMatch) {
+                        const num = parseInt(numMatch[1]);
+                        if (num > maxNum) maxNum = num;
+                    }
+                }
+            });
+            const _sysP = SettingsService.getSystemSettingsSync();
+            const _padP = _sysP.paddingNumeroFattura || 3;
+            prossimoProgressivo = String(maxNum + 1).padStart(_padP, '0');
+        } catch (e) {
+            console.warn('Errore calcolo prossimo progressivo:', e);
+        }
 
         let clienteSelectHtml = '';
         if (!clienteId) {
@@ -792,6 +823,7 @@ const FormsManager = {
                     </label>
                     <input type="text" name="numeroProgressivo" id="numeroProgressivo" required
                         placeholder="Es: 001, 002..."
+                        value="${prossimoProgressivo}"
                         oninput="FormsManager.aggiornaNumeroFattura()"
                         style="width: 100%; padding: 0.75rem; border: 1px solid var(--grigio-300); border-radius: 8px; font-size: 1rem; font-family: 'Titillium Web', sans-serif;"
                     />
@@ -910,13 +942,16 @@ const FormsManager = {
                     const contrattoSelect = document.getElementById('contrattoIdFattura');
                     if (contrattoSelect && attivi.length > 0) {
                         contrattoSelect.innerHTML = '<option value="">-- Nessun contratto --</option>' +
-                            attivi.map(c => `<option value="${c.id}">${c.numeroContratto || 'N/D'} — ${c.oggetto || ''} (${c.periodicita || ''})</option>`).join('');
+                            attivi.map(c => `<option value="${c.id}" ${c.id === contrattoId ? 'selected' : ''}>${c.numeroContratto || 'N/D'} — ${c.oggetto || ''} (${c.periodicita || ''})</option>`).join('');
                         if (contrattoContainer) contrattoContainer.style.display = 'block';
                     }
                 } catch (e) {
                     console.warn('Errore caricamento contratti cliente preselezionato:', e);
                 }
             }
+
+            // Aggiorna numero fattura con il progressivo pre-compilato
+            FormsManager.aggiornaNumeroFattura();
 
             const statoSelect = document.getElementById('statoPagamento');
             const sezioneAcconto = document.getElementById('sezioneAcconto');
