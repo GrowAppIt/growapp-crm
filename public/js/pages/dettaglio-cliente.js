@@ -118,7 +118,7 @@ const DettaglioCliente = {
     renderTabContent(cliente, fatture, contratti = [], documenti = []) {
         switch(this.activeTab) {
             case 'anagrafica':
-                return this.renderAnagrafica(cliente);
+                return this.renderAnagrafica(cliente, contratti);
             case 'fatture':
                 return this.renderFatture(fatture);
             case 'contratti':
@@ -283,7 +283,15 @@ const DettaglioCliente = {
         }
     },
 
-    renderAnagrafica(cliente) {
+    renderAnagrafica(cliente, contratti = []) {
+        // Calcola dati derivati dai contratti reali
+        const contrattiAttivi = contratti.filter(c => c.stato === 'ATTIVO' || c.stato === 'IN_RINNOVO');
+        const prossimaScadenza = contrattiAttivi
+            .filter(c => c.dataScadenza)
+            .sort((a, b) => new Date(a.dataScadenza) - new Date(b.dataScadenza))[0];
+        const importoTotaleAttivi = contrattiAttivi.reduce((sum, c) => sum + (parseFloat(c.importoAnnuale) || 0), 0);
+        const gestioniAttive = [...new Set(contrattiAttivi.map(c => c.gestione).filter(Boolean))];
+
         return `
             <div class="card fade-in">
                 <div class="card-header">
@@ -306,32 +314,45 @@ const DettaglioCliente = {
                         ${this.renderInfoField('Codice Fiscale', cliente.codiceFiscale, 'id-card')}
                         ${this.renderInfoField('Codice SDI', cliente.codiceSdi, 'barcode')}
                         ${this.renderInfoField('N. Residenti', cliente.numResidenti ? Number(cliente.numResidenti).toLocaleString('it-IT') : null, 'users')}
-                        ${this.renderInfoField('Tipo', cliente.tipo === 'PA' ? '🏛️ Pubblica Amministrazione (PA)' : (cliente.tipo === 'PRIVATO' ? '🏢 Privato (PR)' : (cliente.tipo || 'N/A')), 'tag')}
+                        ${this.renderInfoField('Tipo', cliente.tipo === 'PA' ? '🏛 Pubblica Amministrazione (PA)' : (cliente.tipo === 'PRIVATO' ? '🏢 Privato (PR)' : (cliente.tipo || 'N/A')), 'tag')}
                         ${this.renderInfoField('Agente', cliente.agente, 'user')}
                         ${this.renderInfoField('Stato Contratto', cliente.statoContratto, 'file-contract')}
-                        ${this.renderInfoField('Gestione', cliente.gestione, 'cog')}
+                        ${gestioniAttive.length > 0 ? this.renderInfoField('Gestione', gestioniAttive.join(', '), 'cog') : ''}
                         ${this.renderInfoField('ID', cliente.id, 'fingerprint')}
                     </div>
 
-                    ${cliente.dataScadenzaContratto ? `
-                        <div style="margin-top: 1.5rem; padding: 1rem; background: var(--grigio-100); border-radius: 8px;">
-                            <h3 style="font-size: 0.875rem; font-weight: 700; color: var(--grigio-700); margin-bottom: 0.5rem;">
-                                <i class="fas fa-calendar-alt"></i> Scadenza Contratto
-                            </h3>
-                            <div style="font-size: 1.25rem; font-weight: 700; color: var(--blu-700);">
-                                ${DataService.formatDate(cliente.dataScadenzaContratto)}
+                    <!-- Riepilogo Contratti (calcolato dai dati reali) -->
+                    ${contrattiAttivi.length > 0 ? `
+                        <div style="margin-top: 1.5rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+                            <div style="padding: 1rem; background: var(--blu-100); border-radius: 8px;">
+                                <div style="font-size: 0.75rem; font-weight: 600; color: var(--blu-700); text-transform: uppercase; margin-bottom: 0.25rem;">
+                                    <i class="fas fa-file-contract"></i> Contratti Attivi
+                                </div>
+                                <div style="font-size: 1.5rem; font-weight: 700; color: var(--blu-700);">
+                                    ${contrattiAttivi.length}
+                                </div>
                             </div>
-                        </div>
-                    ` : ''}
-
-                    ${cliente.dataProssimaFattura ? `
-                        <div style="margin-top: 1rem; padding: 1rem; background: var(--verde-100); border-radius: 8px;">
-                            <h3 style="font-size: 0.875rem; font-weight: 700; color: var(--verde-900); margin-bottom: 0.5rem;">
-                                <i class="fas fa-file-invoice"></i> Prossima Fatturazione
-                            </h3>
-                            <div style="font-size: 1.25rem; font-weight: 700; color: var(--verde-700);">
-                                ${DataService.formatDate(cliente.dataProssimaFattura)}
+                            <div style="padding: 1rem; background: var(--verde-100); border-radius: 8px;">
+                                <div style="font-size: 0.75rem; font-weight: 600; color: var(--verde-700); text-transform: uppercase; margin-bottom: 0.25rem;">
+                                    <i class="fas fa-euro-sign"></i> Importo Annuale
+                                </div>
+                                <div style="font-size: 1.5rem; font-weight: 700; color: var(--verde-700);">
+                                    ${DataService.formatCurrency(importoTotaleAttivi)}
+                                </div>
                             </div>
+                            ${prossimaScadenza ? `
+                            <div style="padding: 1rem; background: var(--grigio-100); border-radius: 8px;">
+                                <div style="font-size: 0.75rem; font-weight: 600; color: var(--grigio-700); text-transform: uppercase; margin-bottom: 0.25rem;">
+                                    <i class="fas fa-calendar-alt"></i> Prossima Scadenza
+                                </div>
+                                <div style="font-size: 1.5rem; font-weight: 700; color: var(--blu-700);">
+                                    ${DataService.formatDate(prossimaScadenza.dataScadenza)}
+                                </div>
+                                <div style="font-size: 0.75rem; color: var(--grigio-500); margin-top: 0.25rem;">
+                                    ${prossimaScadenza.numeroContratto || ''}
+                                </div>
+                            </div>
+                            ` : ''}
                         </div>
                     ` : ''}
 

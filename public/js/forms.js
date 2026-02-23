@@ -303,16 +303,6 @@ const FormsManager = {
                         { value: 'ALTRO', label: 'Altro' }
                     ]
                 })}
-                ${this.createFormField('Gestione', 'gestione', 'select', cliente.gestione, {
-                    options: [
-                        { value: '', label: '-- Seleziona --' },
-                        { value: 'Growapp', label: 'Growapp' },
-                        { value: 'IOL', label: 'IOL (ItaliaOnline)' },
-                        { value: 'ALTRO', label: 'Altro' }
-                    ]
-                })}
-                ${this.createFormField('Data Scadenza Contratto', 'dataScadenzaContratto', 'date', cliente.dataScadenzaContratto?.split('T')[0])}
-                ${this.createFormField('Importo Contratto', 'importoContratto', 'number', cliente.importoContratto)}
             </div>
             ${this.createFormField('Note', 'note', 'textarea', cliente.note)}
         `;
@@ -397,16 +387,6 @@ const FormsManager = {
                         { value: 'ALTRO', label: 'Altro' }
                     ]
                 })}
-                ${this.createFormField('Gestione', 'gestione', 'select', '', {
-                    options: [
-                        { value: '', label: '-- Seleziona --' },
-                        { value: 'Growapp', label: 'Growapp' },
-                        { value: 'IOL', label: 'IOL (ItaliaOnline)' },
-                        { value: 'ALTRO', label: 'Altro' }
-                    ]
-                })}
-                ${this.createFormField('Data Scadenza Contratto', 'dataScadenzaContratto', 'date', '')}
-                ${this.createFormField('Importo Contratto', 'importoContratto', 'number', '', { placeholder: '0.00' })}
             </div>
             ${this.createFormField('Note', 'note', 'textarea', '', { placeholder: 'Note aggiuntive...' })}
         `;
@@ -780,10 +760,10 @@ const FormsManager = {
                 ${this.createFormField('Data Emissione', 'dataEmissione', 'date', new Date().toISOString().split('T')[0], { required: true })}
                 ${this.createFormField('Data Scadenza', 'dataScadenza', 'date', '')}
                 ${this.createFormField('Imponibile', 'imponibile', 'number', '', { required: true, placeholder: '0.00' })}
-                ${this.createFormField('Aliquota IVA (%)', 'aliquotaIva', 'number', '22', { placeholder: '22' })}
+                ${this.createFormField('Aliquota IVA (%)', 'aliquotaIva', 'number', String(SettingsService.getSystemSettingsSync().ivaDefault), { placeholder: String(SettingsService.getSystemSettingsSync().ivaDefault) })}
                 ${this.createFormField('Importo IVA', 'importoIva', 'number', '', { placeholder: 'Calcolato auto' })}
                 ${this.createFormField('Totale Fattura', 'importoTotale', 'number', '', { required: true, placeholder: 'Calcolato auto' })}
-                ${this.createFormField('Metodo Pagamento', 'metodoPagamento', 'select', 'BONIFICO', {
+                ${this.createFormField('Metodo Pagamento', 'metodoPagamento', 'select', SettingsService.getSystemSettingsSync().metodoPagamentoDefault, {
                     options: [
                         { value: 'BONIFICO', label: 'Bonifico Bancario' },
                         { value: 'CARTA', label: 'Carta di Credito/Debito' },
@@ -1164,11 +1144,21 @@ const FormsManager = {
         const isNotaCredito = tipoDocSelect?.value === 'NOTA_DI_CREDITO';
 
         if (numero) {
-            // Pad del numero a 3 cifre
-            const numeroPadded = numero.padStart(3, '0');
+            // Formato da impostazioni di sistema
+            const _sysF = SettingsService.getSystemSettingsSync();
+            const _padF = _sysF.paddingNumeroFattura || 3;
+            const _fmtF = _sysF.formatoNumeroFattura || '{ANNO}/{NUM}/{TIPO}';
+            const _prefNC = _sysF.prefissoNotaCredito || 'NC-';
+
+            const numeroPadded = numero.padStart(_padF, '0');
             const suffisso = tipo === 'PA' ? 'PA' : (tipo ? 'PR' : '');
-            const prefisso = isNotaCredito ? 'NC-' : '';
-            const numeroCompleto = suffisso ? `${prefisso}${anno}/${numeroPadded}/${suffisso}` : `${prefisso}${anno}/${numeroPadded}`;
+            const prefisso = isNotaCredito ? _prefNC : '';
+
+            // Genera il numero usando il formato configurato
+            let numeroFormattato = _fmtF.replace('{ANNO}', anno).replace('{NUM}', numeroPadded).replace('{TIPO}', suffisso);
+            // Rimuovi separatore finale se TIPO è vuoto
+            if (!suffisso) numeroFormattato = numeroFormattato.replace(/\/+$/, '').replace(/-+$/, '');
+            const numeroCompleto = prefisso + numeroFormattato;
 
             hiddenNumero.value = numeroCompleto;
 
@@ -1686,18 +1676,23 @@ const FormsManager = {
             `;
         }
 
-        // Genera numero contratto suggerito
-        const anno = new Date().getFullYear();
+        // Genera numero contratto suggerito (da impostazioni sistema)
+        const _sys = SettingsService.getSystemSettingsSync();
+        const anno = _sys.annoContabile || new Date().getFullYear();
+        const _pref = _sys.prefissoNumeroContratto || 'CTR';
+        const _padC = _sys.paddingNumeroContratto || 3;
+        const _fmtC = _sys.formatoNumeroContratto || '{PREF}-{ANNO}-{NUM}';
         const contratti = await DataService.getContratti();
-        const numeroContratti = contratti.filter(c => c.numeroContratto?.startsWith(`CTR-${anno}`)).length;
-        const numeroSuggerito = `CTR-${anno}-${String(numeroContratti + 1).padStart(3, '0')}`;
+        const numeroContratti = contratti.filter(c => c.numeroContratto?.startsWith(`${_pref}-${anno}`)).length;
+        const _numC = String(numeroContratti + 1).padStart(_padC, '0');
+        const numeroSuggerito = _fmtC.replace('{PREF}', _pref).replace('{ANNO}', anno).replace('{NUM}', _numC);
 
         const content = `
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem;">
                 ${clienteSelectHtml}
-                ${this.createFormField('Numero Contratto', 'numeroContratto', 'text', numeroSuggerito, { required: true, placeholder: 'CTR-2026-001' })}
+                ${this.createFormField('Numero Contratto', 'numeroContratto', 'text', numeroSuggerito, { required: true, placeholder: numeroSuggerito })}
                 ${this.createFormField('Oggetto', 'oggetto', 'text', '', { required: true, placeholder: 'Servizio App Comune' })}
-                ${this.createFormField('Tipologia', 'tipologia', 'select', 'SERVIZIO_APP', {
+                ${this.createFormField('Tipologia', 'tipologia', 'select', _sys.tipologiaContrattoDefault, {
                     required: true,
                     options: [
                         { value: 'SERVIZIO_APP', label: 'Servizio App' },
@@ -1708,12 +1703,12 @@ const FormsManager = {
                     ]
                 })}
                 ${this.createFormField('Data Inizio', 'dataInizio', 'date', new Date().toISOString().split('T')[0], { required: true })}
-                ${this.createFormField('Durata (mesi)', 'durataContratto', 'number', '12', { required: true, placeholder: '12' })}
+                ${this.createFormField('Durata (mesi)', 'durataContratto', 'number', String(_sys.durataContrattoDefault), { required: true, placeholder: String(_sys.durataContrattoDefault) })}
                 ${this.createFormField('Data Scadenza', 'dataScadenza', 'date', '', { required: true })}
                 ${this.createFormField('Data Firma', 'dataFirma', 'date', '')}
                 ${this.createFormField('Importo Annuale €', 'importoAnnuale', 'number', '', { required: true, placeholder: '0.00' })}
                 ${this.createFormField('Importo Mensile €', 'importoMensile', 'number', '', { placeholder: 'Calcolato automaticamente se vuoto' })}
-                ${this.createFormField('Periodicità Fatturazione', 'periodicita', 'select', 'ANNUALE', {
+                ${this.createFormField('Periodicità Fatturazione', 'periodicita', 'select', _sys.periodicitaDefault, {
                     options: [
                         { value: 'UNA_TANTUM', label: 'Una Tantum' },
                         { value: 'MENSILE', label: 'Mensile' },
@@ -1724,11 +1719,19 @@ const FormsManager = {
                         { value: 'BIENNALE', label: 'Biennale' }
                     ]
                 })}
-                ${this.createFormField('Modalità Pagamento', 'modalitaPagamento', 'select', 'ANTICIPATO', {
+                ${this.createFormField('Modalità Pagamento', 'modalitaPagamento', 'select', _sys.condizionePagamentoDefault, {
                     options: [
                         { value: 'ANTICIPATO', label: 'Anticipato' },
                         { value: 'POSTICIPATO', label: 'Posticipato' },
                         { value: 'MENSILE', label: 'Mensile' }
+                    ]
+                })}
+                ${this.createFormField('Gestione', 'gestione', 'select', '', {
+                    options: [
+                        { value: '', label: '-- Seleziona --' },
+                        { value: 'Growapp', label: 'Growapp' },
+                        { value: 'IOL', label: 'IOL (ItaliaOnline)' },
+                        { value: 'ALTRO', label: 'Altro' }
                     ]
                 })}
                 ${this.createFormField('Stato', 'stato', 'select', 'ATTIVO', {
@@ -1747,7 +1750,7 @@ const FormsManager = {
                         Rinnovo Automatico
                     </label>
                 </div>
-                ${this.createFormField('Giorni Preavviso Rinnovo', 'giorniPreavvisoRinnovo', 'number', '60', { placeholder: '60' })}
+                ${this.createFormField('Giorni Preavviso Rinnovo', 'giorniPreavvisoRinnovo', 'number', String(_sys.giorniPreavvisoRinnovo), { placeholder: String(_sys.giorniPreavvisoRinnovo) })}
             </div>
             ${this.createFormField('Note', 'note', 'textarea', '', { placeholder: 'Note aggiuntive...' })}
         `;
@@ -1871,6 +1874,14 @@ const FormsManager = {
                         { value: 'ANTICIPATO', label: 'Anticipato' },
                         { value: 'POSTICIPATO', label: 'Posticipato' },
                         { value: 'MENSILE', label: 'Mensile' }
+                    ]
+                })}
+                ${this.createFormField('Gestione', 'gestione', 'select', contratto.gestione, {
+                    options: [
+                        { value: '', label: '-- Seleziona --' },
+                        { value: 'Growapp', label: 'Growapp' },
+                        { value: 'IOL', label: 'IOL (ItaliaOnline)' },
+                        { value: 'ALTRO', label: 'Altro' }
                     ]
                 })}
                 ${this.createFormField('Stato', 'stato', 'select', contratto.stato, {

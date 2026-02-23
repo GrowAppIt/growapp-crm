@@ -1,5 +1,8 @@
 // Dashboard Page con Widget Personalizzabili
 const Dashboard = {
+    // Cache dati KPI per drill-down al click
+    _kpiData: null,
+
     async render() {
         UI.showLoading();
 
@@ -13,18 +16,33 @@ const Dashboard = {
             // Carica dati base
             const stats = await DataService.getStatistiche();
 
-            // Carica dati in base ai permessi
-            const scadenzeScadute = AuthService.hasPermission('manage_payments') || AuthService.hasPermission('view_all_data')
-                ? await DataService.getScadenzeScadute()
-                : [];
-            const scadenzeImminenti = AuthService.hasPermission('manage_payments') || AuthService.hasPermission('view_all_data')
-                ? await DataService.getScadenzeImminenti(30)
-                : [];
+            // Carica scadenze calcolate da contratti e fatture reali
+            let scadenzeScadute = [];
+            let scadenzeImminenti = [];
+            if (AuthService.hasPermission('manage_payments') || AuthService.hasPermission('view_all_data')) {
+                try {
+                    const scadenzeCalcolate = await DataService.getScadenzeCompute();
+                    const _sysDash = SettingsService.getSystemSettingsSync();
+                    const oggi = new Date();
+                    oggi.setHours(0, 0, 0, 0);
+                    const finestraImminente = new Date(oggi);
+                    finestraImminente.setDate(finestraImminente.getDate() + (_sysDash.sogliaImminente || 30));
+                    scadenzeScadute = scadenzeCalcolate.tutteLeScadenze.filter(s =>
+                        s.dataScadenza && new Date(s.dataScadenza) < oggi
+                    );
+                    scadenzeImminenti = scadenzeCalcolate.tutteLeScadenze.filter(s => {
+                        if (!s.dataScadenza) return false;
+                        const ds = new Date(s.dataScadenza);
+                        return ds >= oggi && ds <= finestraImminente;
+                    });
+                } catch (e) { console.warn('Errore calcolo scadenze dashboard:', e); }
+            }
+            const _sysDash2 = SettingsService.getSystemSettingsSync();
             const contrattiInScadenza = AuthService.hasPermission('manage_contracts') || AuthService.hasPermission('view_contracts') || AuthService.hasPermission('view_all_data')
-                ? await DataService.getContrattiInScadenza(60)
+                ? await DataService.getContrattiInScadenza(_sysDash2.finestraContrattiDashboard || 60)
                 : [];
             const fattureInScadenza = AuthService.hasPermission('manage_invoices') || AuthService.hasPermission('view_invoices') || AuthService.hasPermission('view_all_data')
-                ? await DataService.getFattureInScadenza(30)
+                ? await DataService.getFattureInScadenza(_sysDash2.finestraFattureDashboard || 30)
                 : [];
             const clienti = AuthService.hasPermission('view_clients') || AuthService.hasPermission('manage_clients') || AuthService.hasPermission('view_all_data')
                 ? await DataService.getClienti()
@@ -215,62 +233,11 @@ const Dashboard = {
         `;
     },
 
-    async renderScadenzeImminenti(scadenzeScadenzario, contrattiInScadenza, fattureInScadenza) {
-        // Unisci tutte le scadenze in un formato comune
-        const tutteScadenze = [];
-
-        // Aggiungi scadenze dallo scadenzario (solo prossimi 30gg)
+    async renderScadenzeImminenti(scadenzeCalcolate, contrattiInScadenza, fattureInScadenza) {
+        // Le scadenze sono già calcolate da contratti e fatture reali
         const oggi = new Date();
-        const limite30gg = new Date(oggi);
-        limite30gg.setDate(oggi.getDate() + 30);
 
-        scadenzeScadenzario.forEach(s => {
-            const dataScadenza = new Date(s.dataScadenza);
-            if (dataScadenza <= limite30gg) {
-                tutteScadenze.push({
-                    tipo: 'SCADENZARIO',
-                    sottotipo: s.tipo,
-                    dataScadenza: s.dataScadenza,
-                    clienteRagioneSociale: s.clienteRagioneSociale,
-                    descrizione: this.getTipoScadenzaLabel(s.tipo),
-                    id: s.id,
-                    link: 'scadenzario'
-                });
-            }
-        });
-
-        // Aggiungi contratti in scadenza (solo prossimi 30gg per questo widget)
-        contrattiInScadenza.forEach(c => {
-            const dataScadenza = new Date(c.dataScadenza);
-            if (dataScadenza <= limite30gg) {
-                tutteScadenze.push({
-                    tipo: 'CONTRATTO',
-                    dataScadenza: c.dataScadenza,
-                    clienteRagioneSociale: c.clienteRagioneSociale,
-                    descrizione: `Scadenza contratto ${c.numeroContratto || ''}`,
-                    id: c.id,
-                    link: 'dettaglio-contratto'
-                });
-            }
-        });
-
-        // Aggiungi fatture in scadenza
-        fattureInScadenza.forEach(f => {
-            tutteScadenze.push({
-                tipo: 'FATTURA',
-                dataScadenza: f.dataScadenza,
-                clienteRagioneSociale: f.clienteRagioneSociale,
-                descrizione: `Pagamento fattura ${f.numeroFattura || ''}`,
-                importo: f.importoTotale,
-                id: f.id,
-                link: 'fatture'
-            });
-        });
-
-        // Ordina per data
-        tutteScadenze.sort((a, b) => new Date(a.dataScadenza) - new Date(b.dataScadenza));
-
-        if (tutteScadenze.length === 0) {
+        if (scadenzeCalcolate.length === 0) {
             return `
                 <div class="card fade-in">
                     <div class="card-header">
@@ -286,46 +253,49 @@ const Dashboard = {
             `;
         }
 
+        // Conta per tipo
+        const nContratti = scadenzeCalcolate.filter(s => s.tipo === 'CONTRATTO_RINNOVO').length;
+        const nFattureEmettere = scadenzeCalcolate.filter(s => s.tipo === 'FATTURA_EMISSIONE').length;
+        const nFattureIncasso = scadenzeCalcolate.filter(s => s.tipo === 'FATTURA_INCASSO').length;
+
         let html = `
             <div class="card fade-in">
                 <div class="card-header">
                     <h2 class="card-title">
                         <i class="fas fa-calendar-alt"></i> Scadenze Imminenti
                     </h2>
-                    <div class="card-subtitle">Prossimi 30 giorni: ${tutteScadenze.length} scadenze (${contrattiInScadenza.filter(c => new Date(c.dataScadenza) <= limite30gg).length} contratti, ${fattureInScadenza.length} fatture, ${scadenzeScadenzario.filter(s => new Date(s.dataScadenza) <= limite30gg).length} altre)</div>
+                    <div class="card-subtitle">Prossimi 30 giorni: ${scadenzeCalcolate.length} scadenze (${nContratti} rinnovi, ${nFattureEmettere} da emettere, ${nFattureIncasso} da incassare)</div>
                 </div>
                 <div class="list-group">
         `;
 
-        const slice = tutteScadenze.slice(0, 10);
+        const slice = scadenzeCalcolate.slice(0, 10);
         for (const scadenza of slice) {
             const giorni = Math.ceil((new Date(scadenza.dataScadenza) - oggi) / (1000 * 60 * 60 * 24));
             const urgenza = giorni < 0 ? 'scaduto' : giorni <= 7 ? 'critico' : 'normale';
             const badgeClass = urgenza === 'scaduto' ? 'badge-danger' :
                              urgenza === 'critico' ? 'badge-warning' : 'badge-info';
 
-            // Icona per tipo
+            // Icona e label per tipo calcolato
             let tipoIcon = 'calendar';
-            let tipoLabel = '';
-            if (scadenza.tipo === 'CONTRATTO') {
-                tipoIcon = 'file-contract';
-                tipoLabel = '📄';
-            } else if (scadenza.tipo === 'FATTURA') {
-                tipoIcon = 'file-invoice-dollar';
-                tipoLabel = '💶';
-            } else if (scadenza.sottotipo === 'PAGAMENTO') {
-                tipoIcon = 'euro-sign';
-                tipoLabel = '💳';
-            } else if (scadenza.sottotipo === 'FATTURAZIONE') {
-                tipoIcon = 'file-invoice';
-                tipoLabel = '📋';
-            } else {
-                tipoLabel = '📅';
-            }
+            if (scadenza.tipo === 'CONTRATTO_RINNOVO') tipoIcon = 'file-contract';
+            else if (scadenza.tipo === 'FATTURA_INCASSO') tipoIcon = 'file-invoice-dollar';
+            else if (scadenza.tipo === 'FATTURA_EMISSIONE') tipoIcon = 'file-invoice';
 
-            const subtitle = scadenza.importo
-                ? `${tipoLabel} ${scadenza.descrizione} • ${DataService.formatDate(scadenza.dataScadenza)} • ${DataService.formatCurrency(scadenza.importo)}`
-                : `${tipoLabel} ${scadenza.descrizione} • ${DataService.formatDate(scadenza.dataScadenza)}`;
+            const importo = scadenza.importo || scadenza.importoTotale;
+            const subtitle = importo
+                ? `${scadenza.descrizione || ''} • ${DataService.formatDate(scadenza.dataScadenza)} • ${DataService.formatCurrency(importo)}`
+                : `${scadenza.descrizione || ''} • ${DataService.formatDate(scadenza.dataScadenza)}`;
+
+            // Navigazione corretta
+            let onclick = `UI.showPage('scadenzario')`;
+            if (scadenza.tipo === 'CONTRATTO_RINNOVO') {
+                onclick = `UI.showPage('dettaglio-contratto', '${scadenza.id}')`;
+            } else if (scadenza.tipo === 'FATTURA_INCASSO') {
+                onclick = `UI.showPage('dettaglio-fattura', '${scadenza.id}')`;
+            } else if (scadenza.tipo === 'FATTURA_EMISSIONE' && scadenza.contrattoId) {
+                onclick = `UI.showPage('dettaglio-contratto', '${scadenza.contrattoId}')`;
+            }
 
             html += UI.createListItem({
                 title: scadenza.clienteRagioneSociale || 'N/A',
@@ -333,9 +303,7 @@ const Dashboard = {
                 badge: urgenza === 'scaduto' ? 'SCADUTO' : `${giorni}gg`,
                 badgeClass,
                 icon: tipoIcon,
-                onclick: scadenza.tipo === 'CONTRATTO'
-                    ? `UI.showPage('${scadenza.link}', '${scadenza.id}')`
-                    : `UI.showPage('${scadenza.link}')`
+                onclick: onclick
             });
         }
 
@@ -426,7 +394,7 @@ const Dashboard = {
                 title: `${medalIcon} ${cliente.ragioneSociale}`,
                 subtitle: `${index + 1}° classificato`,
                 icon: 'building',
-                onclick: `UI.showPage('dettaglio-cliente', '${cliente.id}')`
+                onclick: `UI.showPage("dettaglio-cliente", "${cliente.id}")`
             });
         });
 
@@ -507,7 +475,7 @@ const Dashboard = {
                 badge: `${giorni}gg`,
                 badgeClass: giorni < 30 ? 'badge-warning' : 'badge-info',
                 icon: 'file-contract',
-                onclick: `UI.showPage('dettaglio-contratto', '${contratto.id}')`
+                onclick: `UI.showPage("dettaglio-contratto", "${contratto.id}")`
             });
         });
 
@@ -768,7 +736,7 @@ const Dashboard = {
                 badge: cliente.statoContratto?.replace('_', ' '),
                 badgeClass,
                 icon: 'building',
-                onclick: `UI.showPage('dettaglio-cliente', '${cliente.id}')`
+                onclick: `UI.showPage("dettaglio-cliente", "${cliente.id}")`
             });
         });
 
@@ -828,16 +796,25 @@ const Dashboard = {
     // === NUOVI WIDGET KPI ===
 
     renderStatisticheKPI(stats, scadenzeScadute, contrattiTutti, fattureScadute, tasks) {
-        // Calcola rinnovi totali in sospeso (contratti che scadono ma ancora non rinnovati)
+        // Contratti scaduti: data scadenza passata e non cessati
         const oggi = new Date();
-        const rinnoviSospesi = contrattiTutti.filter(c => {
-            if (!c.dataScadenza) return false;
-            const dataScadenza = new Date(c.dataScadenza);
-            return dataScadenza < oggi && c.stato !== 'CESSATO' && c.stato !== 'ATTIVO';
-        }).length;
+        oggi.setHours(0, 0, 0, 0);
+        const contrattiScadutiList = contrattiTutti.filter(c => {
+            if (!c.dataScadenza || c.stato === 'CESSATO') return false;
+            return new Date(c.dataScadenza) < oggi;
+        });
+        const contrattiScadutiCount = contrattiScadutiList.length;
 
         // Calcola fatturato scaduto da recuperare
         const fatturatoScaduto = fattureScadute.reduce((sum, f) => sum + (f.importoTotale || 0), 0);
+
+        // Salva in cache per drill-down
+        this._kpiData = {
+            scadenzeScadute,
+            contrattiScaduti: contrattiScadutiList,
+            fattureScadute,
+            tasks
+        };
 
         // Calcola task urgenti in corso (IN_PROGRESS con priorità ALTA o URGENTE)
         const taskUrgenti = tasks.filter(t =>
@@ -855,29 +832,29 @@ const Dashboard = {
                 iconClass: 'critical',
                 label: 'Scadenze Critiche',
                 value: scadenzeScadute.length,
-                onclick: 'UI.showPage("scadenzario")'
+                onclick: 'Dashboard.mostraDettaglioKPI("scadenzeCritiche")'
             }));
         }
 
-        // Rinnovi Sospesi - visibile se può gestire contratti
+        // Contratti Scaduti - visibile se può gestire contratti
         if (AuthService.hasPermission('manage_contracts') || AuthService.hasPermission('view_contracts') || AuthService.hasPermission('view_all_data')) {
             kpiCards.push(UI.createKPICard({
-                icon: 'sync-alt',
+                icon: 'file-contract',
                 iconClass: 'warning',
-                label: 'Rinnovi Sospesi',
-                value: rinnoviSospesi,
-                onclick: 'UI.showPage("contratti")'
+                label: 'Contratti Scaduti',
+                value: contrattiScadutiCount,
+                onclick: 'Dashboard.mostraDettaglioKPI("contrattiScaduti")'
             }));
         }
 
-        // Fatturato Scaduto - visibile se può gestire fatture
+        // Fatturato da Incassare - visibile se può gestire fatture
         if (AuthService.hasPermission('manage_invoices') || AuthService.hasPermission('view_invoices') || AuthService.hasPermission('view_all_data')) {
             kpiCards.push(UI.createKPICard({
                 icon: 'euro-sign',
                 iconClass: 'danger',
-                label: 'Fatturato Scaduto',
+                label: 'Fatturato da Incassare',
                 value: DataService.formatCurrency(fatturatoScaduto),
-                onclick: 'UI.showPage("scadenzario")'
+                onclick: 'Dashboard.mostraDettaglioKPI("fatturatoScaduto")'
             }));
         }
 
@@ -907,6 +884,136 @@ const Dashboard = {
                 ${kpiCards.join('')}
             </div>
         `;
+    },
+
+    // =========================================================================
+    // DRILL-DOWN KPI: mostra dettaglio al click sulla card
+    // =========================================================================
+    mostraDettaglioKPI(tipo) {
+        if (!this._kpiData) return;
+
+        let titolo = '';
+        let listaHtml = '';
+
+        switch (tipo) {
+            case 'scadenzeCritiche': {
+                const items = this._kpiData.scadenzeScadute;
+                titolo = `Scadenze Critiche (${items.length})`;
+                if (items.length === 0) {
+                    listaHtml = '<p style="color:var(--grigio-500);text-align:center;padding:1rem;">Nessuna scadenza critica</p>';
+                } else {
+                    listaHtml = '<div class="list-group">';
+                    for (const s of items.slice(0, 30)) {
+                        const giorni = Math.abs(Math.ceil((new Date(s.dataScadenza) - new Date()) / (1000 * 60 * 60 * 24)));
+                        let tipoLabel = s.tipo === 'CONTRATTO_RINNOVO' ? 'Rinnovo' : s.tipo === 'FATTURA_INCASSO' ? 'Incasso' : s.tipo === 'FATTURA_EMISSIONE' ? 'Emissione' : s.tipo;
+                        let onclick = s.tipo === 'CONTRATTO_RINNOVO' ? `UI.showPage('dettaglio-contratto','${s.id}')` :
+                                      s.tipo === 'FATTURA_INCASSO' ? `UI.showPage('dettaglio-fattura','${s.id}')` :
+                                      s.contrattoId ? `UI.showPage('dettaglio-contratto','${s.contrattoId}')` : '';
+                        listaHtml += `
+                            <div class="list-item" style="cursor:${onclick ? 'pointer' : 'default'};" ${onclick ? `onclick="${onclick}"` : ''}>
+                                <div style="display:flex;justify-content:space-between;align-items:center;gap:1rem;">
+                                    <div style="flex:1;min-width:0;">
+                                        <div style="font-weight:600;color:var(--grigio-900);">${s.clienteRagioneSociale || 'N/A'}</div>
+                                        <div style="font-size:0.8rem;color:var(--grigio-500);">${tipoLabel} • ${s.descrizione || ''}</div>
+                                    </div>
+                                    <div style="text-align:right;flex-shrink:0;">
+                                        <span class="badge badge-danger">${giorni}gg fa</span>
+                                        ${s.importo || s.importoTotale ? `<div style="font-size:0.8rem;font-weight:600;color:var(--grigio-700);margin-top:0.25rem;">${DataService.formatCurrency(s.importo || s.importoTotale)}</div>` : ''}
+                                    </div>
+                                </div>
+                            </div>`;
+                    }
+                    listaHtml += '</div>';
+                }
+                break;
+            }
+            case 'contrattiScaduti': {
+                const items = this._kpiData.contrattiScaduti;
+                titolo = `Contratti Scaduti (${items.length})`;
+                if (items.length === 0) {
+                    listaHtml = '<p style="color:var(--grigio-500);text-align:center;padding:1rem;">Nessun contratto scaduto</p>';
+                } else {
+                    listaHtml = '<div class="list-group">';
+                    for (const c of items.sort((a, b) => new Date(a.dataScadenza) - new Date(b.dataScadenza))) {
+                        const giorni = Math.abs(Math.ceil((new Date(c.dataScadenza) - new Date()) / (1000 * 60 * 60 * 24)));
+                        listaHtml += `
+                            <div class="list-item" style="cursor:pointer;" onclick="UI.showPage('dettaglio-contratto','${c.id}')">
+                                <div style="display:flex;justify-content:space-between;align-items:center;gap:1rem;">
+                                    <div style="flex:1;min-width:0;">
+                                        <div style="font-weight:600;color:var(--grigio-900);">${c.clienteRagioneSociale || c.ragioneSociale || 'N/A'}</div>
+                                        <div style="font-size:0.8rem;color:var(--grigio-500);">${c.numeroContratto || ''} • ${c.oggetto || ''} • Stato: ${c.stato || 'N/A'}</div>
+                                    </div>
+                                    <div style="text-align:right;flex-shrink:0;">
+                                        <span class="badge badge-warning">Scaduto da ${giorni}gg</span>
+                                        ${c.importoAnnuale ? `<div style="font-size:0.8rem;font-weight:600;color:var(--grigio-700);margin-top:0.25rem;">${DataService.formatCurrency(c.importoAnnuale)}/anno</div>` : ''}
+                                    </div>
+                                </div>
+                            </div>`;
+                    }
+                    listaHtml += '</div>';
+                }
+                break;
+            }
+            case 'fatturatoScaduto': {
+                const items = this._kpiData.fattureScadute;
+                const totale = items.reduce((sum, f) => sum + (f.importoTotale || 0), 0);
+                titolo = `Fatturato da Incassare — ${items.length} fatture • Totale: ${DataService.formatCurrency(totale)}`;
+                if (items.length === 0) {
+                    listaHtml = '<p style="color:var(--grigio-500);text-align:center;padding:1rem;">Nessuna fattura scaduta</p>';
+                } else {
+                    listaHtml = '<div class="list-group">';
+                    for (const f of items.sort((a, b) => new Date(a.dataScadenza) - new Date(b.dataScadenza))) {
+                        const giorni = Math.abs(Math.ceil((new Date(f.dataScadenza) - new Date()) / (1000 * 60 * 60 * 24)));
+                        listaHtml += `
+                            <div class="list-item" style="cursor:pointer;" onclick="UI.showPage('dettaglio-fattura','${f.id}')">
+                                <div style="display:flex;justify-content:space-between;align-items:center;gap:1rem;">
+                                    <div style="flex:1;min-width:0;">
+                                        <div style="font-weight:600;color:var(--grigio-900);">${f.clienteRagioneSociale || 'N/A'}</div>
+                                        <div style="font-size:0.8rem;color:var(--grigio-500);">${f.numeroFatturaCompleto || f.numeroFattura || 'Fattura'} • Scadenza: ${DataService.formatDate(f.dataScadenza)} • ${f.statoPagamento === 'PARZIALMENTE_PAGATA' ? 'Parz. pagata' : 'Non pagata'}</div>
+                                    </div>
+                                    <div style="text-align:right;flex-shrink:0;">
+                                        <span class="badge badge-danger">${giorni}gg fa</span>
+                                        <div style="font-size:1rem;font-weight:700;color:#D32F2F;margin-top:0.25rem;">${DataService.formatCurrency(f.importoTotale)}</div>
+                                    </div>
+                                </div>
+                            </div>`;
+                    }
+                    listaHtml += '</div>';
+                }
+                break;
+            }
+            default:
+                return;
+        }
+
+        // Mostra il dettaglio sotto le card KPI
+        let container = document.getElementById('kpiDrillDown');
+        if (!container) {
+            const kpiGrid = document.querySelector('.kpi-grid');
+            if (!kpiGrid) return;
+            container = document.createElement('div');
+            container.id = 'kpiDrillDown';
+            kpiGrid.parentNode.insertBefore(container, kpiGrid.nextSibling);
+        }
+
+        container.innerHTML = `
+            <div class="card fade-in" style="margin-top:1.5rem;">
+                <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+                    <h2 class="card-title" style="font-size:1rem;">
+                        <i class="fas fa-list"></i> ${titolo}
+                    </h2>
+                    <button class="btn btn-secondary btn-sm" onclick="document.getElementById('kpiDrillDown').innerHTML=''">
+                        <i class="fas fa-times"></i> Chiudi
+                    </button>
+                </div>
+                <div style="max-height:500px;overflow-y:auto;">
+                    ${listaHtml}
+                </div>
+            </div>
+        `;
+
+        // Scrolla per mostrare il dettaglio
+        container.scrollIntoView({ behavior: 'smooth', block: 'start' });
     },
 
     renderStatoAppCorretto(app) {
@@ -980,7 +1087,7 @@ const Dashboard = {
                         ${statsHTML}
                     </div>
                     <div style="text-align: center; margin-top: 1.5rem;">
-                        <button class="btn btn-primary btn-sm" onclick="UI.showPage('gestione-app')">
+                        <button class="btn btn-primary btn-sm" onclick="UI.showPage('app')">
                             <i class="fas fa-mobile-alt"></i> Vedi tutte le app
                         </button>
                     </div>
@@ -989,59 +1096,10 @@ const Dashboard = {
         `;
     },
 
-    async renderScadenzeImminenteCompatta(scadenzeScadenzario, contrattiInScadenza, fattureInScadenza) {
-        // Unisci tutte le scadenze in un formato comune
-        const tutteScadenze = [];
+    async renderScadenzeImminenteCompatta(scadenzeCalcolate, contrattiInScadenza, fattureInScadenza) {
+        // Le scadenze sono già calcolate da contratti e fatture reali
         const oggi = new Date();
-        const limite30gg = new Date(oggi);
-        limite30gg.setDate(oggi.getDate() + 30);
-
-        // Aggiungi scadenze dallo scadenzario (solo prossimi 30gg)
-        scadenzeScadenzario.forEach(s => {
-            const dataScadenza = new Date(s.dataScadenza);
-            if (dataScadenza <= limite30gg) {
-                tutteScadenze.push({
-                    tipo: 'SCADENZARIO',
-                    sottotipo: s.tipo,
-                    dataScadenza: s.dataScadenza,
-                    clienteRagioneSociale: s.clienteRagioneSociale,
-                    descrizione: this.getTipoScadenzaLabel(s.tipo),
-                    id: s.id,
-                    link: 'scadenzario'
-                });
-            }
-        });
-
-        // Aggiungi contratti in scadenza (solo prossimi 30gg)
-        contrattiInScadenza.forEach(c => {
-            const dataScadenza = new Date(c.dataScadenza);
-            if (dataScadenza <= limite30gg) {
-                tutteScadenze.push({
-                    tipo: 'CONTRATTO',
-                    dataScadenza: c.dataScadenza,
-                    clienteRagioneSociale: c.clienteRagioneSociale,
-                    descrizione: `Rinnovo contratto`,
-                    id: c.id,
-                    link: 'dettaglio-contratto'
-                });
-            }
-        });
-
-        // Aggiungi fatture in scadenza
-        fattureInScadenza.forEach(f => {
-            tutteScadenze.push({
-                tipo: 'FATTURA',
-                dataScadenza: f.dataScadenza,
-                clienteRagioneSociale: f.clienteRagioneSociale,
-                descrizione: `Pagamento ${f.numeroFattura || ''}`,
-                importo: f.importoTotale,
-                id: f.id,
-                link: 'fatture'
-            });
-        });
-
-        // Ordina per data
-        tutteScadenze.sort((a, b) => new Date(a.dataScadenza) - new Date(b.dataScadenza));
+        const tutteScadenze = scadenzeCalcolate;
 
         if (tutteScadenze.length === 0) {
             return `
@@ -1078,19 +1136,26 @@ const Dashboard = {
             const badgeClass = urgenza === 'scaduto' ? 'badge-danger' :
                              urgenza === 'critico' ? 'badge-warning' : 'badge-info';
 
-            // Icona per tipo
+            // Icona per tipo calcolato
             let tipoIcon = 'calendar';
-            if (scadenza.tipo === 'CONTRATTO') {
-                tipoIcon = 'file-contract';
-            } else if (scadenza.tipo === 'FATTURA') {
-                tipoIcon = 'file-invoice-dollar';
-            } else if (scadenza.sottotipo === 'PAGAMENTO') {
-                tipoIcon = 'euro-sign';
-            }
+            if (scadenza.tipo === 'CONTRATTO_RINNOVO') tipoIcon = 'file-contract';
+            else if (scadenza.tipo === 'FATTURA_INCASSO') tipoIcon = 'file-invoice-dollar';
+            else if (scadenza.tipo === 'FATTURA_EMISSIONE') tipoIcon = 'file-invoice';
 
-            const subtitle = scadenza.importo
-                ? `${scadenza.descrizione} • ${DataService.formatDate(scadenza.dataScadenza)} • ${DataService.formatCurrency(scadenza.importo)}`
-                : `${scadenza.descrizione} • ${DataService.formatDate(scadenza.dataScadenza)}`;
+            const importo = scadenza.importo || scadenza.importoTotale;
+            const subtitle = importo
+                ? `${scadenza.descrizione || ''} • ${DataService.formatDate(scadenza.dataScadenza)} • ${DataService.formatCurrency(importo)}`
+                : `${scadenza.descrizione || ''} • ${DataService.formatDate(scadenza.dataScadenza)}`;
+
+            // Navigazione corretta
+            let onclick = `UI.showPage('scadenzario')`;
+            if (scadenza.tipo === 'CONTRATTO_RINNOVO') {
+                onclick = `UI.showPage('dettaglio-contratto', '${scadenza.id}')`;
+            } else if (scadenza.tipo === 'FATTURA_INCASSO') {
+                onclick = `UI.showPage('dettaglio-fattura', '${scadenza.id}')`;
+            } else if (scadenza.tipo === 'FATTURA_EMISSIONE' && scadenza.contrattoId) {
+                onclick = `UI.showPage('dettaglio-contratto', '${scadenza.contrattoId}')`;
+            }
 
             html += UI.createListItem({
                 title: scadenza.clienteRagioneSociale || 'N/A',
@@ -1098,9 +1163,7 @@ const Dashboard = {
                 badge: urgenza === 'scaduto' ? 'SCADUTO' : `${giorni}gg`,
                 badgeClass,
                 icon: tipoIcon,
-                onclick: scadenza.tipo === 'CONTRATTO'
-                    ? `UI.showPage('${scadenza.link}', '${scadenza.id}')`
-                    : `UI.showPage('${scadenza.link}')`
+                onclick: onclick
             });
         }
 
@@ -1197,13 +1260,23 @@ const Dashboard = {
         const clientiAttivi = clienti.filter(c => c.statoContratto === 'ATTIVO');
         const clientiSenzaContratto = clienti.filter(c => c.statoContratto === 'SENZA_CONTRATTO');
 
-        // Scadenze critiche
-        const scadenzeScadute = scadenze.filter(s => s.dataScadenza && new Date(s.dataScadenza) < oggi);
-        const scadenzeImminenti = scadenze.filter(s => {
-            if (!s.dataScadenza) return false;
-            const data = new Date(s.dataScadenza);
-            return data >= oggi && data <= tra30giorni;
-        });
+        // Scadenze calcolate da contratti e fatture reali
+        let scadenzeScadute = [];
+        let scadenzeImminenti = [];
+        try {
+            const scadenzeCalcolate = await DataService.getScadenzeCompute({
+                contratti: contratti,
+                fatture: fatture
+            });
+            scadenzeScadute = scadenzeCalcolate.tutteLeScadenze.filter(s =>
+                s.dataScadenza && new Date(s.dataScadenza) < oggi
+            );
+            scadenzeImminenti = scadenzeCalcolate.tutteLeScadenze.filter(s => {
+                if (!s.dataScadenza) return false;
+                const ds = new Date(s.dataScadenza);
+                return ds >= oggi && ds <= tra30giorni;
+            });
+        } catch (e) { console.warn('Errore calcolo scadenze agente:', e); }
 
         // App attive
         const appAttive = app.filter(a => a.statoApp === 'ATTIVA');
@@ -1328,7 +1401,7 @@ const Dashboard = {
                     <h3 style="font-size: 1rem; font-weight: 700; color: var(--blu-700); margin-bottom: 1rem;">
                         <i class="fas fa-calendar-week"></i> Prossime Attività (7gg)
                     </h3>
-                    ${this.renderWidgetProssimeAttivita(scadenze)}
+                    ${this.renderWidgetProssimeAttivita([...scadenzeScadute, ...scadenzeImminenti])}
                 </div>
 
                 <!-- I MIEI TASK APERTI -->
@@ -1380,7 +1453,7 @@ const Dashboard = {
 
         const prossime = scadenze
             .filter(s => {
-                if (!s.dataScadenza || s.completata) return false;
+                if (!s.dataScadenza) return false;
                 const data = new Date(s.dataScadenza);
                 return data >= oggi && data <= tra7gg;
             })
@@ -1392,12 +1465,18 @@ const Dashboard = {
         }
 
         const tipoIcons = {
+            'CONTRATTO_RINNOVO': 'fas fa-sync-alt',
+            'FATTURA_EMISSIONE': 'fas fa-file-invoice',
+            'FATTURA_INCASSO': 'fas fa-euro-sign',
             'FATTURAZIONE': 'fas fa-file-invoice',
             'RINNOVO_CONTRATTO': 'fas fa-sync-alt',
             'PAGAMENTO': 'fas fa-euro-sign'
         };
 
         const tipoColors = {
+            'CONTRATTO_RINNOVO': '#3CA434',
+            'FATTURA_EMISSIONE': '#E67E22',
+            'FATTURA_INCASSO': '#D32F2F',
             'FATTURAZIONE': '#E67E22',
             'RINNOVO_CONTRATTO': '#3CA434',
             'PAGAMENTO': '#D32F2F'
@@ -1409,9 +1488,15 @@ const Dashboard = {
             const dataStr = DataService.formatDate(s.dataScadenza);
             const giorniMancanti = Math.ceil((new Date(s.dataScadenza) - oggi) / (1000 * 60 * 60 * 24));
 
+            // Navigazione corretta per tipo calcolato
+            let onclick = `UI.showPage('scadenzario')`;
+            if (s.tipo === 'CONTRATTO_RINNOVO') onclick = `UI.showPage('dettaglio-contratto', '${s.id}')`;
+            else if (s.tipo === 'FATTURA_INCASSO') onclick = `UI.showPage('dettaglio-fattura', '${s.id}')`;
+            else if (s.tipo === 'FATTURA_EMISSIONE' && s.contrattoId) onclick = `UI.showPage('dettaglio-contratto', '${s.contrattoId}')`;
+
             return `
                 <div style="display:flex;gap:0.75rem;align-items:center;padding:0.6rem;border-radius:8px;background:var(--grigio-100);margin-bottom:0.5rem;cursor:pointer;"
-                     onclick="UI.showPage('dettaglio-scadenza', '${s.id}')">
+                     onclick="${onclick}">
                     <i class="${icon}" style="color:${color};font-size:0.9rem;width:20px;text-align:center;"></i>
                     <div style="flex:1;min-width:0;">
                         <div style="font-size:0.85rem;font-weight:600;color:var(--grigio-900);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${s.clienteRagioneSociale || s.descrizione || s.tipo}</div>
@@ -1425,7 +1510,7 @@ const Dashboard = {
             `;
         }).join('');
 
-        const totaleScadenze7gg = scadenze.filter(s => s.dataScadenza && !s.completata && new Date(s.dataScadenza) >= oggi && new Date(s.dataScadenza) <= tra7gg).length;
+        const totaleScadenze7gg = scadenze.filter(s => s.dataScadenza && new Date(s.dataScadenza) >= oggi && new Date(s.dataScadenza) <= tra7gg).length;
         if (totaleScadenze7gg > 5) {
             html += `<div style="text-align:center;margin-top:0.5rem;"><a href="#" onclick="UI.showPage('scadenzario');return false;" style="font-size:0.8rem;color:var(--blu-500);text-decoration:none;">Vedi tutte (${totaleScadenze7gg}) →</a></div>`;
         }

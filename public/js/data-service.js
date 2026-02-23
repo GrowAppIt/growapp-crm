@@ -1073,9 +1073,14 @@ const DataService = {
         const scadenza = new Date(dataScadenza);
         const giorni = Math.ceil((scadenza - oggi) / (1000 * 60 * 60 * 24));
 
+        // Soglie da impostazioni di sistema
+        const _sys = SettingsService.getSystemSettingsSync();
+        const sogliaCritico = _sys.sogliaCritico || 7;
+        const sogliaImminente = _sys.sogliaImminente || 30;
+
         if (giorni < 0) return 'scaduto';
-        if (giorni <= 7) return 'critico';
-        if (giorni <= 30) return 'imminente';
+        if (giorni <= sogliaCritico) return 'critico';
+        if (giorni <= sogliaImminente) return 'imminente';
         return 'normale';
     },
 
@@ -1207,7 +1212,8 @@ const DataService = {
             const dataInizio = new Date(contratto.dataInizio);
             const dataScadenza = new Date(contratto.dataScadenza);
             const importoAnnuale = parseFloat(contratto.importoAnnuale) || 0;
-            const giorniPreavviso = parseInt(contratto.giorniPreavvisoRinnovo) || 60;
+            const _sysPreavviso = SettingsService.getSystemSettingsSync().giorniPreavvisoRinnovo || 60;
+            const giorniPreavviso = parseInt(contratto.giorniPreavvisoRinnovo) || _sysPreavviso;
 
             // === 1. SCADENZA RINNOVO CONTRATTO ===
             if (contratto.dataScadenza) {
@@ -1389,6 +1395,234 @@ const DataService = {
         } catch (error) {
             console.error('Errore marca scadenza completata:', error);
             throw error;
+        }
+    },
+
+    // =========================================================================
+    // SCADENZARIO CALCOLATO — Vista derivata da Contratti e Fatture
+    // =========================================================================
+
+    /**
+     * Calcola i periodi di fatturazione mancanti per contratti attivi.
+     * Per ogni contratto ATTIVO, genera i periodi previsti dalla periodicità
+     * e verifica se esiste già una fattura collegata per quel periodo.
+     *
+     * Il matching fatture avviene in 2 modi:
+     * 1) Per contrattoId (match diretto, preciso)
+     * 2) Fallback per clienteId + data emissione in finestra temporale
+     *    (per fatture storiche senza contrattoId)
+     */
+    calcolaFattureDaEmettere(contratti, fatture) {
+        const oggi = new Date();
+        oggi.setHours(0, 0, 0, 0);
+        // Limiti da impostazioni di sistema
+        const _sys = SettingsService.getSystemSettingsSync();
+        const limite = new Date(oggi);
+        limite.setDate(limite.getDate() + (_sys.giorniFuturoBilling || 90));
+        const result = [];
+
+        // Pre-indicizza fatture per clienteId per velocizzare il lookup
+        const fatturePerCliente = {};
+        for (const f of fatture) {
+            if (!f.clienteId) continue;
+            if (!fatturePerCliente[f.clienteId]) fatturePerCliente[f.clienteId] = [];
+            fatturePerCliente[f.clienteId].push(f);
+        }
+
+        // Pre-indicizza fatture per contrattoId
+        const fatturePerContratto = {};
+        for (const f of fatture) {
+            if (!f.contrattoId) continue;
+            if (!fatturePerContratto[f.contrattoId]) fatturePerContratto[f.contrattoId] = [];
+            fatturePerContratto[f.contrattoId].push(f);
+        }
+
+        const contrattiAttivi = contratti.filter(c => c.stato === 'ATTIVO' && c.periodicita && c.dataInizio);
+
+        for (const contratto of contrattiAttivi) {
+            // Salta UNA_TANTUM — non hanno periodicità ricorrente
+            if (contratto.periodicita === 'UNA_TANTUM') continue;
+
+            const dataInizio = new Date(contratto.dataInizio);
+            const dataScadenza = contratto.dataScadenza ? new Date(contratto.dataScadenza) : limite;
+            const importoAnnuale = parseFloat(contratto.importoAnnuale) || 0;
+            if (importoAnnuale <= 0) continue;
+
+            // Calcola periodi e intervallo
+            let numPeriodi = 1, intervalloMesi = 12;
+            switch (contratto.periodicita) {
+                case 'MENSILE':      numPeriodi = 12; intervalloMesi = 1; break;
+                case 'BIMENSILE':    numPeriodi = 6;  intervalloMesi = 2; break;
+                case 'TRIMESTRALE':  numPeriodi = 4;  intervalloMesi = 3; break;
+                case 'SEMESTRALE':   numPeriodi = 2;  intervalloMesi = 6; break;
+                case 'ANNUALE':      numPeriodi = 1;  intervalloMesi = 12; break;
+                case 'BIENNALE':     numPeriodi = 1;  intervalloMesi = 24; break;
+            }
+
+            const importoPerPeriodo = Math.round((importoAnnuale / numPeriodi) * 100) / 100;
+
+            // Raccogli TUTTE le fatture che possono corrispondere a questo contratto:
+            // 1) Fatture con contrattoId esplicito
+            const fattureDirecte = fatturePerContratto[contratto.id] || [];
+            // 2) Fatture dello stesso cliente SENZA contrattoId (match per data)
+            const fattureCliente = (fatturePerCliente[contratto.clienteId] || [])
+                .filter(f => !f.contrattoId); // Solo quelle senza contrattoId (evita doppi match)
+
+            const tutteLeFatture = [...fattureDirecte, ...fattureCliente];
+
+            // Genera solo i periodi dell'anno corrente e del prossimo
+            // (non tutto lo storico — quello è già fatturato)
+            const annoCorrente = oggi.getFullYear();
+            const annoInizio = Math.max(new Date(contratto.dataInizio).getFullYear(), annoCorrente - 1);
+            const annoFine = Math.min(dataScadenza.getFullYear(), annoCorrente + 1);
+
+            for (let anno = annoInizio; anno <= annoFine; anno++) {
+                for (let i = 0; i < numPeriodi; i++) {
+                    const dataFatturazione = new Date(dataInizio);
+
+                    // Per anni successivi al primo, partiamo dall'anniversario
+                    if (anno > dataInizio.getFullYear()) {
+                        dataFatturazione.setFullYear(anno);
+                        dataFatturazione.setMonth(dataInizio.getMonth());
+                        dataFatturazione.setDate(dataInizio.getDate());
+                    }
+
+                    const meseTarget = dataFatturazione.getMonth() + (intervalloMesi * i);
+                    dataFatturazione.setMonth(meseTarget);
+                    // Correggi fine mese (es. 31 gen → 28 feb)
+                    const giornoOriginale = new Date(dataInizio).getDate();
+                    if (dataFatturazione.getDate() !== giornoOriginale) {
+                        dataFatturazione.setDate(0);
+                    }
+
+                    // Deve essere nel range del contratto
+                    if (dataFatturazione > dataScadenza) break;
+                    // Mostra solo periodi fino a 90 giorni nel futuro
+                    if (dataFatturazione > limite) continue;
+                    // Salta periodi troppo vecchi (lookback da impostazioni)
+                    const lookbackDate = new Date(oggi);
+                    lookbackDate.setDate(lookbackDate.getDate() - (_sys.giorniLookbackStorico || 180));
+                    if (dataFatturazione < lookbackDate) continue;
+
+                    // Calcola finestra temporale per il matching (metà intervallo)
+                    // Es: MENSILE → ±15gg, TRIMESTRALE → ±45gg, ANNUALE → ±90gg
+                    const giorniFinestra = Math.max(Math.floor(intervalloMesi * 15), 20);
+                    const dataMin = new Date(dataFatturazione);
+                    dataMin.setDate(dataMin.getDate() - giorniFinestra);
+                    const dataMax = new Date(dataFatturazione);
+                    dataMax.setDate(dataMax.getDate() + giorniFinestra);
+
+                    // Verifica se esiste già una fattura per questo periodo
+                    const fatturaEsistente = tutteLeFatture.some(f => {
+                        const dataRef = f.dataEmissione || f.dataFattura || f.dataScadenza;
+                        if (!dataRef) return false;
+                        const de = new Date(dataRef);
+                        return de >= dataMin && de <= dataMax;
+                    });
+
+                    if (!fatturaEsistente) {
+                        const periodoLabel = this._getPeriodoLabel(contratto.periodicita, i + 1, numPeriodi);
+                        result.push({
+                            id: `emit_${contratto.id}_${anno}_${i}`,
+                            tipo: 'FATTURA_EMISSIONE',
+                            contrattoId: contratto.id,
+                            clienteId: contratto.clienteId,
+                            clienteRagioneSociale: contratto.clienteRagioneSociale || '',
+                            numeroContratto: contratto.numeroContratto || '',
+                            dataScadenza: dataFatturazione.toISOString(),
+                            importo: importoPerPeriodo,
+                            agente: contratto.agente || '',
+                            descrizione: `Fattura da emettere: ${periodoLabel} ${anno} — ${contratto.numeroContratto}`,
+                            isComputed: true
+                        });
+                    }
+                }
+            }
+        }
+
+        // Ordina per data
+        result.sort((a, b) => new Date(a.dataScadenza) - new Date(b.dataScadenza));
+        return result;
+    },
+
+    /**
+     * Calcola l'intero scadenzario da dati reali (contratti + fatture).
+     * Opzionale: filtra per agente.
+     */
+    async getScadenzeCompute(opzioni = {}) {
+        try {
+            let contratti, fatture;
+
+            if (opzioni.contratti && opzioni.fatture) {
+                // Dati già disponibili (es. da getDatiAgente)
+                contratti = opzioni.contratti;
+                fatture = opzioni.fatture;
+            } else {
+                // Carica tutto in parallelo
+                [contratti, fatture] = await Promise.all([
+                    this.getContratti(),
+                    this.getFatture({ limit: 5000 })
+                ]);
+            }
+
+            // Filtra per agente se richiesto
+            if (opzioni.agente) {
+                const datiAgente = await this.getDatiAgente(opzioni.agente);
+                const clienteIds = datiAgente.clienteIds;
+                contratti = contratti.filter(c => clienteIds.has(c.clienteId));
+                fatture = fatture.filter(f => clienteIds.has(f.clienteId));
+            }
+
+            const oggi = new Date();
+            const fra60 = new Date(oggi);
+            fra60.setDate(fra60.getDate() + 60);
+
+            // 1. Contratti da rinnovare (ATTIVI in scadenza entro 60 giorni)
+            const contrattiDaRinnovare = contratti
+                .filter(c => {
+                    if (c.stato !== 'ATTIVO' || !c.dataScadenza) return false;
+                    const ds = new Date(c.dataScadenza);
+                    return ds <= fra60;
+                })
+                .map(c => ({
+                    ...c,
+                    tipo: 'CONTRATTO_RINNOVO',
+                    descrizione: `Rinnovo contratto ${c.numeroContratto || ''}`,
+                    isComputed: true
+                }))
+                .sort((a, b) => new Date(a.dataScadenza) - new Date(b.dataScadenza));
+
+            // 2. Fatture da incassare (emesse ma non pagate)
+            const fattureDaIncassare = fatture
+                .filter(f => f.statoPagamento === 'NON_PAGATA' || f.statoPagamento === 'PARZIALMENTE_PAGATA')
+                .map(f => ({
+                    ...f,
+                    tipo: 'FATTURA_INCASSO',
+                    descrizione: `Fattura da incassare: ${f.numeroFatturaCompleto || f.numeroFattura || ''} — ${f.clienteRagioneSociale || ''}`,
+                    isComputed: true
+                }))
+                .sort((a, b) => new Date(a.dataScadenza || 0) - new Date(b.dataScadenza || 0));
+
+            // 3. Fatture da emettere (calcolate dai periodi contrattuali)
+            const fattureDaEmettere = this.calcolaFattureDaEmettere(contratti, fatture);
+
+            // Unione ordinata per urgenza
+            const tutteLeScadenze = [
+                ...contrattiDaRinnovare,
+                ...fattureDaIncassare,
+                ...fattureDaEmettere
+            ].sort((a, b) => new Date(a.dataScadenza || 0) - new Date(b.dataScadenza || 0));
+
+            return {
+                contrattiDaRinnovare,
+                fattureDaEmettere,
+                fattureDaIncassare,
+                tutteLeScadenze
+            };
+
+        } catch (error) {
+            console.error('Errore calcolo scadenzario:', error);
+            return { contrattiDaRinnovare: [], fattureDaEmettere: [], fattureDaIncassare: [], tutteLeScadenze: [] };
         }
     }
 };

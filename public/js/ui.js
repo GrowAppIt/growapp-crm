@@ -145,10 +145,12 @@ const UI = {
     // === COMPONENTI ===
     createKPICard(options) {
         const { icon, iconClass, label, value, onclick } = options;
-        const clickAttr = onclick ? `onclick="${onclick}"` : '';
+        // Escape HTML degli apici per evitare conflitti nell'attributo onclick
+        const clickAttr = onclick ? `onclick='${onclick.replace(/'/g, "&#39;")}'` : '';
+        const cursorStyle = onclick ? 'cursor:pointer;' : '';
 
         return `
-            <div class="kpi-card" ${clickAttr}>
+            <div class="kpi-card" style="${cursorStyle}" ${clickAttr}>
                 <div class="kpi-icon ${iconClass}">
                     <i class="fas fa-${icon}"></i>
                 </div>
@@ -162,7 +164,7 @@ const UI = {
 
     createListItem(options) {
         const { title, subtitle, badge, badgeClass, icon, onclick } = options;
-        const clickAttr = onclick ? `onclick="${onclick}"` : '';
+        const clickAttr = onclick ? `onclick='${onclick.replace(/'/g, "&#39;")}'` : '';
         const iconHTML = icon ? `<i class="fas fa-${icon}"></i>` : '';
         const badgeHTML = badge ? `<span class="badge ${badgeClass}">${badge}</span>` : '';
 

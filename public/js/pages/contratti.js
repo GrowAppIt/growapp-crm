@@ -8,6 +8,10 @@ const Contratti = {
         scadenza: '' // '', '30', '60', '90' giorni
     },
 
+    // Cache dati per evitare ri-fetch ad ogni filtro
+    _contrattiCache: null,
+    filterTimeout: null,
+
     async render() {
         UI.showLoading();
 
@@ -34,6 +38,9 @@ const Contratti = {
                 clienteRagioneSociale: clienti.find(cl => cl.id === c.clienteId || cl.clienteIdLegacy === c.clienteId)?.ragioneSociale || c.clienteRagioneSociale || 'Sconosciuto'
             }));
 
+            // Salva in cache per i filtri (evita ri-fetch)
+            this._contrattiCache = contrattiArricchiti;
+
             const mainContent = document.getElementById('mainContent');
             mainContent.innerHTML = `
                 <div class="page-header mb-3">
@@ -59,8 +66,7 @@ const Contratti = {
                     </div>
                 </div>
 
-                <!-- Avviso Contratti in Scadenza -->
-                ${this.renderAvvisoContrattiInScadenza(contrattiArricchiti)}
+                <!-- Avviso rimosso: le info sulle scadenze sono già nella dashboard KPI -->
 
                 <!-- Filtri -->
                 <div class="card mb-3">
@@ -289,12 +295,26 @@ const Contratti = {
     },
 
     applyFilters() {
-        this.filtri.search = document.getElementById('searchContratto')?.value || '';
-        this.filtri.stato = document.getElementById('filtroStato')?.value || '';
-        this.filtri.clienteId = document.getElementById('filtroCliente')?.value || '';
-        this.filtri.tipologia = document.getElementById('filtroTipologia')?.value || '';
-        this.filtri.scadenza = document.getElementById('filtroScadenza')?.value || '';
-        this.render();
+        clearTimeout(this.filterTimeout);
+        this.filterTimeout = setTimeout(() => {
+            this.filtri.search = document.getElementById('searchContratto')?.value || '';
+            this.filtri.stato = document.getElementById('filtroStato')?.value || '';
+            this.filtri.clienteId = document.getElementById('filtroCliente')?.value || '';
+            this.filtri.tipologia = document.getElementById('filtroTipologia')?.value || '';
+            this.filtri.scadenza = document.getElementById('filtroScadenza')?.value || '';
+
+            // Se non abbiamo cache, ricarica tutto
+            if (!this._contrattiCache) {
+                this.render();
+                return;
+            }
+
+            // Aggiorna solo la lista, senza ricostruire i filtri (preserva il focus)
+            const container = document.getElementById('contrattiListContainer');
+            if (container) {
+                container.innerHTML = this.renderContrattiList(this._contrattiCache);
+            }
+        }, 200);
     },
 
     async exportData() {

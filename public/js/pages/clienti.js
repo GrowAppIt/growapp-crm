@@ -49,48 +49,30 @@ const Clienti = {
                     </div>
                 </div>
 
-                <!-- Ricerca Documenti Globale -->
-                <div class="card" style="margin-bottom: 1.5rem;">
-                    <div class="card-header">
-                        <h3 style="margin: 0; font-weight: 700; color: var(--blu-700);">
-                            <i class="fas fa-search"></i> Ricerca Documenti Clienti
-                        </h3>
-                    </div>
-                    <div style="padding: 1.5rem;">
-                        <div style="position: relative; margin-bottom: 1rem;">
-                            <i class="fas fa-file-search" style="
-                                position: absolute;
-                                left: 1rem;
-                                top: 50%;
-                                transform: translateY(-50%);
-                                color: var(--grigio-500);
-                                font-size: 1.2rem;
-                            "></i>
-                            <input
-                                type="text"
-                                id="searchDocumentiGlobale"
-                                placeholder="🔍 Cerca in tutti i documenti clienti per descrizione o nome file..."
+                <!-- Ricerca Documenti Globale - Toggle compatto -->
+                <div style="margin-bottom: 1rem; display: flex; justify-content: flex-end;">
+                    <button class="btn btn-secondary btn-sm" onclick="Clienti.toggleSearchDocumenti()" id="btnToggleSearchDoc"
+                        style="font-size: 0.8rem; padding: 0.4rem 0.8rem; border-radius: 20px; background: var(--blu-100); color: var(--blu-700); border: 1px solid var(--blu-300);">
+                        <i class="fas fa-file-alt"></i> Cerca documenti
+                    </button>
+                </div>
+                <div id="searchDocumentiPanel" style="display: none; margin-bottom: 1rem;">
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                        <div style="flex: 1; position: relative;">
+                            <i class="fas fa-search" style="position: absolute; left: 0.75rem; top: 50%; transform: translateY(-50%); color: var(--grigio-500); font-size: 0.85rem;"></i>
+                            <input type="text" id="searchDocumentiGlobale"
+                                placeholder="Cerca in tutti i documenti clienti..."
                                 onkeyup="Clienti.searchDocumenti()"
-                                style="
-                                    width: 100%;
-                                    padding: 1rem 1rem 1rem 3rem;
-                                    border: 2px solid var(--grigio-300);
-                                    border-radius: 8px;
-                                    font-family: 'Titillium Web', sans-serif;
-                                    font-size: 1rem;
-                                    transition: all 0.2s;
-                                "
+                                style="width: 100%; padding: 0.6rem 0.6rem 0.6rem 2.2rem; border: 1px solid var(--grigio-300); border-radius: 8px; font-family: 'Titillium Web', sans-serif; font-size: 0.85rem;"
                                 onfocus="this.style.borderColor='var(--blu-500)'"
                                 onblur="this.style.borderColor='var(--grigio-300)'"
                             >
                         </div>
-                        <small style="color: var(--grigio-500);">
-                            <i class="fas fa-info-circle"></i> Digita per cercare in tutti i documenti caricati dai clienti
-                        </small>
-
-                        <!-- Risultati Ricerca -->
-                        <div id="documentiSearchResults" style="display: none; margin-top: 1.5rem;"></div>
+                        <button onclick="Clienti.toggleSearchDocumenti()" style="background: none; border: none; color: var(--grigio-500); cursor: pointer; padding: 0.4rem; font-size: 1rem;">
+                            <i class="fas fa-times"></i>
+                        </button>
                     </div>
+                    <div id="documentiSearchResults" style="display: none; margin-top: 0.75rem;"></div>
                 </div>
 
                 <!-- Filtri -->
@@ -332,6 +314,19 @@ const Clienti = {
             console.error('Errore eliminazione cliente:', error);
             UI.hideLoading();
             UI.showError('Errore nell\'eliminazione: ' + error.message);
+        }
+    },
+
+    toggleSearchDocumenti() {
+        const panel = document.getElementById('searchDocumentiPanel');
+        if (!panel) return;
+        const isVisible = panel.style.display !== 'none';
+        panel.style.display = isVisible ? 'none' : 'block';
+        if (!isVisible) {
+            const input = document.getElementById('searchDocumentiGlobale');
+            if (input) { input.value = ''; input.focus(); }
+            const results = document.getElementById('documentiSearchResults');
+            if (results) { results.style.display = 'none'; results.innerHTML = ''; }
         }
     },
 

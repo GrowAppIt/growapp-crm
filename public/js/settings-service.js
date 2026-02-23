@@ -134,13 +134,115 @@ const SettingsService = {
         localStorage.setItem(this.KEYS.COMPANY_DATA, JSON.stringify(data));
     },
 
-    // === SYSTEM SETTINGS ===
-    getSystemSettings() {
-        return {
-            notificheScadenze: 7, // giorni
-            ivaDefault: 22,
-            condizioniPagamento: '30 giorni data fattura',
-            formatoFattura: 'FAT{NUMERO}/2025'
-        };
+    // === SYSTEM SETTINGS (Firestore-backed) ===
+
+    // Cache locale per evitare letture ripetute
+    _systemSettingsCache: null,
+    _systemSettingsCacheTime: 0,
+    CACHE_TTL: 5 * 60 * 1000, // 5 minuti
+
+    // Valori di default — usati se Firestore non ha ancora nulla
+    SYSTEM_DEFAULTS: {
+        // --- Fatturazione ---
+        ivaDefault: 22,
+        metodoPagamentoDefault: 'BONIFICO',
+        condizionePagamentoDefault: 'ANTICIPATO',
+        formatoNumeroFattura: '{ANNO}/{NUM}/{TIPO}',   // {ANNO}, {NUM}, {TIPO}=PA|PR
+        paddingNumeroFattura: 3,                          // cifre: 001, 0001, etc.
+        prefissoNotaCredito: 'NC-',
+        annoContabile: new Date().getFullYear(),
+
+        // --- Contratti ---
+        prefissoNumeroContratto: 'CTR',
+        formatoNumeroContratto: '{PREF}-{ANNO}-{NUM}', // {PREF}, {ANNO}, {NUM}
+        paddingNumeroContratto: 3,
+        giorniPreavvisoRinnovo: 60,
+        durataContrattoDefault: 12,                      // mesi
+        periodicitaDefault: 'ANNUALE',
+        tipologiaContrattoDefault: 'SERVIZIO_APP',
+
+        // --- Soglie e notifiche ---
+        sogliaCritico: 7,                               // giorni
+        sogliaImminente: 30,                             // giorni
+        finestraContrattiDashboard: 60,                  // giorni
+        finestraFattureDashboard: 30,                    // giorni
+        giorniLookbackStorico: 180,                      // 6 mesi
+        giorniFuturoBilling: 90                          // limite futuro fatture da emettere
+    },
+
+    /**
+     * Carica le impostazioni di sistema da Firestore (con cache)
+     * Ritorna sempre un oggetto completo (defaults + override salvati)
+     */
+    async getSystemSettings() {
+        // Controlla cache
+        const now = Date.now();
+        if (this._systemSettingsCache && (now - this._systemSettingsCacheTime) < this.CACHE_TTL) {
+            return { ...this.SYSTEM_DEFAULTS, ...this._systemSettingsCache };
+        }
+
+        try {
+            const doc = await db.collection('settings').doc('system').get();
+            if (doc.exists) {
+                this._systemSettingsCache = doc.data();
+            } else {
+                this._systemSettingsCache = {};
+            }
+            this._systemSettingsCacheTime = now;
+        } catch (e) {
+            console.warn('Errore lettura impostazioni sistema:', e);
+            this._systemSettingsCache = this._systemSettingsCache || {};
+        }
+
+        return { ...this.SYSTEM_DEFAULTS, ...this._systemSettingsCache };
+    },
+
+    /**
+     * Versione sincrona che ritorna la cache (o i defaults se non ancora caricata)
+     * Usa questa nei form dove non puoi fare await
+     */
+    getSystemSettingsSync() {
+        if (this._systemSettingsCache) {
+            return { ...this.SYSTEM_DEFAULTS, ...this._systemSettingsCache };
+        }
+        return { ...this.SYSTEM_DEFAULTS };
+    },
+
+    /**
+     * Salva le impostazioni di sistema su Firestore
+     */
+    async saveSystemSettings(settings) {
+        try {
+            // Salva solo i campi che differiscono dai defaults
+            const toSave = {};
+            for (const [key, val] of Object.entries(settings)) {
+                if (this.SYSTEM_DEFAULTS[key] !== undefined) {
+                    toSave[key] = val;
+                }
+            }
+            await db.collection('settings').doc('system').set(toSave, { merge: true });
+            // Aggiorna cache
+            this._systemSettingsCache = toSave;
+            this._systemSettingsCacheTime = Date.now();
+            return true;
+        } catch (e) {
+            console.error('Errore salvataggio impostazioni sistema:', e);
+            throw e;
+        }
+    },
+
+    /**
+     * Precarica le impostazioni all'avvio dell'app (chiamare dopo auth)
+     */
+    async preloadSystemSettings() {
+        await this.getSystemSettings();
+    },
+
+    /**
+     * Invalida la cache (dopo un salvataggio esterno)
+     */
+    invalidateSystemSettingsCache() {
+        this._systemSettingsCache = null;
+        this._systemSettingsCacheTime = 0;
     }
 };

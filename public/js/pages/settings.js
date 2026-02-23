@@ -99,9 +99,25 @@ const Settings = {
 
                 <!-- Tab Content -->
                 <div id="settingsTabContent" class="fade-in">
-                    ${this.renderTabContent()}
+                    ${this.currentTab === 'sistema' ? '<div style="text-align:center;padding:2rem;"><i class="fas fa-spinner fa-spin"></i> Caricamento...</div>' : this.renderTabContent()}
                 </div>
             `;
+
+            // Se tab sistema, carica async e inietta
+            if (this.currentTab === 'sistema') {
+                const sistemaHtml = await this.renderSistemaTab();
+                const tabContainer = document.getElementById('settingsTabContent');
+                if (tabContainer) {
+                    tabContainer.innerHTML = sistemaHtml;
+                    this.aggiornaAnteprimeSistema();
+                    // Listener per aggiornare anteprime in tempo reale
+                    ['sys_formatoNumeroFattura','sys_paddingNumeroFattura','sys_annoContabile','sys_prefissoNotaCredito',
+                     'sys_formatoNumeroContratto','sys_paddingNumeroContratto','sys_prefissoNumeroContratto'].forEach(id => {
+                        const el = document.getElementById(id);
+                        if (el) el.addEventListener('input', () => this.aggiornaAnteprimeSistema());
+                    });
+                }
+            }
 
             UI.hideLoading();
         } catch (error) {
@@ -701,41 +717,251 @@ const Settings = {
         }
     },
 
-    renderSistemaTab() {
-        const settings = SettingsService.getSystemSettings();
+    async renderSistemaTab() {
+        const s = await SettingsService.getSystemSettings();
 
         return `
-            <div class="card">
-                <div class="card-header">
-                    <h3>Impostazioni Sistema</h3>
+            <div id="sistemaSettingsContainer">
+                <!-- FATTURAZIONE -->
+                <div class="card" style="margin-bottom: 1.5rem;">
+                    <div class="card-header" style="background: var(--blu-100);">
+                        <h3 style="margin: 0; color: var(--blu-700); font-size: 1rem;">
+                            <i class="fas fa-file-invoice-dollar"></i> Fatturazione
+                        </h3>
+                    </div>
+                    <div class="card-body" style="padding: 1.25rem;">
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem;">
+                            <div class="form-group">
+                                <label style="font-size: 0.8rem; font-weight: 600; color: var(--grigio-700);">IVA Predefinita (%)</label>
+                                <input type="number" id="sys_ivaDefault" value="${s.ivaDefault}" class="form-input" min="0" max="100" step="1" />
+                                <small style="color: var(--grigio-500);">Aliquota IVA precompilata nelle nuove fatture</small>
+                            </div>
+                            <div class="form-group">
+                                <label style="font-size: 0.8rem; font-weight: 600; color: var(--grigio-700);">Metodo Pagamento Predefinito</label>
+                                <select id="sys_metodoPagamentoDefault" class="form-input">
+                                    <option value="BONIFICO" ${s.metodoPagamentoDefault === 'BONIFICO' ? 'selected' : ''}>Bonifico Bancario</option>
+                                    <option value="CARTA" ${s.metodoPagamentoDefault === 'CARTA' ? 'selected' : ''}>Carta di Credito/Debito</option>
+                                    <option value="RIBA" ${s.metodoPagamentoDefault === 'RIBA' ? 'selected' : ''}>RiBa</option>
+                                    <option value="CONTANTI" ${s.metodoPagamentoDefault === 'CONTANTI' ? 'selected' : ''}>Contanti</option>
+                                    <option value="ASSEGNO" ${s.metodoPagamentoDefault === 'ASSEGNO' ? 'selected' : ''}>Assegno</option>
+                                    <option value="ALTRO" ${s.metodoPagamentoDefault === 'ALTRO' ? 'selected' : ''}>Altro</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label style="font-size: 0.8rem; font-weight: 600; color: var(--grigio-700);">Condizione Pagamento Predefinita</label>
+                                <select id="sys_condizionePagamentoDefault" class="form-input">
+                                    <option value="ANTICIPATO" ${s.condizionePagamentoDefault === 'ANTICIPATO' ? 'selected' : ''}>Anticipato</option>
+                                    <option value="POSTICIPATO" ${s.condizionePagamentoDefault === 'POSTICIPATO' ? 'selected' : ''}>Posticipato</option>
+                                    <option value="MENSILE" ${s.condizionePagamentoDefault === 'MENSILE' ? 'selected' : ''}>Mensile</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label style="font-size: 0.8rem; font-weight: 600; color: var(--grigio-700);">Anno Contabile</label>
+                                <input type="number" id="sys_annoContabile" value="${s.annoContabile}" class="form-input" min="2020" max="2040" />
+                            </div>
+                        </div>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--grigio-300);">
+                            <div class="form-group">
+                                <label style="font-size: 0.8rem; font-weight: 600; color: var(--grigio-700);">Formato Numero Fattura</label>
+                                <input type="text" id="sys_formatoNumeroFattura" value="${s.formatoNumeroFattura}" class="form-input" />
+                                <small style="color: var(--grigio-500);">Variabili: {ANNO}, {NUM}, {TIPO} (PA/PR)</small>
+                            </div>
+                            <div class="form-group">
+                                <label style="font-size: 0.8rem; font-weight: 600; color: var(--grigio-700);">Cifre Numero (padding)</label>
+                                <input type="number" id="sys_paddingNumeroFattura" value="${s.paddingNumeroFattura}" class="form-input" min="1" max="6" />
+                                <small style="color: var(--grigio-500);">Es: 3 → 001, 4 → 0001</small>
+                            </div>
+                            <div class="form-group">
+                                <label style="font-size: 0.8rem; font-weight: 600; color: var(--grigio-700);">Prefisso Nota di Credito</label>
+                                <input type="text" id="sys_prefissoNotaCredito" value="${s.prefissoNotaCredito}" class="form-input" />
+                            </div>
+                        </div>
+                        <div style="margin-top: 1rem; padding: 0.75rem; background: var(--grigio-100); border-radius: 8px;">
+                            <small style="color: var(--grigio-700);"><i class="fas fa-eye"></i> <strong>Anteprima:</strong>
+                                <span id="sys_anteprimaFattura" style="font-weight: 700; color: var(--blu-700);"></span>
+                            </small>
+                        </div>
+                    </div>
                 </div>
-                <div class="card-body">
-                    <div class="alert alert-info">
-                        <i class="fas fa-info-circle"></i>
-                        Le impostazioni di sistema saranno disponibili in una prossima versione
-                    </div>
 
-                    <div style="display: grid; gap: 1.5rem; opacity: 0.5; pointer-events: none;">
-                        <div class="form-group">
-                            <label>Notifiche Scadenze (giorni prima)</label>
-                            <input type="number" value="${settings.notificheScadenze}" class="form-input"/>
+                <!-- CONTRATTI -->
+                <div class="card" style="margin-bottom: 1.5rem;">
+                    <div class="card-header" style="background: var(--verde-100);">
+                        <h3 style="margin: 0; color: var(--verde-700); font-size: 1rem;">
+                            <i class="fas fa-file-contract"></i> Contratti
+                        </h3>
+                    </div>
+                    <div class="card-body" style="padding: 1.25rem;">
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem;">
+                            <div class="form-group">
+                                <label style="font-size: 0.8rem; font-weight: 600; color: var(--grigio-700);">Prefisso Numero Contratto</label>
+                                <input type="text" id="sys_prefissoNumeroContratto" value="${s.prefissoNumeroContratto}" class="form-input" />
+                                <small style="color: var(--grigio-500);">Es: CTR, CON, C</small>
+                            </div>
+                            <div class="form-group">
+                                <label style="font-size: 0.8rem; font-weight: 600; color: var(--grigio-700);">Formato Numero Contratto</label>
+                                <input type="text" id="sys_formatoNumeroContratto" value="${s.formatoNumeroContratto}" class="form-input" />
+                                <small style="color: var(--grigio-500);">Variabili: {PREF}, {ANNO}, {NUM}</small>
+                            </div>
+                            <div class="form-group">
+                                <label style="font-size: 0.8rem; font-weight: 600; color: var(--grigio-700);">Cifre Numero (padding)</label>
+                                <input type="number" id="sys_paddingNumeroContratto" value="${s.paddingNumeroContratto}" class="form-input" min="1" max="6" />
+                            </div>
                         </div>
-                        <div class="form-group">
-                            <label>IVA Predefinita (%)</label>
-                            <input type="number" value="${settings.ivaDefault}" class="form-input"/>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--grigio-300);">
+                            <div class="form-group">
+                                <label style="font-size: 0.8rem; font-weight: 600; color: var(--grigio-700);">Giorni Preavviso Rinnovo</label>
+                                <input type="number" id="sys_giorniPreavvisoRinnovo" value="${s.giorniPreavvisoRinnovo}" class="form-input" min="0" max="365" />
+                                <small style="color: var(--grigio-500);">Anticipo con cui segnalare il rinnovo</small>
+                            </div>
+                            <div class="form-group">
+                                <label style="font-size: 0.8rem; font-weight: 600; color: var(--grigio-700);">Durata Predefinita (mesi)</label>
+                                <input type="number" id="sys_durataContrattoDefault" value="${s.durataContrattoDefault}" class="form-input" min="1" max="120" />
+                            </div>
+                            <div class="form-group">
+                                <label style="font-size: 0.8rem; font-weight: 600; color: var(--grigio-700);">Periodicità Predefinita</label>
+                                <select id="sys_periodicitaDefault" class="form-input">
+                                    <option value="UNA_TANTUM" ${s.periodicitaDefault === 'UNA_TANTUM' ? 'selected' : ''}>Una Tantum</option>
+                                    <option value="MENSILE" ${s.periodicitaDefault === 'MENSILE' ? 'selected' : ''}>Mensile</option>
+                                    <option value="BIMENSILE" ${s.periodicitaDefault === 'BIMENSILE' ? 'selected' : ''}>Bimensile</option>
+                                    <option value="TRIMESTRALE" ${s.periodicitaDefault === 'TRIMESTRALE' ? 'selected' : ''}>Trimestrale</option>
+                                    <option value="SEMESTRALE" ${s.periodicitaDefault === 'SEMESTRALE' ? 'selected' : ''}>Semestrale</option>
+                                    <option value="ANNUALE" ${s.periodicitaDefault === 'ANNUALE' ? 'selected' : ''}>Annuale</option>
+                                    <option value="BIENNALE" ${s.periodicitaDefault === 'BIENNALE' ? 'selected' : ''}>Biennale</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label style="font-size: 0.8rem; font-weight: 600; color: var(--grigio-700);">Tipologia Predefinita</label>
+                                <select id="sys_tipologiaContrattoDefault" class="form-input">
+                                    <option value="SERVIZIO_APP" ${s.tipologiaContrattoDefault === 'SERVIZIO_APP' ? 'selected' : ''}>Servizio App</option>
+                                    <option value="MANUTENZIONE" ${s.tipologiaContrattoDefault === 'MANUTENZIONE' ? 'selected' : ''}>Manutenzione</option>
+                                    <option value="CONSULENZA" ${s.tipologiaContrattoDefault === 'CONSULENZA' ? 'selected' : ''}>Consulenza</option>
+                                    <option value="SERVIZI" ${s.tipologiaContrattoDefault === 'SERVIZI' ? 'selected' : ''}>Servizi</option>
+                                    <option value="ALTRO" ${s.tipologiaContrattoDefault === 'ALTRO' ? 'selected' : ''}>Altro</option>
+                                </select>
+                            </div>
                         </div>
-                        <div class="form-group">
-                            <label>Condizioni Pagamento Predefinite</label>
-                            <input type="text" value="${settings.condizioniPagamento}" class="form-input"/>
-                        </div>
-                        <div class="form-group">
-                            <label>Formato Numeri Fattura</label>
-                            <input type="text" value="${settings.formatoFattura}" class="form-input"/>
+                        <div style="margin-top: 1rem; padding: 0.75rem; background: var(--grigio-100); border-radius: 8px;">
+                            <small style="color: var(--grigio-700);"><i class="fas fa-eye"></i> <strong>Anteprima:</strong>
+                                <span id="sys_anteprimaContratto" style="font-weight: 700; color: var(--verde-700);"></span>
+                            </small>
                         </div>
                     </div>
+                </div>
+
+                <!-- SOGLIE E NOTIFICHE -->
+                <div class="card" style="margin-bottom: 1.5rem;">
+                    <div class="card-header" style="background: #FFF8E1;">
+                        <h3 style="margin: 0; color: #F57F17; font-size: 1rem;">
+                            <i class="fas fa-bell"></i> Soglie e Notifiche
+                        </h3>
+                    </div>
+                    <div class="card-body" style="padding: 1.25rem;">
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem;">
+                            <div class="form-group">
+                                <label style="font-size: 0.8rem; font-weight: 600; color: var(--grigio-700);">Soglia "Critico" (giorni)</label>
+                                <input type="number" id="sys_sogliaCritico" value="${s.sogliaCritico}" class="form-input" min="1" max="30" />
+                                <small style="color: var(--grigio-500);">Scadenze entro questi giorni = badge rosso</small>
+                            </div>
+                            <div class="form-group">
+                                <label style="font-size: 0.8rem; font-weight: 600; color: var(--grigio-700);">Soglia "Imminente" (giorni)</label>
+                                <input type="number" id="sys_sogliaImminente" value="${s.sogliaImminente}" class="form-input" min="1" max="90" />
+                                <small style="color: var(--grigio-500);">Scadenze entro questi giorni = badge giallo</small>
+                            </div>
+                            <div class="form-group">
+                                <label style="font-size: 0.8rem; font-weight: 600; color: var(--grigio-700);">Finestra Contratti Dashboard (gg)</label>
+                                <input type="number" id="sys_finestraContrattiDashboard" value="${s.finestraContrattiDashboard}" class="form-input" min="7" max="365" />
+                                <small style="color: var(--grigio-500);">Contratti in scadenza mostrati in dashboard</small>
+                            </div>
+                            <div class="form-group">
+                                <label style="font-size: 0.8rem; font-weight: 600; color: var(--grigio-700);">Finestra Fatture Dashboard (gg)</label>
+                                <input type="number" id="sys_finestraFattureDashboard" value="${s.finestraFattureDashboard}" class="form-input" min="7" max="365" />
+                                <small style="color: var(--grigio-500);">Fatture in scadenza mostrate in dashboard</small>
+                            </div>
+                            <div class="form-group">
+                                <label style="font-size: 0.8rem; font-weight: 600; color: var(--grigio-700);">Lookback Storico (gg)</label>
+                                <input type="number" id="sys_giorniLookbackStorico" value="${s.giorniLookbackStorico}" class="form-input" min="30" max="730" />
+                                <small style="color: var(--grigio-500);">Quanto indietro guardare per le fatture da emettere</small>
+                            </div>
+                            <div class="form-group">
+                                <label style="font-size: 0.8rem; font-weight: 600; color: var(--grigio-700);">Limite Futuro Billing (gg)</label>
+                                <input type="number" id="sys_giorniFuturoBilling" value="${s.giorniFuturoBilling}" class="form-input" min="30" max="365" />
+                                <small style="color: var(--grigio-500);">Quanto avanti calcolare le fatture da emettere</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- PULSANTE SALVA -->
+                <div style="display: flex; gap: 1rem; justify-content: flex-end; align-items: center;">
+                    <span id="sys_saveStatus" style="color: var(--verde-700); font-weight: 600; display: none;">
+                        <i class="fas fa-check-circle"></i> Salvato!
+                    </span>
+                    <button class="btn btn-primary" onclick="Settings.salvaImpostazioniSistema()" style="padding: 0.75rem 2rem;">
+                        <i class="fas fa-save"></i> Salva Impostazioni
+                    </button>
                 </div>
             </div>
         `;
+    },
+
+    // Aggiorna anteprime formato numeri (chiamata dopo render)
+    aggiornaAnteprimeSistema() {
+        const fmt = document.getElementById('sys_formatoNumeroFattura')?.value || '{ANNO}/{NUM}/{TIPO}';
+        const pad = parseInt(document.getElementById('sys_paddingNumeroFattura')?.value) || 3;
+        const anno = document.getElementById('sys_annoContabile')?.value || new Date().getFullYear();
+        const numDemo = '1'.padStart(pad, '0');
+        const preview = fmt.replace('{ANNO}', anno).replace('{NUM}', numDemo).replace('{TIPO}', 'PA');
+        const el = document.getElementById('sys_anteprimaFattura');
+        if (el) el.textContent = preview + '  |  NC: ' + (document.getElementById('sys_prefissoNotaCredito')?.value || 'NC-') + preview;
+
+        const fmtC = document.getElementById('sys_formatoNumeroContratto')?.value || '{PREF}-{ANNO}-{NUM}';
+        const padC = parseInt(document.getElementById('sys_paddingNumeroContratto')?.value) || 3;
+        const pref = document.getElementById('sys_prefissoNumeroContratto')?.value || 'CTR';
+        const numDemoC = '1'.padStart(padC, '0');
+        const previewC = fmtC.replace('{PREF}', pref).replace('{ANNO}', anno).replace('{NUM}', numDemoC);
+        const elC = document.getElementById('sys_anteprimaContratto');
+        if (elC) elC.textContent = previewC;
+    },
+
+    async salvaImpostazioniSistema() {
+        const getValue = (id) => document.getElementById(id)?.value;
+        const getNum = (id) => parseInt(document.getElementById(id)?.value) || 0;
+
+        const settings = {
+            ivaDefault: getNum('sys_ivaDefault'),
+            metodoPagamentoDefault: getValue('sys_metodoPagamentoDefault'),
+            condizionePagamentoDefault: getValue('sys_condizionePagamentoDefault'),
+            annoContabile: getNum('sys_annoContabile'),
+            formatoNumeroFattura: getValue('sys_formatoNumeroFattura'),
+            paddingNumeroFattura: getNum('sys_paddingNumeroFattura'),
+            prefissoNotaCredito: getValue('sys_prefissoNotaCredito'),
+            prefissoNumeroContratto: getValue('sys_prefissoNumeroContratto'),
+            formatoNumeroContratto: getValue('sys_formatoNumeroContratto'),
+            paddingNumeroContratto: getNum('sys_paddingNumeroContratto'),
+            giorniPreavvisoRinnovo: getNum('sys_giorniPreavvisoRinnovo'),
+            durataContrattoDefault: getNum('sys_durataContrattoDefault'),
+            periodicitaDefault: getValue('sys_periodicitaDefault'),
+            tipologiaContrattoDefault: getValue('sys_tipologiaContrattoDefault'),
+            sogliaCritico: getNum('sys_sogliaCritico'),
+            sogliaImminente: getNum('sys_sogliaImminente'),
+            finestraContrattiDashboard: getNum('sys_finestraContrattiDashboard'),
+            finestraFattureDashboard: getNum('sys_finestraFattureDashboard'),
+            giorniLookbackStorico: getNum('sys_giorniLookbackStorico'),
+            giorniFuturoBilling: getNum('sys_giorniFuturoBilling')
+        };
+
+        try {
+            await SettingsService.saveSystemSettings(settings);
+            const statusEl = document.getElementById('sys_saveStatus');
+            if (statusEl) {
+                statusEl.style.display = 'inline';
+                setTimeout(() => { statusEl.style.display = 'none'; }, 3000);
+            }
+            UI.showSuccess('Impostazioni di sistema salvate correttamente');
+        } catch (e) {
+            UI.showError('Errore nel salvataggio: ' + e.message);
+        }
     },
 
     renderDatiTab() {
@@ -2087,6 +2313,8 @@ const Settings = {
         }
 
         await this.render();
+
+        // Se tab sistema, le anteprime sono già gestite in render()
 
         // Se tab dati, carica statistiche
         if (tab === 'dati') {

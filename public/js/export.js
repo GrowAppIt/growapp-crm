@@ -429,7 +429,10 @@ const ExportManager = {
         const labels = {
             'PAGAMENTO': 'Pagamento',
             'FATTURAZIONE': 'Fatturazione',
-            'RINNOVO_CONTRATTO': 'Rinnovo Contratto'
+            'RINNOVO_CONTRATTO': 'Rinnovo Contratto',
+            'CONTRATTO_RINNOVO': 'Rinnovo Contratto',
+            'FATTURA_INCASSO': 'Fattura da Incassare',
+            'FATTURA_EMISSIONE': 'Fattura da Emettere'
         };
         return labels[tipo] || tipo;
     },

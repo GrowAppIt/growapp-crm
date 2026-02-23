@@ -137,6 +137,11 @@ const App = {
         // Filtra menu in base ai permessi dell'utente
         UI.initializeMenuByPermissions();
 
+        // Precarica impostazioni di sistema (Firestore → cache locale)
+        SettingsService.preloadSystemSettings().catch(e =>
+            console.warn('Preload impostazioni fallito:', e)
+        );
+
         // Inizializza sistema notifiche
         NotificationUI.init();
 

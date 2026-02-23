@@ -1302,7 +1302,6 @@
             </div>
           </div>
           <div class="header-actions">
-            <div class="user-info" id="userInfo"></div>
             <button class="btn btn-toggle" id="filtersBtn">
               <i class="fa-solid fa-sliders"></i>
               <span>Filtri</span>
@@ -1393,40 +1392,30 @@
               </select>
             </div>
 
-            <div class="filter-group">
-              <label class="filter-label">
-                <i class="fa-solid fa-toggle-on"></i>
-                Filtri visualizzazione
-              </label>
-              <div class="filter-checks">
-                <div class="check-item">
-                  <input type="checkbox" id="showRead">
-                  <label for="showRead">Mostra già letti</label>
-                </div>
-                <div class="check-item">
-                  <input type="checkbox" id="showAssigned">
-                  <label for="showAssigned">Mostra già assegnati</label>
-                </div>
-                <div class="check-item">
-                  <input type="checkbox" id="last48h">
-                  <label for="last48h">Solo ultime 48h</label>
-                </div>
-              </div>
-            </div>
           </div>
-
-          <div class="filters-actions">
-            <button class="btn btn-secondary" id="manageFeedsBtn">
-              <i class="fa-solid fa-rss"></i>
-              Gestisci Feed RSS
+          <!-- Riga unica: checkbox + azioni, fuori dalla griglia -->
+          <div style="display:flex; flex-wrap:wrap; align-items:center; gap:10px; padding:0 16px 16px;">
+            <div class="check-item">
+              <input type="checkbox" id="showRead">
+              <label for="showRead">Mostra già letti</label>
+            </div>
+            <div class="check-item">
+              <input type="checkbox" id="showAssigned">
+              <label for="showAssigned">Mostra già assegnati</label>
+            </div>
+            <div class="check-item">
+              <input type="checkbox" id="last48h">
+              <label for="last48h">Solo ultime 48h</label>
+            </div>
+            <div style="flex:1;"></div>
+            <button class="btn btn-secondary" id="manageFeedsBtn" style="font-size:12px; padding:7px 10px; white-space:nowrap;">
+              <i class="fa-solid fa-rss"></i> Feed
             </button>
-            <button class="btn btn-secondary" id="markAllReadBtn">
-              <i class="fa-solid fa-check-double"></i>
-              Segna tutte lette
+            <button class="btn btn-secondary" id="markAllReadBtn" style="font-size:12px; padding:7px 10px; white-space:nowrap;">
+              <i class="fa-solid fa-check-double"></i> Lette
             </button>
-            <button class="btn btn-secondary" id="resetFiltersBtn">
-              <i class="fa-solid fa-rotate-left"></i>
-              Reset filtri
+            <button class="btn btn-secondary" id="resetFiltersBtn" style="font-size:12px; padding:7px 10px; white-space:nowrap;">
+              <i class="fa-solid fa-rotate-left"></i> Reset
             </button>
           </div>
         </div>
@@ -1562,6 +1551,8 @@
     </div>
   </div>
 
+  <!-- Modale ricarica massiva rimossa (caricamento completato) -->
+
   <div class="modal-overlay" id="statusModal">
     <div class="modal-box">
       <div class="modal-header">
@@ -1657,23 +1648,6 @@
         const logoutBtn = $('logoutBtn');
         if (logoutBtn) logoutBtn.style.display = 'none';
 
-        // Aggiorna info utente nell'header
-        const userInfo = $('userInfo');
-        if (userInfo) {
-          if (window.currentUser.photoURL) {
-            userInfo.innerHTML = `
-              <img src="${window.currentUser.photoURL}" alt="${window.currentUser.displayName}" class="user-avatar">
-              <span class="user-name">${window.currentUser.displayName}</span>
-            `;
-          } else {
-            const initials = window.currentUser.displayName.split(' ').map(n => n[0]).join('').toUpperCase();
-            userInfo.innerHTML = `
-              <div style="width:32px;height:32px;border-radius:50%;background:var(--primary);color:#fff;display:grid;place-items:center;font-weight:700;font-size:13px;">${initials}</div>
-              <span class="user-name">${window.currentUser.displayName}</span>
-            `;
-          }
-        }
-
         console.log('[Monitor RSS] Connesso al CRM come:', window.currentUser.displayName);
         return true;
 
@@ -1736,7 +1710,6 @@
       { name: "Longobucco", url: "https://rss.app/feeds/gmTyrMe33Bp7AyF7.xml" },
       { name: "Maruggio", url: "https://rss.app/feeds/CrZgJp0XDKDdXnXx.xml" },
       { name: "Mezzolombardo", url: "https://rss.app/feeds/NwOlinNmfo5BWF8Q.xml" },
-      { name: "Milazzo", url: "https://rss.app/feeds/McLzrOboDdxoy9y8.xml" },
       { name: "Montelepre Sindaco", url: "https://rss.app/feeds/Fp46TMgrJkK8oY9u.xml" },
       { name: "Montelepre Comune", url: "https://rss.app/feeds/ZUxNn4UoPwJjMHf6.xml" },
       { name: "Montepaone Sindaco", url: "https://rss.app/feeds/IT3sMk2frPJFRRyu.xml" },
@@ -1789,7 +1762,66 @@
       { name: "Vezzano Ligure", url: "https://rss.app/feeds/Fg5TmeilyBI0AlaV.xml" },
       { name: "Villa San Giovanni", url: "https://rss.app/feeds/wk2WeX7TABQmS7Rj.xml" },
       { name: "Villarosa", url: "https://rss.app/feeds/DdqqjTcv50215iHK.xml" },
-      { name: "Villarosa Social News", url: "https://rss.app/feeds/R1SXkTORnWgVIhpQ.xml" }
+      { name: "Villarosa Social News", url: "https://rss.app/feeds/R1SXkTORnWgVIhpQ.xml" },
+      { name: "Cefalù", url: "https://rss.app/feeds/ADZ34kUfvVq9NO3R.xml" },
+      { name: "Cefalù impegno Comune", url: "https://rss.app/feeds/I9W2Rf0eSvc1ozIJ.xml" },
+      { name: "Ficarra", url: "https://rss.app/feeds/QzsQIqsrpTcgccx8.xml" },
+      { name: "Golfo Aranci Sindaco", url: "https://rss.app/feeds/R4zfflc0EqCPHjLN.xml" },
+      { name: "Militello in Val di Catania", url: "https://rss.app/feeds/Ab3fKBT9UrhyUED3.xml" },
+      { name: "Provincia di Salerno", url: "https://rss.app/feeds/hGuYcsPi07Ia99TA.xml" },
+      { name: "Sant'Agata li Battiati Sindaco", url: "https://rss.app/feeds/dXl42qMFKk0t3Wx6.xml" },
+      { name: "Sant'Alessio Siculo Turismo cultura", url: "https://rss.app/feeds/htWjAGJt3KITuIL3.xml" },
+      { name: "Sortino Facebook", url: "https://rss.app/feeds/sAyrEptUSS5IvNTO.xml" },
+      { name: "Sortino News", url: "https://rss.app/feeds/rl9cKz47oUa7s9lc.xml" },
+      { name: "Cammarata Cultura", url: "https://rss.app/feeds/ixydChm0vTeVGYyD.xml" },
+      { name: "Castroreale sindaco", url: "https://rss.app/feeds/Ax1rk4RXZANpSrIc.xml" },
+      { name: "Comano", url: "https://rss.app/feeds/OMTePf5OKR3Zj08p.xml" },
+      { name: "Enna sindaco", url: "https://rss.app/feeds/MUnKJUxMm9qd8sEO.xml" },
+      { name: "Golfo Aranci novità", url: "https://rss.app/feeds/4yfeARaajGwxVn7N.xml" },
+      { name: "Lappano comune", url: "https://rss.app/feeds/te6wncLlEA55OUKS.xml" },
+      { name: "Licata sindaco", url: "https://rss.app/feeds/u9HY3ZqP7eI2y5Za.xml" },
+      { name: "Locri A.C. 1909", url: "https://rss.app/feeds/ebjGpCPVruRZucXX.xml" },
+      { name: "Milazzo in comune", url: "https://rss.app/feeds/McLzrOboDdxoy9y8.xml" },
+      { name: "Palma di Montechiaro", url: "https://rss.app/feeds/iDrvKYNprKzUgioc.xml" },
+      { name: "Partinico", url: "https://rss.app/feeds/I2mP8eaw4HO0HwMb.xml" },
+      { name: "Partinico differenziata", url: "https://rss.app/feeds/LdSePf9QBKjb7g2F.xml" },
+      { name: "Petralia Sottana Grifo eventi", url: "https://rss.app/feeds/MynJAyTtOhZBGIYm.xml" },
+      { name: "Polistena comune", url: "https://rss.app/feeds/Rhd7HpUDg18n9Wsh.xml" },
+      { name: "Polistena Sindaco", url: "https://rss.app/feeds/xMNJ17EuXexo1AES.xml" },
+      { name: "Provincia di Salerno", url: "https://rss.app/feeds/T4IFnP7HxBi2qZVR.xml" },
+      { name: "Racalmuto sindaco", url: "https://rss.app/feeds/wOCtXeE8qSEB4Hao.xml" },
+      { name: "Rutigliano biblioteca", url: "https://rss.app/feeds/VfgBzU35qg3wd2Zn.xml" },
+      { name: "San Fili Calabria Maceri", url: "https://rss.app/feeds/4x1y0Lt1r22K0Kut.xml" },
+      { name: "San Gregorio Magno Baccanalia", url: "https://rss.app/feeds/pIKEbRJhAXfKDHnA.xml" },
+      { name: "Santa Teresa di Riva", url: "https://rss.app/feeds/gbIvivwqxoeJoOQ2.xml" },
+      { name: "Santa Teresa di Riva eventi", url: "https://rss.app/feeds/QDjJhFiOPzdeshPa.xml" },
+      { name: "Santa Teresa di Riva sindaco", url: "https://rss.app/feeds/tXu0XA1F3rIh5BbV.xml" },
+      { name: "Santo Stefano Ticino comune", url: "https://rss.app/feeds/XjGFGJuoKg3sgi1y.xml" },
+      { name: "Aci Sant'Antonio Canale", url: "https://rss.app/feeds/6t00RipY6GCUsgDz.xml" },
+      { name: "Barrafranca News", url: "https://rss.app/feeds/SvuD8qXGCXGLIaSi.xml" },
+      { name: "Calovero fb", url: "https://rss.app/feeds/jE9bkio2sJJHqAnb.xml" },
+      { name: "Candela Comune", url: "https://rss.app/feeds/SP0E2pax0cuWnGRf.xml" },
+      { name: "Catania fb", url: "https://rss.app/feeds/js4uCfXE0bsLqOBT.xml" },
+      { name: "Catania news flash", url: "https://rss.app/feeds/XfZLb1535BiKb8GL.xml" },
+      { name: "Catania Sindaco", url: "https://rss.app/feeds/OQB28aI6zV9iya4S.xml" },
+      { name: "Cropalati fb", url: "https://rss.app/feeds/6z3E3LBea5y5UoTy.xml" },
+      { name: "Francavilla Fontana Settimana Santa", url: "https://rss.app/feeds/9Wre4Uqojnhv28y0.xml" },
+      { name: "Gioiosa Marea sito", url: "https://rss.app/feeds/8mlqKVdtBwKqyHMC.xml" },
+      { name: "Locri Cinema", url: "https://rss.app/feeds/Ca2GhWEoH7Sz0anm.xml" },
+      { name: "Lucera Sindaco", url: "https://rss.app/feeds/ufVf3EUpZDTpXiVm.xml" },
+      { name: "Maruggio Biblioteca", url: "https://rss.app/feeds/xdOcJ2DTTXUFk44I.xml" },
+      { name: "Maruggio Sindaco", url: "https://rss.app/feeds/x3yjZ9qmlO7EICF6.xml" },
+      { name: "Militello Val Catania fb", url: "https://rss.app/feeds/J0V0oWckDFXOADOE.xml" },
+      { name: "Nichelino fb", url: "https://rss.app/feeds/GfulYmTO9eSPVTUD.xml" },
+      { name: "Nocera Inferiore Biblioteca", url: "https://rss.app/feeds/fbIQ4uJZ1Q7WXnou.xml" },
+      { name: "Noventa Vicentina sito", url: "https://rss.app/feeds/eqIuC1J4uYWRwuxQ.xml" },
+      { name: "Pietrapaola fb", url: "https://rss.app/feeds/LPZyDkTHPSXznXT4.xml" },
+      { name: "Polistena Sito", url: "https://rss.app/feeds/dAfyNrCUk7n7bGBS.xml" },
+      { name: "Santa Giustina prot civ", url: "https://rss.app/feeds/iFEWnLRtzILbDaeH.xml" },
+      { name: "Termini Imerese serv. Sociali", url: "https://rss.app/feeds/8L2MwqDa6Bnt4Ej9.xml" },
+      { name: "Termini Imerese Sindaco", url: "https://rss.app/feeds/BrpyFhAeuSFDJHQU.xml" },
+      { name: "Valguarnera Biblioteca", url: "https://rss.app/feeds/EXNRhTJ8Hw131XCX.xml" },
+      { name: "Lesa sito istituzionale", url: "https://rss.app/feeds/lAC4ctmzP5HDnmnm.xml" }
     ];
 
     /******************************************************************
@@ -1840,6 +1872,83 @@
       }
       console.log(`${INITIAL_FEEDS.length} feed caricati con successo!`);
       return true;
+    }
+
+    /**
+     * Svuota TUTTI i feed da Firestore e ricarica dall'array INITIAL_FEEDS.
+     * Usare solo per riallineare il database con l'elenco aggiornato.
+     */
+    function reloadAllFeeds() {
+      // Mostra modale di conferma (no confirm() perché siamo in iframe sandboxed)
+      const modal = $('confirmReloadModal');
+      $('confirmReloadMsg').textContent =
+        `Stai per cancellare TUTTI i feed esistenti e ricaricare i ${INITIAL_FEEDS.length} feed predefiniti. Sei sicuro?`;
+      modal.classList.add('show');
+    }
+
+    async function executeReloadAllFeeds() {
+      $('confirmReloadModal').classList.remove('show');
+
+      const btn = $('reloadAllFeedsBtn');
+      const originalHTML = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Eliminazione in corso...';
+
+      try {
+        // 1) Elimina tutti i feed esistenti
+        const snapshot = await crmDb.collection('rss_feeds').get();
+        if (snapshot.size > 0) {
+          const deleteChunks = [];
+          const allDocs = snapshot.docs;
+          for (let i = 0; i < allDocs.length; i += 450) {
+            deleteChunks.push(allDocs.slice(i, i + 450));
+          }
+          for (const chunk of deleteChunks) {
+            const batch = crmDb.batch();
+            chunk.forEach(doc => batch.delete(doc.ref));
+            await batch.commit();
+          }
+          console.log(`Eliminati ${snapshot.size} feed esistenti`);
+        }
+
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Caricamento feed...';
+
+        // 2) Ricarica tutti i feed dall'array INITIAL_FEEDS
+        const insertChunks = [];
+        for (let i = 0; i < INITIAL_FEEDS.length; i += 450) {
+          insertChunks.push(INITIAL_FEEDS.slice(i, i + 450));
+        }
+        for (const chunk of insertChunks) {
+          const batch = crmDb.batch();
+          for (const feed of chunk) {
+            const docRef = crmDb.collection('rss_feeds').doc();
+            batch.set(docRef, purify({
+              name: feed.name,
+              url: feed.url,
+              addedBy: window.currentUser.email,
+              addedByName: window.currentUser.displayName,
+              addedAt: Date.now()
+            }));
+          }
+          await batch.commit();
+        }
+
+        showNotification(`Completato! ${INITIAL_FEEDS.length} feed caricati con successo.`);
+
+        // Aggiorna la lista nel modale
+        await renderFeedsList();
+        // Ricarica anche le notizie
+        await loadAllFeeds();
+
+        return true;
+      } catch (err) {
+        console.error('Errore durante la ricarica feed:', err);
+        showNotification('Errore durante la ricarica: ' + err.message, true);
+        return false;
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalHTML;
+      }
     }
 
     async function addFeed(name, url) {
@@ -2028,6 +2137,11 @@
 
         const dateObj = pub ? new Date(pub) : null;
         const ts = dateObj && !isNaN(dateObj.getTime()) ? dateObj.getTime() : 0;
+
+        // Valida URL immagine: scarta relativi (../), senza protocollo, o data:
+        if (image && !image.startsWith("http://") && !image.startsWith("https://")) {
+          image = "";
+        }
 
         out.push({
           feedName,
@@ -2953,6 +3067,8 @@
         // Ricarica i feed
         await loadAllFeeds();
       });
+
+      // Ricarica massiva rimossa (caricamento completato)
 
       const filtersToggle = $("filtersToggle");
       const filtersContent = $("filtersContent");
