@@ -277,7 +277,8 @@ const MonitorRSS = {
             error.style.display = 'flex';
         };
 
-        iframe.src = this.RSS_WEBAPP_URL;
+        // Cache-buster: aggiunge timestamp per forzare il reload del file
+        iframe.src = this.RSS_WEBAPP_URL + '?v=' + Date.now();
     },
 
     retryLoad() {

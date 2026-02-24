@@ -594,6 +594,53 @@
       -webkit-box-orient: vertical;
       overflow: hidden;
       word-break: break-word;
+      transition: all 0.3s ease;
+    }
+    .news-item.expanded{
+      border-left-width: 5px;
+      box-shadow: 0 6px 24px rgba(20,82,132,.1);
+    }
+    .news-item.expanded .news-text{
+      -webkit-line-clamp: unset;
+      display: block;
+    }
+    .news-expand-hint{
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--primary);
+      margin-top: 10px;
+      padding: 5px 12px;
+      background: var(--primary-bg);
+      border: 1px solid var(--primary-light);
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .news-expand-hint:hover{
+      background: var(--primary);
+      color: #fff;
+      border-color: var(--primary);
+    }
+    .news-expand-hint i{
+      font-size: 10px;
+    }
+    .news-item.expanded .news-expand-hint .expand-label{
+      display: none;
+    }
+    .news-item:not(.expanded) .news-expand-hint .collapse-label{
+      display: none;
+    }
+    .news-action-btn.open-link{
+      color: var(--primary);
+      border-color: var(--primary);
+      background: var(--primary-bg);
+    }
+    .news-action-btn.open-link:hover{
+      background: var(--primary);
+      color: #fff;
     }
     .news-actions{
       display:flex;
@@ -1605,6 +1652,27 @@
     window.statusMap = {};
     window.autoRefreshTimer = null;
 
+    // Cache locale per evitare query Firestore ad ogni cambio filtro
+    let _cachedReadSet = null;       // Set di ID letti
+    let _cachedAssignments = null;   // Map id → assignment data
+
+    async function refreshReadCache() {
+      _cachedReadSet = await getUserReadItems();
+      return _cachedReadSet;
+    }
+    async function refreshAssignmentsCache() {
+      _cachedAssignments = await getAllAssignments();
+      return _cachedAssignments;
+    }
+    function getCachedReadSet() { return _cachedReadSet; }
+    function getCachedAssignments() { return _cachedAssignments; }
+    function addToReadCache(id) {
+      if (_cachedReadSet) _cachedReadSet.add(id);
+    }
+    function addToAssignmentsCache(id, data) {
+      if (_cachedAssignments) _cachedAssignments[id] = data;
+    }
+
     const $ = (id) => document.getElementById(id);
 
     /******************************************************************
@@ -2284,7 +2352,9 @@
       }
 
       window.allFeeds = feeds;
-      const readSet = await getUserReadItems();
+      // Refresh cache read/assignments all'inizio del caricamento
+      const readSet = await refreshReadCache();
+      await refreshAssignmentsCache();
       const statusMap = {};
 
       $('progressFill').style.width = "0%";
@@ -2408,8 +2478,9 @@
       // Filtro data: mostra solo notizie dal 1° gennaio 2026 in poi
       const jan1st2026 = new Date('2026-01-01T00:00:00').getTime();
 
-      const readSet = await getUserReadItems();
-      const assignments = await getAllAssignments();
+      // Usa cache locale — evita query Firestore ad ogni cambio filtro
+      const readSet = getCachedReadSet() || await refreshReadCache();
+      const assignments = getCachedAssignments() || await refreshAssignmentsCache();
 
       let filtered = items.filter(it => {
         const id = stableId(it);
@@ -2471,8 +2542,12 @@
         if (assignment) row.classList.add("assigned");
 
         row.addEventListener("click", (e) => {
-          if (!e.target.closest('.news-action-btn') && !e.target.closest('.news-badge-close')) {
-            window.open(it.link, "_blank");
+          if (!e.target.closest('.news-action-btn') && !e.target.closest('.news-badge-close') && !e.target.closest('.news-assignment-info') && !e.target.closest('.news-expand-hint')) {
+            const isExpanded = row.classList.toggle('expanded');
+            const textEl = row.querySelector('.news-text');
+            if (textEl) {
+              textEl.innerHTML = formatNewsText(isExpanded ? textEl.getAttribute('data-long') : textEl.getAttribute('data-short'));
+            }
           }
         });
 
@@ -2495,6 +2570,7 @@
           badgeClose.addEventListener("click", async (e) => {
             e.stopPropagation();
             await markAsRead(id);
+            addToReadCache(id);
             it._isNew = false;
             await renderItems(window.allItems);
           });
@@ -2520,13 +2596,44 @@
 
         const text = document.createElement("div");
         text.className = "news-text";
-        text.innerHTML = formatNewsText(getFullText(it));
+        // Usa testo più lungo per la versione espansa (800 chars vs 400)
+        const shortText = getFullText(it);
+        const longText = it.desc ? cleanText(it.desc, 1500) || it.title : it.title;
+        text.setAttribute('data-short', shortText);
+        text.setAttribute('data-long', longText);
+        text.innerHTML = formatNewsText(shortText);
+
+        const expandHint = document.createElement("div");
+        expandHint.className = "news-expand-hint";
+        expandHint.innerHTML = `
+          <span class="expand-label"><i class="fa-solid fa-chevron-down"></i> Espandi</span>
+          <span class="collapse-label"><i class="fa-solid fa-chevron-up"></i> Comprimi</span>
+        `;
+        expandHint.addEventListener("click", (e) => {
+          e.stopPropagation();
+          const isExpanded = row.classList.toggle('expanded');
+          // Quando espandi mostra testo completo, quando comprimi torna al corto
+          text.innerHTML = formatNewsText(isExpanded ? longText : shortText);
+        });
 
         main.appendChild(header);
         main.appendChild(text);
+        main.appendChild(expandHint);
 
         const actions = document.createElement("div");
         actions.className = "news-actions";
+
+        // Bottone "Apri originale" — sempre visibile
+        if (it.link && it.link !== '#') {
+          const openBtn = document.createElement("button");
+          openBtn.className = "news-action-btn open-link";
+          openBtn.innerHTML = '<i class="fa-solid fa-arrow-up-right-from-square"></i> Apri originale';
+          openBtn.onclick = (e) => {
+            e.stopPropagation();
+            window.open(it.link, "_blank");
+          };
+          actions.appendChild(openBtn);
+        }
 
         if (!isReadItem) {
           const readBtn = document.createElement("button");
@@ -2535,6 +2642,7 @@
           readBtn.onclick = async (e) => {
             e.stopPropagation();
             await markAsRead(id);
+            addToReadCache(id);
             it._isNew = false;
             await renderItems(window.allItems);
           };
@@ -2873,10 +2981,23 @@
         }
 
         // 2) Salva assegnazione in rss_assignments
-        await assignNews(newsId, newsItem.title, newsItem.link, {
+        const colleagueData = {
           id: user.id,
           name: user.name,
           username: user.telegramUsername ? user.telegramUsername.replace('@', '') : ''
+        };
+        await assignNews(newsId, newsItem.title, newsItem.link, colleagueData);
+
+        // Aggiorna cache locale
+        addToAssignmentsCache(newsId, {
+          assignedBy: window.currentUser.email,
+          assignedByName: window.currentUser.displayName,
+          colleagueId: colleagueData.id,
+          colleagueName: colleagueData.name,
+          colleagueUsername: colleagueData.username,
+          newsTitle: newsItem.title,
+          newsLink: newsItem.link,
+          assignedAt: Date.now()
         });
 
         // 3) Notifica Telegram (opzionale)
@@ -2986,14 +3107,27 @@
     }
 
     /******************************************************************
+     * DEBOUNCE UTILITY
+     ******************************************************************/
+    function debounce(fn, delay) {
+      let timer = null;
+      return function(...args) {
+        clearTimeout(timer);
+        timer = setTimeout(() => fn.apply(this, args), delay);
+      };
+    }
+
+    /******************************************************************
      * EVENT LISTENERS
      ******************************************************************/
     function wireUI() {
       $("refreshBtn").addEventListener("click", () => loadAllFeeds());
 
-      $("searchInput").addEventListener("input", () => {
+      // Debounce 300ms sulla ricerca — evita render/query ad ogni tasto
+      const debouncedSearch = debounce(() => {
         renderItems(window.allItems);
-      });
+      }, 300);
+      $("searchInput").addEventListener("input", debouncedSearch);
 
       $("feedFilter").addEventListener("change", () => {
         renderItems(window.allItems);
@@ -3023,12 +3157,55 @@
 
       $("markAllReadBtn").addEventListener("click", async () => {
         const items = window.allItems || [];
-        for (const it of items) {
-          await markAsRead(stableId(it));
-          it._isNew = false;
+        const unreadItems = items.filter(it => it._isNew);
+        if (unreadItems.length === 0) {
+          showNotification("Nessuna notizia nuova da marcare!");
+          return;
         }
-        await renderItems(items);
-        showNotification("Tutte le notizie marcate come lette!");
+
+        const btn = $("markAllReadBtn");
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 0%';
+
+        try {
+          // Batch writes da 450 alla volta (limite Firestore 500)
+          const now = Date.now();
+          const chunks = [];
+          for (let i = 0; i < unreadItems.length; i += 450) {
+            chunks.push(unreadItems.slice(i, i + 450));
+          }
+
+          for (let c = 0; c < chunks.length; c++) {
+            const batch = crmDb.batch();
+            for (const it of chunks[c]) {
+              const id = stableId(it);
+              const docRef = crmDb.collection('rss_read').doc(id);
+              batch.set(docRef, purify({
+                readAt: now,
+                readBy: window.currentUser.email,
+                readByName: window.currentUser.displayName || window.currentUser.email
+              }));
+            }
+            await batch.commit();
+            const pct = Math.round(((c + 1) / chunks.length) * 100);
+            btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> ${pct}%`;
+          }
+
+          // Aggiorna stato locale e cache senza rileggere Firestore
+          for (const it of unreadItems) {
+            it._isNew = false;
+            addToReadCache(stableId(it));
+          }
+
+          await renderItems(items);
+          showNotification(`${unreadItems.length} notizie marcate come lette!`);
+        } catch (err) {
+          console.error('[Monitor RSS] Errore batch mark-all-read:', err);
+          showNotification('Errore durante la marcatura. Riprova.', true);
+        } finally {
+          btn.disabled = false;
+          btn.innerHTML = '<i class="fa-solid fa-check-double"></i> Lette';
+        }
       });
 
       $("resetFiltersBtn").addEventListener("click", () => {
