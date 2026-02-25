@@ -1383,6 +1383,10 @@
             <span class="kpi-value" id="kpiErr">0</span>
             <span class="kpi-label">errori</span>
           </div>
+          <div class="kpi" id="kpiInactiveWrap" style="display:none; border-color: rgba(255,204,0,.4);">
+            <span class="kpi-value" id="kpiInactive" style="color: var(--warning);">0</span>
+            <span class="kpi-label">inattivi</span>
+          </div>
         </div>
 
         <div class="progress-bar" id="progressBar">
@@ -1628,6 +1632,28 @@
           </thead>
           <tbody id="statusTableBody"></tbody>
         </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modale conferma generico (confirm() non funziona in iframe sandboxed) -->
+  <div class="modal-overlay" id="confirmModal">
+    <div class="modal-box" style="max-width: 440px;">
+      <div class="modal-header" style="background: linear-gradient(135deg, var(--warning), #e6b800);">
+        <h3 class="modal-title">
+          <i class="fa-solid fa-triangle-exclamation"></i>
+          <span>Conferma</span>
+        </h3>
+        <button class="modal-close" onclick="closeConfirmModal()">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <div class="modal-body" style="padding: 24px; text-align: center;">
+        <p id="confirmMsg" style="font-size: 15px; color: var(--text); margin-bottom: 20px; line-height: 1.6;"></p>
+        <div style="display: flex; gap: 10px; justify-content: center;">
+          <button class="btn btn-secondary" onclick="closeConfirmModal()" style="min-width: 100px;">Annulla</button>
+          <button class="btn btn-primary" id="confirmOkBtn" style="min-width: 100px; background: var(--error);">Elimina</button>
+        </div>
       </div>
     </div>
   </div>
@@ -1946,12 +1972,31 @@
      * Svuota TUTTI i feed da Firestore e ricarica dall'array INITIAL_FEEDS.
      * Usare solo per riallineare il database con l'elenco aggiornato.
      */
+    // --- Modale conferma generico (confirm() non funziona in iframe sandboxed) ---
+    let _confirmCallback = null;
+    function showConfirmModal(message, btnLabel, onConfirm) {
+      $('confirmMsg').textContent = message;
+      $('confirmOkBtn').textContent = btnLabel || 'Conferma';
+      _confirmCallback = onConfirm;
+      $('confirmOkBtn').onclick = async () => {
+        const cb = _confirmCallback;
+        _confirmCallback = null;
+        $('confirmModal').classList.remove('show');
+        if (cb) await cb();
+      };
+      $('confirmModal').classList.add('show');
+    }
+    function closeConfirmModal() {
+      $('confirmModal').classList.remove('show');
+      _confirmCallback = null;
+    }
+
     function reloadAllFeeds() {
-      // Mostra modale di conferma (no confirm() perché siamo in iframe sandboxed)
-      const modal = $('confirmReloadModal');
-      $('confirmReloadMsg').textContent =
-        `Stai per cancellare TUTTI i feed esistenti e ricaricare i ${INITIAL_FEEDS.length} feed predefiniti. Sei sicuro?`;
-      modal.classList.add('show');
+      showConfirmModal(
+        `Stai per cancellare TUTTI i feed esistenti e ricaricare i ${INITIAL_FEEDS.length} feed predefiniti. Sei sicuro?`,
+        'Ricarica tutti',
+        executeReloadAllFeeds
+      );
     }
 
     async function executeReloadAllFeeds() {
@@ -2449,6 +2494,32 @@
       window.allItems = allItems;
       window.statusMap = statusMap;
 
+      // Calcola ultimo post per ogni feed (per rilevare feed inattivi)
+      const INACTIVE_DAYS = 15;
+      const inactiveCutoff = Date.now() - (INACTIVE_DAYS * 24 * 60 * 60 * 1000);
+      const latestPostPerFeed = {};
+      for (const it of allItems) {
+        if (it.ts && (!latestPostPerFeed[it.feedName] || it.ts > latestPostPerFeed[it.feedName])) {
+          latestPostPerFeed[it.feedName] = it.ts;
+        }
+      }
+      // Feed inattivi: funzionanti (OK) ma senza post recenti (o senza post dal 2026)
+      const inactiveFeeds = new Set();
+      for (const feed of feeds) {
+        const latest = latestPostPerFeed[feed.name] || 0;
+        const status = statusMap[feed.name];
+        // Feed OK ma nessun post negli ultimi 15 giorni
+        if (status && status.state === 'OK' && latest < inactiveCutoff) {
+          inactiveFeeds.add(feed.name);
+        }
+        // Feed OK ma 0 post totali
+        if (status && status.state === 'OK' && !latestPostPerFeed[feed.name]) {
+          inactiveFeeds.add(feed.name);
+        }
+      }
+      window.inactiveFeeds = inactiveFeeds;
+      window.latestPostPerFeed = latestPostPerFeed;
+
       renderStatus(statusMap);
       await renderItems(allItems);
 
@@ -2459,6 +2530,14 @@
       $("loadingState").style.display = "none";
       $("newsList").style.display = "flex";
       $("kpiFeeds").textContent = feeds.length.toString();
+
+      // KPI feed inattivi
+      if (inactiveFeeds.size > 0) {
+        $("kpiInactive").textContent = inactiveFeeds.size.toString();
+        $("kpiInactiveWrap").style.display = "";
+      } else {
+        $("kpiInactiveWrap").style.display = "none";
+      }
 
       setupAutoRefresh();
     }
@@ -2490,7 +2569,9 @@
         // Filtro data: escludi notizie prima del 1° gennaio 2026
         if (it.ts && it.ts < jan1st2026) return false;
 
-        if (feedSel !== "__ALL__" && it.feedName !== feedSel) return false;
+        if (feedSel === "__INACTIVE__") {
+          if (!(window.inactiveFeeds && window.inactiveFeeds.has(it.feedName))) return false;
+        } else if (feedSel !== "__ALL__" && it.feedName !== feedSel) return false;
         if (last48h && it.ts && it.ts < cutoff48) return false;
 
         // Logica modificata: se showAssigned è attivo, mostra TUTTI gli assigned indipendentemente da lettura
@@ -2703,22 +2784,36 @@
       const tbody = $("statusTableBody");
       tbody.innerHTML = "";
       let errCount = 0;
+      const inactive = window.inactiveFeeds || new Set();
+      const latestPost = window.latestPostPerFeed || {};
       const rows = Object.entries(statusMap)
         .sort((a, b) => a[0].localeCompare(b[0], "it"));
 
       for (const [feedName, st] of rows) {
         if (st.state === "ERR") errCount++;
+        const isInactive = inactive.has(feedName);
         const tr = document.createElement("tr");
+        if (isInactive) tr.style.background = '#fffbe6';
 
         const td1 = document.createElement("td");
         td1.textContent = feedName;
 
         const td2 = document.createElement("td");
         const badge = document.createElement("span");
-        badge.className = "status-badge " + (st.state === "OK" ? "ok" : "error");
-        badge.innerHTML = st.state === "OK"
-          ? `<i class="fa-solid fa-circle-check"></i> OK`
-          : `<i class="fa-solid fa-triangle-exclamation"></i> ERRORE`;
+
+        if (st.state === "ERR") {
+          badge.className = "status-badge error";
+          badge.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> ERRORE`;
+        } else if (isInactive) {
+          badge.className = "status-badge";
+          badge.style.cssText = "background:#fff8e1; color:#b8860b; border-color:#ffe082;";
+          const latest = latestPost[feedName];
+          const agoLabel = latest ? daysAgoText(latest) : 'mai';
+          badge.innerHTML = `<i class="fa-solid fa-moon"></i> INATTIVO (ultimo post: ${agoLabel})`;
+        } else {
+          badge.className = "status-badge ok";
+          badge.innerHTML = `<i class="fa-solid fa-circle-check"></i> OK`;
+        }
 
         const note = document.createElement("div");
         note.className = "status-note";
@@ -3070,13 +3165,17 @@
         deleteBtn.className = "colleague-delete";
         deleteBtn.innerHTML = '<i class="fa-solid fa-trash"></i>';
         deleteBtn.title = "Elimina feed";
-        deleteBtn.onclick = async (e) => {
+        deleteBtn.onclick = (e) => {
           e.stopPropagation();
-          if (confirm(`Eliminare il feed "${feed.name}"?`)) {
-            await deleteFeed(feed.id);
-            await renderFeedsList();
-            showNotification(`Feed "${feed.name}" eliminato`);
-          }
+          showConfirmModal(
+            `Eliminare il feed "${feed.name}"?`,
+            'Elimina',
+            async () => {
+              await deleteFeed(feed.id);
+              await renderFeedsList();
+              showNotification(`Feed "${feed.name}" eliminato`);
+            }
+          );
         };
 
         item.appendChild(info);
@@ -3095,15 +3194,39 @@
      ******************************************************************/
     function populateFeedFilter() {
       const sel = $("feedFilter");
+      const inactive = window.inactiveFeeds || new Set();
+      const latestPost = window.latestPostPerFeed || {};
+      const inactiveCount = inactive.size;
+
       sel.innerHTML = `<option value="__ALL__">Tutti i feed</option>`;
+      if (inactiveCount > 0) {
+        sel.innerHTML += `<option value="__INACTIVE__">\u26A0\uFE0F Solo feed inattivi (${inactiveCount})</option>`;
+      }
+
       const names = window.allFeeds.map(f => f.name);
       names.sort((a, b) => a.localeCompare(b, "it"));
       for (const n of names) {
         const opt = document.createElement("option");
         opt.value = n;
-        opt.textContent = n;
+        if (inactive.has(n)) {
+          const latest = latestPost[n];
+          const agoText = latest ? daysAgoText(latest) : 'mai ricevuto';
+          opt.textContent = `\u26A0\uFE0F ${n} (${agoText})`;
+          opt.style.color = '#b8860b';
+        } else {
+          opt.textContent = n;
+        }
         sel.appendChild(opt);
       }
+    }
+
+    function daysAgoText(ts) {
+      const days = Math.floor((Date.now() - ts) / (24 * 60 * 60 * 1000));
+      if (days === 0) return 'oggi';
+      if (days === 1) return 'ieri';
+      if (days < 30) return `${days}gg fa`;
+      const months = Math.floor(days / 30);
+      return months === 1 ? '1 mese fa' : `${months} mesi fa`;
     }
 
     /******************************************************************

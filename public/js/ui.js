@@ -16,6 +16,9 @@ const UI = {
             return;
         }
 
+        // Scroll-to-top al cambio pagina
+        window.scrollTo(0, 0);
+
         // Cleanup pagina precedente (se necessario)
         if (typeof MonitorRSS !== 'undefined' && this.currentPage === 'monitor-rss' && pageName !== 'monitor-rss') {
             MonitorRSS.cleanup();

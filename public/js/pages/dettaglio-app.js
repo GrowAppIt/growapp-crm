@@ -71,7 +71,8 @@ const DettaglioApp = {
                                 ${app.provincia ? `<span style="color: var(--grigio-500);"><i class="fas fa-map-marker-alt"></i> ${app.provincia}</span>` : ''}
                                 ${clientePagante ? `<span style="color: var(--grigio-500);"><i class="fas fa-building"></i> ${clientePagante.ragioneSociale}</span>` : ''}
                                 ${(() => {
-                                    const agente = clientePagante?.agente || app.agente;
+                                    // Agente sempre dal cliente pagante (fonte di verità), fallback app solo se cliente non presente
+                                    const agente = clientePagante ? clientePagante.agente : app.agente;
                                     return agente ? `<span style="color: var(--blu-500);"><i class="fas fa-user-tie"></i> ${agente}</span>` : '';
                                 })()}
                             </div>
@@ -576,6 +577,31 @@ const DettaglioApp = {
                                 <span style="font-weight: 600;">Avvisi Flash</span>
                             </div>
                         </div>
+                    </div>
+
+                    <!-- Feed RSS -->
+                    <div style="margin-bottom: ${(Array.isArray(app.feedRss) && app.feedRss.length > 0) || haDateScadenze ? '1.5rem' : '0'}; padding-bottom: ${(Array.isArray(app.feedRss) && app.feedRss.length > 0) || haDateScadenze ? '1.5rem' : '0'}; border-bottom: ${(Array.isArray(app.feedRss) && app.feedRss.length > 0) || haDateScadenze ? '2px solid var(--grigio-300)' : 'none'};">
+                        <h4 style="font-size: 0.875rem; font-weight: 700; color: #e88a1a; margin-bottom: 1rem; text-transform: uppercase; letter-spacing: 0.05em;">
+                            <i class="fas fa-rss" style="color: #e88a1a;"></i> Feed RSS
+                        </h4>
+                        ${Array.isArray(app.feedRss) && app.feedRss.length > 0 ? `
+                            <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                                ${app.feedRss.map(feed => `
+                                    <div style="display: flex; align-items: center; gap: 0.75rem; padding: 0.6rem 1rem; background: var(--grigio-100); border-radius: 8px; border-left: 3px solid #e88a1a;">
+                                        <i class="fas fa-rss" style="color: #e88a1a; font-size: 0.85rem; flex-shrink: 0;"></i>
+                                        <div style="flex: 1; min-width: 0;">
+                                            <div style="font-weight: 700; font-size: 0.9rem; color: var(--blu-700);">${feed.nome || 'Feed senza nome'}</div>
+                                            ${feed.url ? `<a href="${feed.url}" target="_blank" rel="noopener" style="font-size: 0.8rem; color: var(--blu-500); word-break: break-all; text-decoration: none;">${feed.url} <i class="fas fa-external-link-alt" style="font-size: 0.65rem;"></i></a>` : ''}
+                                        </div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        ` : `
+                            <div style="display: flex; align-items: center; gap: 0.5rem; color: var(--grigio-400); font-size: 0.9rem;">
+                                <i class="fas fa-rss" style="font-size: 1.2rem;"></i>
+                                <span>Nessun Feed RSS configurato</span>
+                            </div>
+                        `}
                     </div>
 
                     <!-- Scadenze e Alert -->

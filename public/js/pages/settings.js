@@ -2270,11 +2270,17 @@ const Settings = {
 
             // Mappa contratti per clienteId (per auto-fix)
             const contrattiPerCliente = {};
+            // Mappa inversa: appId → contratto (la relazione è salvata su contratto.appId, non su app.contrattoId)
+            const contrattoPerApp = {};
             contrattiSnapshot.forEach(doc => {
                 const c = doc.data();
                 if (c.clienteId) {
                     if (!contrattiPerCliente[c.clienteId]) contrattiPerCliente[c.clienteId] = [];
                     contrattiPerCliente[c.clienteId].push({ id: doc.id, numero: c.numeroContratto, stato: c.stato });
+                }
+                // Mappa appId → contratto per verifica audit app
+                if (c.appId) {
+                    contrattoPerApp[c.appId] = { id: doc.id, numero: c.numeroContratto, stato: c.stato };
                 }
             });
 
@@ -2287,7 +2293,8 @@ const Settings = {
                 appClienteNonValido: [],
                 appContrattoNonValido: [],
                 clientiSenzaContratti: [],
-                clientiSenzaFatture: []
+                clientiSenzaFatture: [],
+                appSenzaFeed: []
             };
 
             // Verifica FATTURE
@@ -2361,7 +2368,6 @@ const Settings = {
             appSnapshot.forEach(doc => {
                 const app = doc.data();
                 const clientePaganteId = app.clientePaganteId;
-                const contrattoId = app.contrattoId;
 
                 // Verifica cliente pagante
                 if (!clientePaganteId || !clientiIds.has(clientePaganteId)) {
@@ -2373,19 +2379,22 @@ const Settings = {
                     });
                 }
 
-                // Verifica contratto
-                if (!contrattoId) {
+                // Verifica contratto — la relazione è salvata su contratto.appId (non su app.contrattoId)
+                // Usa la mappa inversa contrattoPerApp per trovare il contratto collegato
+                const contrattoCollegato = contrattoPerApp[doc.id];
+                if (!contrattoCollegato) {
                     problemi.appContrattoNonValido.push({
                         id: doc.id,
                         nome: app.nome,
                         problema: 'Nessun contratto collegato'
                     });
-                } else if (!contrattiIds.has(contrattoId)) {
-                    problemi.appContrattoNonValido.push({
+                }
+
+                // Verifica Feed RSS
+                if (!app.feedRss || !Array.isArray(app.feedRss) || app.feedRss.length === 0) {
+                    problemi.appSenzaFeed.push({
                         id: doc.id,
-                        nome: app.nome,
-                        contrattoId: contrattoId,
-                        problema: 'Contratto non esiste'
+                        nome: app.nome
                     });
                 }
             });
@@ -2473,12 +2482,11 @@ const Settings = {
                             <div style="background: white; padding: 1rem; border-radius: 8px; margin-bottom: 1rem; border-left: 3px solid var(--rosso);">
                                 <strong style="color: var(--rosso);">❌ Fatture con Cliente Non Valido: ${problemi.fattureClienteNonValido.length}</strong>
                                 <details style="margin-top: 0.5rem;">
-                                    <summary style="cursor: pointer; color: var(--blu-700);">Mostra dettagli</summary>
-                                    <div style="margin-top: 0.5rem; font-size: 0.85rem;">
-                                        ${problemi.fattureClienteNonValido.slice(0, 10).map(p =>
-                                            `<div>• ${p.numero}: ${p.problema} (${p.clienteId})</div>`
+                                    <summary style="cursor: pointer; color: var(--blu-700);">Mostra tutti (${problemi.fattureClienteNonValido.length})</summary>
+                                    <div style="margin-top: 0.5rem; font-size: 0.85rem; max-height: 300px; overflow-y: auto;">
+                                        ${problemi.fattureClienteNonValido.map(p =>
+                                            `<div style="padding: 0.3rem 0; border-bottom: 1px solid var(--grigio-300);">• ${p.numero}: ${p.problema} (${p.clienteId})</div>`
                                         ).join('')}
-                                        ${problemi.fattureClienteNonValido.length > 10 ? `<div style="color: var(--grigio-500);">... e altri ${problemi.fattureClienteNonValido.length - 10}</div>` : ''}
                                     </div>
                                 </details>
                             </div>
@@ -2512,12 +2520,11 @@ const Settings = {
                             <div style="background: white; padding: 1rem; border-radius: 8px; margin-bottom: 1rem; border-left: 3px solid var(--rosso);">
                                 <strong style="color: var(--rosso);">❌ Contratti con Cliente Non Valido: ${problemi.contrattiClienteNonValido.length}</strong>
                                 <details style="margin-top: 0.5rem;">
-                                    <summary style="cursor: pointer; color: var(--blu-700);">Mostra dettagli</summary>
-                                    <div style="margin-top: 0.5rem; font-size: 0.85rem;">
-                                        ${problemi.contrattiClienteNonValido.slice(0, 10).map(p =>
-                                            `<div>• ${p.numero}: ${p.problema}</div>`
+                                    <summary style="cursor: pointer; color: var(--blu-700);">Mostra tutti (${problemi.contrattiClienteNonValido.length})</summary>
+                                    <div style="margin-top: 0.5rem; font-size: 0.85rem; max-height: 300px; overflow-y: auto;">
+                                        ${problemi.contrattiClienteNonValido.map(p =>
+                                            `<div style="padding: 0.3rem 0; border-bottom: 1px solid var(--grigio-300);">• ${p.numero}: ${p.problema}</div>`
                                         ).join('')}
-                                        ${problemi.contrattiClienteNonValido.length > 10 ? `<div style="color: var(--grigio-500);">... e altri ${problemi.contrattiClienteNonValido.length - 10}</div>` : ''}
                                     </div>
                                 </details>
                             </div>
@@ -2527,12 +2534,13 @@ const Settings = {
                             <div style="background: white; padding: 1rem; border-radius: 8px; margin-bottom: 1rem; border-left: 3px solid var(--rosso);">
                                 <strong style="color: var(--rosso);">❌ App con Cliente Non Valido: ${problemi.appClienteNonValido.length}</strong>
                                 <details style="margin-top: 0.5rem;">
-                                    <summary style="cursor: pointer; color: var(--blu-700);">Mostra dettagli</summary>
-                                    <div style="margin-top: 0.5rem; font-size: 0.85rem;">
-                                        ${problemi.appClienteNonValido.slice(0, 10).map(p =>
-                                            `<div>• ${p.nome}: ${p.problema}</div>`
+                                    <summary style="cursor: pointer; color: var(--blu-700);">Mostra tutti (${problemi.appClienteNonValido.length})</summary>
+                                    <div style="margin-top: 0.5rem; font-size: 0.85rem; max-height: 300px; overflow-y: auto;">
+                                        ${problemi.appClienteNonValido.map(p =>
+                                            `<div style="padding: 0.3rem 0; border-bottom: 1px solid var(--grigio-300);">
+                                                • <a href="#" onclick="UI.showPage('dettaglio-app','${p.id}'); return false;" style="color: var(--blu-700); text-decoration: underline;">${p.nome}</a>: ${p.problema}
+                                            </div>`
                                         ).join('')}
-                                        ${problemi.appClienteNonValido.length > 10 ? `<div style="color: var(--grigio-500);">... e altri ${problemi.appClienteNonValido.length - 10}</div>` : ''}
                                     </div>
                                 </details>
                             </div>
@@ -2542,12 +2550,13 @@ const Settings = {
                             <div style="background: white; padding: 1rem; border-radius: 8px; margin-bottom: 1rem; border-left: 3px solid var(--rosso);">
                                 <strong style="color: var(--rosso);">❌ App con Contratto Non Valido: ${problemi.appContrattoNonValido.length}</strong>
                                 <details style="margin-top: 0.5rem;">
-                                    <summary style="cursor: pointer; color: var(--blu-700);">Mostra dettagli</summary>
-                                    <div style="margin-top: 0.5rem; font-size: 0.85rem;">
-                                        ${problemi.appContrattoNonValido.slice(0, 10).map(p =>
-                                            `<div>• ${p.nome}: ${p.problema}</div>`
+                                    <summary style="cursor: pointer; color: var(--blu-700);">Mostra tutti (${problemi.appContrattoNonValido.length})</summary>
+                                    <div style="margin-top: 0.5rem; font-size: 0.85rem; max-height: 300px; overflow-y: auto;">
+                                        ${problemi.appContrattoNonValido.map(p =>
+                                            `<div style="padding: 0.3rem 0; border-bottom: 1px solid var(--grigio-300);">
+                                                • <a href="#" onclick="UI.showPage('dettaglio-app','${p.id}'); return false;" style="color: var(--blu-700); text-decoration: underline;">${p.nome}</a>: ${p.problema}
+                                            </div>`
                                         ).join('')}
-                                        ${problemi.appContrattoNonValido.length > 10 ? `<div style="color: var(--grigio-500);">... e altri ${problemi.appContrattoNonValido.length - 10}</div>` : ''}
                                     </div>
                                 </details>
                             </div>
@@ -2571,7 +2580,7 @@ const Settings = {
                         </div>
                     `}
 
-                    ${problemi.fattureSenzaContratto.length > 0 || problemi.clientiSenzaContratti.length > 0 || problemi.clientiSenzaFatture.length > 0 ? `
+                    ${problemi.fattureSenzaContratto.length > 0 || problemi.clientiSenzaContratti.length > 0 || problemi.clientiSenzaFatture.length > 0 || problemi.appSenzaFeed.length > 0 ? `
                         <h5 style="color: var(--giallo-avviso); margin-top: 1.5rem; margin-bottom: 1rem;">⚠️ Warning (non critici)</h5>
 
                         ${problemi.fattureSenzaContratto.length > 0 ? `
@@ -2617,12 +2626,48 @@ const Settings = {
                         ${problemi.clientiSenzaContratti.length > 0 ? `
                             <div style="background: white; padding: 1rem; border-radius: 8px; margin-bottom: 1rem; border-left: 3px solid var(--giallo-avviso);">
                                 <strong style="color: var(--giallo-avviso);">⚠️ Clienti Senza Contratti: ${problemi.clientiSenzaContratti.length}</strong>
+                                <details style="margin-top: 0.5rem;">
+                                    <summary style="cursor: pointer; color: var(--blu-700);">Mostra tutti (${problemi.clientiSenzaContratti.length})</summary>
+                                    <div style="margin-top: 0.5rem; font-size: 0.85rem; max-height: 300px; overflow-y: auto;">
+                                        ${problemi.clientiSenzaContratti.map(p =>
+                                            `<div style="padding: 0.3rem 0; border-bottom: 1px solid var(--grigio-300);">
+                                                • <a href="#" onclick="UI.showPage('dettaglio-cliente','${p.id}'); return false;" style="color: var(--blu-700); text-decoration: underline;">${p.ragioneSociale}</a>
+                                            </div>`
+                                        ).join('')}
+                                    </div>
+                                </details>
                             </div>
                         ` : ''}
 
                         ${problemi.clientiSenzaFatture.length > 0 ? `
                             <div style="background: white; padding: 1rem; border-radius: 8px; margin-bottom: 1rem; border-left: 3px solid var(--giallo-avviso);">
                                 <strong style="color: var(--giallo-avviso);">⚠️ Clienti Senza Fatture: ${problemi.clientiSenzaFatture.length}</strong>
+                                <details style="margin-top: 0.5rem;">
+                                    <summary style="cursor: pointer; color: var(--blu-700);">Mostra tutti (${problemi.clientiSenzaFatture.length})</summary>
+                                    <div style="margin-top: 0.5rem; font-size: 0.85rem; max-height: 300px; overflow-y: auto;">
+                                        ${problemi.clientiSenzaFatture.map(p =>
+                                            `<div style="padding: 0.3rem 0; border-bottom: 1px solid var(--grigio-300);">
+                                                • <a href="#" onclick="UI.showPage('dettaglio-cliente','${p.id}'); return false;" style="color: var(--blu-700); text-decoration: underline;">${p.ragioneSociale}</a>
+                                            </div>`
+                                        ).join('')}
+                                    </div>
+                                </details>
+                            </div>
+                        ` : ''}
+
+                        ${problemi.appSenzaFeed.length > 0 ? `
+                            <div style="background: white; padding: 1rem; border-radius: 8px; margin-bottom: 1rem; border-left: 3px solid #e88a1a;">
+                                <strong style="color: #e88a1a;"><i class="fas fa-rss"></i> App Senza Feed RSS: ${problemi.appSenzaFeed.length}</strong>
+                                <details style="margin-top: 0.5rem;">
+                                    <summary style="cursor: pointer; color: var(--blu-700);">Mostra tutti (${problemi.appSenzaFeed.length})</summary>
+                                    <div style="margin-top: 0.5rem; font-size: 0.85rem; max-height: 300px; overflow-y: auto;">
+                                        ${problemi.appSenzaFeed.map(p =>
+                                            `<div style="padding: 0.3rem 0; border-bottom: 1px solid var(--grigio-300);">
+                                                • <a href="#" onclick="UI.showPage('dettaglio-app','${p.id}'); return false;" style="color: var(--blu-700); text-decoration: underline;">${p.nome}</a>
+                                            </div>`
+                                        ).join('')}
+                                    </div>
+                                </details>
                             </div>
                         ` : ''}
                     ` : ''}
@@ -3449,6 +3494,8 @@ Cordiali saluti,
 
         UI.showSuccess('Template ripristinato ai valori di default. Clicca "Salva" per confermare.');
     },
+
+    // Caricamento massivo feed RSS rimosso (completato). Audit appSenzaFeed attivo in avviaAudit().
 
     escapeHtml(text) {
         if (!text) return '';

@@ -1337,8 +1337,9 @@ const FormsManager = {
             DataService.getAgenti()
         ]);
 
-        // Costruisci opzioni agente
-        const agenteCorrente = app.agente || '';
+        // Costruisci opzioni agente — fonte di verità: cliente pagante se presente
+        const clientePagante = app.clientePaganteId ? clienti.find(c => c.id === app.clientePaganteId) : null;
+        const agenteCorrente = (clientePagante ? clientePagante.agente : app.agente) || '';
         const agenteInLista = agenti.some(a => a.nomeCompleto === agenteCorrente);
         let opzioniAgente = '<option value="">-- Nessun agente --</option>';
         agenti.forEach(a => {
@@ -1451,6 +1452,26 @@ const FormsManager = {
                     </div>
                 </div>
                 <div style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 2px solid var(--grigio-300);">
+                    <h4 style="font-size: 0.95rem; font-weight: 600; color: #e88a1a; margin-bottom: 0.75rem;">
+                        <i class="fas fa-rss" style="color: #e88a1a;"></i> Feed RSS (max 5)
+                    </h4>
+                    <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                        ${(() => {
+                            const feeds = Array.isArray(app.feedRss) ? app.feedRss : [];
+                            let html = '';
+                            for (let i = 1; i <= 5; i++) {
+                                const feed = feeds[i - 1] || { nome: '', url: '' };
+                                html += '<div style="background: var(--grigio-100); border-radius: 8px; padding: 10px 12px; border-left: 3px solid #e88a1a;">'
+                                    + '<div style="font-size: 0.75rem; font-weight: 700; color: #e88a1a; margin-bottom: 6px;">Feed ' + i + '</div>'
+                                    + '<input type="text" name="feedRssNome' + i + '" class="form-input" value="' + (feed.nome || '').replace(/"/g, '&quot;') + '" placeholder="Nome del feed" style="font-size: 0.85rem; padding: 8px 10px; margin-bottom: 6px;">'
+                                    + '<input type="text" name="feedRssUrl' + i + '" class="form-input" value="' + (feed.url || '').replace(/"/g, '&quot;') + '" placeholder="https://rss.app/feeds/..." style="font-size: 0.85rem; padding: 8px 10px;">'
+                                    + '</div>';
+                            }
+                            return html;
+                        })()}
+                    </div>
+                </div>
+                <div style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 2px solid var(--grigio-300);">
                     <h4 style="font-size: 0.95rem; font-weight: 600; color: var(--giallo-avviso); margin-bottom: 0.75rem;">
                         ⚠️ Scadenze e Alert (Alert 3 giorni prima)
                     </h4>
@@ -1536,8 +1557,19 @@ const FormsManager = {
                     data.tipoPagamento = null;
                     data.gestione = null;
                     data.agente = data.agente || null;
+                } else {
+                    // Con cliente pagante: agente sempre sincronizzato dal cliente (fonte di verità)
+                    // Il select è disabled quindi data.agente potrebbe essere vuoto/assente
+                    try {
+                        const clienti = await DataService.getClienti();
+                        const clienteAssociato = clienti.find(c => c.id === data.clientePaganteId);
+                        if (clienteAssociato) {
+                            data.agente = clienteAssociato.agente || '';
+                        }
+                    } catch (e) {
+                        console.warn('Errore recupero agente dal cliente:', e);
+                    }
                 }
-                // Altrimenti usa i valori scelti dall'utente nel form
 
                 // Assicura che i campi scadenze siano sempre presenti (anche se vuoti)
                 data.ultimaDataRaccoltaDifferenziata = data.ultimaDataRaccoltaDifferenziata || null;
@@ -1545,6 +1577,18 @@ const FormsManager = {
                 data.scadenzaCertificatoApple = data.scadenzaCertificatoApple || null;
                 data.altraScadenzaData = data.altraScadenzaData || null;
                 data.altraScadenzaNote = data.altraScadenzaNote || null;
+
+                // Raccogli Feed RSS (fino a 5 slot)
+                data.feedRss = [];
+                for (let i = 1; i <= 5; i++) {
+                    const nome = (data['feedRssNome' + i] || '').trim();
+                    const url = (data['feedRssUrl' + i] || '').trim();
+                    if (nome || url) {
+                        data.feedRss.push({ nome, url });
+                    }
+                    delete data['feedRssNome' + i];
+                    delete data['feedRssUrl' + i];
+                }
 
                 // Assicura che i campi controllo qualità siano sempre presenti
                 data.dataUltimoControlloQualita = data.dataUltimoControlloQualita || null;
@@ -1678,6 +1722,24 @@ const FormsManager = {
                     </div>
                 </div>
                 <div style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 2px solid var(--grigio-300);">
+                    <h4 style="font-size: 0.95rem; font-weight: 600; color: #e88a1a; margin-bottom: 0.75rem;">
+                        <i class="fas fa-rss" style="color: #e88a1a;"></i> Feed RSS (max 5)
+                    </h4>
+                    <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                        ${(() => {
+                            let html = '';
+                            for (let i = 1; i <= 5; i++) {
+                                html += '<div style="background: var(--grigio-100); border-radius: 8px; padding: 10px 12px; border-left: 3px solid #e88a1a;">'
+                                    + '<div style="font-size: 0.75rem; font-weight: 700; color: #e88a1a; margin-bottom: 6px;">Feed ' + i + '</div>'
+                                    + '<input type="text" name="feedRssNome' + i + '" class="form-input" value="" placeholder="Nome del feed" style="font-size: 0.85rem; padding: 8px 10px; margin-bottom: 6px;">'
+                                    + '<input type="text" name="feedRssUrl' + i + '" class="form-input" value="" placeholder="https://rss.app/feeds/..." style="font-size: 0.85rem; padding: 8px 10px;">'
+                                    + '</div>';
+                            }
+                            return html;
+                        })()}
+                    </div>
+                </div>
+                <div style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 2px solid var(--grigio-300);">
                     <h4 style="font-size: 0.95rem; font-weight: 600; color: var(--giallo-avviso); margin-bottom: 0.75rem;">
                         ⚠️ Scadenze e Alert (Alert 3 giorni prima)
                     </h4>
@@ -1764,6 +1826,18 @@ const FormsManager = {
                     data.gestione = null;
                 }
                 // Altrimenti usa i valori scelti dall'utente nel form
+
+                // Raccogli Feed RSS (fino a 5 slot)
+                data.feedRss = [];
+                for (let i = 1; i <= 5; i++) {
+                    const nome = (data['feedRssNome' + i] || '').trim();
+                    const url = (data['feedRssUrl' + i] || '').trim();
+                    if (nome || url) {
+                        data.feedRss.push({ nome, url });
+                    }
+                    delete data['feedRssNome' + i];
+                    delete data['feedRssUrl' + i];
+                }
 
                 // Se è stata inserita una data controllo qualità, salva chi l'ha creata
                 if (data.dataUltimoControlloQualita) {
