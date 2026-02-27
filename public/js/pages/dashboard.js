@@ -138,13 +138,18 @@ const Dashboard = {
             // Scadenze compute (passa dati già caricati per evitare ulteriori query)
             let scadenzeScadute = [];
             let scadenzeImminenti = [];
+            let scadenzeScaduteSospese = []; // Fatture in contenzioso/dissesto — escluse di default
             try {
                 const scadenzeCalcolateResult = await DataService.getScadenzeCompute({ contratti: contrattiTutti, fatture: fatture, clienti: clienti });
                 const finestraImminente = new Date(oggi);
                 finestraImminente.setDate(finestraImminente.getDate() + (_sysDash2.sogliaImminente || 30));
-                scadenzeScadute = scadenzeCalcolateResult.tutteLeScadenze.filter(s =>
+                const _tutteScadenzeScadute = scadenzeCalcolateResult.tutteLeScadenze.filter(s =>
                     s.dataScadenza && new Date(s.dataScadenza) < oggi
                 );
+                // Separa scadenze normali da quelle con credito sospeso (fatture in contenzioso/dissesto)
+                const _isCreditoSospeso = (s) => s.creditoSospeso === true || s.creditoSospeso === 'true';
+                scadenzeScadute = _tutteScadenzeScadute.filter(s => !(s.tipo === 'FATTURA_INCASSO' && _isCreditoSospeso(s)));
+                scadenzeScaduteSospese = _tutteScadenzeScadute.filter(s => s.tipo === 'FATTURA_INCASSO' && _isCreditoSospeso(s));
                 scadenzeImminenti = scadenzeCalcolateResult.tutteLeScadenze.filter(s => {
                     if (!s.dataScadenza) return false;
                     const ds = new Date(s.dataScadenza);
@@ -169,6 +174,7 @@ const Dashboard = {
                             clienti,
                             fatture,
                             fattureScadute,
+                            scadenzeScaduteSospese,
                             app,
                             tasks,
                             contrattiTutti
@@ -316,6 +322,11 @@ const Dashboard = {
         // Widget FINANZIARI: visibili SOLO ai ruoli amministrativi
         const widgetFinanziari = ['andamentoMensile', 'fattureNonPagate', 'topClienti', 'scadenzeImminenti'];
 
+        // Widget AMMINISTRATIVI: nascosti a SVILUPPATORE e CONTENT_MANAGER (clienti, contratti, scadenze)
+        const ruoliSenzaAmministrazione = ['SVILUPPATORE', 'CONTENT_MANAGER'];
+        const isSenzaAmministrazione = ruoliSenzaAmministrazione.includes(ruoloCorrente);
+        const widgetAmministrativi = ['contrattiInScadenza', 'ultimiClienti', 'scadenzeImminenti'];
+
         // Widget TECNICI: visibili a tutti ma prioritari per i ruoli tecnici
         // contrattiInScadenza: visibile anche al CTO (ha responsabilità gestionale)
         const widgetSoloAdmin = ['andamentoMensile', 'fattureNonPagate', 'topClienti'];
@@ -338,6 +349,11 @@ const Dashboard = {
                 continue;
             }
 
+            // 1b. Se è un widget amministrativo (clienti, contratti, scadenze) e l'utente è SVILUPPATORE o CONTENT_MANAGER → NASCOSTO
+            if (isSenzaAmministrazione && widgetAmministrativi.includes(widget.id)) {
+                continue;
+            }
+
             // 2. Per scadenzeImminenti: solo CTO tra i tecnici può vederle (gestione contratti)
             if (widget.id === 'scadenzeImminenti' && isTecnico && ruoloCorrente !== 'CTO') {
                 continue;
@@ -353,7 +369,7 @@ const Dashboard = {
 
             switch (widget.id) {
                 case 'statistiche':
-                    html += this.renderStatisticheKPI(data.stats, data.scadenzeScadute, data.contrattiTutti, data.fattureScadute, data.tasks, data.app);
+                    html += this.renderStatisticheKPI(data.stats, data.scadenzeScadute, data.contrattiTutti, data.fattureScadute, data.tasks, data.app, data.scadenzeScaduteSospese);
                     break;
                 case 'scadenzeImminenti':
                     // Usa versione compatta se impostato nel widget
@@ -1031,7 +1047,7 @@ const Dashboard = {
 
     // === NUOVI WIDGET KPI ===
 
-    renderStatisticheKPI(stats, scadenzeScadute, contrattiTutti, fattureScadute, tasks, app) {
+    renderStatisticheKPI(stats, scadenzeScadute, contrattiTutti, fattureScadute, tasks, app, scadenzeScaduteSospese) {
         // Contratti scaduti: data scadenza passata e non cessati
         const oggi = new Date();
         oggi.setHours(0, 0, 0, 0);
@@ -1041,21 +1057,112 @@ const Dashboard = {
         });
         const contrattiScadutiCount = contrattiScadutiList.length;
 
-        // Calcola fatturato scaduto da recuperare (saldo residuo per parzialmente pagate)
-        const fatturatoScaduto = fattureScadute.reduce((sum, f) => {
+        // Helper robusto: gestisce boolean true, stringa 'true', e undefined/false/'false'
+        const _isSospeso = (obj) => obj.creditoSospeso === true || obj.creditoSospeso === 'true';
+
+        // Separa fatture normali da quelle con credito sospeso
+        const fattureScaduteNormali = fattureScadute.filter(f => !_isSospeso(f));
+        const fattureScaduteSospese = fattureScadute.filter(f => _isSospeso(f));
+
+        // Calcola fatturato scaduto da recuperare (SOLO fatture normali, esclude crediti sospesi)
+        const _calcolaImportoResiduo = (f) => {
             if (f.statoPagamento === 'PARZIALMENTE_PAGATA') {
                 const totAcconti = (f.acconti || []).reduce((s, a) => s + (a.importo || 0), 0);
-                return sum + Math.max(0, (f.importoTotale || 0) - totAcconti);
+                return Math.max(0, (f.importoTotale || 0) - totAcconti);
             }
-            return sum + (f.importoTotale || 0);
-        }, 0);
+            return f.importoTotale || 0;
+        };
+        const fatturatoScaduto = fattureScaduteNormali.reduce((sum, f) => sum + _calcolaImportoResiduo(f), 0);
+        const fatturatoSospeso = fattureScaduteSospese.reduce((sum, f) => sum + _calcolaImportoResiduo(f), 0);
+
+        // === SCADENZE NELLE APP ===
+        // Calcola tutte le scadenze (scadute + imminenti 7gg) dalle app
+        const _oggiApp = new Date();
+        _oggiApp.setHours(0, 0, 0, 0);
+        const _tra7giorniApp = new Date(_oggiApp);
+        _tra7giorniApp.setDate(_oggiApp.getDate() + 7);
+
+        const scadenzeApp = [];
+        (app || []).forEach(a => {
+            const nomeApp = a.nomeApp || a.nome || 'App senza nome';
+            const appId = a.id;
+            const comune = a.comune || a.nomeComune || '';
+
+            // Raccolta Differenziata
+            if (a.ultimaDataRaccoltaDifferenziata) {
+                const d = new Date(a.ultimaDataRaccoltaDifferenziata);
+                d.setHours(0, 0, 0, 0);
+                const isScaduta = d < _oggiApp;
+                const isImminente = d >= _oggiApp && d <= _tra7giorniApp;
+                if (isScaduta || isImminente) {
+                    scadenzeApp.push({ tipo: 'Raccolta Differenziata', icona: 'fas fa-recycle', data: a.ultimaDataRaccoltaDifferenziata, isScaduta, nomeApp, appId, comune });
+                }
+            }
+            // Farmacie di Turno
+            if (a.ultimaDataFarmacieTurno) {
+                const d = new Date(a.ultimaDataFarmacieTurno);
+                d.setHours(0, 0, 0, 0);
+                const isScaduta = d < _oggiApp;
+                const isImminente = d >= _oggiApp && d <= _tra7giorniApp;
+                if (isScaduta || isImminente) {
+                    scadenzeApp.push({ tipo: 'Farmacie di Turno', icona: 'fas fa-pills', data: a.ultimaDataFarmacieTurno, isScaduta, nomeApp, appId, comune });
+                }
+            }
+            // Notifiche Farmacie di Turno
+            if (a.ultimaDataNotificheFarmacie) {
+                const d = new Date(a.ultimaDataNotificheFarmacie);
+                d.setHours(0, 0, 0, 0);
+                const isScaduta = d < _oggiApp;
+                const isImminente = d >= _oggiApp && d <= _tra7giorniApp;
+                if (isScaduta || isImminente) {
+                    scadenzeApp.push({ tipo: 'Notifiche Farmacie', icona: 'fas fa-bell', data: a.ultimaDataNotificheFarmacie, isScaduta, nomeApp, appId, comune });
+                }
+            }
+            // Certificato Apple
+            if (a.scadenzaCertificatoApple) {
+                const d = new Date(a.scadenzaCertificatoApple);
+                d.setHours(0, 0, 0, 0);
+                const isScaduta = d < _oggiApp;
+                const isImminente = d >= _oggiApp && d <= _tra7giorniApp;
+                if (isScaduta || isImminente) {
+                    scadenzeApp.push({ tipo: 'Certificato Apple', icona: 'fab fa-apple', data: a.scadenzaCertificatoApple, isScaduta, nomeApp, appId, comune });
+                }
+            }
+            // Altra Scadenza
+            if (a.altraScadenzaData) {
+                const d = new Date(a.altraScadenzaData);
+                d.setHours(0, 0, 0, 0);
+                const isScaduta = d < _oggiApp;
+                const isImminente = d >= _oggiApp && d <= _tra7giorniApp;
+                if (isScaduta || isImminente) {
+                    scadenzeApp.push({ tipo: a.altraScadenzaNote || 'Altra Scadenza', icona: 'fas fa-bookmark', data: a.altraScadenzaData, isScaduta, nomeApp, appId, comune });
+                }
+            }
+        });
+
+        // Ordina: prima le scadute (dalla più vecchia), poi le imminenti (dalla più prossima)
+        scadenzeApp.sort((a, b) => {
+            if (a.isScaduta && !b.isScaduta) return -1;
+            if (!a.isScaduta && b.isScaduta) return 1;
+            return new Date(a.data) - new Date(b.data);
+        });
+
+        const scadenzeAppScadute = scadenzeApp.filter(s => s.isScaduta);
+        const scadenzeAppImminenti = scadenzeApp.filter(s => !s.isScaduta);
 
         // Salva in cache per drill-down
         this._kpiData = {
             scadenzeScadute,
+            scadenzeScaduteSospese: scadenzeScaduteSospese || [],
             contrattiScaduti: contrattiScadutiList,
             fattureScadute,
-            tasks
+            fattureScaduteNormali,
+            fattureScaduteSospese,
+            fatturatoSospeso,
+            tasks,
+            scadenzeApp,
+            scadenzeAppScadute,
+            scadenzeAppImminenti
         };
 
         // Calcola task urgenti in corso (IN_PROGRESS con priorità ALTA o URGENTE)
@@ -1140,6 +1247,21 @@ const Dashboard = {
             }));
         }
 
+        // Scadenze nelle App — visibile a chi può vedere le app
+        if (AuthService.hasPermission('view_apps') || AuthService.hasPermission('manage_apps') || AuthService.hasPermission('manage_app_content') || AuthService.hasPermission('view_all_data')) {
+            const _totScadenzeApp = scadenzeApp.length;
+            const _scaduteAppCount = scadenzeAppScadute.length;
+            if (_totScadenzeApp > 0) {
+                kpiCards.push(UI.createKPICard({
+                    icon: 'calendar-day',
+                    iconClass: _scaduteAppCount > 0 ? 'critical' : 'warning',
+                    label: 'Scadenze nelle App',
+                    value: _totScadenzeApp,
+                    onclick: 'Dashboard.mostraDettaglioKPI("scadenzeApp")'
+                }));
+            }
+        }
+
         // Se non ci sono KPI da mostrare, mostra messaggio
         if (kpiCards.length === 0) {
             return `
@@ -1169,30 +1291,63 @@ const Dashboard = {
         switch (tipo) {
             case 'scadenzeCritiche': {
                 const items = this._kpiData.scadenzeScadute;
-                titolo = `Scadenze Critiche (${items.length})`;
-                if (items.length === 0) {
+                const itemsSospese = this._kpiData.scadenzeScaduteSospese || [];
+                const hasSospese = itemsSospese.length > 0;
+
+                // Conta per tipologia (per chiarezza nel titolo)
+                const _nRinnovi = items.filter(s => s.tipo === 'CONTRATTO_RINNOVO').length;
+                const _nIncassi = items.filter(s => s.tipo === 'FATTURA_INCASSO').length;
+                const _nEmissioni = items.filter(s => s.tipo === 'FATTURA_EMISSIONE').length;
+                const _dettaglio = [
+                    _nRinnovi > 0 ? `${_nRinnovi} rinnovi` : '',
+                    _nIncassi > 0 ? `${_nIncassi} incassi` : '',
+                    _nEmissioni > 0 ? `${_nEmissioni} emissioni` : ''
+                ].filter(Boolean).join(' + ');
+                titolo = `Scadenze Critiche (${items.length})${_dettaglio ? ' — ' + _dettaglio : ''}`;
+
+                // Helper per renderizzare una riga di scadenza critica
+                const _renderRigaScadCritica = (s, isSospesa) => {
+                    const giorni = Math.abs(Math.ceil((new Date(s.dataScadenza) - new Date()) / (1000 * 60 * 60 * 24)));
+                    let tipoLabel = s.tipo === 'CONTRATTO_RINNOVO' ? 'Rinnovo' : s.tipo === 'FATTURA_INCASSO' ? 'Incasso' : s.tipo === 'FATTURA_EMISSIONE' ? 'Emissione' : s.tipo;
+                    let onclick = s.tipo === 'CONTRATTO_RINNOVO' ? `UI.showPage('dettaglio-contratto','${s.id}')` :
+                                  s.tipo === 'FATTURA_INCASSO' ? `UI.showPage('dettaglio-fattura','${s.id}')` :
+                                  s.contrattoId ? `UI.showPage('dettaglio-contratto','${s.contrattoId}')` : '';
+                    return `
+                        <div class="list-item scadCrit-item ${isSospesa ? 'scadCrit-sospesa' : ''}" style="cursor:${onclick ? 'pointer' : 'default'};${isSospesa ? 'display:none;border-left:3px solid #FF9800;background:#FFFAF0;' : ''}" ${onclick ? `onclick="${onclick}"` : ''}>
+                            <div style="display:flex;justify-content:space-between;align-items:center;gap:1rem;">
+                                <div style="flex:1;min-width:0;">
+                                    <div style="font-weight:600;color:var(--grigio-900);">
+                                        ${isSospesa ? '<i class="fas fa-pause-circle" style="color:#FF9800;margin-right:4px;font-size:0.85rem;"></i>' : ''}${s.clienteRagioneSociale || 'N/A'}
+                                    </div>
+                                    <div style="font-size:0.8rem;color:var(--grigio-500);">${tipoLabel} • ${s.descrizione || ''}${isSospesa ? ' • <span style="color:#FF9800;font-weight:600;">Credito sospeso</span>' : ''}</div>
+                                </div>
+                                <div style="text-align:right;flex-shrink:0;">
+                                    <span class="badge badge-danger">${giorni}gg fa</span>
+                                    ${s.importo || s.importoTotale ? `<div style="font-size:0.8rem;font-weight:600;color:var(--grigio-700);margin-top:0.25rem;">${DataService.formatCurrency(s.importo || s.importoTotale)}</div>` : ''}
+                                </div>
+                            </div>
+                        </div>`;
+                };
+
+                if (items.length === 0 && !hasSospese) {
                     listaHtml = '<p style="color:var(--grigio-500);text-align:center;padding:1rem;">Nessuna scadenza critica</p>';
                 } else {
-                    listaHtml = '<div class="list-group">';
-                    for (const s of items.slice(0, 30)) {
-                        const giorni = Math.abs(Math.ceil((new Date(s.dataScadenza) - new Date()) / (1000 * 60 * 60 * 24)));
-                        let tipoLabel = s.tipo === 'CONTRATTO_RINNOVO' ? 'Rinnovo' : s.tipo === 'FATTURA_INCASSO' ? 'Incasso' : s.tipo === 'FATTURA_EMISSIONE' ? 'Emissione' : s.tipo;
-                        let onclick = s.tipo === 'CONTRATTO_RINNOVO' ? `UI.showPage('dettaglio-contratto','${s.id}')` :
-                                      s.tipo === 'FATTURA_INCASSO' ? `UI.showPage('dettaglio-fattura','${s.id}')` :
-                                      s.contrattoId ? `UI.showPage('dettaglio-contratto','${s.contrattoId}')` : '';
+                    // Toggle crediti sospesi (se presenti)
+                    if (hasSospese) {
                         listaHtml += `
-                            <div class="list-item" style="cursor:${onclick ? 'pointer' : 'default'};" ${onclick ? `onclick="${onclick}"` : ''}>
-                                <div style="display:flex;justify-content:space-between;align-items:center;gap:1rem;">
-                                    <div style="flex:1;min-width:0;">
-                                        <div style="font-weight:600;color:var(--grigio-900);">${s.clienteRagioneSociale || 'N/A'}</div>
-                                        <div style="font-size:0.8rem;color:var(--grigio-500);">${tipoLabel} • ${s.descrizione || ''}</div>
-                                    </div>
-                                    <div style="text-align:right;flex-shrink:0;">
-                                        <span class="badge badge-danger">${giorni}gg fa</span>
-                                        ${s.importo || s.importoTotale ? `<div style="font-size:0.8rem;font-weight:600;color:var(--grigio-700);margin-top:0.25rem;">${DataService.formatCurrency(s.importo || s.importoTotale)}</div>` : ''}
-                                    </div>
-                                </div>
+                            <div style="padding:0.75rem 1rem;border-bottom:1px solid var(--grigio-300);background:var(--grigio-100);display:flex;align-items:center;justify-content:space-between;">
+                                <button id="toggleSospesiScadCrit" onclick="Dashboard._toggleCreditiSospesi('scadCrit')" style="background:#FFF3E0;color:#E65100;border:1px solid #FFB74D;border-radius:20px;padding:0.4rem 1rem;font-size:0.8rem;font-weight:600;cursor:pointer;transition:all 0.2s;display:flex;align-items:center;gap:0.4rem;">
+                                    <i class="fas fa-pause-circle"></i> Vedi anche crediti sospesi <span style="background:#FFE0B2;padding:0.1rem 0.45rem;border-radius:10px;font-size:0.7rem;margin-left:2px;">${itemsSospese.length}</span>
+                                </button>
                             </div>`;
+                    }
+                    listaHtml += '<div class="list-group">';
+                    for (const s of items.slice(0, 30)) {
+                        listaHtml += _renderRigaScadCritica(s, false);
+                    }
+                    // Righe sospese (nascoste di default)
+                    for (const s of itemsSospese.slice(0, 30)) {
+                        listaHtml += _renderRigaScadCritica(s, true);
                     }
                     listaHtml += '</div>';
                 }
@@ -1226,30 +1381,155 @@ const Dashboard = {
                 break;
             }
             case 'fatturatoScaduto': {
-                const items = this._kpiData.fattureScadute;
-                const totale = items.reduce((sum, f) => sum + (f.importoTotale || 0), 0);
-                titolo = `Fatturato da Incassare — ${items.length} fatture • Totale: ${DataService.formatCurrency(totale)}`;
-                if (items.length === 0) {
+                const itemsNormali = this._kpiData.fattureScaduteNormali || [];
+                const itemsSospeseFatt = this._kpiData.fattureScaduteSospese || [];
+                const hasSospeseFatt = itemsSospeseFatt.length > 0;
+
+                const _calcolaResiduo = (f) => {
+                    if (f.statoPagamento === 'PARZIALMENTE_PAGATA') {
+                        const totAcc = (f.acconti || []).reduce((s, a) => s + (a.importo || 0), 0);
+                        return Math.max(0, (f.importoTotale || 0) - totAcc);
+                    }
+                    return f.importoTotale || 0;
+                };
+
+                const totaleNormali = itemsNormali.reduce((sum, f) => sum + _calcolaResiduo(f), 0);
+                const totaleSospese = itemsSospeseFatt.reduce((sum, f) => sum + _calcolaResiduo(f), 0);
+                titolo = `Fatturato da Incassare — ${itemsNormali.length} fatture • Totale: ${DataService.formatCurrency(totaleNormali)}`;
+
+                // Helper per riga fattura
+                const _renderRigaFatt = (f, isSospesa) => {
+                    const giorni = Math.abs(Math.ceil((new Date(f.dataScadenza) - new Date()) / (1000 * 60 * 60 * 24)));
+                    return `
+                        <div class="list-item fattScad-item ${isSospesa ? 'fattScad-sospesa' : ''}" style="cursor:pointer;${isSospesa ? 'display:none;border-left:3px solid #FF9800;background:#FFFAF0;' : ''}" onclick="UI.showPage('dettaglio-fattura','${f.id}')">
+                            <div style="display:flex;justify-content:space-between;align-items:center;gap:1rem;">
+                                <div style="flex:1;min-width:0;">
+                                    <div style="font-weight:600;color:var(--grigio-900);">
+                                        ${isSospesa ? '<i class="fas fa-pause-circle" style="color:#FF9800;margin-right:4px;font-size:0.85rem;"></i>' : ''}${f.clienteRagioneSociale || 'N/A'}
+                                    </div>
+                                    <div style="font-size:0.8rem;color:var(--grigio-500);">${f.numeroFatturaCompleto || f.numeroFattura || 'Fattura'} • Scadenza: ${DataService.formatDate(f.dataScadenza)} • ${f.statoPagamento === 'PARZIALMENTE_PAGATA' ? 'Parz. pagata' : 'Non pagata'}${isSospesa ? ' • <span style="color:#FF9800;font-weight:600;">Credito sospeso</span>' : ''}</div>
+                                </div>
+                                <div style="text-align:right;flex-shrink:0;">
+                                    <span class="badge badge-danger">${giorni}gg fa</span>
+                                    <div style="font-size:1rem;font-weight:700;color:${isSospesa ? '#FF9800' : '#D32F2F'};margin-top:0.25rem;">${DataService.formatCurrency(f.importoTotale)}</div>
+                                </div>
+                            </div>
+                        </div>`;
+                };
+
+                if (itemsNormali.length === 0 && !hasSospeseFatt) {
                     listaHtml = '<p style="color:var(--grigio-500);text-align:center;padding:1rem;">Nessuna fattura scaduta</p>';
                 } else {
-                    listaHtml = '<div class="list-group">';
-                    for (const f of items.sort((a, b) => new Date(a.dataScadenza) - new Date(b.dataScadenza))) {
-                        const giorni = Math.abs(Math.ceil((new Date(f.dataScadenza) - new Date()) / (1000 * 60 * 60 * 24)));
+                    // Toggle crediti sospesi (se presenti)
+                    if (hasSospeseFatt) {
                         listaHtml += `
-                            <div class="list-item" style="cursor:pointer;" onclick="UI.showPage('dettaglio-fattura','${f.id}')">
+                            <div style="padding:0.75rem 1rem;border-bottom:1px solid var(--grigio-300);background:var(--grigio-100);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;">
+                                <button id="toggleSospesiFatt" onclick="Dashboard._toggleCreditiSospesi('fattScad')" style="background:#FFF3E0;color:#E65100;border:1px solid #FFB74D;border-radius:20px;padding:0.4rem 1rem;font-size:0.8rem;font-weight:600;cursor:pointer;transition:all 0.2s;display:flex;align-items:center;gap:0.4rem;">
+                                    <i class="fas fa-pause-circle"></i> Vedi anche crediti sospesi <span style="background:#FFE0B2;padding:0.1rem 0.45rem;border-radius:10px;font-size:0.7rem;margin-left:2px;">${itemsSospeseFatt.length} • ${DataService.formatCurrency(totaleSospese)}</span>
+                                </button>
+                            </div>`;
+                    }
+                    listaHtml += '<div class="list-group">';
+                    const sortedNormali = [...itemsNormali].sort((a, b) => new Date(a.dataScadenza) - new Date(b.dataScadenza));
+                    for (const f of sortedNormali) {
+                        listaHtml += _renderRigaFatt(f, false);
+                    }
+                    // Righe sospese (nascoste di default)
+                    const sortedSospese = [...itemsSospeseFatt].sort((a, b) => new Date(a.dataScadenza) - new Date(b.dataScadenza));
+                    for (const f of sortedSospese) {
+                        listaHtml += _renderRigaFatt(f, true);
+                    }
+                    listaHtml += '</div>';
+                }
+                break;
+            }
+            case 'scadenzeApp': {
+                const allScadenzeApp = this._kpiData.scadenzeApp || [];
+                const totalApp = allScadenzeApp.length;
+                titolo = `Scadenze nelle App (${totalApp})`;
+
+                if (totalApp === 0) {
+                    listaHtml = '<p style="color:var(--grigio-500);text-align:center;padding:1rem;">Nessuna scadenza nelle app</p>';
+                } else {
+                    // Conta per tipologia (per mostrare badge sui filtri)
+                    const tipologie = [
+                        { key: 'Raccolta Differenziata', label: 'Raccolta Diff.', icona: 'fas fa-recycle', color: '#2E6DA8' },
+                        { key: 'Farmacie di Turno', label: 'Farmacie Turno', icona: 'fas fa-pills', color: '#3CA434' },
+                        { key: 'Notifiche Farmacie', label: 'Notifiche Farm.', icona: 'fas fa-bell', color: '#F59E0B' },
+                        { key: 'Certificato Apple', label: 'Certificato Apple', icona: 'fab fa-apple', color: '#555' },
+                        { key: '_altro', label: 'Altra Scadenza', icona: 'fas fa-bookmark', color: '#9B9B9B' }
+                    ];
+
+                    const contiPerTipo = {};
+                    allScadenzeApp.forEach(s => {
+                        const chiave = tipologie.find(t => t.key === s.tipo) ? s.tipo : '_altro';
+                        contiPerTipo[chiave] = (contiPerTipo[chiave] || 0) + 1;
+                    });
+
+                    // Barra filtri
+                    listaHtml = `
+                        <div id="scadenzeAppFiltri" style="display:flex;flex-wrap:wrap;gap:0.5rem;padding:0.75rem 1rem;border-bottom:1px solid var(--grigio-300);background:var(--grigio-100);">
+                            <button class="btn btn-sm scadApp-filtro attivo" data-filtro="tutti" onclick="Dashboard._filtroScadenzeApp('tutti')" style="background:var(--blu-700);color:white;border:none;border-radius:20px;padding:0.35rem 0.85rem;font-size:0.8rem;font-weight:600;cursor:pointer;transition:all 0.2s;">
+                                Tutte <span style="background:rgba(255,255,255,0.3);padding:0.1rem 0.4rem;border-radius:10px;margin-left:4px;font-size:0.7rem;">${totalApp}</span>
+                            </button>
+                            ${tipologie.map(t => {
+                                const count = contiPerTipo[t.key] || 0;
+                                if (count === 0) return '';
+                                return `<button class="btn btn-sm scadApp-filtro" data-filtro="${t.key}" onclick="Dashboard._filtroScadenzeApp('${t.key}')" style="background:white;color:var(--grigio-700);border:1px solid var(--grigio-300);border-radius:20px;padding:0.35rem 0.85rem;font-size:0.8rem;font-weight:600;cursor:pointer;transition:all 0.2s;">
+                                    <i class="${t.icona}" style="margin-right:4px;color:${t.color};"></i>${t.label} <span style="background:var(--grigio-100);padding:0.1rem 0.4rem;border-radius:10px;margin-left:4px;font-size:0.7rem;">${count}</span>
+                                </button>`;
+                            }).join('')}
+                        </div>
+                    `;
+
+                    // Helper per creare una riga scadenza
+                    const _renderRigaScadApp = (s) => {
+                        const isScaduta = s.isScaduta;
+                        const giorni = Math.abs(Math.ceil((new Date(s.data) - new Date()) / (1000 * 60 * 60 * 24)));
+                        const tipoFiltro = tipologie.find(t => t.key === s.tipo) ? s.tipo : '_altro';
+                        return `
+                            <div class="list-item scadApp-item" data-tipo-scadenza="${tipoFiltro}" style="cursor:pointer;" onclick="UI.showPage('dettaglio-app','${s.appId}')">
                                 <div style="display:flex;justify-content:space-between;align-items:center;gap:1rem;">
                                     <div style="flex:1;min-width:0;">
-                                        <div style="font-weight:600;color:var(--grigio-900);">${f.clienteRagioneSociale || 'N/A'}</div>
-                                        <div style="font-size:0.8rem;color:var(--grigio-500);">${f.numeroFatturaCompleto || f.numeroFattura || 'Fattura'} • Scadenza: ${DataService.formatDate(f.dataScadenza)} • ${f.statoPagamento === 'PARZIALMENTE_PAGATA' ? 'Parz. pagata' : 'Non pagata'}</div>
+                                        <div style="font-weight:600;color:var(--grigio-900);">
+                                            <i class="${s.icona}" style="width:20px;text-align:center;margin-right:6px;color:${isScaduta ? 'var(--rosso-errore)' : '#F59E0B'};"></i>
+                                            ${s.tipo}
+                                        </div>
+                                        <div style="font-size:0.8rem;color:var(--grigio-500);margin-top:2px;">
+                                            <i class="fas fa-mobile-alt" style="width:14px;text-align:center;margin-right:4px;"></i> ${s.nomeApp}${s.comune ? ' &bull; ' + s.comune : ''}
+                                        </div>
                                     </div>
                                     <div style="text-align:right;flex-shrink:0;">
-                                        <span class="badge badge-danger">${giorni}gg fa</span>
-                                        <div style="font-size:1rem;font-weight:700;color:#D32F2F;margin-top:0.25rem;">${DataService.formatCurrency(f.importoTotale)}</div>
+                                        <span class="badge ${isScaduta ? 'badge-danger' : 'badge-warning'}">${isScaduta ? giorni + 'gg fa' : 'tra ' + giorni + 'gg'}</span>
+                                        <div style="font-size:0.75rem;color:var(--grigio-500);margin-top:0.25rem;">${DataService.formatDate(s.data)}</div>
                                     </div>
                                 </div>
                             </div>`;
+                    };
+
+                    // Sezione SCADUTE
+                    const scaduteApp = allScadenzeApp.filter(s => s.isScaduta);
+                    const imminentiApp = allScadenzeApp.filter(s => !s.isScaduta);
+
+                    if (scaduteApp.length > 0) {
+                        listaHtml += `
+                            <div class="scadApp-sezione-header" data-sezione="scadute" style="padding: 0.75rem 1rem; background: #FDE8E8; border-left: 4px solid var(--rosso-errore); margin-bottom: 0.5rem;">
+                                <strong style="color: var(--rosso-errore);"><i class="fas fa-exclamation-circle"></i> Scadute (<span id="scadAppCountScadute">${scaduteApp.length}</span>)</strong>
+                            </div>
+                            <div class="list-group" id="scadAppListScadute">
+                                ${scaduteApp.map(s => _renderRigaScadApp(s)).join('')}
+                            </div>`;
                     }
-                    listaHtml += '</div>';
+
+                    if (imminentiApp.length > 0) {
+                        listaHtml += `
+                            <div class="scadApp-sezione-header" data-sezione="imminenti" style="padding: 0.75rem 1rem; background: #FFF8E1; border-left: 4px solid var(--giallo-avviso); margin-top: ${scaduteApp.length > 0 ? '1rem' : '0'}; margin-bottom: 0.5rem;">
+                                <strong style="color: #F59E0B;"><i class="fas fa-exclamation-triangle"></i> Imminenti — prossimi 7 giorni (<span id="scadAppCountImminenti">${imminentiApp.length}</span>)</strong>
+                            </div>
+                            <div class="list-group" id="scadAppListImminenti">
+                                ${imminentiApp.map(s => _renderRigaScadApp(s)).join('')}
+                            </div>`;
+                    }
                 }
                 break;
             }
@@ -1285,6 +1565,91 @@ const Dashboard = {
 
         // Scrolla per mostrare il dettaglio
         container.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    },
+
+    // Filtro per tipologia nella lista Scadenze App
+    _filtroScadenzeApp(filtro) {
+        // Aggiorna stile bottoni filtro
+        document.querySelectorAll('.scadApp-filtro').forEach(btn => {
+            if (btn.dataset.filtro === filtro) {
+                btn.style.background = 'var(--blu-700)';
+                btn.style.color = 'white';
+                btn.style.border = 'none';
+            } else {
+                btn.style.background = 'white';
+                btn.style.color = 'var(--grigio-700)';
+                btn.style.border = '1px solid var(--grigio-300)';
+            }
+        });
+
+        // Mostra/nascondi gli item in base al filtro
+        const items = document.querySelectorAll('.scadApp-item');
+        let scaduteVisibili = 0;
+        let imminentiVisibili = 0;
+
+        items.forEach(item => {
+            const tipoItem = item.dataset.tipoScadenza;
+            const mostra = filtro === 'tutti' || tipoItem === filtro;
+            item.style.display = mostra ? '' : 'none';
+
+            if (mostra) {
+                // Controlla se è nella sezione scadute o imminenti
+                const parentList = item.closest('.list-group');
+                if (parentList && parentList.id === 'scadAppListScadute') scaduteVisibili++;
+                if (parentList && parentList.id === 'scadAppListImminenti') imminentiVisibili++;
+            }
+        });
+
+        // Aggiorna contatori nelle intestazioni sezione
+        const countScadute = document.getElementById('scadAppCountScadute');
+        const countImminenti = document.getElementById('scadAppCountImminenti');
+        if (countScadute) countScadute.textContent = scaduteVisibili;
+        if (countImminenti) countImminenti.textContent = imminentiVisibili;
+
+        // Nascondi le sezioni se non hanno item visibili
+        document.querySelectorAll('.scadApp-sezione-header').forEach(header => {
+            const sezione = header.dataset.sezione;
+            const listId = sezione === 'scadute' ? 'scadAppListScadute' : 'scadAppListImminenti';
+            const list = document.getElementById(listId);
+            const visibili = sezione === 'scadute' ? scaduteVisibili : imminentiVisibili;
+            header.style.display = visibili > 0 ? '' : 'none';
+            if (list) list.style.display = visibili > 0 ? '' : 'none';
+        });
+    },
+
+    // Toggle visibilità crediti sospesi nei drill-down (scadenzeCritiche / fatturatoScaduto)
+    _toggleCreditiSospesi(prefisso) {
+        // prefisso = 'scadCrit' oppure 'fattScad'
+        const itemsSospesi = document.querySelectorAll(`.${prefisso}-sospesa`);
+        if (itemsSospesi.length === 0) return;
+
+        // Controlla stato attuale (visibile o nascosto)
+        const primoItem = itemsSospesi[0];
+        const isVisibile = primoItem.style.display !== 'none';
+
+        // Toggle
+        itemsSospesi.forEach(item => {
+            item.style.display = isVisibile ? 'none' : '';
+        });
+
+        // Aggiorna stile bottone
+        const btnId = prefisso === 'scadCrit' ? 'toggleSospesiScadCrit' : 'toggleSospesiFatt';
+        const btn = document.getElementById(btnId);
+        if (btn) {
+            if (isVisibile) {
+                // Torna allo stato "mostra"
+                btn.style.background = '#FFF3E0';
+                btn.style.color = '#E65100';
+                btn.style.border = '1px solid #FFB74D';
+                btn.innerHTML = btn.innerHTML.replace('Nascondi crediti sospesi', 'Vedi anche crediti sospesi');
+            } else {
+                // Stato "nascondi"
+                btn.style.background = '#FF9800';
+                btn.style.color = 'white';
+                btn.style.border = '1px solid #FF9800';
+                btn.innerHTML = btn.innerHTML.replace('Vedi anche crediti sospesi', 'Nascondi crediti sospesi');
+            }
+        }
     },
 
     renderStatoAppCorretto(app) {

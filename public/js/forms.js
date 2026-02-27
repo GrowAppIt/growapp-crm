@@ -590,6 +590,21 @@ const FormsManager = {
                 ${this.createFormField('Periodicità', 'periodicita', 'text', fattura.periodicita)}
             </div>
 
+            <!-- Credito Sospeso -->
+            <div style="margin-top: 1rem; padding: 1rem; background: ${fattura.creditoSospeso ? '#FFF3E0' : 'var(--grigio-100)'}; border-left: 4px solid ${fattura.creditoSospeso ? '#FF9800' : 'var(--grigio-300)'}; border-radius: 8px;">
+                <label style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer; margin: 0;">
+                    <input type="checkbox" name="creditoSospeso" value="true" ${fattura.creditoSospeso ? 'checked' : ''} style="width: 20px; height: 20px; accent-color: #FF9800; cursor: pointer;" />
+                    <div>
+                        <div style="font-weight: 700; color: var(--grigio-900); font-size: 0.95rem;">
+                            <i class="fas fa-pause-circle" style="color: #FF9800;"></i> Credito Sospeso
+                        </div>
+                        <div style="font-size: 0.8rem; color: var(--grigio-500); margin-top: 2px;">
+                            Fattura in contenzioso o comune in dissesto — esclusa dai solleciti ordinari
+                        </div>
+                    </div>
+                </label>
+            </div>
+
             <!-- Sezione Acconti -->
             <div id="sezioneAccontoModifica" style="display: ${fattura.statoPagamento === 'PARZIALMENTE_PAGATA' ? 'block' : 'none'}; margin-top: 1rem; padding: 1rem; background: var(--verde-100); border-left: 4px solid var(--verde-700); border-radius: 8px;">
                 <h3 style="font-size: 1rem; font-weight: 700; color: var(--verde-900); margin-bottom: 0.75rem;">
@@ -692,6 +707,9 @@ const FormsManager = {
                 delete data.nuovoAccontoImporto;
                 delete data.nuovoAccontoData;
                 delete data.nuovoAccontoNote;
+
+                // Converti creditoSospeso in boolean (getFormData lo salva come stringa)
+                data.creditoSospeso = (data.creditoSospeso === 'true' || data.creditoSospeso === true);
 
                 await DataService.updateFattura(fattura.id, data);
                 UI.showSuccess('Fattura aggiornata con successo!');
@@ -876,6 +894,21 @@ const FormsManager = {
                 </div>
                 </div>
 
+            <!-- Credito Sospeso -->
+            <div style="margin-top: 1rem; padding: 1rem; background: var(--grigio-100); border-left: 4px solid var(--grigio-300); border-radius: 8px;">
+                <label style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer; margin: 0;">
+                    <input type="checkbox" name="creditoSospeso" value="true" style="width: 20px; height: 20px; accent-color: #FF9800; cursor: pointer;" />
+                    <div>
+                        <div style="font-weight: 700; color: var(--grigio-900); font-size: 0.95rem;">
+                            <i class="fas fa-pause-circle" style="color: #FF9800;"></i> Credito Sospeso
+                        </div>
+                        <div style="font-size: 0.8rem; color: var(--grigio-500); margin-top: 2px;">
+                            Fattura in contenzioso o comune in dissesto — esclusa dai solleciti ordinari
+                        </div>
+                    </div>
+                </label>
+            </div>
+
             <!-- Sezione Acconto (visibile solo se stato = PARZIALMENTE_PAGATA) -->
             <div id="sezioneAcconto" style="display: none; margin-top: 1rem; padding: 1rem; background: var(--verde-100); border-left: 4px solid var(--verde-700); border-radius: 8px;">
                 <h3 style="font-size: 1rem; font-weight: 700; color: var(--verde-900); margin-bottom: 0.75rem;">
@@ -930,6 +963,9 @@ const FormsManager = {
                         note: 'Acconto iniziale'
                     }];
                 }
+
+                // Converti creditoSospeso in boolean (getFormData lo salva come stringa)
+                data.creditoSospeso = (data.creditoSospeso === 'true' || data.creditoSospeso === true);
 
                 const newId = await DataService.createFattura(data);
                 UI.showSuccess('Fattura creata con successo!');
@@ -1414,6 +1450,7 @@ const FormsManager = {
                             { value: 'DEMO', label: 'Demo' }
                         ]
                     })}
+                    ${this.createFormField('Referente', 'referenteComune', 'text', app.referenteComune, { placeholder: 'Nome e cognome referente' })}
                 </div>
             </div>
 
@@ -1424,7 +1461,18 @@ const FormsManager = {
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr)); gap: 1rem;">
                     ${this.createFormField('Data Pubblicazione Apple', 'dataPubblicazioneApple', 'date', app.dataPubblicazioneApple?.split('T')[0])}
                     ${this.createFormField('Data Pubblicazione Android', 'dataPubblicazioneAndroid', 'date', app.dataPubblicazioneAndroid?.split('T')[0])}
-                    ${this.createFormField('Referente Comune', 'referenteComune', 'text', app.referenteComune)}
+                </div>
+
+                <div style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 2px solid var(--grigio-300);">
+                    <h4 style="font-size: 0.95rem; font-weight: 600; color: var(--grigio-700); margin-bottom: 0.75rem;">
+                        🍎 Credenziali Apple Developer
+                    </h4>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr)); gap: 1rem;">
+                        ${this.createFormField('Username Apple', 'appleUsername', 'text', app.appleUsername, { placeholder: 'Apple ID / Email' })}
+                        ${this.createFormField('Password Apple', 'applePassword', 'text', app.applePassword, { placeholder: 'Password account' })}
+                        ${this.createFormField('Email Aggiuntiva Developer', 'appleEmailAggiuntiva', 'text', app.appleEmailAggiuntiva, { placeholder: 'Email aggiuntiva nel developer' })}
+                        ${this.createFormField('Telefono OTP', 'appleTelefonoOtp', 'text', app.appleTelefonoOtp, { placeholder: 'Numero per ricezione OTP' })}
+                    </div>
                 </div>
             </div>
 
@@ -1478,6 +1526,7 @@ const FormsManager = {
                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr)); gap: 1rem;">
                         ${this.createFormField('📅 Ultima Data Raccolta Differenziata', 'ultimaDataRaccoltaDifferenziata', 'date', app.ultimaDataRaccoltaDifferenziata?.split('T')[0], { placeholder: 'Data aggiornamento' })}
                         ${this.createFormField('💊 Ultima Data Farmacie di Turno', 'ultimaDataFarmacieTurno', 'date', app.ultimaDataFarmacieTurno?.split('T')[0], { placeholder: 'Data aggiornamento' })}
+                        ${this.createFormField('🔔 Ultima Data Notifiche Farmacie', 'ultimaDataNotificheFarmacie', 'date', app.ultimaDataNotificheFarmacie?.split('T')[0], { placeholder: 'Data aggiornamento' })}
                         ${this.createFormField('🍎 Scadenza Certificato Apple', 'scadenzaCertificatoApple', 'date', app.scadenzaCertificatoApple?.split('T')[0], { placeholder: 'Data scadenza' })}
                         ${this.createFormField('📌 Altra Scadenza', 'altraScadenzaData', 'date', app.altraScadenzaData?.split('T')[0], { placeholder: 'Data scadenza' })}
                     </div>
@@ -1574,9 +1623,16 @@ const FormsManager = {
                 // Assicura che i campi scadenze siano sempre presenti (anche se vuoti)
                 data.ultimaDataRaccoltaDifferenziata = data.ultimaDataRaccoltaDifferenziata || null;
                 data.ultimaDataFarmacieTurno = data.ultimaDataFarmacieTurno || null;
+                data.ultimaDataNotificheFarmacie = data.ultimaDataNotificheFarmacie || null;
                 data.scadenzaCertificatoApple = data.scadenzaCertificatoApple || null;
                 data.altraScadenzaData = data.altraScadenzaData || null;
                 data.altraScadenzaNote = data.altraScadenzaNote || null;
+
+                // Assicura che i campi Credenziali Apple siano presenti
+                data.appleUsername = data.appleUsername || null;
+                data.applePassword = data.applePassword || null;
+                data.appleEmailAggiuntiva = data.appleEmailAggiuntiva || null;
+                data.appleTelefonoOtp = data.appleTelefonoOtp || null;
 
                 // Raccogli Feed RSS (fino a 5 slot)
                 data.feedRss = [];
@@ -1684,6 +1740,7 @@ const FormsManager = {
                             { value: 'SOSPESA', label: 'Sospesa' }
                         ]
                     })}
+                    ${this.createFormField('Referente', 'referenteComune', 'text', '', { placeholder: 'Nome e cognome referente' })}
                 </div>
             </div>
 
@@ -1694,7 +1751,18 @@ const FormsManager = {
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr)); gap: 1rem;">
                     ${this.createFormField('Data Pubblicazione Apple', 'dataPubblicazioneApple', 'date', '')}
                     ${this.createFormField('Data Pubblicazione Android', 'dataPubblicazioneAndroid', 'date', '')}
-                    ${this.createFormField('Referente Comune', 'referenteComune', 'text', '', { placeholder: 'Nome e cognome' })}
+                </div>
+
+                <div style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 2px solid var(--grigio-300);">
+                    <h4 style="font-size: 0.95rem; font-weight: 600; color: var(--grigio-700); margin-bottom: 0.75rem;">
+                        🍎 Credenziali Apple Developer
+                    </h4>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr)); gap: 1rem;">
+                        ${this.createFormField('Username Apple', 'appleUsername', 'text', '', { placeholder: 'Apple ID / Email' })}
+                        ${this.createFormField('Password Apple', 'applePassword', 'text', '', { placeholder: 'Password account' })}
+                        ${this.createFormField('Email Aggiuntiva Developer', 'appleEmailAggiuntiva', 'text', '', { placeholder: 'Email aggiuntiva nel developer' })}
+                        ${this.createFormField('Telefono OTP', 'appleTelefonoOtp', 'text', '', { placeholder: 'Numero per ricezione OTP' })}
+                    </div>
                 </div>
             </div>
 
@@ -1746,6 +1814,7 @@ const FormsManager = {
                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr)); gap: 1rem;">
                         ${this.createFormField('📅 Ultima Data Raccolta Differenziata', 'ultimaDataRaccoltaDifferenziata', 'date', '', { placeholder: 'Data aggiornamento' })}
                         ${this.createFormField('💊 Ultima Data Farmacie di Turno', 'ultimaDataFarmacieTurno', 'date', '', { placeholder: 'Data aggiornamento' })}
+                        ${this.createFormField('🔔 Ultima Data Notifiche Farmacie', 'ultimaDataNotificheFarmacie', 'date', '', { placeholder: 'Data aggiornamento' })}
                         ${this.createFormField('🍎 Scadenza Certificato Apple', 'scadenzaCertificatoApple', 'date', '', { placeholder: 'Data scadenza' })}
                         ${this.createFormField('📌 Altra Scadenza', 'altraScadenzaData', 'date', '', { placeholder: 'Data scadenza' })}
                     </div>

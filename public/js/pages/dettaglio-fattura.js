@@ -58,6 +58,7 @@ const DettaglioFattura = {
                         <span class="badge ${DataService.getStatoBadgeClass(fattura.statoPagamento)}">
                             ${fattura.statoPagamento?.replace('_', ' ') || 'N/A'}
                         </span>
+                        ${fattura.creditoSospeso ? '<span class="badge" style="background: #FF9800; color: white; font-size: 0.85rem;"><i class="fas fa-pause-circle"></i> Credito Sospeso</span>' : ''}
                         <span style="color: var(--grigio-500);">
                             <i class="fas fa-calendar"></i> ${DataService.formatDate(fattura.dataEmissione)}
                         </span>
@@ -135,6 +136,16 @@ const DettaglioFattura = {
                         ${this.renderInfoField('Stato Pagamento', fattura.statoPagamento?.replace('_', ' '), 'check-circle')}
                         ${fattura.metodoPagamento ? this.renderInfoField('Metodo Pagamento', fattura.metodoPagamento, 'credit-card') : ''}
                     </div>
+                    ${fattura.creditoSospeso ? `
+                    <div style="margin-top: 1rem; padding: 0.75rem 1rem; background: #FFF3E0; border-left: 4px solid #FF9800; border-radius: 8px;">
+                        <div style="font-weight: 700; color: #E65100; font-size: 0.9rem;">
+                            <i class="fas fa-pause-circle"></i> Credito Sospeso
+                        </div>
+                        <div style="font-size: 0.8rem; color: var(--grigio-500); margin-top: 2px;">
+                            Fattura in contenzioso o comune in dissesto — esclusa dai solleciti ordinari
+                        </div>
+                    </div>
+                    ` : ''}
                 </div>
             </div>
 

@@ -40,8 +40,8 @@ const AuthService = {
             'view_company_info', 'manage_business_card' // ✅ Può vedere Growapp + modificare biglietto
         ],
         SVILUPPATORE: [
+            'view_dashboard', // ✅ Accesso Dashboard (senza dati amministrativi)
             'view_dev_tasks', 'manage_dev_tasks', 'manage_app_content', 'view_apps',
-            'view_clients', // ✅ Aggiunto accesso CLIENTI
             'view_company_info', 'manage_business_card' // ✅ Impostazioni base
         ],
         AGENTE: [
@@ -51,8 +51,8 @@ const AuthService = {
             'view_company_info', 'manage_business_card' // ✅ Impostazioni base
         ],
         CONTENT_MANAGER: [
-            'view_all_data', 'manage_app_content', 'view_apps', 'manage_apps',
-            'view_clients', // ✅ Aggiunto CLIENTI
+            'view_dashboard', // ✅ Accesso Dashboard (senza dati amministrativi)
+            'manage_app_content', 'view_apps', 'manage_apps',
             'view_dev_tasks', 'manage_dev_tasks', // ✅ Aggiunto TASK
             'view_company_info', 'manage_business_card' // ✅ Impostazioni base
         ],
@@ -262,7 +262,7 @@ const AuthService = {
     // Verifica accesso a una pagina
     canAccessPage(pageName) {
         const pagePermissions = {
-            'dashboard': ['*', 'view_all_data', 'view_own_data'],
+            'dashboard': ['*', 'view_all_data', 'view_own_data', 'view_dashboard'],
             'clienti': ['*', 'view_all_data', 'manage_clients', 'view_clients', 'view_own_data'],
             'dettaglio-cliente': ['*', 'view_all_data', 'manage_clients', 'view_clients', 'view_own_data'],
             'app': ['*', 'view_all_data', 'manage_apps', 'view_apps', 'manage_app_content', 'view_own_data'],

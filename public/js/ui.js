@@ -611,6 +611,29 @@ const UI = {
                 item.style.display = 'flex';
             }
         });
+
+        // Nasconde le intestazioni di sezione sidebar se tutti i figli menu-item sono nascosti
+        const sidebarMenu = document.querySelector('.sidebar-menu');
+        if (sidebarMenu) {
+            const allItems = Array.from(sidebarMenu.children);
+            for (let i = 0; i < allItems.length; i++) {
+                const el = allItems[i];
+                // Identifica le intestazioni di sezione (li senza classe menu-item, con testo tipo "Amministrativa")
+                if (el.tagName === 'LI' && !el.classList.contains('menu-item')) {
+                    // Controlla se tutti i menu-item successivi (fino alla prossima intestazione) sono nascosti
+                    let hasVisibleChild = false;
+                    for (let j = i + 1; j < allItems.length; j++) {
+                        const next = allItems[j];
+                        if (next.tagName === 'LI' && !next.classList.contains('menu-item')) break; // prossima sezione
+                        if (next.classList.contains('menu-item') && next.style.display !== 'none') {
+                            hasVisibleChild = true;
+                            break;
+                        }
+                    }
+                    el.style.display = hasVisibleChild ? '' : 'none';
+                }
+            }
+        }
     },
 
     // === SIDEBAR BADGES ===

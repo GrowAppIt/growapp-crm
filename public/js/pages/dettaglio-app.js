@@ -468,6 +468,7 @@ const DettaglioApp = {
                         ${this.renderInfoItem('Cliente Pagante', clientePagante?.ragioneSociale || 'Non collegata', 'building', !clientePagante)}
                         ${this.renderInfoItem('Tipo Pagamento', app.tipoPagamento, 'credit-card')}
                         ${this.renderInfoItem('Stato App', app.statoApp?.replace('_', ' '), 'toggle-on')}
+                        ${this.renderInfoItem('Referente', app.referenteComune, 'user-tie')}
                     </div>
                 </div>
             </div>
@@ -475,6 +476,9 @@ const DettaglioApp = {
     },
 
     renderPubblicazioneStore(app) {
+        // Verifica se ci sono credenziali Apple compilate
+        const hasCredenzialiApple = app.appleUsername || app.applePassword || app.appleEmailAggiuntiva || app.appleTelefonoOtp;
+
         return `
             <div class="card">
                 <div class="card-header">
@@ -486,8 +490,21 @@ const DettaglioApp = {
                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(250px, 100%), 1fr)); gap: 1.5rem;">
                         ${this.renderInfoItem('Pubblicazione Apple', app.dataPubblicazioneApple ? DataService.formatDate(app.dataPubblicazioneApple) : 'Non pubblicata', 'apple')}
                         ${this.renderInfoItem('Pubblicazione Android', app.dataPubblicazioneAndroid ? DataService.formatDate(app.dataPubblicazioneAndroid) : 'Non pubblicata', 'android')}
-                        ${this.renderInfoItem('Referente Comune', app.referenteComune, 'user')}
                     </div>
+
+                    ${hasCredenzialiApple ? `
+                    <div style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 2px solid var(--grigio-300);">
+                        <h4 style="font-size: 0.875rem; font-weight: 700; color: var(--grigio-700); margin-bottom: 1rem; text-transform: uppercase; letter-spacing: 0.05em;">
+                            <i class="fab fa-apple"></i> Credenziali Apple Developer
+                        </h4>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(250px, 100%), 1fr)); gap: 1.5rem;">
+                            ${this.renderInfoItem('Username', app.appleUsername, 'user')}
+                            ${this.renderInfoItem('Password', app.applePassword, 'lock')}
+                            ${this.renderInfoItem('Email Aggiuntiva', app.appleEmailAggiuntiva, 'envelope')}
+                            ${this.renderInfoItem('Telefono OTP', app.appleTelefonoOtp, 'mobile-alt')}
+                        </div>
+                    </div>
+                    ` : ''}
                 </div>
             </div>
         `;
@@ -522,6 +539,16 @@ const DettaglioApp = {
             }
         }
 
+        if (app.ultimaDataNotificheFarmacie) {
+            const data = new Date(app.ultimaDataNotificheFarmacie);
+            data.setHours(0, 0, 0, 0);
+            const isScaduta = data < oggi;
+            const isImminente = data >= oggi && data <= tra7giorni;
+            if (isScaduta || isImminente) {
+                scadenze.push({ tipo: '🔔 Notifiche Farmacie', data: app.ultimaDataNotificheFarmacie, isScaduta });
+            }
+        }
+
         if (app.scadenzaCertificatoApple) {
             const data = new Date(app.scadenzaCertificatoApple);
             data.setHours(0, 0, 0, 0);
@@ -550,7 +577,7 @@ const DettaglioApp = {
         const hasTelegram = app.hasGruppoTelegram === true || app.hasGruppoTelegram === 'true';
         const hasFlash = app.hasAvvisiFlash === true || app.hasAvvisiFlash === 'true';
 
-        const haDateScadenze = app.ultimaDataRaccoltaDifferenziata || app.ultimaDataFarmacieTurno || app.scadenzaCertificatoApple || app.altraScadenzaData;
+        const haDateScadenze = app.ultimaDataRaccoltaDifferenziata || app.ultimaDataFarmacieTurno || app.ultimaDataNotificheFarmacie || app.scadenzaCertificatoApple || app.altraScadenzaData;
 
         return `
             <div class="card">
@@ -650,6 +677,13 @@ const DettaglioApp = {
                                 <div style="font-size: 0.75rem; color: var(--grigio-500); margin-bottom: 0.25rem; font-weight: 600; text-transform: uppercase;">💊 Farmacie di Turno</div>
                                 <div style="font-size: 1.125rem; font-weight: 700; color: var(--blu-700);">${DataService.formatDate(app.ultimaDataFarmacieTurno)}</div>
                                 ${(() => { const d = new Date(app.ultimaDataFarmacieTurno); d.setHours(0,0,0,0); return d < oggi ? '<div style="font-size: 0.8rem; color: var(--rosso-errore); margin-top: 4px; font-weight: 600;"><i class="fas fa-exclamation-circle"></i> Scaduta</div>' : ''; })()}
+                            </div>
+                            ` : ''}
+                            ${app.ultimaDataNotificheFarmacie ? `
+                            <div class="stat-box" style="background: var(--grigio-100); padding: 1rem; border-radius: 8px;">
+                                <div style="font-size: 0.75rem; color: var(--grigio-500); margin-bottom: 0.25rem; font-weight: 600; text-transform: uppercase;">🔔 Notifiche Farmacie</div>
+                                <div style="font-size: 1.125rem; font-weight: 700; color: var(--blu-700);">${DataService.formatDate(app.ultimaDataNotificheFarmacie)}</div>
+                                ${(() => { const d = new Date(app.ultimaDataNotificheFarmacie); d.setHours(0,0,0,0); return d < oggi ? '<div style="font-size: 0.8rem; color: var(--rosso-errore); margin-top: 4px; font-weight: 600;"><i class="fas fa-exclamation-circle"></i> Scaduta</div>' : ''; })()}
                             </div>
                             ` : ''}
                             ${app.scadenzaCertificatoApple ? `
