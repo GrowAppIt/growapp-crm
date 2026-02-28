@@ -14,7 +14,7 @@ const ReportGoodBarber = {
   currentFilters: {
     regione: null,
     gestione: null,
-    statoApp: null
+    searchQuery: ''
   },
 
   /**
@@ -24,8 +24,9 @@ const ReportGoodBarber = {
     try {
       UI.showLoading();
 
-      // Load all apps
-      this.allApps = await DataService.getApps();
+      // Load all apps — SOLO le ATTIVA
+      const tutteLeApp = await DataService.getApps();
+      this.allApps = tutteLeApp.filter(a => a.statoApp === 'ATTIVA');
 
       // Auto-fill popolazione da ISTAT per le app che hanno il comune ma non la popolazione
       await this.autoFillPopolazioneISTAT();
@@ -125,7 +126,7 @@ const ReportGoodBarber = {
 
         /* KPI Grid */
         .rpt-kpi-grid {
-          display: grid; grid-template-columns: repeat(6, 1fr); gap: 1rem;
+          display: grid; grid-template-columns: repeat(5, 1fr); gap: 1rem;
           margin-bottom: 1.5rem;
         }
         .rpt-kpi {
@@ -169,7 +170,17 @@ const ReportGoodBarber = {
           border-radius: 8px; font-size: 0.875rem; background: #fff;
           font-family: 'Titillium Web', sans-serif; color: var(--grigio-900);
         }
-        .rpt-filter-select:focus { border-color: var(--blu-500); outline: none; box-shadow: 0 0 0 2px rgba(46,109,168,0.2); }
+        .rpt-filter-select:focus, .rpt-filter-input:focus { border-color: var(--blu-500); outline: none; box-shadow: 0 0 0 2px rgba(46,109,168,0.2); }
+        .rpt-filter-input {
+          width: 100%; padding: 0.5rem 0.75rem 0.5rem 2rem; border: 1px solid var(--grigio-300);
+          border-radius: 8px; font-size: 0.875rem; background: #fff;
+          font-family: 'Titillium Web', sans-serif; color: var(--grigio-900);
+        }
+        .rpt-search-wrap { position: relative; }
+        .rpt-search-wrap i {
+          position: absolute; left: 0.65rem; top: 50%; transform: translateY(-50%);
+          color: var(--grigio-500); font-size: 0.8rem; pointer-events: none;
+        }
         .rpt-btn-reset {
           background: none; border: 1px solid var(--grigio-300); border-radius: 8px;
           padding: 0.5rem 1rem; font-size: 0.8rem; color: var(--grigio-700);
@@ -209,9 +220,8 @@ const ReportGoodBarber = {
           overflow: hidden; text-overflow: ellipsis;
         }
         .rpt-table .col-rank { text-align: center; width: 32px; font-weight: 700; color: var(--grigio-500); }
-        .rpt-table .col-nome { font-weight: 700; color: var(--blu-900); max-width: 160px; overflow: hidden; text-overflow: ellipsis; }
-        .rpt-table .col-comune { max-width: 120px; overflow: hidden; text-overflow: ellipsis; }
-        .rpt-table .col-regione { max-width: 90px; overflow: hidden; text-overflow: ellipsis; }
+        .rpt-table .col-nome { font-weight: 700; color: var(--blu-900); max-width: 200px; overflow: hidden; text-overflow: ellipsis; }
+        .rpt-table .col-regione { width: 70px; max-width: 70px; overflow: hidden; text-overflow: ellipsis; font-size: 0.75rem; }
         .rpt-table .col-score { text-align: center; width: 60px; }
         .rpt-table .col-downloads,
         .rpt-table .col-consensi,
@@ -276,11 +286,77 @@ const ReportGoodBarber = {
           .rpt-kpi-grid { grid-template-columns: repeat(3, 1fr); }
           .rpt-tb-container { grid-template-columns: 1fr; }
         }
-        @media (max-width: 640px) {
+        @media (max-width: 768px) {
           .rpt-kpi-grid { grid-template-columns: repeat(2, 1fr); }
           .rpt-header { flex-direction: column; align-items: flex-start; }
           .rpt-kpi-value { font-size: 1.4rem; }
           .rpt-filters { flex-direction: column; }
+
+          /* ── TABELLA → CARD MOBILE ────────────────────── */
+          .rpt-table-wrap { overflow-x: hidden; }
+          .rpt-table { table-layout: auto; display: block; }
+          .rpt-table thead { display: none; }
+          .rpt-table tbody { display: block; }
+          .rpt-table tbody tr {
+            display: flex; flex-wrap: wrap; align-items: center;
+            padding: 0.55rem 0.5rem;
+            border-bottom: 1px solid var(--grigio-300);
+          }
+          .rpt-table tbody tr:hover { background: var(--blu-100); }
+
+          /* Reset tutte le celle */
+          .rpt-table tbody td {
+            width: auto !important; max-width: none !important;
+            padding: 0 !important; white-space: nowrap;
+          }
+
+          /* Nascondi tutto tranne rank, nome, score, downloads, push */
+          .rpt-table tbody td.col-regione,
+          .rpt-table tbody td.col-penetrazione,
+          .rpt-table tbody td.col-lanci,
+          .rpt-table tbody td.col-pageviews,
+          .rpt-table tbody td.col-popolazione { display: none !important; }
+
+          /* RIGA 1: rank + nome + score */
+          .rpt-table tbody td.col-rank {
+            order: 1; flex: 0 0 22px;
+            font-size: 0.72rem; color: var(--grigio-500); font-weight: 700;
+            text-align: center;
+          }
+          .rpt-table tbody td.col-nome {
+            order: 2; flex: 1 1 0; min-width: 0;
+            font-size: 0.82rem; font-weight: 700; color: var(--blu-900);
+            overflow: hidden; text-overflow: ellipsis;
+            padding: 0 0.3rem !important;
+          }
+          .rpt-table tbody td.col-score {
+            order: 3; flex: 0 0 auto;
+          }
+
+          /* RIGA 2: downloads a sinistra, push a destra */
+          /* flex-basis 50% forza il wrap perché riga 1 è già piena */
+          .rpt-table tbody td.col-downloads {
+            order: 4; flex: 0 0 50%;
+            margin-top: 3px; padding-left: 22px !important;
+            font-size: 0.7rem; color: var(--grigio-700);
+            text-align: left;
+          }
+          .rpt-table tbody td.col-consensi {
+            order: 5; flex: 0 0 auto;
+            margin-top: 3px; margin-left: auto;
+            font-size: 0.7rem; color: var(--grigio-700);
+            text-align: right; padding-right: 0.3rem !important;
+          }
+
+          /* Etichette inline */
+          .rpt-table tbody td.col-downloads::before { content: 'Downloads '; font-weight: 600; color: var(--grigio-500); }
+          .rpt-table tbody td.col-consensi::before { content: 'Push '; font-weight: 600; color: var(--grigio-500); }
+
+          /* Badge score più piccolo su mobile */
+          .rpt-badge { font-size: 0.68rem; padding: 0.15rem 0.45rem; min-width: 26px; }
+
+          /* Top/Bottom cards */
+          .rpt-tb-container { grid-template-columns: 1fr; }
         }
       </style>
 
@@ -307,7 +383,6 @@ const ReportGoodBarber = {
                 <tr>
                   <th class="col-rank" data-sort="rank">#</th>
                   <th class="col-nome" data-sort="nome">Nome App</th>
-                  <th class="col-comune" data-sort="comune">Comune</th>
                   <th class="col-regione" data-sort="regione">Regione</th>
                   <th class="col-score" data-sort="score">Score</th>
                   <th class="col-downloads" data-sort="downloads">Downloads</th>
@@ -562,13 +637,17 @@ const ReportGoodBarber = {
       return sum + (this.allStats[app.id]?.pageViewsMonth || 0);
     }, 0);
 
-    const avgPenetrazione = this.calculateAveragePenetration();
+    // Somma abitanti serviti (popolazione di tutte le app ATTIVA)
+    const abitantiServiti = this.allApps.reduce((sum, app) => {
+      return sum + (app.popolazione || 0);
+    }, 0);
+
     const trendPositive = this.countPositiveTrend();
 
     const kpiHtml = `
       <div class="rpt-kpi">
         <div class="rpt-kpi-icon" style="color: var(--blu-500);"><i class="fas fa-cube"></i></div>
-        <div class="rpt-kpi-label">App Configurate</div>
+        <div class="rpt-kpi-label">App Attive</div>
         <div class="rpt-kpi-value">${configuredApps}</div>
       </div>
       <div class="rpt-kpi green">
@@ -587,27 +666,13 @@ const ReportGoodBarber = {
         <div class="rpt-kpi-value">${this.formatNumber(totalPageViews)}</div>
       </div>
       <div class="rpt-kpi teal">
-        <div class="rpt-kpi-icon" style="color: #0288D1;"><i class="fas fa-percentage"></i></div>
-        <div class="rpt-kpi-label">Media Penetrazione</div>
-        <div class="rpt-kpi-value">${avgPenetrazione.toFixed(1)}%</div>
-      </div>
-      <div class="rpt-kpi dark">
-        <div class="rpt-kpi-icon" style="color: var(--blu-900);"><i class="fas fa-chart-line"></i></div>
-        <div class="rpt-kpi-label">Trend Positivo</div>
-        <div class="rpt-kpi-value">${trendPositive}</div>
+        <div class="rpt-kpi-icon" style="color: #0288D1;"><i class="fas fa-users"></i></div>
+        <div class="rpt-kpi-label">Abitanti Serviti</div>
+        <div class="rpt-kpi-value">${this.formatNumber(abitantiServiti)}</div>
       </div>
     `;
 
     document.getElementById('kpiContainer').innerHTML = kpiHtml;
-  },
-
-  /**
-   * Calculate average penetration across all apps
-   */
-  calculateAveragePenetration() {
-    if (this.allApps.length === 0) return 0;
-    const sum = this.allApps.reduce((acc, app) => acc + (app.penetrazione || 0), 0);
-    return sum / this.allApps.length;
   },
 
   /**
@@ -628,7 +693,6 @@ const ReportGoodBarber = {
   renderFilters() {
     const regioni = [...new Set(this.allApps.map(a => a.regione).filter(Boolean))].sort();
     const gestioni = [...new Set(this.allApps.map(a => a.gestione).filter(Boolean))].sort();
-    const stati = [...new Set(this.allApps.map(a => a.statoApp).filter(Boolean))].sort();
 
     const filtersHtml = `
       <div class="rpt-filters">
@@ -647,11 +711,13 @@ const ReportGoodBarber = {
           </select>
         </div>
         <div class="rpt-filter-group">
-          <label>Stato App</label>
-          <select id="filterStato" class="rpt-filter-select">
-            <option value="">Tutti</option>
-            ${stati.map(s => `<option value="${s}">${s}</option>`).join('')}
-          </select>
+          <label>Cerca App / Comune</label>
+          <div class="rpt-search-wrap">
+            <i class="fas fa-search"></i>
+            <input type="text" id="filterSearch" class="rpt-filter-input"
+                   placeholder="Cerca per nome app o comune..."
+                   value="${this.currentFilters.searchQuery || ''}">
+          </div>
         </div>
         <div style="display: flex; align-items: flex-end;">
           <button class="rpt-btn-reset" id="resetFiltersBtn">
@@ -668,27 +734,36 @@ const ReportGoodBarber = {
       this.currentFilters.regione = e.target.value || null;
       this.applyFiltersAndSort();
       this.renderRankingTable();
+      this.renderTopBottomSections();
     });
 
     document.getElementById('filterGestione').addEventListener('change', (e) => {
       this.currentFilters.gestione = e.target.value || null;
       this.applyFiltersAndSort();
       this.renderRankingTable();
+      this.renderTopBottomSections();
     });
 
-    document.getElementById('filterStato').addEventListener('change', (e) => {
-      this.currentFilters.statoApp = e.target.value || null;
-      this.applyFiltersAndSort();
-      this.renderRankingTable();
+    // Search input con debounce
+    let searchTimeout = null;
+    document.getElementById('filterSearch').addEventListener('input', (e) => {
+      clearTimeout(searchTimeout);
+      searchTimeout = setTimeout(() => {
+        this.currentFilters.searchQuery = e.target.value.trim();
+        this.applyFiltersAndSort();
+        this.renderRankingTable();
+        this.renderTopBottomSections();
+      }, 250);
     });
 
     document.getElementById('resetFiltersBtn').addEventListener('click', () => {
-      this.currentFilters = { regione: null, gestione: null, statoApp: null };
+      this.currentFilters = { regione: null, gestione: null, searchQuery: '' };
       document.getElementById('filterRegione').value = '';
       document.getElementById('filterGestione').value = '';
-      document.getElementById('filterStato').value = '';
+      document.getElementById('filterSearch').value = '';
       this.applyFiltersAndSort();
       this.renderRankingTable();
+      this.renderTopBottomSections();
     });
   },
 
@@ -705,8 +780,13 @@ const ReportGoodBarber = {
     if (this.currentFilters.gestione) {
       filtered = filtered.filter(a => a.gestione === this.currentFilters.gestione);
     }
-    if (this.currentFilters.statoApp) {
-      filtered = filtered.filter(a => a.statoApp === this.currentFilters.statoApp);
+    if (this.currentFilters.searchQuery) {
+      const q = this.currentFilters.searchQuery.toLowerCase();
+      filtered = filtered.filter(a => {
+        const nome = (a.nome || '').toLowerCase();
+        const comune = (a.comune || '').toLowerCase();
+        return nome.includes(q) || comune.includes(q);
+      });
     }
 
     // Apply sorting — some keys are on the app object, others on allStats
@@ -772,7 +852,6 @@ const ReportGoodBarber = {
         <tr class="ranking-row" data-app-id="${app.id}">
           <td class="col-rank">${index + 1}</td>
           <td class="col-nome" title="${this.escapeHtml(app.nome || '')}">${this.escapeHtml(app.nome || 'N/A')}</td>
-          <td class="col-comune" title="${this.escapeHtml(app.comune || '')}">${this.escapeHtml(app.comune || 'N/A')}</td>
           <td class="col-regione">${this.escapeHtml(app.regione || 'N/A')}</td>
           <td class="col-score">
             <span class="rpt-badge ${scoreClass}">${score}</span>
@@ -787,7 +866,7 @@ const ReportGoodBarber = {
       `;
     });
 
-    tbody.innerHTML = html || '<tr><td colspan="11" style="text-align:center; padding:2rem; color:var(--grigio-500);">Nessun risultato</td></tr>';
+    tbody.innerHTML = html || '<tr><td colspan="10" style="text-align:center; padding:2rem; color:var(--grigio-500);">Nessun risultato</td></tr>';
 
     // Attach row click listeners
     document.querySelectorAll('.ranking-row').forEach(row => {

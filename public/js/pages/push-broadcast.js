@@ -7,6 +7,7 @@ const PushBroadcast = {
   customMessage: '',
   selectedPlatform: 'Tutte',
   selectedRegions: [],
+  searchQuery: '',
   sendingInProgress: false,
   currentSendResults: [],
 
@@ -69,10 +70,11 @@ const PushBroadcast = {
     try {
       UI.showLoading();
 
-      // Load apps from DataService
-      this.allApps = await DataService.getApps();
+      // Load apps from DataService — SOLO le ATTIVA
+      const tutteLeApp = await DataService.getApps();
+      this.allApps = tutteLeApp.filter(a => a.statoApp === 'ATTIVA');
 
-      // All apps are shown; those with API configured can be selected
+      // All ATTIVA apps are shown; those with API configured can be selected
       this.filteredApps = [...this.allApps];
 
       // Reset state
@@ -162,9 +164,15 @@ const PushBroadcast = {
             <button class="btn btn-secondary" data-action="deselect-all">
               <i class="fas fa-times"></i> Deseleziona Tutte
             </button>
-            <button class="btn btn-secondary" data-action="select-active">
-              <i class="fas fa-star"></i> Solo Attive
-            </button>
+          </div>
+
+          <!-- Search -->
+          <div class="search-app-wrap" style="margin: 0.75rem 0; position: relative;">
+            <i class="fas fa-search" style="position: absolute; left: 0.75rem; top: 50%; transform: translateY(-50%); color: var(--grigio-500); font-size: 0.85rem; pointer-events: none;"></i>
+            <input type="text" id="pushSearchInput" class="push-search-input"
+                   placeholder="Cerca app per nome o comune..."
+                   value="${this.escapeHtml(this.searchQuery || '')}"
+                   style="width: 100%; padding: 0.55rem 0.75rem 0.55rem 2.2rem; border: 1px solid var(--grigio-300); border-radius: 8px; font-size: 0.875rem; font-family: 'Titillium Web', sans-serif; color: var(--grigio-900); background: #fff;">
           </div>
 
           <!-- Region Filters -->
@@ -542,10 +550,24 @@ const PushBroadcast = {
    * Get filtered apps list based on selected regions
    */
   getFilteredAppsList() {
-    if (this.selectedRegions.length === 0) {
-      return this.filteredApps;
+    let list = this.filteredApps;
+
+    // Filtro per regioni selezionate
+    if (this.selectedRegions.length > 0) {
+      list = list.filter(app => this.selectedRegions.includes(app.regione));
     }
-    return this.filteredApps.filter(app => this.selectedRegions.includes(app.regione));
+
+    // Filtro per ricerca testuale
+    if (this.searchQuery) {
+      const q = this.searchQuery.toLowerCase();
+      list = list.filter(app => {
+        const nome = (app.nome || '').toLowerCase();
+        const comune = (app.comune || '').toLowerCase();
+        return nome.includes(q) || comune.includes(q);
+      });
+    }
+
+    return list;
   },
 
   /**
@@ -579,7 +601,6 @@ const PushBroadcast = {
 
       if (action === 'select-all') this.selectAllApps();
       if (action === 'deselect-all') this.deselectAllApps();
-      if (action === 'select-active') this.selectActiveApps();
       if (action === 'back') this.goBack();
       if (action === 'next-step') this.nextStep();
       if (action === 'send-push') this.confirmAndSend();
@@ -615,6 +636,21 @@ const PushBroadcast = {
         this.renderContent();
       });
     });
+
+    // Search input (Step 1) con debounce
+    const pushSearchInput = container.querySelector('#pushSearchInput');
+    if (pushSearchInput) {
+      let searchTimeout = null;
+      pushSearchInput.addEventListener('input', (e) => {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(() => {
+          this.searchQuery = e.target.value.trim();
+          this.renderContent();
+        }, 250);
+      });
+      // Focus sull'input dopo il render per comodità
+      pushSearchInput.focus();
+    }
 
     // Template selection (Step 2)
     container.querySelectorAll('.template-card').forEach(card => {
@@ -746,15 +782,7 @@ const PushBroadcast = {
     this.updateStep1UI();
   },
 
-  /**
-   * Select only active apps
-   */
-  selectActiveApps() {
-    this.selectedApps = this.getFilteredAppsList()
-      .filter(app => (app.statoApp === 'Attivo' || app.statoApp === 'attivo' || app.statoApp === 'ATTIVA') && app.goodbarberWebzineId && app.goodbarberToken)
-      .map(app => app.id);
-    this.updateStep1UI();
-  },
+  // selectActiveApps rimossa: il report mostra solo app ATTIVA
 
   /**
    * Go to previous step
