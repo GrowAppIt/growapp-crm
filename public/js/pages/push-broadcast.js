@@ -851,12 +851,15 @@ const PushBroadcast = {
             apiPlatform
           );
 
+          // L'API GoodBarber restituisce un oggetto se la chiamata è andata a buon fine.
+          // Consideriamo successo se riceviamo una risposta valida (no eccezione).
+          const isSuccess = result != null;
           this.currentSendResults.push({
             appId: app.id,
             appName: app.nome,
             comune: app.comune,
-            success: result && result.result === 'ok',
-            error: !result ? 'Nessuna risposta dal server' : null,
+            success: isSuccess,
+            error: isSuccess ? null : 'Nessuna risposta dal server',
             generated_in: result?.generated_in
           });
         } catch (error) {
@@ -2033,6 +2036,7 @@ const PushBroadcast = {
    * Escape HTML special characters
    */
   escapeHtml(text) {
+    if (!text) return '';
     const map = {
       '&': '&amp;',
       '<': '&lt;',
@@ -2040,6 +2044,6 @@ const PushBroadcast = {
       '"': '&quot;',
       "'": '&#039;'
     };
-    return text.replace(/[&<>"']/g, m => map[m]);
+    return String(text).replace(/[&<>"']/g, m => map[m]);
   }
 };
