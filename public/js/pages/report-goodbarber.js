@@ -615,14 +615,16 @@ const ReportGoodBarber = {
 
       // ── 8% MOMENTUM DI CRESCITA ───────────────────────────────
       // Velocità download/mese vs target proporzionale alla popolazione.
+      // CAP a 36 mesi (3 anni): dopo 3 anni la data di lancio non penalizza più.
+      // Un'app di 5 anni viene trattata come se fosse online da 3 anni.
       let momentum = 0;
       if (app.dataLancioApp && downloads > 0) {
         const launchDate = new Date(app.dataLancioApp);
         const now = new Date();
-        const monthsOnline = Math.max(1,
+        const monthsOnline = Math.min(36, Math.max(1,
           (now.getFullYear() - launchDate.getFullYear()) * 12 +
           (now.getMonth() - launchDate.getMonth())
-        );
+        ));
         const velocity = downloads / monthsOnline;
         const targetVelocity = Math.max(3, popolazione * 0.001);
         momentum = Math.min(100, (velocity / targetVelocity) * 100);
