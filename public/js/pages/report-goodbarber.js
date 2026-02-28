@@ -220,7 +220,7 @@ const ReportGoodBarber = {
           overflow: hidden; text-overflow: ellipsis;
         }
         .rpt-table .col-rank { text-align: center; width: 32px; font-weight: 700; color: var(--grigio-500); }
-        .rpt-table .col-nome { font-weight: 700; color: var(--blu-900); max-width: 200px; overflow: hidden; text-overflow: ellipsis; }
+        .rpt-table tbody .col-nome { font-weight: 700; color: var(--blu-900); max-width: 200px; overflow: hidden; text-overflow: ellipsis; }
         .rpt-table .col-regione { width: 70px; max-width: 70px; overflow: hidden; text-overflow: ellipsis; font-size: 0.75rem; }
         .rpt-table .col-score { text-align: center; width: 60px; }
         .rpt-table .col-downloads,
@@ -508,6 +508,21 @@ const ReportGoodBarber = {
    * MOMENTUM DI CRESCITA (5%):
    *   Velocità download/mese vs target proporzionale alla popolazione.
    */
+  /**
+   * Algoritmo di scoring v3 — Più generoso e bilanciato
+   *
+   * Tre miglioramenti rispetto a v1:
+   * 1. Correzione turistica: per comuni turistici, i download "in eccesso"
+   *    rispetto alla popolazione vengono scontati dal denominatore di
+   *    retention e optInPush (30-60% in base all'indice di turisticità).
+   * 2. Bonus Volume (10%): premia i numeri assoluti di download con scala
+   *    logaritmica. 500 DL ≈ 65pt, 2000 DL ≈ 79pt, 15.000+ DL = 100pt.
+   * 3. Curva sqrt sulla penetrazione + engagement più morbido (sat a 7 pag/sessione).
+   *    La penetrazione al 50% vale ~71 punti invece di 50.
+   *
+   * Pesi: Penetraz 22%, Retention 20%, Engagement 13%, OptInPush 12%,
+   *        VolumBonus 10%, QualitàTuristica 10%, Momentum 8%, BonusFloor 5%
+   */
   calcolaScore(app, stats) {
     try {
       const popolazione = app.popolazione || 1;
@@ -520,63 +535,85 @@ const ReportGoodBarber = {
 
       // ── FATTORE DI VOLUME (soglia minima download) ─────────────
       // Smorza i rapporti quando i download sono pochi (<100).
-      // log10(100) = 2, log10(29) = 1.46 → factor = 0.73
-      // log10(666) = 2.82 → factor = 1.0 (già sopra soglia)
       const SOGLIA_DOWNLOAD = 100;
       const volumeFactor = downloads > 0
         ? Math.min(1, Math.log10(downloads) / Math.log10(SOGLIA_DOWNLOAD))
         : 0;
 
-      // ── 30% PENETRAZIONE ──────────────────────────────────────
-      // Non necessita di smorzamento: è già rapportata alla popolazione
-      const penetrazione = Math.min(100, (downloads / popolazione) * 100);
+      // ── CORREZIONE TURISTICA SUL DENOMINATORE ──────────────────
+      // Per i comuni turistici, i download "in eccesso" rispetto alla
+      // popolazione diluiscono ingiustamente retention e optInPush.
+      // Scontiamo dal 30% al 60% dell'eccesso in base alla turisticità.
+      let downloadEffettivi = downloads;
+      if (turisticita > 0 && downloads > popolazione * 0.5) {
+        const eccesso = downloads - popolazione * 0.5;
+        if (eccesso > 0) {
+          const scontoFraction = 0.3 + (turisticita / 10) * 0.3; // range: 0.3 a 0.6
+          downloadEffettivi = Math.max(popolazione * 0.5, downloads - (eccesso * scontoFraction));
+        }
+      }
 
-      // ── 25% RETENTION ─────────────────────────────────────────
-      // Utenti unici mensili / downloads, smorzato dal volumeFactor.
-      // Evita che 27/29 (93%) pesi come 2000/7331 (27%).
+      // ── 22% PENETRAZIONE (curva sqrt, più generosa) ────────────
+      // sqrt rende la curva più morbida: 50% penetraz → ~71 punti
+      // 25% penetraz → ~50 punti, 100% penetraz → 100 punti
+      const rawPenetrazione = Math.min(1, downloads / popolazione);
+      const penetrazione = Math.sqrt(rawPenetrazione) * 100;
+
+      // ── 20% RETENTION (con denominatore corretto) ──────────────
+      // Utenti unici mensili / downloadEffettivi (corretto per turismo).
       let retention = 0;
-      if (downloads > 0 && uniqueLaunchesMonth > 0) {
-        const rawRetention = Math.min(100, (uniqueLaunchesMonth / downloads) * 100);
+      if (downloadEffettivi > 0 && uniqueLaunchesMonth > 0) {
+        const rawRetention = Math.min(100, (uniqueLaunchesMonth / downloadEffettivi) * 100);
         retention = rawRetention * volumeFactor;
       }
 
-      // ── 15% ENGAGEMENT ────────────────────────────────────────
-      // Pagine per sessione, normalizzato (10+ pagine = 100).
-      // Non dipende dal numero di download, non serve smorzamento.
+      // ── 13% ENGAGEMENT (saturazione a 7 pag/sessione) ──────────
+      // Più generoso: 7+ pagine per sessione = 100 punti (era 10).
       let engagement = 0;
       if (launchesMonth > 0) {
         const pagesPerSession = pageViewsMonth / launchesMonth;
-        engagement = Math.min(100, (pagesPerSession / 10) * 100);
+        engagement = Math.min(100, (pagesPerSession / 7) * 100);
       }
 
-      // ── 15% OPT-IN PUSH ──────────────────────────────────────
-      // Rapporto consensiPush / downloads, smorzato dal volumeFactor.
-      // 16/29 = 55% con volume 0.73 → diventa 40%
-      // 2649/7331 = 36% con volume 1.0 → resta 36%
+      // ── 12% OPT-IN PUSH (con denominatore corretto) ───────────
+      // Rapporto consensiPush / downloadEffettivi, smorzato dal volumeFactor.
       let optInPush = 0;
-      if (downloads > 0 && consensiPush > 0) {
-        const rawOptIn = Math.min(100, (consensiPush / downloads) * 100);
+      if (downloadEffettivi > 0 && consensiPush > 0) {
+        const rawOptIn = Math.min(100, (consensiPush / downloadEffettivi) * 100);
         optInPush = rawOptIn * volumeFactor;
+      }
+
+      // ── 10% BONUS VOLUME (NUOVO) ──────────────────────────────
+      // Premia i numeri assoluti di download con scala logaritmica.
+      // 50 DL ≈ 41pt, 500 DL ≈ 65pt, 2.000 DL ≈ 79pt,
+      // 10.000 DL ≈ 96pt, 15.000+ DL = 100pt
+      let volumeBonus = 0;
+      if (downloads > 0) {
+        const VOLUME_MAX = 15000;
+        volumeBonus = Math.min(100, (Math.log10(downloads) / Math.log10(VOLUME_MAX)) * 100);
       }
 
       // ── 10% QUALITÀ TURISTICA ─────────────────────────────────
       // ATTIVA SOLO se indiceTuristicita > 0.
-      // Per comuni non turistici → peso redistribuito, niente bonus doppio.
-      // Per comuni turistici: pushRatio * (1 + turistFactor * 0.5)
-      // Con smorzamento volume per coerenza.
+      // Base = turisticità * 10 (max 100), modulato da engagement
+      // e push ratio per premiare i comuni turistici che funzionano.
       let qualitaTuristica = 0;
       if (turisticita > 0) {
-        const turistFactor = turisticita / 10; // 0 a 1
-        if (downloads > 0 && consensiPush > 0) {
-          const pushRatio = Math.min(1, consensiPush / downloads);
-          qualitaTuristica = Math.min(100, pushRatio * 100 * (1 + turistFactor * 0.5) * volumeFactor);
-        } else if (downloads === 0) {
-          // Nessun download ancora, piccolo score base dalla turisticità
-          qualitaTuristica = turisticita * 3;
+        let base = turisticita * 10; // 0 a 100
+        // Bonus engagement turistico: se i turisti usano l'app
+        if (launchesMonth > 0 && downloads > 0) {
+          const launchRatio = Math.min(1, launchesMonth / (downloads * 2));
+          base = base * (0.5 + launchRatio * 0.5);
         }
+        // Bonus push: se accettano le notifiche
+        if (downloadEffettivi > 0 && consensiPush > 0) {
+          const pushBoost = Math.min(1, consensiPush / downloadEffettivi);
+          base = base * (0.7 + pushBoost * 0.3);
+        }
+        qualitaTuristica = Math.min(100, base);
       }
 
-      // ── 5% MOMENTUM DI CRESCITA ──────────────────────────────
+      // ── 8% MOMENTUM DI CRESCITA ───────────────────────────────
       // Velocità download/mese vs target proporzionale alla popolazione.
       let momentum = 0;
       if (app.dataLancioApp && downloads > 0) {
@@ -586,22 +623,31 @@ const ReportGoodBarber = {
           (now.getFullYear() - launchDate.getFullYear()) * 12 +
           (now.getMonth() - launchDate.getMonth())
         );
-
         const velocity = downloads / monthsOnline;
         const targetVelocity = Math.max(3, popolazione * 0.001);
         momentum = Math.min(100, (velocity / targetVelocity) * 100);
       }
 
+      // ── 5% BONUS FLOOR ────────────────────────────────────────
+      // Piccolo bonus che alza il pavimento per tutte le app con
+      // attività reale. Basato su sqrt(downloads) normalizzato.
+      // Garantisce che app con attività non finiscano troppo in basso.
+      let bonusFloor = 0;
+      if (downloads > 10) {
+        bonusFloor = Math.min(100, Math.sqrt(downloads) / Math.sqrt(500) * 60 + 20);
+      }
+
       // ── SCORE FINALE (media ponderata dinamica) ────────────────
       // Se un dato non è disponibile, il suo peso viene redistribuito.
-      // QualitàTuristica è available SOLO se turisticità > 0.
       const components = [
-        { value: penetrazione,     weight: 0.30, available: downloads > 0 || popolazione > 1 },
-        { value: retention,        weight: 0.25, available: uniqueLaunchesMonth > 0 },
-        { value: engagement,       weight: 0.15, available: launchesMonth > 0 },
-        { value: optInPush,        weight: 0.15, available: downloads > 0 && consensiPush > 0 },
-        { value: qualitaTuristica, weight: 0.10, available: turisticita > 0 && qualitaTuristica > 0 },
-        { value: momentum,         weight: 0.05, available: momentum > 0 }
+        { value: penetrazione,     weight: 0.22, available: downloads > 0 || popolazione > 1 },
+        { value: retention,        weight: 0.20, available: uniqueLaunchesMonth > 0 },
+        { value: engagement,       weight: 0.13, available: launchesMonth > 0 },
+        { value: optInPush,        weight: 0.12, available: downloadEffettivi > 0 && consensiPush > 0 },
+        { value: volumeBonus,      weight: 0.10, available: downloads > 0 },
+        { value: qualitaTuristica, weight: 0.10, available: turisticita > 0 },
+        { value: momentum,         weight: 0.08, available: momentum > 0 },
+        { value: bonusFloor,       weight: 0.05, available: downloads > 10 }
       ];
 
       const activeComponents = components.filter(c => c.available);
