@@ -1365,6 +1365,36 @@ const FormsManager = {
         }
     },
 
+    /**
+     * Auto-fill popolazione dal database ISTAT quando il campo "comune" cambia.
+     * Cerca il comune per nome esatto e compila il campo "popolazione" se trovato.
+     * Il campo resta editabile dall'utente.
+     */
+    setupComuneAutoFillPopolazione() {
+        const comuneInput = document.getElementById('comune');
+        const popolazioneInput = document.getElementById('popolazione');
+        if (!comuneInput || !popolazioneInput) return;
+
+        const doLookup = async () => {
+            const nomeComune = comuneInput.value.trim();
+            if (!nomeComune || nomeComune.length < 2) return;
+
+            const comune = await ComuniService.trovaPeNome(nomeComune);
+            if (comune && comune.numResidenti > 0) {
+                popolazioneInput.value = comune.numResidenti;
+            }
+        };
+
+        // Listener per cambiamenti futuri
+        comuneInput.addEventListener('blur', doLookup);
+        comuneInput.addEventListener('change', doLookup);
+
+        // Auto-fill immediato se il comune è già compilato ma la popolazione è vuota
+        if (comuneInput.value.trim() && !popolazioneInput.value) {
+            doLookup();
+        }
+    },
+
     // === FORM MODIFICA APP ===
     async showModificaApp(app) {
         // Carica lista clienti e agenti in parallelo
@@ -1541,10 +1571,23 @@ const FormsManager = {
                     📊 Metriche
                 </h3>
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr)); gap: 1rem;">
-                    ${this.createFormField('Numero Downloads', 'numDownloads', 'number', app.numDownloads || 0)}
-                    ${this.createFormField('Data Rilevamento Downloads', 'dataRilevamentoDownloads', 'date', app.dataRilevamentoDownloads?.split('T')[0])}
-                    ${this.createFormField('Numero Notifiche', 'numNotifiche', 'number', app.numNotifiche || 0)}
-                    ${this.createFormField('Data Rilevamento Notifiche', 'dataRilevamentoNotifiche', 'date', app.dataRilevamentoNotifiche?.split('T')[0])}
+                    ${this.createFormField('Consensi Push (destinatari)', 'consensiPush', 'number', app.consensiPush || '', { placeholder: 'N. dispositivi con consenso push attivo' })}
+                    ${this.createFormField('Popolazione Comune', 'popolazione', 'number', app.popolazione || '', { placeholder: 'Auto-compilato dal comune ISTAT' })}
+                    ${this.createFormField('Indice Turisticità (1-10)', 'indiceTuristicita', 'number', app.indiceTuristicita || '', { placeholder: '1 = bassa, 10 = altissima' })}
+                    ${this.createFormField('Data Lancio App', 'dataLancioApp', 'date', app.dataLancioApp?.split('T')[0], { placeholder: 'Data effettiva lancio' })}
+                </div>
+
+                <div style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 2px solid var(--grigio-300);">
+                    <h4 style="font-size: 0.95rem; font-weight: 600; color: var(--grigio-700); margin-bottom: 0.75rem;">
+                        <i class="fas fa-plug" style="color: var(--blu-700);"></i> Integrazione GoodBarber API
+                    </h4>
+                    <p style="font-size: 0.8rem; color: var(--grigio-500); margin-bottom: 0.75rem;">
+                        <i class="fas fa-info-circle"></i> Inserisci le credenziali API per abilitare statistiche automatiche e invio push dal CRM
+                    </p>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr)); gap: 1rem;">
+                        ${this.createFormField('Webzine ID (GoodBarber)', 'goodbarberWebzineId', 'number', app.goodbarberWebzineId || '', { placeholder: 'ID numerico app su GoodBarber' })}
+                        ${this.createFormField('Token API GoodBarber', 'goodbarberToken', 'text', app.goodbarberToken || '', { placeholder: 'Token di autenticazione API' })}
+                    </div>
                 </div>
             </div>
 
@@ -1597,8 +1640,12 @@ const FormsManager = {
                 data.controlloQualitaNegativo = data.controlloQualitaNegativo === 'true';
 
                 // Converti numeri
-                data.numDownloads = parseInt(data.numDownloads) || 0;
-                data.numNotifiche = parseInt(data.numNotifiche) || 0;
+                data.consensiPush = parseInt(data.consensiPush) || null;
+                data.popolazione = parseInt(data.popolazione) || null;
+                data.indiceTuristicita = Math.min(10, Math.max(0, parseInt(data.indiceTuristicita) || 0)) || null;
+                data.goodbarberWebzineId = parseInt(data.goodbarberWebzineId) || null;
+                data.goodbarberToken = (data.goodbarberToken || '').trim() || null;
+                data.dataLancioApp = data.dataLancioApp || null;
 
                 // Se non c'è cliente pagante, rimuovi i campi commerciali
                 if (!data.clientePaganteId) {
@@ -1664,6 +1711,9 @@ const FormsManager = {
                 DettaglioApp.render(app.id);
             }
         );
+
+        // Auto-fill popolazione dal database ISTAT quando si cambia il campo comune
+        this.setupComuneAutoFillPopolazione();
     },
 
     // === FORM NUOVA APP ===
@@ -1829,10 +1879,23 @@ const FormsManager = {
                     📊 Metriche
                 </h3>
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr)); gap: 1rem;">
-                    ${this.createFormField('Numero Downloads', 'numDownloads', 'number', '0', { placeholder: '0' })}
-                    ${this.createFormField('Data Rilevamento Downloads', 'dataRilevamentoDownloads', 'date', '')}
-                    ${this.createFormField('Numero Notifiche', 'numNotifiche', 'number', '0', { placeholder: '0' })}
-                    ${this.createFormField('Data Rilevamento Notifiche', 'dataRilevamentoNotifiche', 'date', '')}
+                    ${this.createFormField('Consensi Push (destinatari)', 'consensiPush', 'number', '', { placeholder: 'N. dispositivi con consenso push attivo' })}
+                    ${this.createFormField('Popolazione Comune', 'popolazione', 'number', '', { placeholder: 'Auto-compilato dal comune ISTAT' })}
+                    ${this.createFormField('Indice Turisticità (1-10)', 'indiceTuristicita', 'number', '', { placeholder: '1 = bassa, 10 = altissima' })}
+                    ${this.createFormField('Data Lancio App', 'dataLancioApp', 'date', '', { placeholder: 'Data effettiva lancio' })}
+                </div>
+
+                <div style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 2px solid var(--grigio-300);">
+                    <h4 style="font-size: 0.95rem; font-weight: 600; color: var(--grigio-700); margin-bottom: 0.75rem;">
+                        <i class="fas fa-plug" style="color: var(--blu-700);"></i> Integrazione GoodBarber API
+                    </h4>
+                    <p style="font-size: 0.8rem; color: var(--grigio-500); margin-bottom: 0.75rem;">
+                        <i class="fas fa-info-circle"></i> Inserisci le credenziali API per abilitare statistiche automatiche e invio push dal CRM
+                    </p>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr)); gap: 1rem;">
+                        ${this.createFormField('Webzine ID (GoodBarber)', 'goodbarberWebzineId', 'number', '', { placeholder: 'ID numerico app su GoodBarber' })}
+                        ${this.createFormField('Token API GoodBarber', 'goodbarberToken', 'text', '', { placeholder: 'Token di autenticazione API' })}
+                    </div>
                 </div>
             </div>
 
@@ -1885,8 +1948,12 @@ const FormsManager = {
                 data.controlloQualitaNegativo = data.controlloQualitaNegativo === 'true';
 
                 // Converti numeri
-                data.numDownloads = parseInt(data.numDownloads) || 0;
-                data.numNotifiche = parseInt(data.numNotifiche) || 0;
+                data.consensiPush = parseInt(data.consensiPush) || null;
+                data.popolazione = parseInt(data.popolazione) || null;
+                data.indiceTuristicita = Math.min(10, Math.max(0, parseInt(data.indiceTuristicita) || 0)) || null;
+                data.goodbarberWebzineId = parseInt(data.goodbarberWebzineId) || null;
+                data.goodbarberToken = (data.goodbarberToken || '').trim() || null;
+                data.dataLancioApp = data.dataLancioApp || null;
 
                 // Se non c'è cliente pagante, rimuovi i campi commerciali
                 if (!data.clientePaganteId) {
@@ -1924,6 +1991,9 @@ const FormsManager = {
                 }
             }
         );
+
+        // Auto-fill popolazione dal database ISTAT quando si cambia il campo comune
+        this.setupComuneAutoFillPopolazione();
     },
 
     // === FORM NUOVO CONTRATTO ===

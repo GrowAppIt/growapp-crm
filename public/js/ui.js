@@ -91,6 +91,12 @@ const UI = {
             case 'monitor-rss':
                 MonitorRSS.render();
                 break;
+            case 'report-goodbarber':
+                ReportGoodBarber.render();
+                break;
+            case 'push-broadcast':
+                PushBroadcast.render();
+                break;
             // Pagine di dettaglio
             case 'dettaglio-cliente':
                 if (id) DettaglioCliente.render(id);

@@ -279,7 +279,9 @@ const AuthService = {
             'promemoria': ['*', 'view_all_data', 'view_own_data', 'view_clients', 'manage_clients', 'view_apps', 'view_dev_tasks', 'manage_dev_tasks', 'view_company_info'],
             'report': ['*', 'view_reports', 'view_all_data'],
             'impostazioni': ['*', 'manage_settings', 'manage_users', 'view_company_info', 'manage_business_card'], // ✅ Tutti possono vedere Impostazioni (almeno le card base)
-            'monitor-rss': ['*', 'view_all_data', 'view_own_data', 'view_clients', 'view_apps', 'manage_clients', 'manage_apps', 'manage_app_content', 'view_dev_tasks', 'manage_dev_tasks', 'view_company_info'] // Monitor RSS visibile a TUTTI i ruoli
+            'monitor-rss': ['*', 'view_all_data', 'view_own_data', 'view_clients', 'view_apps', 'manage_clients', 'manage_apps', 'manage_app_content', 'view_dev_tasks', 'manage_dev_tasks', 'view_company_info'], // Monitor RSS visibile a TUTTI i ruoli
+            'report-goodbarber': ['*', 'view_all_data', 'view_apps', 'manage_apps', 'manage_app_content'],
+            'push-broadcast': ['*', 'view_all_data', 'manage_apps']
         };
 
         const requiredPermissions = pagePermissions[pageName] || [];

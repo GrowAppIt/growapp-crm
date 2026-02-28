@@ -29,6 +29,21 @@ const DettaglioApp = {
             this.tasks = tasksResult.success ? tasksResult.tasks : [];
             this.documenti = documenti;
 
+            // Auto-fill popolazione da ISTAT se il comune è compilato ma la popolazione no
+            if (app.comune && (!app.popolazione || app.popolazione === 0)) {
+                try {
+                    const comuneISTAT = await ComuniService.trovaPeNome(app.comune);
+                    if (comuneISTAT && comuneISTAT.numResidenti > 0) {
+                        app.popolazione = comuneISTAT.numResidenti;
+                        DataService.updateApp(appId, { popolazione: comuneISTAT.numResidenti }).catch(err => {
+                            console.warn('Errore salvataggio popolazione:', err);
+                        });
+                    }
+                } catch (e) {
+                    console.warn('Errore lookup ISTAT:', e);
+                }
+            }
+
             const clientePagante = app.clientePaganteId
                 ? clienti.find(c => c.id === app.clientePaganteId)
                 : null;
@@ -160,6 +175,18 @@ const DettaglioApp = {
                            transition: all 0.2s;">
                     <i class="fas fa-folder-open"></i> Documenti (${this.documenti.length})
                 </button>
+                ${this.app && this.app.goodbarberWebzineId ? `
+                <button
+                    class="tab-button ${this.currentTab === 'statistiche' ? 'active' : ''}"
+                    onclick="DettaglioApp.switchTab('statistiche')"
+                    style="padding: 1rem 1.5rem; border: none; background: ${this.currentTab === 'statistiche' ? 'var(--blu-100)' : 'transparent'};
+                           color: ${this.currentTab === 'statistiche' ? 'var(--blu-700)' : 'var(--grigio-600)'};
+                           font-weight: ${this.currentTab === 'statistiche' ? '700' : '600'}; cursor: pointer;
+                           border-bottom: 3px solid ${this.currentTab === 'statistiche' ? 'var(--blu-700)' : 'transparent'};
+                           transition: all 0.2s;">
+                    <i class="fas fa-chart-bar"></i> Statistiche GB
+                </button>
+                ` : ''}
             </div>
         `;
     },
@@ -173,7 +200,7 @@ const DettaglioApp = {
                     ${this.renderGestioneCommerciale(app, clientePagante)}
                     ${this.renderPubblicazioneStore(app)}
                     ${this.renderFunzionalita(app)}
-                    ${this.renderMetriche(app)}
+                    <div id="metricheContainer">${this.renderMetriche(app)}</div>
                     ${this.renderControlloQualita(app)}
                     ${this.renderNote(app)}
                 </div>
@@ -182,6 +209,8 @@ const DettaglioApp = {
             return this.renderTaskTab();
         } else if (this.currentTab === 'documenti') {
             return this.renderDocumenti();
+        } else if (this.currentTab === 'statistiche') {
+            return this.renderStatisticheGB(app);
         }
     },
 
@@ -714,6 +743,15 @@ const DettaglioApp = {
     },
 
     renderMetriche(app) {
+        const cache = app.gbStatsCache || {};
+        const downloads = cache.totalDownloads || app.numDownloads || 0;
+        const lastUpdate = cache.lastUpdate ? DataService.formatDate(cache.lastUpdate) : '';
+        const launchesMonth = cache.launchesMonth || 0;
+        const pageViewsMonth = cache.pageViewsMonth || 0;
+        const consensiPush = app.consensiPush || 0;
+        const popolazione = app.popolazione || 0;
+        const penetrazione = popolazione > 0 ? Math.min(100, (downloads / popolazione) * 100).toFixed(1) : 0;
+
         return `
             <div class="card">
                 <div class="card-header">
@@ -722,23 +760,47 @@ const DettaglioApp = {
                     </h2>
                 </div>
                 <div class="card-body">
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(250px, 100%), 1fr)); gap: 1.5rem;">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr)); gap: 1.5rem;">
                         <div>
                             <div style="font-size: 2rem; font-weight: 700; color: var(--blu-700);">
-                                ${app.numDownloads || 0}
+                                ${downloads.toLocaleString('it-IT')}
                             </div>
                             <div style="color: var(--grigio-500); font-size: 0.875rem;">
                                 <i class="fas fa-download"></i> Downloads
-                                ${app.dataRilevamentoDownloads ? `(${DataService.formatDate(app.dataRilevamentoDownloads)})` : ''}
+                                ${lastUpdate ? `<br><small>(${lastUpdate})</small>` : ''}
+                            </div>
+                        </div>
+                        <div>
+                            <div style="font-size: 2rem; font-weight: 700; color: var(--blu-500);">
+                                ${consensiPush.toLocaleString('it-IT')}
+                            </div>
+                            <div style="color: var(--grigio-500); font-size: 0.875rem;">
+                                <i class="fas fa-mobile-alt"></i> Consensi Push
                             </div>
                         </div>
                         <div>
                             <div style="font-size: 2rem; font-weight: 700; color: var(--verde-700);">
-                                ${app.numNotifiche || 0}
+                                ${penetrazione}%
                             </div>
                             <div style="color: var(--grigio-500); font-size: 0.875rem;">
-                                <i class="fas fa-bell"></i> Notifiche Inviate
-                                ${app.dataRilevamentoNotifiche ? `(${DataService.formatDate(app.dataRilevamentoNotifiche)})` : ''}
+                                <i class="fas fa-users"></i> Penetrazione
+                                ${popolazione > 0 ? `<br><small>(${popolazione.toLocaleString('it-IT')} ab.)</small>` : ''}
+                            </div>
+                        </div>
+                        <div>
+                            <div style="font-size: 2rem; font-weight: 700; color: var(--grigio-700);">
+                                ${launchesMonth.toLocaleString('it-IT')}
+                            </div>
+                            <div style="color: var(--grigio-500); font-size: 0.875rem;">
+                                <i class="fas fa-rocket"></i> Lanci/mese
+                            </div>
+                        </div>
+                        <div>
+                            <div style="font-size: 2rem; font-weight: 700; color: var(--grigio-700);">
+                                ${pageViewsMonth.toLocaleString('it-IT')}
+                            </div>
+                            <div style="color: var(--grigio-500); font-size: 0.875rem;">
+                                <i class="fas fa-eye"></i> Views/mese
                             </div>
                         </div>
                     </div>
@@ -1369,5 +1431,331 @@ const DettaglioApp = {
                 btn.innerHTML = '<i class="fas fa-save"></i> Salva Configurazione';
             }
         }
+    },
+
+    // === TAB STATISTICHE GOODBARBER ===
+
+    renderStatisticheGB(app) {
+        if (!app.goodbarberWebzineId || !app.goodbarberToken) {
+            return `
+                <div class="card fade-in" style="text-align:center;padding:3rem;">
+                    <i class="fas fa-plug" style="font-size:3rem;color:var(--grigio-300);margin-bottom:1rem;"></i>
+                    <h3 style="color:var(--grigio-700);">Integrazione GoodBarber non configurata</h3>
+                    <p style="color:var(--grigio-500);margin-top:0.5rem;">Per vedere le statistiche, modifica l'app e inserisci il <strong>Webzine ID</strong> e il <strong>Token API</strong> nella sezione Metriche.</p>
+                    <button class="btn btn-primary" style="margin-top:1rem;" onclick="DettaglioApp.editApp()">
+                        <i class="fas fa-edit"></i> Configura Integrazione
+                    </button>
+                </div>`;
+        }
+
+        // Usa dati dalla cache se disponibili
+        const cache = app.gbStatsCache || null;
+        const lastUpdate = cache ? new Date(cache.lastUpdate).toLocaleString('it-IT') : 'Mai';
+
+        return `
+            <div class="fade-in" style="display:grid;gap:1.5rem;">
+                <!-- Header con bottone aggiorna -->
+                <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;">
+                    <div>
+                        <span style="font-size:0.85rem;color:var(--grigio-500);">
+                            <i class="fas fa-clock"></i> Ultimo aggiornamento: ${lastUpdate}
+                        </span>
+                    </div>
+                    <div style="display:flex;gap:0.5rem;">
+                        <button class="btn btn-secondary btn-sm" onclick="DettaglioApp.testGBConnection()">
+                            <i class="fas fa-plug"></i> Test Connessione
+                        </button>
+                        <button class="btn btn-primary btn-sm" id="btnAggiornaStatsGB" onclick="DettaglioApp.aggiornaStatisticheGB()">
+                            <i class="fas fa-sync-alt"></i> Aggiorna Statistiche
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Container per i dati (verrà popolato da aggiornaStatisticheGB o dalla cache) -->
+                <div id="gbStatsContainer">
+                    ${cache ? this._renderGBStatsContent(cache) : `
+                        <div class="card" style="text-align:center;padding:2rem;">
+                            <i class="fas fa-chart-bar" style="font-size:2rem;color:var(--grigio-300);margin-bottom:1rem;"></i>
+                            <p style="color:var(--grigio-500);">Clicca "Aggiorna Statistiche" per caricare i dati da GoodBarber</p>
+                        </div>
+                    `}
+                </div>
+            </div>
+        `;
+    },
+
+    async testGBConnection() {
+        const app = this.app;
+        if (!app.goodbarberWebzineId || !app.goodbarberToken) {
+            UI.showError('Webzine ID e Token non configurati');
+            return;
+        }
+        try {
+            UI.showLoading();
+            const result = await GoodBarberService.testConnection(app.goodbarberWebzineId, app.goodbarberToken);
+            UI.hideLoading();
+            if (result.success) {
+                UI.showSuccess('Connessione GoodBarber OK! Gruppi trovati: ' + (result.groups || 0));
+            } else {
+                UI.showError('Connessione fallita: ' + (result.error || 'Errore sconosciuto'));
+            }
+        } catch (e) {
+            UI.hideLoading();
+            UI.showError('Errore test connessione: ' + e.message);
+        }
+    },
+
+    async aggiornaStatisticheGB() {
+        const app = this.app;
+        const btn = document.getElementById('btnAggiornaStatsGB');
+        if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Caricamento...'; }
+
+        try {
+            const stats = await GoodBarberService.getAllStats(app.goodbarberWebzineId, app.goodbarberToken);
+
+            // Salva cache su Firestore — mappo le chiavi della risposta getAllStats
+            const osDist = stats.mobile_os_distribution || {};
+            const cacheData = {
+                lastUpdate: new Date().toISOString(),
+                totalDownloads: stats.downloads_global?.total_global_downloads || 0,
+                downloadVersions: stats.downloads_global?.versions || [],
+                launchesMonth: stats.launches?.total_launches || 0,
+                uniqueLaunchesMonth: stats.unique_launches?.total_unique_launches || 0,
+                pageViewsMonth: stats.page_views?.total_page_views || 0,
+                pageViewsPerWeekDay: stats.page_views_per_week_day || {},
+                sessionTimes: stats.session_times?.history || [],
+                totalSessions: stats.session_times?.total_sessions || 0,
+                devices: stats.devices_global?.devices || [],
+                totalDevices: stats.devices_global?.total_devices || 0,
+                osDistribution: osDist,
+                osVersions: stats.os_versions?.os_versions || [],
+                downloadsHistory: stats.downloads?.history || [],
+                launchesHistory: stats.launches?.history || [],
+                pageViewsHistory: stats.page_views?.history || [],
+                rawData: stats
+            };
+
+            await DataService.updateApp(app.id, { gbStatsCache: cacheData });
+            this.app.gbStatsCache = cacheData;
+
+            // Aggiorna anche numDownloads dal dato API
+            if (cacheData.totalDownloads > 0) {
+                await DataService.updateApp(app.id, {
+                    numDownloads: cacheData.totalDownloads,
+                    dataRilevamentoDownloads: new Date().toISOString().split('T')[0]
+                });
+                this.app.numDownloads = cacheData.totalDownloads;
+            }
+
+            // Renderizza i dati
+            const container = document.getElementById('gbStatsContainer');
+            if (container) {
+                container.innerHTML = this._renderGBStatsContent(cacheData);
+            }
+
+            // Aggiorna anche la sezione Metriche con i nuovi dati API
+            const metricheContainer = document.getElementById('metricheContainer');
+            if (metricheContainer) {
+                metricheContainer.innerHTML = this.renderMetriche(this.app);
+            }
+
+            // Aggiorna timestamp
+            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-sync-alt"></i> Aggiorna Statistiche'; }
+            UI.showSuccess('Statistiche aggiornate!');
+
+        } catch (e) {
+            console.error('Errore aggiornamento stats GB:', e);
+            UI.showError('Errore caricamento statistiche: ' + e.message);
+            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-sync-alt"></i> Aggiorna Statistiche'; }
+        }
+    },
+
+    _renderGBStatsContent(cache) {
+        const totalDl = cache.totalDownloads || 0;
+        const launches = cache.launchesMonth || 0;
+        const uniqueLaunches = cache.uniqueLaunchesMonth || 0;
+        const pageViews = cache.pageViewsMonth || 0;
+        const totalSessions = cache.totalSessions || 0;
+        const totalDevices = cache.totalDevices || 0;
+        const osDist = cache.osDistribution || {};
+        const iosPerc = osDist.ios_devices_percentage || 0;
+        const androidPerc = osDist.android_devices_percentage || 0;
+        const groups = cache.groups || [];
+        const prospects = cache.prospects || {};
+        const prospectCount = prospects.count || 0;
+
+        // Calcola sessione media
+        let avgSession = 'N/D';
+        if (cache.sessionTimes && cache.sessionTimes.length > 0) {
+            const sessionMap = {};
+            cache.sessionTimes.forEach(s => {
+                sessionMap[s.session_time] = (sessionMap[s.session_time] || 0) + s.sessions;
+            });
+            const sorted = Object.entries(sessionMap).sort((a, b) => b[1] - a[1]);
+            if (sorted.length > 0) avgSession = sorted[0][0];
+        }
+
+        // Page views per giorno settimana
+        const weekDays = cache.pageViewsPerWeekDay || {};
+        const maxPV = Math.max(1, ...Object.values(weekDays));
+        const giorniIT = { Monday: 'Lun', Tuesday: 'Mar', Wednesday: 'Mer', Thursday: 'Gio', Friday: 'Ven', Saturday: 'Sab', Sunday: 'Dom' };
+
+        // Top devices
+        const topDevices = (cache.devices || []).slice(0, 8);
+        const maxDevCount = Math.max(1, ...topDevices.map(d => d.devices));
+
+        // Downloads history (ultimi 30 gg - grafico barre)
+        const dlHistory = (cache.downloadsHistory || []).slice(-30);
+        const maxDlDay = Math.max(1, ...dlHistory.map(d => d.downloads));
+
+        return `
+            <!-- KPI Cards -->
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:1rem;">
+                <div class="card" style="text-align:center;padding:1rem;">
+                    <div style="font-size:2rem;font-weight:900;color:var(--blu-700);">${totalDl.toLocaleString('it-IT')}</div>
+                    <div style="font-size:0.8rem;color:var(--grigio-500);"><i class="fas fa-download"></i> Download Totali</div>
+                </div>
+                <div class="card" style="text-align:center;padding:1rem;">
+                    <div style="font-size:2rem;font-weight:900;color:var(--verde-700);">${launches.toLocaleString('it-IT')}</div>
+                    <div style="font-size:0.8rem;color:var(--grigio-500);"><i class="fas fa-rocket"></i> Lanci (30gg)</div>
+                </div>
+                <div class="card" style="text-align:center;padding:1rem;">
+                    <div style="font-size:2rem;font-weight:900;color:var(--blu-500);">${pageViews.toLocaleString('it-IT')}</div>
+                    <div style="font-size:0.8rem;color:var(--grigio-500);"><i class="fas fa-eye"></i> Page Views (30gg)</div>
+                </div>
+                <div class="card" style="text-align:center;padding:1rem;">
+                    <div style="font-size:2rem;font-weight:900;color:#F59E0B;">${uniqueLaunches.toLocaleString('it-IT')}</div>
+                    <div style="font-size:0.8rem;color:var(--grigio-500);"><i class="fas fa-user"></i> Lanci Unici (30gg)</div>
+                </div>
+            </div>
+
+            <!-- Distribuzione piattaforme -->
+            <div class="card" style="padding:1.25rem;">
+                <h3 style="font-size:1rem;font-weight:700;color:var(--grigio-900);margin-bottom:1rem;">
+                    <i class="fas fa-mobile-alt" style="color:var(--blu-700);"></i> Distribuzione Piattaforme
+                </h3>
+                <div style="display:flex;gap:1rem;align-items:center;">
+                    <div style="flex:1;">
+                        <div style="display:flex;justify-content:space-between;margin-bottom:0.25rem;">
+                            <span style="font-size:0.85rem;font-weight:600;"><i class="fab fa-apple"></i> iOS</span>
+                            <span style="font-weight:700;color:var(--grigio-900);">${iosPerc}%</span>
+                        </div>
+                        <div style="height:12px;background:var(--grigio-100);border-radius:6px;overflow:hidden;">
+                            <div style="height:100%;width:${iosPerc}%;background:var(--grigio-700);border-radius:6px;transition:width 0.5s;"></div>
+                        </div>
+                    </div>
+                    <div style="flex:1;">
+                        <div style="display:flex;justify-content:space-between;margin-bottom:0.25rem;">
+                            <span style="font-size:0.85rem;font-weight:600;"><i class="fab fa-android"></i> Android</span>
+                            <span style="font-weight:700;color:var(--grigio-900);">${androidPerc}%</span>
+                        </div>
+                        <div style="height:12px;background:var(--grigio-100);border-radius:6px;overflow:hidden;">
+                            <div style="height:100%;width:${androidPerc}%;background:var(--verde-700);border-radius:6px;transition:width 0.5s;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Page Views per giorno settimana -->
+            ${Object.keys(weekDays).length > 0 ? `
+            <div class="card" style="padding:1.25rem;">
+                <h3 style="font-size:1rem;font-weight:700;color:var(--grigio-900);margin-bottom:1rem;">
+                    <i class="fas fa-calendar-week" style="color:var(--blu-500);"></i> Page Views per Giorno
+                </h3>
+                <div style="display:flex;gap:0.5rem;align-items:flex-end;height:120px;">
+                    ${['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'].map(day => {
+                        const val = weekDays[day] || 0;
+                        const perc = Math.round(val / maxPV * 100);
+                        return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:0.25rem;">
+                            <span style="font-size:0.7rem;font-weight:700;color:var(--grigio-700);">${val}</span>
+                            <div style="width:100%;height:${Math.max(4, perc)}%;background:var(--blu-300);border-radius:4px 4px 0 0;min-height:4px;transition:height 0.3s;"></div>
+                            <span style="font-size:0.7rem;color:var(--grigio-500);">${giorniIT[day]}</span>
+                        </div>`;
+                    }).join('')}
+                </div>
+            </div>` : ''}
+
+            <!-- Download History (ultimi 30gg) -->
+            ${dlHistory.length > 0 ? `
+            <div class="card" style="padding:1.25rem;">
+                <h3 style="font-size:1rem;font-weight:700;color:var(--grigio-900);margin-bottom:1rem;">
+                    <i class="fas fa-chart-bar" style="color:var(--verde-700);"></i> Download ultimi 30 giorni
+                </h3>
+                <div style="display:flex;gap:2px;align-items:flex-end;height:80px;overflow-x:auto;">
+                    ${dlHistory.map(d => {
+                        const perc = Math.round(d.downloads / maxDlDay * 100);
+                        const day = d.date ? d.date.split('-')[2] : '';
+                        return `<div style="flex:1;min-width:8px;display:flex;flex-direction:column;align-items:center;gap:1px;">
+                            <div style="width:100%;height:${Math.max(2, perc)}%;background:var(--verde-500);border-radius:2px 2px 0 0;min-height:2px;"></div>
+                            ${dlHistory.length <= 15 ? `<span style="font-size:0.55rem;color:var(--grigio-500);">${day}</span>` : ''}
+                        </div>`;
+                    }).join('')}
+                </div>
+            </div>` : ''}
+
+            <!-- Top Dispositivi -->
+            ${topDevices.length > 0 ? `
+            <div class="card" style="padding:1.25rem;">
+                <h3 style="font-size:1rem;font-weight:700;color:var(--grigio-900);margin-bottom:1rem;">
+                    <i class="fas fa-tablet-alt" style="color:#F59E0B;"></i> Top Dispositivi (${totalDevices} totali)
+                </h3>
+                <div style="display:flex;flex-direction:column;gap:0.5rem;">
+                    ${topDevices.map(d => {
+                        const perc = Math.round(d.devices / maxDevCount * 100);
+                        const platformIcon = d.platform === 'iphone' || d.platform === 'ipad' ? 'fab fa-apple' : d.platform === 'android' ? 'fab fa-android' : 'fas fa-globe';
+                        return `<div style="display:flex;align-items:center;gap:0.75rem;">
+                            <i class="${platformIcon}" style="width:18px;text-align:center;color:var(--grigio-500);"></i>
+                            <span style="font-size:0.85rem;font-weight:600;width:120px;color:var(--grigio-900);">${d.device_name}</span>
+                            <div style="flex:1;height:10px;background:var(--grigio-100);border-radius:5px;overflow:hidden;">
+                                <div style="height:100%;width:${perc}%;background:var(--blu-300);border-radius:5px;"></div>
+                            </div>
+                            <span style="font-size:0.8rem;font-weight:700;color:var(--grigio-700);min-width:30px;text-align:right;">${d.devices}</span>
+                        </div>`;
+                    }).join('')}
+                </div>
+            </div>` : ''}
+
+            <!-- Community & Prospect -->
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:1rem;">
+                <div class="card" style="padding:1.25rem;">
+                    <h3 style="font-size:1rem;font-weight:700;color:var(--grigio-900);margin-bottom:1rem;">
+                        <i class="fas fa-users" style="color:var(--blu-700);"></i> Prospect
+                    </h3>
+                    <div style="font-size:2rem;font-weight:900;color:var(--blu-700);">${prospectCount}</div>
+                    <div style="font-size:0.8rem;color:var(--grigio-500);">Utenti registrati</div>
+                </div>
+                <div class="card" style="padding:1.25rem;">
+                    <h3 style="font-size:1rem;font-weight:700;color:var(--grigio-900);margin-bottom:1rem;">
+                        <i class="fas fa-layer-group" style="color:var(--verde-700);"></i> Gruppi Utenti
+                    </h3>
+                    ${groups.length > 0 ? `
+                        <div style="display:flex;flex-wrap:wrap;gap:0.5rem;">
+                            ${groups.map(g => `
+                                <span style="background:${g.is_default ? 'var(--blu-100)' : 'var(--grigio-100)'};color:${g.is_default ? 'var(--blu-700)' : 'var(--grigio-700)'};padding:0.25rem 0.75rem;border-radius:12px;font-size:0.8rem;font-weight:600;">
+                                    ${g.label}${g.is_default ? ' (default)' : ''}
+                                </span>
+                            `).join('')}
+                        </div>
+                    ` : '<p style="color:var(--grigio-500);font-size:0.85rem;">Nessun gruppo configurato</p>'}
+                </div>
+            </div>
+
+            <!-- Sessioni -->
+            <div class="card" style="padding:1.25rem;">
+                <h3 style="font-size:1rem;font-weight:700;color:var(--grigio-900);margin-bottom:0.5rem;">
+                    <i class="fas fa-stopwatch" style="color:#F59E0B;"></i> Sessioni (30gg)
+                </h3>
+                <div style="display:flex;gap:2rem;align-items:baseline;margin-bottom:1rem;">
+                    <div>
+                        <span style="font-size:1.5rem;font-weight:900;color:var(--grigio-900);">${totalSessions}</span>
+                        <span style="font-size:0.8rem;color:var(--grigio-500);"> sessioni totali</span>
+                    </div>
+                    <div>
+                        <span style="font-size:0.85rem;color:var(--grigio-500);">Durata più frequente: </span>
+                        <span style="font-weight:700;color:var(--grigio-900);">${avgSession}</span>
+                    </div>
+                </div>
+            </div>
+        `;
     }
 };
