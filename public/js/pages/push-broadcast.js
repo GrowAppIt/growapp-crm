@@ -829,6 +829,15 @@ const PushBroadcast = {
         btn.disabled = true;
       });
 
+      // Mappatura piattaforma: etichetta UI → valore API GoodBarber
+      const platformMap = {
+        'Tutte': 'all',
+        'iOS': 'ios',
+        'Android': 'android',
+        'PWA': 'pwa'
+      };
+      const apiPlatform = platformMap[this.selectedPlatform] || 'all';
+
       // Send to each app sequentially with 300ms delay
       for (let i = 0; i < selectedAppsData.length; i++) {
         const app = selectedAppsData[i];
@@ -839,7 +848,7 @@ const PushBroadcast = {
             app.goodbarberWebzineId,
             app.goodbarberToken,
             personalizedMessage,
-            this.selectedPlatform
+            apiPlatform
           );
 
           this.currentSendResults.push({

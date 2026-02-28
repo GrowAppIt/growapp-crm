@@ -193,8 +193,9 @@ const GoodBarberService = {
           return data;
         })
         .catch(function(error) {
-          // Retry se non è un errore di autenticazione o autorizzazione
-          if (retryCount < self.MAX_RETRIES && error.status !== 401 && error.status !== 403) {
+          // Retry se non è un errore client definitivo (400, 401, 403, 404, 422)
+          var noRetryStatuses = [400, 401, 403, 404, 422];
+          if (retryCount < self.MAX_RETRIES && noRetryStatuses.indexOf(error.status) === -1) {
             return new Promise(function(resolve) {
               setTimeout(function() {
                 resolve(attempt(retryCount + 1));
