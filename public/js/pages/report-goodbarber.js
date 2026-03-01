@@ -527,8 +527,8 @@ const ReportGoodBarber = {
    * 3. Curva sqrt sulla penetrazione + engagement più morbido (sat a 7 pag/sessione).
    *    La penetrazione al 50% vale ~71 punti invece di 50.
    *
-   * Pesi: Penetraz 22%, Retention 20%, Engagement 13%, OptInPush 12%,
-   *        VolumBonus 10%, QualitàTuristica 10%, Momentum 8%, BonusFloor 5%
+   * Pesi: Penetraz 22%, Retention 20%, OptInPush 19%, Engagement 13%,
+   *        QualitàTuristica 10%, VolumBonus 8%, Momentum 8%, BonusFloor 5%
    */
   calcolaScore(app, stats) {
     try {
@@ -582,7 +582,7 @@ const ReportGoodBarber = {
         engagement = Math.min(100, (pagesPerSession / 7) * 100);
       }
 
-      // ── 12% OPT-IN PUSH (con denominatore corretto) ───────────
+      // ── 19% OPT-IN PUSH (con denominatore corretto) ───────────
       // Rapporto consensiPush / downloadEffettivi, smorzato dal volumeFactor.
       let optInPush = 0;
       if (downloadEffettivi > 0 && consensiPush > 0) {
@@ -652,8 +652,8 @@ const ReportGoodBarber = {
         { value: penetrazione,     weight: 0.22, available: downloads > 0 || popolazione > 1 },
         { value: retention,        weight: 0.20, available: uniqueLaunchesMonth > 0 },
         { value: engagement,       weight: 0.13, available: launchesMonth > 0 },
-        { value: optInPush,        weight: 0.12, available: downloadEffettivi > 0 && consensiPush > 0 },
-        { value: volumeBonus,      weight: 0.10, available: downloads > 0 },
+        { value: optInPush,        weight: 0.19, available: downloadEffettivi > 0 && consensiPush > 0 },
+        { value: volumeBonus,      weight: 0.08, available: downloads > 0 },
         { value: qualitaTuristica, weight: 0.10, available: turisticita > 0 },
         { value: momentum,         weight: 0.08, available: momentum > 0 },
         { value: bonusFloor,       weight: 0.05, available: downloads > 10 }
