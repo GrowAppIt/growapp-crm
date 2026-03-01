@@ -315,7 +315,9 @@ const ReportGoodBarber = {
           .rpt-table tbody td.col-penetrazione,
           .rpt-table tbody td.col-lanci,
           .rpt-table tbody td.col-pageviews,
-          .rpt-table tbody td.col-popolazione { display: none !important; }
+          .rpt-table tbody td.col-popolazione,
+          .rpt-table tbody td.col-card,
+          .rpt-table thead th.col-card { display: none !important; }
 
           /* RIGA 1: rank + nome + score */
           .rpt-table tbody td.col-rank {
@@ -397,6 +399,7 @@ const ReportGoodBarber = {
                   <th class="col-lanci" data-sort="launchesMonth">Lanci/m</th>
                   <th class="col-pageviews" data-sort="pageViewsMonth">Views/m</th>
                   <th class="col-popolazione" data-sort="popolazione">Abitanti</th>
+                  <th class="col-card" style="width:40px;text-align:center;" title="Genera Report Card"><i class="fas fa-image" style="color:var(--grigio-500);"></i></th>
                 </tr>
               </thead>
               <tbody id="rankingTableBody"></tbody>
@@ -917,17 +920,32 @@ const ReportGoodBarber = {
           <td class="col-lanci">${this.formatNumber(launchesMonth)}</td>
           <td class="col-pageviews">${this.formatNumber(pageViewsMonth)}</td>
           <td class="col-popolazione">${this.formatNumber(popolazione)}</td>
+          <td class="col-card" style="text-align:center;">
+            <button class="rpt-btn-card" data-app-id="${app.id}" title="Scarica Report Card"
+                    style="border:none;background:none;color:var(--blu-500);font-size:1.1rem;cursor:pointer;padding:0.2rem 0.4rem;border-radius:6px;transition:background 0.2s;">
+              <i class="fas fa-file-image"></i>
+            </button>
+          </td>
         </tr>
       `;
     });
 
-    tbody.innerHTML = html || '<tr><td colspan="10" style="text-align:center; padding:2rem; color:var(--grigio-500);">Nessun risultato</td></tr>';
+    tbody.innerHTML = html || '<tr><td colspan="11" style="text-align:center; padding:2rem; color:var(--grigio-500);">Nessun risultato</td></tr>';
 
     // Attach row click listeners
     document.querySelectorAll('.ranking-row').forEach(row => {
       row.addEventListener('click', () => {
         const appId = row.dataset.appId;
         UI.showPage('dettaglio-app', appId);
+      });
+    });
+
+    // Attach report card button listeners
+    document.querySelectorAll('.rpt-btn-card').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const appId = btn.dataset.appId;
+        this.generateReportCard(appId);
       });
     });
 
@@ -1157,5 +1175,270 @@ const ReportGoodBarber = {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+  },
+
+  // ═══════════════════════════════════════════════════════════
+  // REPORT CARD — Generazione infografica PNG per i comuni
+  // ═══════════════════════════════════════════════════════════
+
+  /**
+   * Entry point: genera la report card PNG per una app
+   */
+  async generateReportCard(appId) {
+    const app = this.allApps.find(a => a.id === appId);
+    if (!app) { UI.showError('App non trovata'); return; }
+    const stats = this.allStats[appId] || {};
+
+    UI.showLoading('Generazione Report Card…');
+
+    try {
+      // Calcola metriche
+      const m = this.calcReportMetrics(app, stats);
+
+      // Genera HTML della card
+      const cardHTML = this.buildReportCardHTML(app, m);
+
+      // Crea container nascosto
+      const wrapper = document.createElement('div');
+      wrapper.id = 'rc-offscreen-wrapper';
+      wrapper.style.cssText = 'position:fixed;left:-9999px;top:0;z-index:-1;';
+      wrapper.innerHTML = cardHTML;
+      document.body.appendChild(wrapper);
+
+      // Attendi caricamento font + eventuale icona
+      await new Promise(r => setTimeout(r, 800));
+
+      const cardEl = wrapper.querySelector('#reportCardCanvas');
+
+      const canvas = await html2canvas(cardEl, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: false,
+        backgroundColor: '#ffffff',
+        logging: false
+      });
+
+      // Download PNG
+      const link = document.createElement('a');
+      link.href = canvas.toDataURL('image/png');
+      const nomeFile = (app.nome || 'App').replace(/[^a-zA-Z0-9À-ÿ]/g, '_');
+      const oggi = new Date().toISOString().split('T')[0];
+      link.download = `ReportCard_${nomeFile}_${oggi}.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      // Cleanup
+      wrapper.remove();
+      UI.hideLoading();
+      UI.showSuccess('Report Card scaricata!');
+
+    } catch (err) {
+      console.error('Errore generazione Report Card:', err);
+      UI.hideLoading();
+      UI.showError('Errore nella generazione del report');
+      const old = document.getElementById('rc-offscreen-wrapper');
+      if (old) old.remove();
+    }
+  },
+
+  /**
+   * Calcola tutte le metriche per la report card
+   */
+  calcReportMetrics(app, stats) {
+    const downloads = stats.totalDownloads || 0;
+    const launchesMonth = stats.launchesMonth || 0;
+    const uniqueMonth = stats.uniqueLaunchesMonth || 0;
+    const pageViewsMonth = stats.pageViewsMonth || 0;
+    const consensiPush = app.consensiPush || 0;
+    const popolazione = app.popolazione || 0;
+
+    // Tutti i dati API (launches, unique_launches, page_views) sono relativi
+    // agli ultimi 30 giorni. downloads_global è il totale storico.
+    const penetrazione = popolazione > 0 ? Math.min(100, (downloads / popolazione) * 100) : 0;
+    const engagement = launchesMonth > 0 ? (pageViewsMonth / launchesMonth) : 0;
+
+    // Distribuzione piattaforme (da rawData o cache dettaglio)
+    const rawData = stats.rawData || {};
+    const osDist = rawData.mobile_os_distribution || stats.osDistribution || {};
+    const iosPerc = osDist.ios_devices_percentage || 0;
+    const androidPerc = osDist.android_devices_percentage || 0;
+
+    return {
+      downloads,
+      launchesMonth,
+      pageViewsMonth,
+      consensiPush,
+      popolazione,
+      penetrazione,
+      engagement,
+      iosPerc,
+      androidPerc
+    };
+  },
+
+  /**
+   * Costruisce l'HTML dell'infografica (stili tutti inline per html2canvas)
+   */
+  buildReportCardHTML(app, m) {
+    const comune = app.comune || app.nomeComune || '';
+    const provincia = app.provincia || '';
+    const regione = app.regione || '';
+    const location = [comune, provincia, regione].filter(Boolean).join(' · ');
+    const dataLancio = app.dataLancioApp
+      ? new Date(app.dataLancioApp).toLocaleDateString('it-IT', { day: '2-digit', month: 'long', year: 'numeric' })
+      : '';
+    const iconUrl = app.iconaUrl || '';
+    const now = new Date().toLocaleString('it-IT', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+    const fmtNum = (n) => new Intl.NumberFormat('it-IT').format(Math.round(n));
+    const fmtDec = (n, d) => n.toFixed(d).replace('.', ',');
+
+    // Funzione per generare una singola card metrica
+    const metricCard = (icon, label, value, color, subtitle) => `
+      <div style="background:#ffffff;border-radius:14px;padding:22px 16px;text-align:center;
+                  box-shadow:0 2px 12px rgba(0,0,0,0.06);border:1px solid #E8EDF2;">
+        <div style="width:44px;height:44px;border-radius:12px;background:${color}15;
+                    display:flex;align-items:center;justify-content:center;margin:0 auto 12px;">
+          <i class="${icon}" style="font-size:20px;color:${color};"></i>
+        </div>
+        <div style="font-size:28px;font-weight:800;color:#1E1E1E;line-height:1.1;margin-bottom:4px;">
+          ${value}
+        </div>
+        <div style="font-size:12px;font-weight:600;color:#4A4A4A;text-transform:uppercase;letter-spacing:0.5px;">
+          ${label}
+        </div>
+        ${subtitle ? `<div style="font-size:11px;color:#9B9B9B;margin-top:2px;">${subtitle}</div>` : ''}
+      </div>
+    `;
+
+    return `
+      <div id="reportCardCanvas" style="width:800px;font-family:'Titillium Web',Arial,Helvetica,sans-serif;
+           background:#ffffff;overflow:hidden;">
+
+        <!-- ▓▓ HEADER ▓▓ -->
+        <div style="background:linear-gradient(135deg,#145284 0%,#0D3A5C 100%);padding:40px 40px 35px;text-align:center;position:relative;">
+          <!-- Pattern decorativo -->
+          <div style="position:absolute;top:0;right:0;width:200px;height:200px;
+                      background:radial-gradient(circle at 100% 0%,rgba(255,255,255,0.06) 0%,transparent 70%);"></div>
+
+          ${iconUrl ? `
+          <img src="${iconUrl}" crossorigin="anonymous"
+               style="width:80px;height:80px;border-radius:18px;border:3px solid rgba(255,255,255,0.3);
+                      margin-bottom:16px;object-fit:cover;" onerror="this.style.display='none'" />
+          ` : `
+          <div style="width:80px;height:80px;border-radius:18px;background:rgba(255,255,255,0.15);
+                      margin:0 auto 16px;display:flex;align-items:center;justify-content:center;">
+            <i class="fas fa-mobile-alt" style="font-size:36px;color:rgba(255,255,255,0.7);"></i>
+          </div>
+          `}
+
+          <div style="font-size:30px;font-weight:900;color:#ffffff;margin-bottom:6px;line-height:1.2;">
+            ${this.escapeHtml(app.nome || 'App')}
+          </div>
+          <div style="font-size:15px;color:rgba(255,255,255,0.85);font-weight:400;">
+            ${this.escapeHtml(location)}
+          </div>
+          ${dataLancio ? `
+          <div style="font-size:12px;color:rgba(255,255,255,0.6);margin-top:8px;">
+            <i class="fas fa-rocket" style="margin-right:4px;"></i> Attiva dal ${dataLancio}
+          </div>` : ''}
+        </div>
+
+        <!-- ▓▓ TITOLO SEZIONE ▓▓ -->
+        <div style="padding:24px 40px 8px;display:flex;align-items:center;justify-content:space-between;">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <div style="width:4px;height:28px;border-radius:2px;background:#3CA434;"></div>
+            <div style="font-size:18px;font-weight:700;color:#145284;text-transform:uppercase;letter-spacing:1px;">
+              Report Analytics
+            </div>
+          </div>
+          <div style="font-size:13px;color:#9B9B9B;font-weight:400;">
+            <i class="fas fa-calendar-alt" style="margin-right:4px;"></i> ${now}
+          </div>
+        </div>
+
+        <!-- ▓▓ SOTTO-TITOLO PERIODO ▓▓ -->
+        <div style="padding:8px 40px 6px;">
+          <div style="font-size:12px;font-weight:600;color:#9B9B9B;letter-spacing:0.5px;">
+            <i class="fas fa-clock" style="margin-right:4px;"></i> Dati ultimi 30 giorni
+          </div>
+        </div>
+
+        <!-- ▓▓ GRIGLIA METRICHE (3x2) ▓▓ -->
+        <div style="padding:14px 40px 24px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;">
+
+          ${metricCard('fas fa-bell', 'Consensi Push', fmtNum(m.consensiPush), '#3CA434', 'utenti con notifiche attive')}
+          ${metricCard('fas fa-sync-alt', 'Sessioni', fmtNum(m.launchesMonth), '#145284', 'aperture dell\'app')}
+
+          <!-- Card piattaforme iOS/Android -->
+          <div style="background:#ffffff;border-radius:14px;padding:22px 16px;text-align:center;
+                      box-shadow:0 2px 12px rgba(0,0,0,0.06);border:1px solid #E8EDF2;">
+            <div style="font-size:12px;font-weight:600;color:#4A4A4A;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:14px;">
+              Piattaforme
+            </div>
+            <div style="display:flex;align-items:center;justify-content:center;gap:24px;margin-bottom:10px;">
+              <div style="text-align:center;">
+                <i class="fab fa-apple" style="font-size:22px;color:#1E1E1E;display:block;margin-bottom:4px;"></i>
+                <div style="font-size:24px;font-weight:800;color:#1E1E1E;">${m.iosPerc}%</div>
+                <div style="font-size:10px;color:#9B9B9B;">iOS</div>
+              </div>
+              <div style="width:1px;height:40px;background:#D9D9D9;"></div>
+              <div style="text-align:center;">
+                <i class="fab fa-android" style="font-size:22px;color:#3CA434;display:block;margin-bottom:4px;"></i>
+                <div style="font-size:24px;font-weight:800;color:#1E1E1E;">${m.androidPerc}%</div>
+                <div style="font-size:10px;color:#9B9B9B;">Android</div>
+              </div>
+            </div>
+            <div style="font-size:11px;color:#9B9B9B;">distribuzione dispositivi</div>
+          </div>
+
+          ${metricCard('fas fa-eye', 'Pagine Viste', fmtNum(m.pageViewsMonth), '#0288D1', 'contenuti consultati')}
+          ${metricCard('fas fa-file-alt', 'Engagement', fmtDec(m.engagement, 1), '#E67E22', 'pagine per sessione')}
+          ${metricCard('fas fa-chart-line', 'Penetrazione', fmtDec(m.penetrazione, 1) + '%', '#2E6DA8', 'downloads / abitanti')}
+
+        </div>
+
+        <!-- ▓▓ BARRA DOWNLOADS TOTALI (evidenziata) ▓▓ -->
+        <div style="padding:0 40px 30px;">
+          <div style="background:linear-gradient(135deg,#D1E2F2 0%,#E2F8DE 100%);border-radius:14px;
+                      padding:22px 30px;display:flex;align-items:center;gap:20px;
+                      border:1px solid #7BA7CE;">
+            <div style="width:52px;height:52px;border-radius:14px;background:#145284;
+                        display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+              <i class="fas fa-download" style="font-size:24px;color:#ffffff;"></i>
+            </div>
+            <div style="flex:1;">
+              <div style="font-size:13px;font-weight:600;color:#4A4A4A;text-transform:uppercase;letter-spacing:0.5px;">
+                Downloads Totali
+              </div>
+              <div style="font-size:36px;font-weight:900;color:#145284;line-height:1.1;">
+                ${fmtNum(m.downloads)}
+              </div>
+              <div style="font-size:11px;color:#9B9B9B;">installazioni complessive dell'app</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ▓▓ FOOTER ▓▓ -->
+        <div style="background:#F5F5F5;padding:20px 40px;display:flex;align-items:center;justify-content:space-between;
+                    border-top:1px solid #D9D9D9;">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <div style="width:32px;height:32px;border-radius:8px;background:#145284;
+                        display:flex;align-items:center;justify-content:center;">
+              <i class="fas fa-city" style="font-size:14px;color:#ffffff;"></i>
+            </div>
+            <div>
+              <div style="font-size:14px;font-weight:700;color:#145284;">Comune.Digital</div>
+              <div style="font-size:10px;color:#9B9B9B;">Analytics Report</div>
+            </div>
+          </div>
+          <div style="font-size:11px;color:#9B9B9B;text-align:right;">
+            Powered by Growapp S.r.l.
+          </div>
+        </div>
+
+      </div>
+    `;
   }
 };
