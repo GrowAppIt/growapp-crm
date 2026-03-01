@@ -1442,7 +1442,7 @@ const DettaglioApp = {
             return `
                 <div class="card fade-in" style="text-align:center;padding:3rem;">
                     <i class="fas fa-plug" style="font-size:3rem;color:var(--grigio-300);margin-bottom:1rem;"></i>
-                    <h3 style="color:var(--grigio-700);">Integrazione GoodBarber non configurata</h3>
+                    <h3 style="color:var(--grigio-700);">Integrazione CMS non configurata</h3>
                     <p style="color:var(--grigio-500);margin-top:0.5rem;">Per vedere le statistiche, modifica l'app e inserisci il <strong>Webzine ID</strong> e il <strong>Token API</strong> nella sezione Metriche.</p>
                     <button class="btn btn-primary" style="margin-top:1rem;" onclick="DettaglioApp.editApp()">
                         <i class="fas fa-edit"></i> Configura Integrazione
@@ -1478,7 +1478,7 @@ const DettaglioApp = {
                     ${cache ? this._renderGBStatsContent(cache) : `
                         <div class="card" style="text-align:center;padding:2rem;">
                             <i class="fas fa-chart-bar" style="font-size:2rem;color:var(--grigio-300);margin-bottom:1rem;"></i>
-                            <p style="color:var(--grigio-500);">Clicca "Aggiorna Statistiche" per caricare i dati da GoodBarber</p>
+                            <p style="color:var(--grigio-500);">Clicca "Aggiorna Statistiche" per caricare i dati dal CMS</p>
                         </div>
                     `}
                 </div>
@@ -1497,7 +1497,7 @@ const DettaglioApp = {
             const result = await GoodBarberService.testConnection(app.goodbarberWebzineId, app.goodbarberToken);
             UI.hideLoading();
             if (result.success) {
-                UI.showSuccess('Connessione GoodBarber OK! Gruppi trovati: ' + (result.groups || 0));
+                UI.showSuccess('Connessione CMS OK! Gruppi trovati: ' + (result.groups || 0));
             } else {
                 UI.showError('Connessione fallita: ' + (result.error || 'Errore sconosciuto'));
             }

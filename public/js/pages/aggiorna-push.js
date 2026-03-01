@@ -449,7 +449,7 @@ const AggiornaPush = {
   attachEventListeners() {
     // Torna al report
     document.getElementById('apBackBtn')?.addEventListener('click', () => {
-      UI.showPage('report-goodbarber');
+      UI.showPage('report-app');
     });
 
     // Ricerca con debounce

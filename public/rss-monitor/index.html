@@ -2174,7 +2174,50 @@
     const TIMEOUT_MS = 12000;
     const MAX_ITEMS_PER_FEED = 20;
 
+    // Proxy CORS (fallback per feed senza header CORS)
+    const CORS_PROXY = (url) => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url);
+
+    // Cache per ricordare quali domini necessitano del proxy (evita retry inutili)
+    const _corsProxyDomains = new Set();
+
     function fetchWithTimeout(url, ms) {
+      return new Promise(async (resolve, reject) => {
+        const domain = new URL(url).hostname;
+
+        // Se sappiamo già che questo dominio richiede il proxy, saltiamo il tentativo diretto
+        if (_corsProxyDomains.has(domain)) {
+          try {
+            const proxyRes = await _timedFetch(CORS_PROXY(url), ms);
+            return resolve(proxyRes);
+          } catch (proxyErr) {
+            return reject(new Error('Feed non raggiungibile via proxy: ' + (proxyErr.message || 'errore')));
+          }
+        }
+
+        // 1. Tentativo diretto (timeout breve: CORS fallisce in <1s)
+        try {
+          const directRes = await _timedFetch(url, Math.min(ms, 4000));
+          return resolve(directRes);
+        } catch (directErr) {
+          // Errore HTTP reale (4xx/5xx) — non riprovare con proxy
+          if (directErr.message && directErr.message.startsWith('HTTP ')) {
+            return reject(directErr);
+          }
+        }
+
+        // 2. Fallback proxy CORS
+        try {
+          const proxyRes = await _timedFetch(CORS_PROXY(url), ms);
+          _corsProxyDomains.add(domain); // Ricorda per i prossimi caricamenti
+          console.log(`🔄 Feed ${domain} → proxy CORS attivato`);
+          return resolve(proxyRes);
+        } catch (proxyErr) {
+          reject(new Error('Feed non raggiungibile (CORS bloccato e proxy non disponibile)'));
+        }
+      });
+    }
+
+    function _timedFetch(url, ms) {
       return new Promise((resolve, reject) => {
         const ctrl = new AbortController();
         const t = setTimeout(() => ctrl.abort(), ms);

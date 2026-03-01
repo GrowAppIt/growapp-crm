@@ -1579,14 +1579,14 @@ const FormsManager = {
 
                 <div style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 2px solid var(--grigio-300);">
                     <h4 style="font-size: 0.95rem; font-weight: 600; color: var(--grigio-700); margin-bottom: 0.75rem;">
-                        <i class="fas fa-plug" style="color: var(--blu-700);"></i> Integrazione GoodBarber API
+                        <i class="fas fa-plug" style="color: var(--blu-700);"></i> Integrazione CMS API
                     </h4>
                     <p style="font-size: 0.8rem; color: var(--grigio-500); margin-bottom: 0.75rem;">
                         <i class="fas fa-info-circle"></i> Inserisci le credenziali API per abilitare statistiche automatiche e invio push dal CRM
                     </p>
                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr)); gap: 1rem;">
-                        ${this.createFormField('Webzine ID (GoodBarber)', 'goodbarberWebzineId', 'number', app.goodbarberWebzineId || '', { placeholder: 'ID numerico app su GoodBarber' })}
-                        ${this.createFormField('Token API GoodBarber', 'goodbarberToken', 'text', app.goodbarberToken || '', { placeholder: 'Token di autenticazione API' })}
+                        ${this.createFormField('Webzine ID (CMS)', 'goodbarberWebzineId', 'number', app.goodbarberWebzineId || '', { placeholder: 'ID numerico app su CMS' })}
+                        ${this.createFormField('Token API CMS', 'goodbarberToken', 'text', app.goodbarberToken || '', { placeholder: 'Token di autenticazione API' })}
                     </div>
                 </div>
             </div>
@@ -1887,14 +1887,14 @@ const FormsManager = {
 
                 <div style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 2px solid var(--grigio-300);">
                     <h4 style="font-size: 0.95rem; font-weight: 600; color: var(--grigio-700); margin-bottom: 0.75rem;">
-                        <i class="fas fa-plug" style="color: var(--blu-700);"></i> Integrazione GoodBarber API
+                        <i class="fas fa-plug" style="color: var(--blu-700);"></i> Integrazione CMS API
                     </h4>
                     <p style="font-size: 0.8rem; color: var(--grigio-500); margin-bottom: 0.75rem;">
                         <i class="fas fa-info-circle"></i> Inserisci le credenziali API per abilitare statistiche automatiche e invio push dal CRM
                     </p>
                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr)); gap: 1rem;">
-                        ${this.createFormField('Webzine ID (GoodBarber)', 'goodbarberWebzineId', 'number', '', { placeholder: 'ID numerico app su GoodBarber' })}
-                        ${this.createFormField('Token API GoodBarber', 'goodbarberToken', 'text', '', { placeholder: 'Token di autenticazione API' })}
+                        ${this.createFormField('Webzine ID (CMS)', 'goodbarberWebzineId', 'number', '', { placeholder: 'ID numerico app su CMS' })}
+                        ${this.createFormField('Token API CMS', 'goodbarberToken', 'text', '', { placeholder: 'Token di autenticazione API' })}
                     </div>
                 </div>
             </div>

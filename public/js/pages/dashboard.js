@@ -2082,8 +2082,8 @@ const Dashboard = {
                         <button class="btn btn-secondary" onclick="UI.showPage('scadenzario')" style="width: 100%; text-align: left;">
                             <i class="fas fa-calendar-check"></i> Vedi Scadenzario
                         </button>
-                        <button class="btn btn-secondary" onclick="UI.showPage('report')" style="width: 100%; text-align: left;">
-                            <i class="fas fa-chart-bar"></i> Vedi Report
+                        <button class="btn btn-secondary" onclick="UI.showPage('report-app')" style="width: 100%; text-align: left;">
+                            <i class="fas fa-chart-line"></i> Report App
                         </button>
                         <button class="btn btn-secondary" onclick="UI.showPage('clienti')" style="width: 100%; text-align: left;">
                             <i class="fas fa-users"></i> I Miei Clienti
@@ -2195,7 +2195,8 @@ const Dashboard = {
      */
     async loadWidgetTaskAperti() {
         try {
-            const allTasks = await TaskService.getAllTasks();
+            const tasksResult = await TaskService.getAllTasks();
+            const allTasks = (tasksResult && tasksResult.tasks) ? tasksResult.tasks : [];
             const currentUserId = AuthService.getUserId();
 
             // Filtra task dell'agente (assegnati o creati)

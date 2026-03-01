@@ -23,10 +23,36 @@ const ReportGoodBarber = {
   async render() {
     try {
       UI.showLoading();
+      this._sortListenersAttached = false; // Reset per ri-render completo
 
       // Load all apps — SOLO le ATTIVA
       const tutteLeApp = await DataService.getApps();
-      this.allApps = tutteLeApp.filter(a => a.statoApp === 'ATTIVA');
+      let appAttive = tutteLeApp.filter(a => a.statoApp === 'ATTIVA');
+
+      // 🔒 Filtro Agente: mostra solo le app dei propri clienti
+      if (AuthService.canViewOnlyOwnData()) {
+        const agenteNome = AuthService.getAgenteFilterName();
+        if (agenteNome) {
+          try {
+            const clientiAgente = await DataService.getClienti({ agente: agenteNome });
+            const clienteIds = new Set();
+            clientiAgente.forEach(c => {
+              if (c.id) clienteIds.add(c.id);
+              if (c.clienteIdLegacy) clienteIds.add(c.clienteIdLegacy);
+            });
+            appAttive = appAttive.filter(a => {
+              if (a.clientePaganteId && clienteIds.has(a.clientePaganteId)) return true;
+              if (a.clienteId && clienteIds.has(a.clienteId)) return true;
+              return false;
+            });
+            console.log(`📊 Report Agente "${agenteNome}": ${appAttive.length} app filtrate su ${tutteLeApp.length} totali`);
+          } catch (e) {
+            console.warn('Errore filtro agente nel report:', e);
+          }
+        }
+      }
+
+      this.allApps = appAttive;
 
       // Auto-fill popolazione da ISTAT per le app che hanno il comune ma non la popolazione
       await this.autoFillPopolazioneISTAT();
@@ -949,15 +975,20 @@ const ReportGoodBarber = {
       });
     });
 
-    // Attach header sort listeners + highlight sorted column
+    // Aggiorna indicatori visivi sugli header (senza riaggiungere listener)
     document.querySelectorAll('.rpt-table th[data-sort]').forEach(th => {
-      // Mark current sort column
       th.classList.remove('sorted-asc', 'sorted-desc');
       if (th.dataset.sort === this.sortKey) {
         th.classList.add(this.sortOrder === 'asc' ? 'sorted-asc' : 'sorted-desc');
       }
+    });
 
-      th.addEventListener('click', () => {
+    // Attach header sort listeners SOLO la prima volta (evita listener duplicati)
+    if (!this._sortListenersAttached) {
+      this._sortListenersAttached = true;
+      document.querySelector('.rpt-table thead')?.addEventListener('click', (e) => {
+        const th = e.target.closest('th[data-sort]');
+        if (!th) return;
         const key = th.dataset.sort;
         if (this.sortKey === key) {
           this.sortOrder = this.sortOrder === 'asc' ? 'desc' : 'asc';
@@ -968,7 +999,7 @@ const ReportGoodBarber = {
         this.applyFiltersAndSort();
         this.renderRankingTable();
       });
-    });
+    }
   },
 
   /**
@@ -1053,7 +1084,7 @@ const ReportGoodBarber = {
       const appsToUpdate = this.allApps.filter(a => a.goodbarberWebzineId && a.goodbarberToken);
 
       if (appsToUpdate.length === 0) {
-        UI.showError('Nessun\'app con API GoodBarber configurate');
+        UI.showError('Nessun\'app con API CMS configurate');
         return;
       }
 

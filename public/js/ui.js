@@ -91,7 +91,7 @@ const UI = {
             case 'monitor-rss':
                 MonitorRSS.render();
                 break;
-            case 'report-goodbarber':
+            case 'report-app':
                 ReportGoodBarber.render();
                 break;
             case 'push-broadcast':
