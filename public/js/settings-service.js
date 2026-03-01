@@ -162,8 +162,8 @@ const SettingsService = {
         tipologiaContrattoDefault: 'SERVIZIO_APP',
 
         // --- Soglie e notifiche ---
-        sogliaCritico: 7,                               // giorni
-        sogliaImminente: 30,                             // giorni
+        sogliaCritico: 1,                               // giorni (scade domani o oggi)
+        sogliaImminente: 3,                              // giorni (alert entro 3 giorni)
         finestraContrattiDashboard: 60,                  // giorni
         finestraFattureDashboard: 30,                    // giorni
         giorniLookbackStorico: 180,                      // 6 mesi

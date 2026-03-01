@@ -234,37 +234,39 @@ const GestioneApp = {
     },
 
     calcolaAlertScadenze(app) {
-        // Calcola scadenze in alert (3 giorni prima)
+        // Calcola scadenze in alert (soglia da settings)
         const oggi = new Date();
         oggi.setHours(0, 0, 0, 0);
-        const tra7giorni = new Date(oggi);
-        tra7giorni.setDate(oggi.getDate() + 7);
+        const _sysApp = SettingsService.getSystemSettingsSync();
+        const _sogliaApp = _sysApp.sogliaImminente || 3;
+        const traXgiorni = new Date(oggi);
+        traXgiorni.setDate(oggi.getDate() + _sogliaApp);
 
         let numAlert = 0;
 
-        // Alert = scadute (passate) + imminenti (prossimi 7 giorni)
+        // Alert = scadute (passate) + imminenti (prossimi N giorni)
         if (app.ultimaDataRaccoltaDifferenziata) {
             const data = new Date(app.ultimaDataRaccoltaDifferenziata);
             data.setHours(0, 0, 0, 0);
-            if (data < oggi || (data >= oggi && data <= tra7giorni)) numAlert++;
+            if (data < oggi || (data >= oggi && data <= traXgiorni)) numAlert++;
         }
 
         if (app.ultimaDataFarmacieTurno) {
             const data = new Date(app.ultimaDataFarmacieTurno);
             data.setHours(0, 0, 0, 0);
-            if (data < oggi || (data >= oggi && data <= tra7giorni)) numAlert++;
+            if (data < oggi || (data >= oggi && data <= traXgiorni)) numAlert++;
         }
 
         if (app.scadenzaCertificatoApple) {
             const data = new Date(app.scadenzaCertificatoApple);
             data.setHours(0, 0, 0, 0);
-            if (data < oggi || (data >= oggi && data <= tra7giorni)) numAlert++;
+            if (data < oggi || (data >= oggi && data <= traXgiorni)) numAlert++;
         }
 
         if (app.altraScadenzaData) {
             const data = new Date(app.altraScadenzaData);
             data.setHours(0, 0, 0, 0);
-            if (data < oggi || (data >= oggi && data <= tra7giorni)) numAlert++;
+            if (data < oggi || (data >= oggi && data <= traXgiorni)) numAlert++;
         }
 
         return numAlert;

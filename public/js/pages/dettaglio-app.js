@@ -540,11 +540,13 @@ const DettaglioApp = {
     },
 
     renderFunzionalita(app) {
-        // Calcola scadenze con alert: scadute (passate) + imminenti (prossimi 7 giorni)
+        // Calcola scadenze con alert: scadute (passate) + imminenti (prossimi N giorni da settings)
         const oggi = new Date();
         oggi.setHours(0, 0, 0, 0);
-        const tra7giorni = new Date(oggi);
-        tra7giorni.setDate(oggi.getDate() + 7);
+        const _sysDetApp = SettingsService.getSystemSettingsSync();
+        const _sogliaDetApp = _sysDetApp.sogliaImminente || 3;
+        const traXgiorni = new Date(oggi);
+        traXgiorni.setDate(oggi.getDate() + _sogliaDetApp);
 
         const scadenze = [];
 
@@ -552,7 +554,7 @@ const DettaglioApp = {
             const data = new Date(app.ultimaDataRaccoltaDifferenziata);
             data.setHours(0, 0, 0, 0);
             const isScaduta = data < oggi;
-            const isImminente = data >= oggi && data <= tra7giorni;
+            const isImminente = data >= oggi && data <= traXgiorni;
             if (isScaduta || isImminente) {
                 scadenze.push({ tipo: '📅 Raccolta Differenziata', data: app.ultimaDataRaccoltaDifferenziata, isScaduta });
             }
@@ -562,7 +564,7 @@ const DettaglioApp = {
             const data = new Date(app.ultimaDataFarmacieTurno);
             data.setHours(0, 0, 0, 0);
             const isScaduta = data < oggi;
-            const isImminente = data >= oggi && data <= tra7giorni;
+            const isImminente = data >= oggi && data <= traXgiorni;
             if (isScaduta || isImminente) {
                 scadenze.push({ tipo: '💊 Farmacie di Turno', data: app.ultimaDataFarmacieTurno, isScaduta });
             }
@@ -572,7 +574,7 @@ const DettaglioApp = {
             const data = new Date(app.ultimaDataNotificheFarmacie);
             data.setHours(0, 0, 0, 0);
             const isScaduta = data < oggi;
-            const isImminente = data >= oggi && data <= tra7giorni;
+            const isImminente = data >= oggi && data <= traXgiorni;
             if (isScaduta || isImminente) {
                 scadenze.push({ tipo: '🔔 Notifiche Farmacie', data: app.ultimaDataNotificheFarmacie, isScaduta });
             }
@@ -582,7 +584,7 @@ const DettaglioApp = {
             const data = new Date(app.scadenzaCertificatoApple);
             data.setHours(0, 0, 0, 0);
             const isScaduta = data < oggi;
-            const isImminente = data >= oggi && data <= tra7giorni;
+            const isImminente = data >= oggi && data <= traXgiorni;
             if (isScaduta || isImminente) {
                 scadenze.push({ tipo: '🍎 Certificato Apple', data: app.scadenzaCertificatoApple, isScaduta });
             }
@@ -592,7 +594,7 @@ const DettaglioApp = {
             const data = new Date(app.altraScadenzaData);
             data.setHours(0, 0, 0, 0);
             const isScaduta = data < oggi;
-            const isImminente = data >= oggi && data <= tra7giorni;
+            const isImminente = data >= oggi && data <= traXgiorni;
             if (isScaduta || isImminente) {
                 scadenze.push({ tipo: '📌 ' + (app.altraScadenzaNote || 'Altra Scadenza'), data: app.altraScadenzaData, isScaduta });
             }
@@ -682,7 +684,7 @@ const DettaglioApp = {
                         ${imminenti.length > 0 ? `
                         <div style="background: linear-gradient(135deg, #FFF3CD 0%, #FFEBCC 100%); border-left: 4px solid var(--giallo-avviso); padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
                             <div style="font-weight: 700; color: #856404; margin-bottom: 0.5rem;">
-                                <i class="fas fa-exclamation-triangle"></i> Scadenze Imminenti (prossimi 7 giorni)
+                                <i class="fas fa-exclamation-triangle"></i> Scadenze Imminenti (prossimi ${_sogliaDetApp} giorni)
                             </div>
                             ${imminenti.map(s => `
                                 <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0; border-bottom: 1px solid rgba(133, 100, 4, 0.2);">

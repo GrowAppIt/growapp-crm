@@ -690,12 +690,16 @@ const UI = {
 
             const taskAperti = (tasksResult.tasks || []).filter(t => (t.stato === 'TODO' || t.stato === 'IN_PROGRESS') && !t.archiviato).length;
 
-            // Scadenze: usa getScadenzeCompute se disponibile
+            // Scadenze: conta scadute + imminenti (≤3 giorni)
             let scadenzeScadute = 0;
             try {
+                const _sysBadge = SettingsService.getSystemSettingsSync();
+                const sogliaGiorni = _sysBadge.sogliaImminente || 3;
+                const limiteBadge = new Date(oggi);
+                limiteBadge.setDate(limiteBadge.getDate() + sogliaGiorni);
                 const scadenze = await DataService.getScadenzeCompute({});
                 scadenzeScadute = (scadenze.tutteLeScadenze || []).filter(s =>
-                    s.dataScadenza && new Date(s.dataScadenza) < oggi
+                    s.dataScadenza && new Date(s.dataScadenza) <= limiteBadge
                 ).length;
             } catch (e) { /* ignora */ }
 

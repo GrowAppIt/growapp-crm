@@ -95,13 +95,14 @@ const Dashboard = {
             contrattiTutti.forEach(c => { contrattiPerStato[c.stato] = (contrattiPerStato[c.stato] || 0) + 1; });
             const appPerStato = {};
             app.forEach(a => { appPerStato[a.statoApp] = (appPerStato[a.statoApp] || 0) + 1; });
-            const tra7giorni = new Date(oggi);
-            tra7giorni.setDate(tra7giorni.getDate() + 7);
+            const _sogliaImmDash = _sysDash2.sogliaImminente || 3;
+            const traXgiorni = new Date(oggi);
+            traXgiorni.setDate(traXgiorni.getDate() + _sogliaImmDash);
             const scadenzeScaduteStats = _rawScadenze.filter(s => s.dataScadenza && new Date(s.dataScadenza) < oggi);
             const scadenzeImminentiStats = _rawScadenze.filter(s => {
                 if (!s.dataScadenza) return false;
                 const d = new Date(s.dataScadenza);
-                return d >= oggi && d <= tra7giorni;
+                return d >= oggi && d <= traXgiorni;
             });
 
             const stats = {
@@ -142,7 +143,7 @@ const Dashboard = {
             try {
                 const scadenzeCalcolateResult = await DataService.getScadenzeCompute({ contratti: contrattiTutti, fatture: fatture, clienti: clienti });
                 const finestraImminente = new Date(oggi);
-                finestraImminente.setDate(finestraImminente.getDate() + (_sysDash2.sogliaImminente || 30));
+                finestraImminente.setDate(finestraImminente.getDate() + (_sysDash2.sogliaImminente || 3));
                 const _tutteScadenzeScadute = scadenzeCalcolateResult.tutteLeScadenze.filter(s =>
                     s.dataScadenza && new Date(s.dataScadenza) < oggi
                 );
@@ -189,8 +190,10 @@ const Dashboard = {
                 f.tipoDocumento !== 'NOTA_DI_CREDITO'
             ).length;
             const taskApertiCount = tasks.filter(t => (t.stato === 'TODO' || t.stato === 'IN_PROGRESS') && !t.archiviato).length;
+            // Badge sidebar: conta scadute + imminenti (≤3gg)
+            const scadenzeBadgeCount = scadenzeScadute.length + scadenzeImminenti.length;
             UI.updateSidebarBadges({
-                scadenzeScadute: scadenzeScadute.length,
+                scadenzeScadute: scadenzeBadgeCount,
                 fattureNonPagate: fattureNonPagateCount,
                 taskAperti: taskApertiCount
             });
@@ -1076,11 +1079,13 @@ const Dashboard = {
         const fatturatoSospeso = fattureScaduteSospese.reduce((sum, f) => sum + _calcolaImportoResiduo(f), 0);
 
         // === SCADENZE NELLE APP ===
-        // Calcola tutte le scadenze (scadute + imminenti 7gg) dalle app
+        // Calcola tutte le scadenze (scadute + imminenti ≤3gg) dalle app
         const _oggiApp = new Date();
         _oggiApp.setHours(0, 0, 0, 0);
+        const _sysKPI = SettingsService.getSystemSettingsSync();
+        const _sogliaApp = _sysKPI.sogliaImminente || 3;
         const _tra7giorniApp = new Date(_oggiApp);
-        _tra7giorniApp.setDate(_oggiApp.getDate() + 7);
+        _tra7giorniApp.setDate(_oggiApp.getDate() + _sogliaApp);
 
         const scadenzeApp = [];
         (app || []).forEach(a => {
@@ -1524,7 +1529,7 @@ const Dashboard = {
                     if (imminentiApp.length > 0) {
                         listaHtml += `
                             <div class="scadApp-sezione-header" data-sezione="imminenti" style="padding: 0.75rem 1rem; background: #FFF8E1; border-left: 4px solid var(--giallo-avviso); margin-top: ${scaduteApp.length > 0 ? '1rem' : '0'}; margin-bottom: 0.5rem;">
-                                <strong style="color: #F59E0B;"><i class="fas fa-exclamation-triangle"></i> Imminenti — prossimi 7 giorni (<span id="scadAppCountImminenti">${imminentiApp.length}</span>)</strong>
+                                <strong style="color: #F59E0B;"><i class="fas fa-exclamation-triangle"></i> Imminenti — prossimi 3 giorni (<span id="scadAppCountImminenti">${imminentiApp.length}</span>)</strong>
                             </div>
                             <div class="list-group" id="scadAppListImminenti">
                                 ${imminentiApp.map(s => _renderRigaScadApp(s)).join('')}
@@ -2047,10 +2052,10 @@ const Dashboard = {
             ` : ''}
 
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 1.5rem; margin-top: 1.5rem;">
-                <!-- PROSSIME ATTIVITÀ (7gg) -->
+                <!-- PROSSIME ATTIVITÀ (3gg) -->
                 <div id="widgetProssimeAttivita" style="background: white; border-radius: 12px; padding: 1.5rem; box-shadow: 0 2px 8px rgba(0,0,0,0.06);">
                     <h3 style="font-size: 1rem; font-weight: 700; color: var(--blu-700); margin-bottom: 1rem;">
-                        <i class="fas fa-calendar-week"></i> Prossime Attività (7gg)
+                        <i class="fas fa-calendar-week"></i> Prossime Attività (3gg)
                     </h3>
                     ${this.renderWidgetProssimeAttivita([...scadenzeScadute, ...scadenzeImminenti])}
                 </div>
@@ -2109,24 +2114,26 @@ const Dashboard = {
     },
 
     /**
-     * Widget: Prossime attività nei prossimi 7 giorni
+     * Widget: Prossime attività nei prossimi 3 giorni
      */
     renderWidgetProssimeAttivita(scadenze) {
         const oggi = new Date();
-        const tra7gg = new Date(oggi);
-        tra7gg.setDate(tra7gg.getDate() + 7);
+        const _sysPA = SettingsService.getSystemSettingsSync();
+        const giorniFinestra = _sysPA.sogliaImminente || 3;
+        const traXgg = new Date(oggi);
+        traXgg.setDate(traXgg.getDate() + giorniFinestra);
 
         const prossime = scadenze
             .filter(s => {
                 if (!s.dataScadenza) return false;
                 const data = new Date(s.dataScadenza);
-                return data >= oggi && data <= tra7gg;
+                return data >= oggi && data <= traXgg;
             })
             .sort((a, b) => new Date(a.dataScadenza) - new Date(b.dataScadenza))
             .slice(0, 5);
 
         if (prossime.length === 0) {
-            return `<div style="text-align:center;padding:1rem;color:var(--grigio-400);"><i class="fas fa-check-circle" style="font-size:1.5rem;display:block;margin-bottom:0.5rem;"></i>Nessuna attività nei prossimi 7 giorni</div>`;
+            return `<div style="text-align:center;padding:1rem;color:var(--grigio-400);"><i class="fas fa-check-circle" style="font-size:1.5rem;display:block;margin-bottom:0.5rem;"></i>Nessuna attività nei prossimi ${giorniFinestra} giorni</div>`;
         }
 
         const tipoIcons = {
@@ -2175,9 +2182,9 @@ const Dashboard = {
             `;
         }).join('');
 
-        const totaleScadenze7gg = scadenze.filter(s => s.dataScadenza && new Date(s.dataScadenza) >= oggi && new Date(s.dataScadenza) <= tra7gg).length;
-        if (totaleScadenze7gg > 5) {
-            html += `<div style="text-align:center;margin-top:0.5rem;"><a href="#" onclick="UI.showPage('scadenzario');return false;" style="font-size:0.8rem;color:var(--blu-500);text-decoration:none;">Vedi tutte (${totaleScadenze7gg}) →</a></div>`;
+        const totaleScadenzeFinestra = scadenze.filter(s => s.dataScadenza && new Date(s.dataScadenza) >= oggi && new Date(s.dataScadenza) <= traXgg).length;
+        if (totaleScadenzeFinestra > 5) {
+            html += `<div style="text-align:center;margin-top:0.5rem;"><a href="#" onclick="UI.showPage('scadenzario');return false;" style="font-size:0.8rem;color:var(--blu-500);text-decoration:none;">Vedi tutte (${totaleScadenzeFinestra}) →</a></div>`;
         }
 
         return html;

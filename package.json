@@ -1,6 +1,6 @@
 {
   "name": "crm-comune-digital",
-  "version": "1.3.6",
+  "version": "1.3.7",
   "description": "Sistema di gestione completo per amministrare clienti, contratti, app e fatture dei Comuni",
   "main": "index.html",
   "scripts": {

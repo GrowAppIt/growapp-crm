@@ -66,9 +66,9 @@ const Scadenzario = {
                         <select class="filter-select" id="filtroUrgenza" onchange="Scadenzario.applyFilters()">
                             <option value="">Tutte le urgenze</option>
                             <option value="scaduto">Scadute</option>
-                            <option value="critico">Critiche (≤7gg)</option>
-                            <option value="imminente">Imminenti (≤30gg)</option>
-                            <option value="normale">Normali (>30gg)</option>
+                            <option value="critico">Critiche (≤1gg)</option>
+                            <option value="imminente">Imminenti (≤3gg)</option>
+                            <option value="normale">Normali (>3gg)</option>
                         </select>
                     </div>
                 </div>
@@ -423,7 +423,7 @@ const Scadenzario = {
         const _sysScad = SettingsService.getSystemSettingsSync();
         for (const contratto of contratti) {
             const giorni = this.calcolaGiorniRimanenti(contratto.dataScadenza);
-            const urgenza = giorni <= (_sysScad.sogliaCritico || 7) ? 'critico' : giorni <= (_sysScad.sogliaImminente || 30) ? 'imminente' : 'normale';
+            const urgenza = giorni <= (_sysScad.sogliaCritico || 1) ? 'critico' : giorni <= (_sysScad.sogliaImminente || 3) ? 'imminente' : 'normale';
             const badgeClass = this.getUrgenzaBadgeClass(urgenza);
 
             html += UI.createListItem({

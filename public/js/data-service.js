@@ -962,13 +962,15 @@ const DataService = {
                 return new Date(s.dataScadenza) < oggi;
             });
 
-            // Scadenze imminenti (prossimi 7 giorni)
-            const tra7giorni = new Date(oggi);
-            tra7giorni.setDate(tra7giorni.getDate() + 7);
+            // Scadenze imminenti (prossimi N giorni da settings)
+            const _sysStats = SettingsService.getSystemSettingsSync();
+            const _sogliaImm = _sysStats.sogliaImminente || 3;
+            const traXgiorni = new Date(oggi);
+            traXgiorni.setDate(traXgiorni.getDate() + _sogliaImm);
             const scadenzeImminenti = scadenze.filter(s => {
                 if (!s.dataScadenza) return false;
                 const data = new Date(s.dataScadenza);
-                return data >= oggi && data <= tra7giorni;
+                return data >= oggi && data <= traXgiorni;
             });
 
             // Contratti per stato
@@ -1110,8 +1112,10 @@ const DataService = {
             const { clienti, fatture, contratti, app, scadenze } = await this.getDatiAgente(agenteNome);
 
             const oggi = new Date();
-            const tra7giorni = new Date(oggi);
-            tra7giorni.setDate(tra7giorni.getDate() + 7);
+            const _sysAg = SettingsService.getSystemSettingsSync();
+            const _sogliaImmAg = _sysAg.sogliaImminente || 3;
+            const traXgiorni = new Date(oggi);
+            traXgiorni.setDate(traXgiorni.getDate() + _sogliaImmAg);
 
             // Clienti per stato
             const clientiPerStato = {};
@@ -1164,7 +1168,7 @@ const DataService = {
             const scadenzeImminenti = scadenze.filter(s => {
                 if (!s.dataScadenza) return false;
                 const data = new Date(s.dataScadenza);
-                return data >= oggi && data <= tra7giorni;
+                return data >= oggi && data <= traXgiorni;
             });
 
             // nonPagate nel conteggio include anche PARZIALMENTE_PAGATA
@@ -1210,8 +1214,8 @@ const DataService = {
 
         // Soglie da impostazioni di sistema
         const _sys = SettingsService.getSystemSettingsSync();
-        const sogliaCritico = _sys.sogliaCritico || 7;
-        const sogliaImminente = _sys.sogliaImminente || 30;
+        const sogliaCritico = _sys.sogliaCritico || 1;
+        const sogliaImminente = _sys.sogliaImminente || 3;
 
         if (giorni < 0) return 'scaduto';
         if (giorni <= sogliaCritico) return 'critico';
