@@ -97,6 +97,9 @@ const UI = {
             case 'push-broadcast':
                 PushBroadcast.render();
                 break;
+            case 'aggiorna-push':
+                AggiornaPush.render();
+                break;
             // Pagine di dettaglio
             case 'dettaglio-cliente':
                 if (id) DettaglioCliente.render(id);

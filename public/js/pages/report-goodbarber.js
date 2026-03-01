@@ -366,9 +366,15 @@ const ReportGoodBarber = {
             <h1><i class="fas fa-chart-bar"></i> Report App — Analytics</h1>
             <div class="rpt-subtitle" id="lastUpdateSubtitle">Ultimo aggiornamento: mai</div>
           </div>
-          <button class="rpt-btn-update" id="updateAllButton">
-            <i class="fas fa-sync-alt"></i> Aggiorna Tutti i Dati
-          </button>
+          <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+            <button class="rpt-btn-update" id="goAggiornaPush" style="background:var(--verde-700);"
+                    title="Aggiorna i consensi push delle app">
+              <i class="fas fa-bell"></i> Consensi Push
+            </button>
+            <button class="rpt-btn-update" id="updateAllButton">
+              <i class="fas fa-sync-alt"></i> Aggiorna Tutti i Dati
+            </button>
+          </div>
         </div>
 
         <div class="rpt-kpi-grid" id="kpiContainer"></div>
@@ -398,7 +404,7 @@ const ReportGoodBarber = {
           </div>
         </div>
 
-        <div class="rpt-tb-container">
+        <div class="rpt-tb-container" id="topBottomContainer">
           <div class="rpt-tb-section" id="top5Section"></div>
           <div class="rpt-tb-section" id="bottom5Section"></div>
         </div>
@@ -410,6 +416,7 @@ const ReportGoodBarber = {
 
     // Attach event listeners
     document.getElementById('updateAllButton').addEventListener('click', () => this.updateAllData());
+    document.getElementById('goAggiornaPush')?.addEventListener('click', () => UI.showPage('aggiorna-push'));
   },
 
   /**
@@ -950,8 +957,18 @@ const ReportGoodBarber = {
    * Render top 5 and bottom 5 sections
    */
   renderTopBottomSections() {
+    const container = document.getElementById('topBottomContainer');
+
     // Solo app con stato ATTIVA, ordinate per score
     const attive = this.filteredApps.filter(a => a.statoApp === 'ATTIVA');
+
+    // Se ci sono meno di 5 app filtrate, le classifiche non hanno senso
+    if (attive.length < 5) {
+      if (container) container.style.display = 'none';
+      return;
+    }
+    if (container) container.style.display = '';
+
     const sorted = [...attive].sort((a, b) => (b.score || 0) - (a.score || 0));
     const top10 = sorted.slice(0, 10);
     const bottom10 = sorted.slice(-10).reverse();
