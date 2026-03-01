@@ -1195,8 +1195,26 @@ const ReportGoodBarber = {
       // Calcola metriche
       const m = this.calcReportMetrics(app, stats);
 
-      // Genera HTML della card
-      const cardHTML = this.buildReportCardHTML(app, m);
+      // Pre-carica icona come base64 per evitare problemi CORS con html2canvas
+      let iconBase64 = '';
+      if (app.iconaUrl) {
+        try {
+          const resp = await fetch(app.iconaUrl);
+          const blob = await resp.blob();
+          iconBase64 = await new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result);
+            reader.onerror = () => resolve('');
+            reader.readAsDataURL(blob);
+          });
+        } catch (e) {
+          console.warn('Icona non caricabile, uso placeholder:', e);
+          iconBase64 = '';
+        }
+      }
+
+      // Genera HTML della card (con icona già in base64)
+      const cardHTML = this.buildReportCardHTML(app, m, iconBase64);
 
       // Crea container nascosto
       const wrapper = document.createElement('div');
@@ -1205,15 +1223,15 @@ const ReportGoodBarber = {
       wrapper.innerHTML = cardHTML;
       document.body.appendChild(wrapper);
 
-      // Attendi caricamento font + eventuale icona
-      await new Promise(r => setTimeout(r, 800));
+      // Attendi rendering font
+      await new Promise(r => setTimeout(r, 600));
 
       const cardEl = wrapper.querySelector('#reportCardCanvas');
 
       const canvas = await html2canvas(cardEl, {
         scale: 2,
-        useCORS: true,
-        allowTaint: false,
+        useCORS: false,
+        allowTaint: true,
         backgroundColor: '#ffffff',
         logging: false
       });
@@ -1280,7 +1298,7 @@ const ReportGoodBarber = {
   /**
    * Costruisce l'HTML dell'infografica (stili tutti inline per html2canvas)
    */
-  buildReportCardHTML(app, m) {
+  buildReportCardHTML(app, m, iconBase64) {
     const comune = app.comune || app.nomeComune || '';
     const provincia = app.provincia || '';
     const regione = app.regione || '';
@@ -1288,7 +1306,7 @@ const ReportGoodBarber = {
     const dataLancio = app.dataLancioApp
       ? new Date(app.dataLancioApp).toLocaleDateString('it-IT', { day: '2-digit', month: 'long', year: 'numeric' })
       : '';
-    const iconUrl = app.iconaUrl || '';
+    const iconSrc = iconBase64 || '';
     const now = new Date().toLocaleString('it-IT', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
     const fmtNum = (n) => new Intl.NumberFormat('it-IT').format(Math.round(n));
@@ -1296,19 +1314,19 @@ const ReportGoodBarber = {
 
     // Funzione per generare una singola card metrica
     const metricCard = (icon, label, value, color, subtitle) => `
-      <div style="background:#ffffff;border-radius:14px;padding:22px 16px;text-align:center;
+      <div style="background:#ffffff;border-radius:16px;padding:28px 18px;text-align:center;
                   box-shadow:0 2px 12px rgba(0,0,0,0.06);border:1px solid #E8EDF2;">
-        <div style="width:44px;height:44px;border-radius:12px;background:${color}15;
-                    display:flex;align-items:center;justify-content:center;margin:0 auto 12px;">
-          <i class="${icon}" style="font-size:20px;color:${color};"></i>
+        <div style="width:56px;height:56px;border-radius:14px;background:${color}15;
+                    display:flex;align-items:center;justify-content:center;margin:0 auto 14px;">
+          <i class="${icon}" style="font-size:28px;color:${color};"></i>
         </div>
-        <div style="font-size:28px;font-weight:800;color:#1E1E1E;line-height:1.1;margin-bottom:4px;">
+        <div style="font-size:44px;font-weight:700;color:#1E1E1E;line-height:1.1;margin-bottom:8px;">
           ${value}
         </div>
-        <div style="font-size:12px;font-weight:600;color:#4A4A4A;text-transform:uppercase;letter-spacing:0.5px;">
+        <div style="font-size:17px;font-weight:600;color:#4A4A4A;text-transform:uppercase;letter-spacing:0.5px;">
           ${label}
         </div>
-        ${subtitle ? `<div style="font-size:11px;color:#9B9B9B;margin-top:2px;">${subtitle}</div>` : ''}
+        ${subtitle ? `<div style="font-size:15px;color:#9B9B9B;margin-top:5px;">${subtitle}</div>` : ''}
       </div>
     `;
 
@@ -1317,80 +1335,80 @@ const ReportGoodBarber = {
            background:#ffffff;overflow:hidden;">
 
         <!-- ▓▓ HEADER ▓▓ -->
-        <div style="background:linear-gradient(135deg,#145284 0%,#0D3A5C 100%);padding:40px 40px 35px;text-align:center;position:relative;">
+        <div style="background:linear-gradient(135deg,#145284 0%,#0D3A5C 100%);padding:48px 40px 42px;text-align:center;position:relative;">
           <!-- Pattern decorativo -->
           <div style="position:absolute;top:0;right:0;width:200px;height:200px;
                       background:radial-gradient(circle at 100% 0%,rgba(255,255,255,0.06) 0%,transparent 70%);"></div>
 
-          ${iconUrl ? `
-          <img src="${iconUrl}" crossorigin="anonymous"
-               style="width:80px;height:80px;border-radius:18px;border:3px solid rgba(255,255,255,0.3);
-                      margin-bottom:16px;object-fit:cover;" onerror="this.style.display='none'" />
+          ${iconSrc ? `
+          <img src="${iconSrc}"
+               style="width:100px;height:100px;border-radius:22px;border:3px solid rgba(255,255,255,0.3);
+                      margin-bottom:20px;object-fit:cover;" />
           ` : `
-          <div style="width:80px;height:80px;border-radius:18px;background:rgba(255,255,255,0.15);
-                      margin:0 auto 16px;display:flex;align-items:center;justify-content:center;">
-            <i class="fas fa-mobile-alt" style="font-size:36px;color:rgba(255,255,255,0.7);"></i>
+          <div style="width:100px;height:100px;border-radius:22px;background:rgba(255,255,255,0.15);
+                      margin:0 auto 20px;display:flex;align-items:center;justify-content:center;">
+            <i class="fas fa-mobile-alt" style="font-size:46px;color:rgba(255,255,255,0.7);"></i>
           </div>
           `}
 
-          <div style="font-size:30px;font-weight:900;color:#ffffff;margin-bottom:6px;line-height:1.2;">
+          <div style="font-size:56px;font-weight:700;color:#ffffff;margin-bottom:10px;line-height:1.15;">
             ${this.escapeHtml(app.nome || 'App')}
           </div>
-          <div style="font-size:15px;color:rgba(255,255,255,0.85);font-weight:400;">
+          <div style="font-size:22px;color:rgba(255,255,255,0.85);font-weight:400;">
             ${this.escapeHtml(location)}
           </div>
           ${dataLancio ? `
-          <div style="font-size:12px;color:rgba(255,255,255,0.6);margin-top:8px;">
-            <i class="fas fa-rocket" style="margin-right:4px;"></i> Attiva dal ${dataLancio}
+          <div style="font-size:18px;color:rgba(255,255,255,0.6);margin-top:12px;">
+            <i class="fas fa-rocket" style="margin-right:5px;"></i> Attiva dal ${dataLancio}
           </div>` : ''}
         </div>
 
         <!-- ▓▓ TITOLO SEZIONE ▓▓ -->
-        <div style="padding:24px 40px 8px;display:flex;align-items:center;justify-content:space-between;">
-          <div style="display:flex;align-items:center;gap:10px;">
-            <div style="width:4px;height:28px;border-radius:2px;background:#3CA434;"></div>
-            <div style="font-size:18px;font-weight:700;color:#145284;text-transform:uppercase;letter-spacing:1px;">
+        <div style="padding:30px 40px 12px;display:flex;align-items:center;justify-content:space-between;">
+          <div style="display:flex;align-items:center;gap:12px;">
+            <div style="width:6px;height:36px;border-radius:3px;background:#3CA434;"></div>
+            <div style="font-size:26px;font-weight:700;color:#145284;text-transform:uppercase;letter-spacing:1px;">
               Report Analytics
             </div>
           </div>
-          <div style="font-size:13px;color:#9B9B9B;font-weight:400;">
-            <i class="fas fa-calendar-alt" style="margin-right:4px;"></i> ${now}
+          <div style="font-size:17px;color:#9B9B9B;font-weight:400;">
+            <i class="fas fa-calendar-alt" style="margin-right:5px;"></i> ${now}
           </div>
         </div>
 
         <!-- ▓▓ SOTTO-TITOLO PERIODO ▓▓ -->
-        <div style="padding:8px 40px 6px;">
-          <div style="font-size:12px;font-weight:600;color:#9B9B9B;letter-spacing:0.5px;">
-            <i class="fas fa-clock" style="margin-right:4px;"></i> Dati ultimi 30 giorni
+        <div style="padding:8px 40px 8px;">
+          <div style="font-size:17px;font-weight:600;color:#9B9B9B;letter-spacing:0.5px;">
+            <i class="fas fa-clock" style="margin-right:5px;"></i> Dati ultimi 30 giorni
           </div>
         </div>
 
         <!-- ▓▓ GRIGLIA METRICHE (3x2) ▓▓ -->
-        <div style="padding:14px 40px 24px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;">
+        <div style="padding:18px 40px 30px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px;">
 
           ${metricCard('fas fa-bell', 'Consensi Push', fmtNum(m.consensiPush), '#3CA434', 'utenti con notifiche attive')}
           ${metricCard('fas fa-sync-alt', 'Sessioni', fmtNum(m.launchesMonth), '#145284', 'aperture dell\'app')}
 
           <!-- Card piattaforme iOS/Android -->
-          <div style="background:#ffffff;border-radius:14px;padding:22px 16px;text-align:center;
+          <div style="background:#ffffff;border-radius:16px;padding:28px 18px;text-align:center;
                       box-shadow:0 2px 12px rgba(0,0,0,0.06);border:1px solid #E8EDF2;">
-            <div style="font-size:12px;font-weight:600;color:#4A4A4A;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:14px;">
+            <div style="font-size:17px;font-weight:600;color:#4A4A4A;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:18px;">
               Piattaforme
             </div>
-            <div style="display:flex;align-items:center;justify-content:center;gap:24px;margin-bottom:10px;">
+            <div style="display:flex;align-items:center;justify-content:center;gap:32px;margin-bottom:14px;">
               <div style="text-align:center;">
-                <i class="fab fa-apple" style="font-size:22px;color:#1E1E1E;display:block;margin-bottom:4px;"></i>
-                <div style="font-size:24px;font-weight:800;color:#1E1E1E;">${m.iosPerc}%</div>
-                <div style="font-size:10px;color:#9B9B9B;">iOS</div>
+                <i class="fab fa-apple" style="font-size:32px;color:#1E1E1E;display:block;margin-bottom:8px;"></i>
+                <div style="font-size:38px;font-weight:700;color:#1E1E1E;">${m.iosPerc}%</div>
+                <div style="font-size:16px;color:#9B9B9B;">iOS</div>
               </div>
-              <div style="width:1px;height:40px;background:#D9D9D9;"></div>
+              <div style="width:1px;height:60px;background:#D9D9D9;"></div>
               <div style="text-align:center;">
-                <i class="fab fa-android" style="font-size:22px;color:#3CA434;display:block;margin-bottom:4px;"></i>
-                <div style="font-size:24px;font-weight:800;color:#1E1E1E;">${m.androidPerc}%</div>
-                <div style="font-size:10px;color:#9B9B9B;">Android</div>
+                <i class="fab fa-android" style="font-size:32px;color:#3CA434;display:block;margin-bottom:8px;"></i>
+                <div style="font-size:38px;font-weight:700;color:#1E1E1E;">${m.androidPerc}%</div>
+                <div style="font-size:16px;color:#9B9B9B;">Android</div>
               </div>
             </div>
-            <div style="font-size:11px;color:#9B9B9B;">distribuzione dispositivi</div>
+            <div style="font-size:15px;color:#9B9B9B;">distribuzione dispositivi</div>
           </div>
 
           ${metricCard('fas fa-eye', 'Pagine Viste', fmtNum(m.pageViewsMonth), '#0288D1', 'contenuti consultati')}
@@ -1400,40 +1418,40 @@ const ReportGoodBarber = {
         </div>
 
         <!-- ▓▓ BARRA DOWNLOADS TOTALI (evidenziata) ▓▓ -->
-        <div style="padding:0 40px 30px;">
-          <div style="background:linear-gradient(135deg,#D1E2F2 0%,#E2F8DE 100%);border-radius:14px;
-                      padding:22px 30px;display:flex;align-items:center;gap:20px;
+        <div style="padding:0 40px 34px;">
+          <div style="background:linear-gradient(135deg,#D1E2F2 0%,#E2F8DE 100%);border-radius:16px;
+                      padding:28px 34px;display:flex;align-items:center;gap:24px;
                       border:1px solid #7BA7CE;">
-            <div style="width:52px;height:52px;border-radius:14px;background:#145284;
+            <div style="width:64px;height:64px;border-radius:16px;background:#145284;
                         display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-              <i class="fas fa-download" style="font-size:24px;color:#ffffff;"></i>
+              <i class="fas fa-download" style="font-size:30px;color:#ffffff;"></i>
             </div>
             <div style="flex:1;">
-              <div style="font-size:13px;font-weight:600;color:#4A4A4A;text-transform:uppercase;letter-spacing:0.5px;">
+              <div style="font-size:19px;font-weight:600;color:#4A4A4A;text-transform:uppercase;letter-spacing:0.5px;">
                 Downloads Totali
               </div>
-              <div style="font-size:36px;font-weight:900;color:#145284;line-height:1.1;">
+              <div style="font-size:64px;font-weight:700;color:#145284;line-height:1.1;">
                 ${fmtNum(m.downloads)}
               </div>
-              <div style="font-size:11px;color:#9B9B9B;">installazioni complessive dell'app</div>
+              <div style="font-size:16px;color:#9B9B9B;">installazioni complessive dell'app</div>
             </div>
           </div>
         </div>
 
         <!-- ▓▓ FOOTER ▓▓ -->
-        <div style="background:#F5F5F5;padding:20px 40px;display:flex;align-items:center;justify-content:space-between;
+        <div style="background:#F5F5F5;padding:24px 40px;display:flex;align-items:center;justify-content:space-between;
                     border-top:1px solid #D9D9D9;">
-          <div style="display:flex;align-items:center;gap:10px;">
-            <div style="width:32px;height:32px;border-radius:8px;background:#145284;
+          <div style="display:flex;align-items:center;gap:14px;">
+            <div style="width:40px;height:40px;border-radius:10px;background:#145284;
                         display:flex;align-items:center;justify-content:center;">
-              <i class="fas fa-city" style="font-size:14px;color:#ffffff;"></i>
+              <i class="fas fa-city" style="font-size:18px;color:#ffffff;"></i>
             </div>
             <div>
-              <div style="font-size:14px;font-weight:700;color:#145284;">Comune.Digital</div>
-              <div style="font-size:10px;color:#9B9B9B;">Analytics Report</div>
+              <div style="font-size:20px;font-weight:700;color:#145284;">Comune.Digital</div>
+              <div style="font-size:15px;color:#9B9B9B;">Analytics Report</div>
             </div>
           </div>
-          <div style="font-size:11px;color:#9B9B9B;text-align:right;">
+          <div style="font-size:15px;color:#9B9B9B;text-align:right;">
             Powered by Growapp S.r.l.
           </div>
         </div>
