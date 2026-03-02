@@ -5,6 +5,85 @@ const DettaglioApp = {
     currentTab: 'info',
     tasks: [],
     documenti: [],
+    contratti: [],
+    fatture: [],
+
+    // === CARTA D'IDENTITÀ — DEFINIZIONE SEZIONI CHECKLIST ===
+    CHECKLIST_SECTIONS: [
+        {
+            prefix: 'A', title: 'Prerequisiti Commerciali', icon: 'fa-handshake',
+            items: [
+                { id: 'A_contratto_firmato', label: 'Contratto/Ordine di acquisto firmato e caricato', autoCheck: 'contratto' },
+                { id: 'A_cliente_pagante_associato', label: 'Cliente pagante associato all\'app', autoCheck: 'clientePagante' },
+                { id: 'A_referente', label: 'Referente identificato', autoCheck: 'referente' }
+            ]
+        },
+        {
+            prefix: 'B', title: 'Configurazione Tecnica Base', icon: 'fa-cogs',
+            items: [
+                { id: 'B_app_creata_goodbarber', label: 'App creata su GoodBarber', autoCheck: 'goodbarber' },
+                { id: 'B_design_personalizzato', label: 'Design personalizzato (stemma, colori)', autoCheck: null },
+                { id: 'B_sezioni_base_configurate', label: 'Sezioni base configurate (Home, News, Info)', autoCheck: null },
+                { id: 'B_push_notification_attive', label: 'Push notification configurate', autoCheck: null },
+                { id: 'B_gruppo_telegram', label: 'Gruppo Telegram configurato', autoCheck: 'gruppoTelegram' },
+                { id: 'B_avvisi_flash', label: 'Avvisi Flash configurati', autoCheck: 'avvisiFlash' },
+                { id: 'B_widget_raccolta_differenziata', label: 'Widget Raccolta Differenziata configurato', autoCheck: null },
+                { id: 'B_widget_meteo', label: 'Widget Meteo configurato', autoCheck: null },
+                { id: 'B_widget_protezione_civile', label: 'Widget Protezione Civile configurato', autoCheck: null },
+                { id: 'B_api_key_protezione_civile', label: 'API Key Protezione Civile inserita', autoCheck: null },
+                { id: 'B_notifiche_allerte_meteo', label: 'Notifiche allerte meteo attivate', autoCheck: null }
+            ]
+        },
+        {
+            prefix: 'C', title: 'Account e Credenziali', icon: 'fa-key',
+            items: [
+                { id: 'C_account_apple_developer', label: 'Account Apple Developer configurato', autoCheck: 'appleUsername' },
+                { id: 'C_account_google_play', label: 'Account Google Play configurato', autoCheck: null },
+                { id: 'C_credenziali_salvate_crm', label: 'Credenziali salvate nel CRM', autoCheck: 'credenzialiCRM' },
+                { id: 'C_scadenza_certificato_push_ios', label: 'Scadenza certificato push iOS registrato', autoCheck: 'scadenzaCertificato' }
+            ]
+        },
+        {
+            prefix: 'D', title: 'Contenuti e Dati', icon: 'fa-database',
+            items: [
+                { id: 'D_info_comune_inserite', label: 'Info comune inserite (indirizzo, contatti)', autoCheck: 'infoComune' },
+                { id: 'D_stemma_caricato', label: 'Stemma del comune caricato', autoCheck: null },
+                { id: 'D_primi_contenuti_news', label: 'Primi contenuti/news inseriti', autoCheck: null },
+                { id: 'D_orari_uffici', label: 'Orari uffici comunali inseriti', autoCheck: null },
+                { id: 'D_numeri_utili', label: 'Numeri utili configurati', autoCheck: null },
+                { id: 'D_mappa_punti_interesse', label: 'Mappa punti di interesse configurata', autoCheck: null }
+            ]
+        },
+        {
+            prefix: 'E', title: 'Pubblicazione Store', icon: 'fa-store',
+            items: [
+                { id: 'E_screenshot_preparati', label: 'Screenshot app preparati', autoCheck: null },
+                { id: 'E_icona_store', label: 'Icona app per store pronta', autoCheck: null },
+                { id: 'E_pubblicata_android', label: 'App pubblicata su Google Play', autoCheck: 'pubblicataAndroid' },
+                { id: 'E_pubblicata_ios', label: 'App pubblicata su App Store', autoCheck: 'pubblicataIos' }
+            ]
+        },
+        {
+            prefix: 'F', title: 'Test e QA', icon: 'fa-clipboard-check',
+            items: [
+                { id: 'F_test_funzionale_android', label: 'Test funzionale completato (Android)', autoCheck: null },
+                { id: 'F_test_funzionale_ios', label: 'Test funzionale completato (iOS)', autoCheck: null },
+                { id: 'F_push_testate', label: 'Notifiche push testate', autoCheck: null },
+                { id: 'F_performance_verificate', label: 'Performance verificate', autoCheck: null },
+                { id: 'F_controllo_qualita_ok', label: 'Controllo qualità superato', autoCheck: 'controlloQualita' },
+                { id: 'F_test_responsive', label: 'Test responsive su diversi dispositivi', autoCheck: null }
+            ]
+        },
+        {
+            prefix: 'G', title: 'Formazione e Consegna', icon: 'fa-graduation-cap',
+            items: [
+                { id: 'G_formazione_referente', label: 'Formazione al referente completata', autoCheck: null },
+                { id: 'G_documentazione_consegnata', label: 'Documentazione utente consegnata', autoCheck: null },
+                { id: 'G_accessi_cruscotto_consegnati', label: 'Accessi al cruscotto di gestione consegnati', autoCheck: null },
+                { id: 'G_referente_autonomo', label: 'Referente autonomo nella gestione base', autoCheck: null }
+            ]
+        }
+    ],
 
     async render(appId) {
         this.appId = appId;
@@ -12,11 +91,13 @@ const DettaglioApp = {
         UI.showLoading();
 
         try {
-            const [app, clienti, tasksResult, documenti] = await Promise.all([
+            const [app, clienti, tasksResult, documenti, contratti, fatture] = await Promise.all([
                 DataService.getApp(appId),
                 DataService.getClienti(),
                 TaskService.getTasksByApp(appId),
-                DocumentService.getDocumenti('app', appId)
+                DocumentService.getDocumenti('app', appId),
+                DataService.getContratti(),
+                DataService.getFatture()
             ]);
 
             if (!app) {
@@ -28,6 +109,8 @@ const DettaglioApp = {
             this.app = app;
             this.tasks = tasksResult.success ? tasksResult.tasks : [];
             this.documenti = documenti;
+            this.contratti = contratti || [];
+            this.fatture = fatture || [];
 
             // Auto-fill popolazione da ISTAT se il comune è compilato ma la popolazione no
             if (app.comune && (!app.popolazione || app.popolazione === 0)) {
@@ -47,6 +130,11 @@ const DettaglioApp = {
             const clientePagante = app.clientePaganteId
                 ? clienti.find(c => c.id === app.clientePaganteId)
                 : null;
+
+            // Auto-check della Carta d'Identità (solo se non è agente)
+            if (AuthService.canViewCartaIdentita()) {
+                await this.runAutoChecks(app, clientePagante, contratti, fatture);
+            }
 
             const mainContent = document.getElementById('mainContent');
             mainContent.innerHTML = `
@@ -142,48 +230,48 @@ const DettaglioApp = {
         const inProgressCount = this.tasks.filter(t => t.stato === TaskService.STATI.IN_PROGRESS).length;
         const totalActive = todoCount + inProgressCount;
 
+        // Calcolo progresso Carta d'Identità per badge
+        const cartaIdentita = this.app?.cartaIdentita || {};
+        const allItems = this.CHECKLIST_SECTIONS.flatMap(s => s.items);
+        const totalItems = allItems.length;
+        const completedItems = allItems.filter(item => cartaIdentita[item.id]?.checked).length;
+        const progressPercent = totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0;
+        const progressColor = progressPercent >= 70 ? 'var(--verde-700)' : progressPercent >= 30 ? '#FFCC00' : 'var(--rosso-errore, #D32F2F)';
+
+        const tabStyle = (tabName) => `
+            padding: 0.75rem 1.25rem; border: none;
+            background: ${this.currentTab === tabName ? 'var(--blu-100)' : 'transparent'};
+            color: ${this.currentTab === tabName ? 'var(--blu-700)' : 'var(--grigio-600)'};
+            font-weight: ${this.currentTab === tabName ? '700' : '600'}; cursor: pointer;
+            border-bottom: 3px solid ${this.currentTab === tabName ? 'var(--blu-700)' : 'transparent'};
+            transition: all 0.2s; font-size: 0.9rem;
+        `;
+
         return `
-            <div style="border-bottom: 2px solid var(--grigio-300); display: flex; gap: 0;">
-                <button
-                    class="tab-button ${this.currentTab === 'info' ? 'active' : ''}"
-                    onclick="DettaglioApp.switchTab('info')"
-                    style="padding: 1rem 1.5rem; border: none; background: ${this.currentTab === 'info' ? 'var(--blu-100)' : 'transparent'};
-                           color: ${this.currentTab === 'info' ? 'var(--blu-700)' : 'var(--grigio-600)'};
-                           font-weight: ${this.currentTab === 'info' ? '700' : '600'}; cursor: pointer;
-                           border-bottom: 3px solid ${this.currentTab === 'info' ? 'var(--blu-700)' : 'transparent'};
-                           transition: all 0.2s;">
+            <div style="border-bottom: 2px solid var(--grigio-300); display: flex; gap: 0; flex-wrap: wrap;">
+                <button class="tab-button ${this.currentTab === 'info' ? 'active' : ''}"
+                    onclick="DettaglioApp.switchTab('info')" style="${tabStyle('info')}">
                     <i class="fas fa-info-circle"></i> Informazioni
                 </button>
-                <button
-                    class="tab-button ${this.currentTab === 'task' ? 'active' : ''}"
-                    onclick="DettaglioApp.switchTab('task')"
-                    style="padding: 1rem 1.5rem; border: none; background: ${this.currentTab === 'task' ? 'var(--blu-100)' : 'transparent'};
-                           color: ${this.currentTab === 'task' ? 'var(--blu-700)' : 'var(--grigio-600)'};
-                           font-weight: ${this.currentTab === 'task' ? '700' : '600'}; cursor: pointer;
-                           border-bottom: 3px solid ${this.currentTab === 'task' ? 'var(--blu-700)' : 'transparent'};
-                           transition: all 0.2s; position: relative;">
+                <button class="tab-button ${this.currentTab === 'task' ? 'active' : ''}"
+                    onclick="DettaglioApp.switchTab('task')" style="${tabStyle('task')} position: relative;">
                     <i class="fas fa-tasks"></i> Task
                     ${totalActive > 0 ? `<span style="background: var(--verde-700); color: white; border-radius: 12px; padding: 0.125rem 0.5rem; font-size: 0.75rem; margin-left: 0.5rem; font-weight: 700;">${totalActive}</span>` : ''}
                 </button>
-                <button
-                    class="tab-button ${this.currentTab === 'documenti' ? 'active' : ''}"
-                    onclick="DettaglioApp.switchTab('documenti')"
-                    style="padding: 1rem 1.5rem; border: none; background: ${this.currentTab === 'documenti' ? 'var(--blu-100)' : 'transparent'};
-                           color: ${this.currentTab === 'documenti' ? 'var(--blu-700)' : 'var(--grigio-600)'};
-                           font-weight: ${this.currentTab === 'documenti' ? '700' : '600'}; cursor: pointer;
-                           border-bottom: 3px solid ${this.currentTab === 'documenti' ? 'var(--blu-700)' : 'transparent'};
-                           transition: all 0.2s;">
+                <button class="tab-button ${this.currentTab === 'documenti' ? 'active' : ''}"
+                    onclick="DettaglioApp.switchTab('documenti')" style="${tabStyle('documenti')}">
                     <i class="fas fa-folder-open"></i> Documenti (${this.documenti.length})
                 </button>
+                ${AuthService.canViewCartaIdentita() ? `
+                <button class="tab-button ${this.currentTab === 'sviluppo' ? 'active' : ''}"
+                    onclick="DettaglioApp.switchTab('sviluppo')" style="${tabStyle('sviluppo')}">
+                    <i class="fas fa-id-card"></i> Sviluppo
+                    <span style="background: ${progressColor}; color: ${progressPercent >= 30 && progressPercent < 70 ? '#1E1E1E' : 'white'}; border-radius: 12px; padding: 0.125rem 0.5rem; font-size: 0.7rem; margin-left: 0.4rem; font-weight: 700;">${progressPercent}%</span>
+                </button>
+                ` : ''}
                 ${this.app && this.app.goodbarberWebzineId ? `
-                <button
-                    class="tab-button ${this.currentTab === 'statistiche' ? 'active' : ''}"
-                    onclick="DettaglioApp.switchTab('statistiche')"
-                    style="padding: 1rem 1.5rem; border: none; background: ${this.currentTab === 'statistiche' ? 'var(--blu-100)' : 'transparent'};
-                           color: ${this.currentTab === 'statistiche' ? 'var(--blu-700)' : 'var(--grigio-600)'};
-                           font-weight: ${this.currentTab === 'statistiche' ? '700' : '600'}; cursor: pointer;
-                           border-bottom: 3px solid ${this.currentTab === 'statistiche' ? 'var(--blu-700)' : 'transparent'};
-                           transition: all 0.2s;">
+                <button class="tab-button ${this.currentTab === 'statistiche' ? 'active' : ''}"
+                    onclick="DettaglioApp.switchTab('statistiche')" style="${tabStyle('statistiche')}">
                     <i class="fas fa-chart-bar"></i> Statistiche GB
                 </button>
                 ` : ''}
@@ -209,6 +297,8 @@ const DettaglioApp = {
             return this.renderTaskTab();
         } else if (this.currentTab === 'documenti') {
             return this.renderDocumenti();
+        } else if (this.currentTab === 'sviluppo') {
+            return this.renderCartaIdentita(app);
         } else if (this.currentTab === 'statistiche') {
             return this.renderStatisticheGB(app);
         }
@@ -1772,5 +1862,412 @@ const DettaglioApp = {
                 </div>
             </div>
         `;
+    },
+
+    // === CARTA D'IDENTITÀ — RENDERING PRINCIPALE ===
+    renderCartaIdentita(app) {
+        const cartaIdentita = app.cartaIdentita || {};
+        const canEdit = AuthService.canEditCartaIdentita();
+        const allItems = this.CHECKLIST_SECTIONS.flatMap(s => s.items);
+        const totalItems = allItems.length;
+        const completedItems = allItems.filter(item => cartaIdentita[item.id]?.checked).length;
+        const progressPercent = totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0;
+        const progressColor = progressPercent >= 70 ? 'var(--verde-700)' : progressPercent >= 30 ? '#FFCC00' : 'var(--rosso-errore, #D32F2F)';
+
+        // Info stato corrente e transizioni possibili
+        const statoCorrente = app.statoApp || 'DEMO';
+        const transizioniPossibili = FormsManager.STATE_TRANSITIONS[statoCorrente] || [];
+
+        return `
+            <div style="display: grid; gap: 1.5rem;">
+                <!-- Header con progress bar globale -->
+                <div style="background: white; border-radius: 12px; padding: 1.25rem; box-shadow: 0 1px 4px rgba(0,0,0,0.08); border: 1px solid var(--grigio-300);">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem;">
+                        <div>
+                            <h2 style="font-size: 1.3rem; font-weight: 900; color: var(--blu-700); margin-bottom: 0.25rem;">
+                                <i class="fas fa-id-card"></i> Carta d'Identità App
+                            </h2>
+                            <p style="font-size: 0.85rem; color: var(--grigio-500); margin: 0;">
+                                Checklist di sviluppo per il ciclo di vita dell'app
+                            </p>
+                        </div>
+                        <div style="text-align: right;">
+                            <span style="font-size: 2rem; font-weight: 900; color: ${progressColor};">${progressPercent}%</span>
+                            <div style="font-size: 0.8rem; color: var(--grigio-500);">${completedItems}/${totalItems} completati</div>
+                        </div>
+                    </div>
+                    <!-- Progress bar -->
+                    <div style="width: 100%; height: 12px; background: var(--grigio-100); border-radius: 6px; overflow: hidden;">
+                        <div style="width: ${progressPercent}%; height: 100%; background: ${progressColor}; border-radius: 6px; transition: width 0.4s ease;"></div>
+                    </div>
+                </div>
+
+                <!-- Info stato e transizioni possibili -->
+                <div style="background: var(--blu-100); border-radius: 12px; padding: 1rem 1.25rem; border-left: 4px solid var(--blu-700);">
+                    <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+                        <span style="font-weight: 700; color: var(--blu-700); font-size: 0.9rem;">
+                            <i class="fas fa-flag"></i> Stato attuale:
+                        </span>
+                        <span class="badge ${DataService.getStatoBadgeClass(statoCorrente)}" style="font-size: 0.85rem;">
+                            ${statoCorrente.replace('_', ' ')}
+                        </span>
+                        ${transizioniPossibili.length > 0 ? `
+                            <span style="color: var(--grigio-500); margin: 0 0.25rem;"><i class="fas fa-arrow-right"></i></span>
+                            <span style="font-size: 0.85rem; color: var(--grigio-700);">
+                                Può passare a: ${transizioniPossibili.map(s => `<strong>${FormsManager.STATE_LABELS[s] || s}</strong>`).join(', ')}
+                            </span>
+                        ` : ''}
+                    </div>
+                    ${!canEdit ? `
+                    <div style="margin-top: 0.75rem; padding: 0.5rem 0.75rem; background: rgba(255,204,0,0.15); border-radius: 6px; font-size: 0.8rem; color: var(--grigio-700);">
+                        <i class="fas fa-lock"></i> Modalità sola lettura — solo Admin, CTO e Sviluppatori possono modificare la checklist
+                    </div>
+                    ` : ''}
+                </div>
+
+                <!-- Sezioni Checklist (accordion) -->
+                ${this.CHECKLIST_SECTIONS.map((section, idx) => {
+                    const sectionItems = section.items;
+                    const sectionCompleted = sectionItems.filter(item => cartaIdentita[item.id]?.checked).length;
+                    const sectionTotal = sectionItems.length;
+                    const sectionPercent = sectionTotal > 0 ? Math.round((sectionCompleted / sectionTotal) * 100) : 0;
+                    const sectionColor = sectionPercent === 100 ? 'var(--verde-700)' : sectionPercent >= 50 ? '#FFCC00' : 'var(--grigio-500)';
+                    const isComplete = sectionPercent === 100;
+
+                    return `
+                    <div style="background: white; border-radius: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); border: 1px solid ${isComplete ? 'var(--verde-300, #A4E89A)' : 'var(--grigio-300)'}; overflow: hidden;">
+                        <!-- Header sezione (cliccabile) -->
+                        <div onclick="DettaglioApp.toggleSection('${section.prefix}')"
+                             style="padding: 1rem 1.25rem; cursor: pointer; display: flex; justify-content: space-between; align-items: center;
+                                    background: ${isComplete ? 'var(--verde-100, #E2F8DE)' : 'white'}; transition: background 0.2s;"
+                             onmouseover="this.style.background='${isComplete ? 'var(--verde-100, #E2F8DE)' : 'var(--grigio-100)'}'"
+                             onmouseout="this.style.background='${isComplete ? 'var(--verde-100, #E2F8DE)' : 'white'}'">
+                            <div style="display: flex; align-items: center; gap: 0.75rem;">
+                                <span style="width: 32px; height: 32px; border-radius: 8px; background: ${isComplete ? 'var(--verde-700)' : 'var(--blu-100)'}; display: flex; align-items: center; justify-content: center;">
+                                    <i class="fas ${isComplete ? 'fa-check' : section.icon}" style="color: ${isComplete ? 'white' : 'var(--blu-700)'}; font-size: 0.85rem;"></i>
+                                </span>
+                                <div>
+                                    <span style="font-weight: 700; color: var(--grigio-900); font-size: 0.95rem;">
+                                        ${section.prefix}. ${section.title}
+                                    </span>
+                                    <span style="font-size: 0.8rem; color: ${sectionColor}; margin-left: 0.5rem; font-weight: 600;">
+                                        ${sectionCompleted}/${sectionTotal}
+                                    </span>
+                                </div>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 0.75rem;">
+                                <!-- Mini progress bar -->
+                                <div style="width: 80px; height: 6px; background: var(--grigio-100); border-radius: 3px; overflow: hidden;">
+                                    <div style="width: ${sectionPercent}%; height: 100%; background: ${sectionColor}; border-radius: 3px; transition: width 0.3s;"></div>
+                                </div>
+                                <i class="fas fa-chevron-down" id="chevron_${section.prefix}" style="color: var(--grigio-500); transition: transform 0.3s; font-size: 0.8rem;"></i>
+                            </div>
+                        </div>
+                        <!-- Contenuto sezione (collassabile) -->
+                        <div id="section_${section.prefix}" style="display: none; padding: 0 1.25rem 1rem; border-top: 1px solid var(--grigio-300);">
+                            <div style="padding-top: 0.75rem; display: flex; flex-direction: column; gap: 0.5rem;">
+                                ${sectionItems.map(item => {
+                                    const itemData = cartaIdentita[item.id];
+                                    const isChecked = itemData?.checked || false;
+                                    const isAutoItem = item.autoCheck !== null;
+                                    const wasAutoChecked = itemData?.auto === true;
+                                    const isDisabled = !canEdit || (isAutoItem && isChecked && wasAutoChecked);
+
+                                    return `
+                                    <div style="display: flex; align-items: flex-start; gap: 0.75rem; padding: 0.6rem 0.75rem; border-radius: 8px; background: ${isChecked ? 'var(--verde-100, #E2F8DE)' : 'var(--grigio-100)'}; transition: background 0.2s;">
+                                        <label style="display: flex; align-items: flex-start; gap: 0.75rem; cursor: ${isDisabled ? 'default' : 'pointer'}; flex: 1; margin: 0;">
+                                            <input type="checkbox"
+                                                ${isChecked ? 'checked' : ''}
+                                                ${isDisabled ? 'disabled' : ''}
+                                                onchange="DettaglioApp.toggleChecklistItem('${item.id}')"
+                                                style="width: 20px; height: 20px; min-width: 20px; margin-top: 2px; accent-color: var(--verde-700); cursor: ${isDisabled ? 'default' : 'pointer'};">
+                                            <div style="flex: 1;">
+                                                <span style="font-size: 0.9rem; color: ${isChecked ? 'var(--verde-900, #2A752F)' : 'var(--grigio-900)'}; font-weight: ${isChecked ? '600' : '400'}; ${isChecked ? 'text-decoration: line-through; text-decoration-color: var(--verde-300);' : ''}">
+                                                    ${item.label}
+                                                </span>
+                                                ${isAutoItem ? `<span style="display: inline-block; margin-left: 0.4rem; background: var(--blu-100); color: var(--blu-700); font-size: 0.65rem; padding: 0.1rem 0.4rem; border-radius: 4px; font-weight: 700; vertical-align: middle;">AUTO</span>` : ''}
+                                                ${isChecked && itemData?.checkedByName ? `
+                                                <div style="font-size: 0.75rem; color: var(--grigio-500); margin-top: 0.2rem;">
+                                                    <i class="fas ${wasAutoChecked ? 'fa-robot' : 'fa-user'}"></i>
+                                                    ${wasAutoChecked ? 'Verificato automaticamente dal CRM' : `Completato da <strong>${itemData.checkedByName}</strong>`}
+                                                    ${itemData.checkedAt ? ` il ${new Date(itemData.checkedAt).toLocaleDateString('it-IT', { day: '2-digit', month: 'short', year: 'numeric' })}` : ''}
+                                                </div>
+                                                ` : ''}
+                                            </div>
+                                        </label>
+                                    </div>
+                                    `;
+                                }).join('')}
+                            </div>
+                        </div>
+                    </div>
+                    `;
+                }).join('')}
+
+                <!-- Note libere -->
+                <div style="background: white; border-radius: 12px; padding: 1.25rem; box-shadow: 0 1px 4px rgba(0,0,0,0.08); border: 1px solid var(--grigio-300);">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+                        <h3 style="font-size: 1rem; font-weight: 700; color: var(--grigio-900); margin: 0;">
+                            <i class="fas fa-sticky-note"></i> Note Sviluppo
+                        </h3>
+                        ${canEdit ? `
+                        <button onclick="DettaglioApp.saveCartaIdentitaNote()"
+                            style="padding: 0.4rem 1rem; border: none; border-radius: 6px; background: var(--blu-700); color: white;
+                                   font-weight: 600; font-size: 0.8rem; cursor: pointer; transition: background 0.2s;"
+                            onmouseover="this.style.background='var(--blu-500)'"
+                            onmouseout="this.style.background='var(--blu-700)'">
+                            <i class="fas fa-save"></i> Salva note
+                        </button>
+                        ` : ''}
+                    </div>
+                    <textarea id="cartaIdentitaNote"
+                        placeholder="Inserisci eventuali annotazioni, osservazioni o problemi riscontrati durante lo sviluppo..."
+                        ${!canEdit ? 'disabled' : ''}
+                        style="width: 100%; min-height: 100px; padding: 0.75rem; border: 1px solid var(--grigio-300); border-radius: 8px;
+                               font-family: 'Titillium Web', sans-serif; font-size: 0.9rem; color: var(--grigio-900); resize: vertical;
+                               background: ${canEdit ? 'white' : 'var(--grigio-100)'};"
+                    >${cartaIdentita._note || ''}</textarea>
+                    ${cartaIdentita._noteUpdatedByName ? `
+                    <div style="font-size: 0.75rem; color: var(--grigio-500); margin-top: 0.5rem;">
+                        <i class="fas fa-user-edit"></i> Ultima modifica note: <strong>${cartaIdentita._noteUpdatedByName}</strong>
+                        ${cartaIdentita._noteUpdatedAt ? ` il ${new Date(cartaIdentita._noteUpdatedAt).toLocaleDateString('it-IT', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}` : ''}
+                    </div>
+                    ` : ''}
+                </div>
+
+                <!-- Pulsante transizione stato -->
+                ${canEdit && transizioniPossibili.length > 0 ? `
+                <div style="background: white; border-radius: 12px; padding: 1.25rem; box-shadow: 0 1px 4px rgba(0,0,0,0.08); border: 1px solid var(--grigio-300);">
+                    <h3 style="font-size: 1rem; font-weight: 700; color: var(--grigio-900); margin-bottom: 0.75rem;">
+                        <i class="fas fa-exchange-alt"></i> Cambia Stato App
+                    </h3>
+                    <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+                        ${transizioniPossibili.map(stato => {
+                            const label = FormsManager.STATE_LABELS[stato] || stato;
+                            const isForward = ['IN_SVILUPPO', 'ATTIVA'].includes(stato);
+                            const btnColor = isForward ? 'var(--verde-700)' : stato === 'DISATTIVATA' ? 'var(--rosso-errore, #D32F2F)' : 'var(--blu-700)';
+                            const btnHover = isForward ? 'var(--verde-500)' : stato === 'DISATTIVATA' ? '#b71c1c' : 'var(--blu-500)';
+                            const icon = stato === 'ATTIVA' ? 'fa-check-circle' : stato === 'IN_SVILUPPO' ? 'fa-code' : stato === 'DEMO' ? 'fa-flask' : stato === 'SOSPESA' ? 'fa-pause-circle' : 'fa-times-circle';
+                            return `
+                            <button onclick="DettaglioApp.requestStateChange('${stato}')"
+                                style="padding: 0.6rem 1.25rem; border: none; border-radius: 8px; background: ${btnColor}; color: white;
+                                       font-weight: 700; font-size: 0.9rem; cursor: pointer; transition: background 0.2s; display: flex; align-items: center; gap: 0.5rem;"
+                                onmouseover="this.style.background='${btnHover}'"
+                                onmouseout="this.style.background='${btnColor}'">
+                                <i class="fas ${icon}"></i> ${label}
+                            </button>`;
+                        }).join('')}
+                    </div>
+                </div>
+                ` : ''}
+            </div>
+        `;
+    },
+
+    // Richiesta cambio stato dall'interno del tab Sviluppo
+    async requestStateChange(targetState) {
+        if (!AuthService.canEditCartaIdentita()) return;
+
+        const app = this.app;
+        const oldState = app.statoApp || 'DEMO';
+
+        if (oldState === targetState) return;
+
+        // Verifica transizione valida
+        if (!FormsManager.isValidTransition(oldState, targetState)) {
+            UI.showError('Transizione non consentita');
+            return;
+        }
+
+        // Ri-leggi app fresca da Firestore
+        const freshApp = await DataService.getApp(this.appId);
+
+        // Verifica checklist
+        const checkResult = FormsManager.checkRequiredSections(freshApp || app, oldState, targetState);
+        if (!checkResult.ok) {
+            const missingList = checkResult.missingSections
+                .map(s => `\u2022 ${s.label}: ${s.completed}/${s.total} completati`)
+                .join('\n');
+            UI.showError(`Per passare a "${FormsManager.STATE_LABELS[targetState]}" completa prima queste sezioni della Carta d'Identità:\n\n${missingList}`);
+            return;
+        }
+
+        // Conferma
+        const confirmMsg = oldState === 'DISATTIVATA' && targetState === 'IN_SVILUPPO'
+            ? `Vuoi riportare l'app a "In Sviluppo"? La checklist verrà resettata e dovrà essere ri-compilata.`
+            : `Vuoi cambiare lo stato dell'app da "${FormsManager.STATE_LABELS[oldState]}" a "${FormsManager.STATE_LABELS[targetState]}"?`;
+
+        if (!confirm(confirmMsg)) return;
+
+        try {
+            const updateData = { statoApp: targetState };
+
+            // Reset checklist se DISATTIVATA → IN_SVILUPPO
+            if (oldState === 'DISATTIVATA' && targetState === 'IN_SVILUPPO') {
+                updateData.cartaIdentita = {};
+            }
+
+            await DataService.updateApp(this.appId, updateData);
+            UI.showSuccess(`Stato aggiornato: ${FormsManager.STATE_LABELS[targetState]}`);
+            this.render(this.appId);
+        } catch (error) {
+            console.error('Errore cambio stato:', error);
+            UI.showError('Errore nel cambio di stato');
+        }
+    },
+
+    // Salva note Carta d'Identità
+    async saveCartaIdentitaNote() {
+        if (!AuthService.canEditCartaIdentita()) return;
+
+        const textarea = document.getElementById('cartaIdentitaNote');
+        if (!textarea) return;
+
+        const noteText = textarea.value.trim();
+        const cartaIdentita = { ...(this.app.cartaIdentita || {}) };
+
+        cartaIdentita._note = noteText;
+        cartaIdentita._noteUpdatedBy = AuthService.getUserId();
+        cartaIdentita._noteUpdatedByName = AuthService.getUserName();
+        cartaIdentita._noteUpdatedAt = new Date().toISOString();
+
+        try {
+            await DataService.updateApp(this.appId, { cartaIdentita });
+            this.app.cartaIdentita = cartaIdentita;
+            UI.showSuccess('Note salvate');
+        } catch (error) {
+            console.error('Errore salvataggio note:', error);
+            UI.showError('Errore nel salvataggio delle note');
+        }
+    },
+
+    // Toggle visibilità sezione accordion
+    toggleSection(prefix) {
+        const section = document.getElementById('section_' + prefix);
+        const chevron = document.getElementById('chevron_' + prefix);
+        if (!section) return;
+        const isVisible = section.style.display !== 'none';
+        section.style.display = isVisible ? 'none' : 'block';
+        if (chevron) {
+            chevron.style.transform = isVisible ? 'rotate(0deg)' : 'rotate(180deg)';
+        }
+    },
+
+    // Toggle singolo item checklist
+    async toggleChecklistItem(itemId) {
+        if (!AuthService.canEditCartaIdentita()) return;
+
+        const cartaIdentita = { ...(this.app.cartaIdentita || {}) };
+        const current = cartaIdentita[itemId];
+        const newState = !current?.checked;
+
+        cartaIdentita[itemId] = {
+            checked: newState,
+            checkedBy: newState ? AuthService.getUserId() : null,
+            checkedByName: newState ? AuthService.getUserName() : null,
+            checkedAt: newState ? new Date().toISOString() : null,
+            auto: false
+        };
+
+        try {
+            await DataService.updateApp(this.appId, { cartaIdentita });
+            this.app.cartaIdentita = cartaIdentita;
+
+            // Re-render tab content mantenendo le sezioni aperte
+            const openSections = [];
+            this.CHECKLIST_SECTIONS.forEach(s => {
+                const el = document.getElementById('section_' + s.prefix);
+                if (el && el.style.display !== 'none') openSections.push(s.prefix);
+            });
+
+            const tabContent = document.getElementById('tabContent');
+            tabContent.innerHTML = this.renderCartaIdentita(this.app);
+
+            // Riapri le sezioni che erano aperte
+            openSections.forEach(prefix => {
+                const el = document.getElementById('section_' + prefix);
+                const chevron = document.getElementById('chevron_' + prefix);
+                if (el) el.style.display = 'block';
+                if (chevron) chevron.style.transform = 'rotate(180deg)';
+            });
+
+            // Aggiorna anche la navigazione tabs (per il badge percentuale)
+            const tabsContainer = document.querySelector('[style*="border-bottom: 2px solid var(--grigio-300)"]');
+            if (tabsContainer) {
+                tabsContainer.outerHTML = this.renderTabsNav();
+            }
+        } catch (error) {
+            console.error('Errore salvataggio checklist:', error);
+            UI.showError('Errore nel salvataggio della checklist');
+        }
+    },
+
+    // Auto-check items basati sui dati CRM
+    async runAutoChecks(app, clientePagante, contratti, fatture) {
+        const cartaIdentita = { ...(app.cartaIdentita || {}) };
+        let hasChanges = false;
+
+        // Filtra contratti e fatture per questo cliente
+        const clienteId = app.clientePaganteId;
+        const contrattiCliente = clienteId ? contratti.filter(c => c.clienteId === clienteId && c.statoContratto === 'ATTIVO') : [];
+        const fattureCliente = clienteId ? fatture.filter(f => f.clienteId === clienteId || (f.clienteRagioneSociale && clientePagante && f.clienteRagioneSociale.trim().toLowerCase() === (clientePagante.ragioneSociale || '').trim().toLowerCase())) : [];
+
+        const autoChecks = {
+            'contratto': () => contrattiCliente.length > 0,
+            'clientePagante': () => !!app.clientePaganteId,
+            'referente': () => !!(app.referenteComune && app.referenteComune.trim()),
+            'goodbarber': () => !!app.goodbarberAppId,
+            'gruppoTelegram': () => !!app.hasGruppoTelegram,
+            'avvisiFlash': () => !!app.hasAvvisiFlash,
+            'appleUsername': () => !!(app.appleUsername && app.appleUsername.trim()),
+            'credenzialiCRM': () => !!(app.appleUsername && app.appleUsername.trim() && app.applePassword && app.applePassword.trim()),
+            'scadenzaCertificato': () => !!app.scadenzaCertificatoApple,
+            'infoComune': () => !!(app.comune && app.comune.trim() && app.telefono && app.telefono.trim()),
+            'pubblicataAndroid': () => !!app.dataPubblicazioneAndroid,
+            'pubblicataIos': () => !!app.dataPubblicazioneApple,
+            'controlloQualita': () => !!(app.controlloQualitaDataAggiornamento && app.controlloQualitaNegativo !== true)
+        };
+
+        for (const section of this.CHECKLIST_SECTIONS) {
+            for (const item of section.items) {
+                if (!item.autoCheck) continue;
+                const checkFn = autoChecks[item.autoCheck];
+                if (!checkFn) continue;
+
+                const conditionMet = checkFn();
+                const current = cartaIdentita[item.id];
+
+                if (conditionMet && (!current || !current.checked)) {
+                    // Condizione soddisfatta e non ancora flaggato → auto-check
+                    cartaIdentita[item.id] = {
+                        checked: true,
+                        checkedBy: 'system',
+                        checkedByName: 'Sistema CRM',
+                        checkedAt: new Date().toISOString(),
+                        auto: true
+                    };
+                    hasChanges = true;
+                } else if (!conditionMet && current?.checked && current?.auto === true) {
+                    // Condizione non più soddisfatta e era auto-checked → rimuovi
+                    cartaIdentita[item.id] = {
+                        checked: false,
+                        checkedBy: null,
+                        checkedByName: null,
+                        checkedAt: null,
+                        auto: true
+                    };
+                    hasChanges = true;
+                }
+            }
+        }
+
+        if (hasChanges) {
+            try {
+                await DataService.updateApp(this.appId, { cartaIdentita });
+                app.cartaIdentita = cartaIdentita;
+            } catch (e) {
+                console.warn('Errore auto-check Carta d\'Identità:', e);
+            }
+        }
     }
 };

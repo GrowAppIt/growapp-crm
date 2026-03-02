@@ -233,6 +233,16 @@ const AuthService = {
         return this.getUserRole() === this.ROLES.AGENTE;
     },
 
+    // Carta d'Identità: chi può modificare la checklist (SUPER_ADMIN, ADMIN, CTO, SVILUPPATORE)
+    canEditCartaIdentita() {
+        return this.isSviluppatore(); // isSviluppatore() include SUPER_ADMIN, ADMIN, CTO, SVILUPPATORE
+    },
+
+    // Carta d'Identità: chi può vedere il tab (tutti tranne AGENTE)
+    canViewCartaIdentita() {
+        return !this.isAgente();
+    },
+
     // Ritorna il nome dell'agente per filtrare i dati (campo 'agente' nei clienti)
     getAgenteFilterName() {
         if (!this.currentUserData) return null;

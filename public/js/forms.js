@@ -2,6 +2,81 @@
 const FormsManager = {
     currentModal: null,
 
+    // === STATE MACHINE APP ===
+    STATE_TRANSITIONS: {
+        'DEMO':         ['IN_SVILUPPO', 'DISATTIVATA'],
+        'IN_SVILUPPO':  ['DEMO', 'ATTIVA', 'SOSPESA', 'DISATTIVATA'],
+        'ATTIVA':       ['SOSPESA', 'DISATTIVATA'],
+        'SOSPESA':      ['ATTIVA', 'DISATTIVATA'],
+        'DISATTIVATA':  ['IN_SVILUPPO']
+    },
+
+    STATE_LABELS: {
+        'DEMO': 'Demo',
+        'IN_SVILUPPO': 'In Sviluppo',
+        'ATTIVA': 'Attiva',
+        'SOSPESA': 'Sospesa',
+        'DISATTIVATA': 'Disattivata'
+    },
+
+    // Transizioni che richiedono sezioni checklist completate
+    TRANSITIONS_REQUIRING_CHECKLIST: {
+        'DEMO→IN_SVILUPPO': ['A'],
+        'IN_SVILUPPO→ATTIVA': ['A','B','C','D','E','F','G'],
+        'DISATTIVATA→IN_SVILUPPO': ['A']
+    },
+
+    // Verifica se una transizione di stato è valida
+    isValidTransition(fromState, toState) {
+        if (fromState === toState) return true; // Nessun cambio
+        const allowed = this.STATE_TRANSITIONS[fromState];
+        return allowed ? allowed.includes(toState) : false;
+    },
+
+    // Verifica se le sezioni richieste della checklist sono completate
+    checkRequiredSections(app, fromState, toState) {
+        const key = `${fromState}→${toState}`;
+        const requiredSections = this.TRANSITIONS_REQUIRING_CHECKLIST[key];
+        if (!requiredSections) return { ok: true }; // Nessun requisito
+
+        // SOSPESA→ATTIVA è sempre libera
+        if (fromState === 'SOSPESA' && toState === 'ATTIVA') return { ok: true };
+
+        const cartaIdentita = app.cartaIdentita || {};
+        const SECTIONS = typeof DettaglioApp !== 'undefined' && DettaglioApp.CHECKLIST_SECTIONS
+            ? DettaglioApp.CHECKLIST_SECTIONS : [];
+
+        const missingSections = [];
+        for (const sectionPrefix of requiredSections) {
+            const section = SECTIONS.find(s => s.prefix === sectionPrefix);
+            if (!section) continue;
+            const total = section.items.length;
+            const completed = section.items.filter(item => cartaIdentita[item.id]?.checked).length;
+            if (completed < total) {
+                missingSections.push({
+                    label: section.title,
+                    completed,
+                    total
+                });
+            }
+        }
+
+        if (missingSections.length > 0) {
+            return { ok: false, missingSections };
+        }
+        return { ok: true };
+    },
+
+    // Genera le opzioni del select stato filtrate per transizioni valide
+    getFilteredStateOptions(currentState) {
+        const allowed = this.STATE_TRANSITIONS[currentState] || [];
+        const options = [{ value: currentState, label: this.STATE_LABELS[currentState] || currentState }];
+        for (const state of allowed) {
+            options.push({ value: state, label: this.STATE_LABELS[state] || state });
+        }
+        return options;
+    },
+
     // === MODAL COMPONENT ===
     showModal(title, content, onSave, onCancel = null) {
         // Rimuovi modal esistente se presente
@@ -1471,14 +1546,7 @@ const FormsManager = {
                     })}
                     ${this.createFormField('Stato App', 'statoApp', 'select', app.statoApp, {
                         required: true,
-                        options: [
-                            { value: '', label: '-- Seleziona Stato --' },
-                            { value: 'ATTIVA', label: 'Attiva' },
-                            { value: 'IN_SVILUPPO', label: 'In Sviluppo' },
-                            { value: 'SOSPESA', label: 'Sospesa' },
-                            { value: 'DISATTIVATA', label: 'Disattivata' },
-                            { value: 'DEMO', label: 'Demo' }
-                        ]
+                        options: this.getFilteredStateOptions(app.statoApp || 'DEMO')
                     })}
                     ${this.createFormField('Referente', 'referenteComune', 'text', app.referenteComune, { placeholder: 'Nome e cognome referente' })}
                 </div>
@@ -1702,6 +1770,39 @@ const FormsManager = {
                     data.controlloQualitaDa = AuthService.getUserId();
                     data.controlloQualitaDaNome = AuthService.getUserName();
                     data.controlloQualitaDataAggiornamento = new Date().toISOString();
+                }
+
+                // === VALIDAZIONE STATE MACHINE ===
+                const oldState = app.statoApp || 'DEMO';
+                const newState = data.statoApp || oldState;
+
+                if (oldState !== newState) {
+                    // Verifica transizione valida
+                    if (!FormsManager.isValidTransition(oldState, newState)) {
+                        UI.showError(`Transizione non consentita: ${FormsManager.STATE_LABELS[oldState] || oldState} → ${FormsManager.STATE_LABELS[newState] || newState}`);
+                        return;
+                    }
+
+                    // Ri-leggi l'app fresca da Firestore per avere cartaIdentita aggiornata
+                    const freshApp = await DataService.getApp(app.id);
+
+                    // Verifica checklist se richiesta
+                    const checkResult = FormsManager.checkRequiredSections(freshApp || app, oldState, newState);
+                    if (!checkResult.ok) {
+                        const missingList = checkResult.missingSections
+                            .map(s => `\u2022 ${s.label}: ${s.completed}/${s.total} completati`)
+                            .join('\n');
+                        UI.showError(`Per passare a "${FormsManager.STATE_LABELS[newState]}" completa prima queste sezioni della Carta d'Identità:\n\n${missingList}`);
+                        return;
+                    }
+
+                    // Reset checklist se DISATTIVATA → IN_SVILUPPO
+                    if (oldState === 'DISATTIVATA' && newState === 'IN_SVILUPPO') {
+                        if (!confirm('Attenzione: riattivando questa app, la checklist di sviluppo (Carta d\'Identità) verrà resettata e dovrà essere ri-compilata. Continuare?')) {
+                            return;
+                        }
+                        data.cartaIdentita = {}; // Reset completo
+                    }
                 }
 
                 await DataService.updateApp(app.id, data);

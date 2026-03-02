@@ -74,6 +74,12 @@ const Report = {
                 <!-- Clienti a Rischio Churn -->
                 ${this.renderClientiRischioChurn()}
 
+                <!-- Client Lifetime Value & Pipeline Contratti -->
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(500px, 100%), 1fr)); gap: 1.5rem; margin-top: 1.5rem;">
+                    ${this.renderClientLifetimeValue()}
+                    ${this.renderPipelineContratti()}
+                </div>
+
                 <!-- Statistiche Dettagliate -->
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(350px, 100%), 1fr)); gap: 1.5rem; margin-top: 1.5rem;">
                     ${this.renderStatsApp()}
@@ -334,6 +340,7 @@ const Report = {
                     <h2 style="margin: 0; font-size: 1.25rem; font-weight: 700;">
                         <i class="fas fa-chart-bar"></i> Fatturato Mensile
                     </h2>
+                    <p style="margin: 0.25rem 0 0; font-size: 0.8rem; opacity: 0.85;">Somma degli importi fatturati per mese. Le note di credito vengono sottratte. Con il confronto attivo mostra anche l'anno precedente.</p>
                 </div>
                 <div style="padding: 1.5rem;">
                     <canvas id="chartFatturatoMensile" style="max-height: 350px;"></canvas>
@@ -377,6 +384,7 @@ const Report = {
                     <h2 style="margin: 0; font-size: 1.25rem; font-weight: 700;">
                         <i class="fas fa-user-tag"></i> Diretto vs Rivenditore
                     </h2>
+                    <p style="margin: 0.25rem 0 0; font-size: 0.8rem; opacity: 0.85;">Distribuzione del fatturato in base al tipo di pagamento dell'app associata al cliente (Diretto Growapp o tramite Rivenditore).</p>
                 </div>
                 <div style="padding: 1.5rem;">
                     <canvas id="chartTipoClienti" style="max-height: 280px;"></canvas>
@@ -717,8 +725,9 @@ const Report = {
                             <h2 style="margin: 0; font-size: 1.5rem; font-weight: 900;">
                                 <i class="fas fa-exclamation-triangle"></i> Clienti a Rischio Churn
                             </h2>
-                            <p style="margin: 0.25rem 0 0; font-size: 0.875rem; opacity: 0.9;">
-                                ${clientiRischio.length} client${clientiRischio.length === 1 ? 'e' : 'i'} su ${totaleClienti} con indicatori di rischio
+                            <p style="margin: 0.25rem 0 0; font-size: 0.8rem; opacity: 0.9;">
+                                ${clientiRischio.length} client${clientiRischio.length === 1 ? 'e' : 'i'} su ${totaleClienti} con indicatori di rischio.
+                                Score 0-100 calcolato su: scadenza contratto (35%), fatture non pagate (25%), engagement app (25%), anzianità cliente (15%).
                             </p>
                         </div>
                         <div style="display: flex; gap: 0.75rem;">
@@ -799,6 +808,7 @@ const Report = {
                     <h2 style="margin: 0; font-size: 1.25rem; font-weight: 700;">
                         <i class="fas fa-calendar-check"></i> Confronto Semestrale
                     </h2>
+                    <p style="margin: 0.25rem 0 0; font-size: 0.8rem; opacity: 0.85;">Confronta il fatturato del 1° semestre (Gen-Giu) con il 2° semestre (Lug-Dic), utile per capire la stagionalità.</p>
                 </div>
                 <div style="padding: 1.5rem;">
                     <canvas id="chartSemestrale" style="max-height: 300px;"></canvas>
@@ -814,6 +824,7 @@ const Report = {
                     <h2 style="margin: 0; font-size: 1.25rem; font-weight: 700;">
                         <i class="fas fa-map-marked-alt"></i> Fatturato per Regione
                     </h2>
+                    <p style="margin: 0.25rem 0 0; font-size: 0.8rem; opacity: 0.85;">Fatturato raggruppato per regione del cliente. Ordinato dal più alto al più basso.</p>
                 </div>
                 <div style="padding: 1.5rem;">
                     <canvas id="chartRegione" style="max-height: 350px;"></canvas>
@@ -832,6 +843,7 @@ const Report = {
                     <h2 style="margin: 0; font-size: 1.5rem; font-weight: 900;">
                         <i class="fas fa-trophy"></i> Top 10 Clienti per Fatturato
                     </h2>
+                    <p style="margin: 0.25rem 0 0; font-size: 0.8rem; opacity: 0.9;">Classifica dei clienti con il fatturato più alto nell'anno selezionato. Clicca su un cliente per vedere il dettaglio.</p>
                 </div>
                 <div class="table-responsive">
                     <table class="table">
@@ -893,6 +905,7 @@ const Report = {
                     <h2 style="margin: 0; font-size: 1.125rem; font-weight: 700;">
                         <i class="fas fa-mobile-alt"></i> App Comuni
                     </h2>
+                    <p style="margin: 0.25rem 0 0; font-size: 0.75rem; opacity: 0.85;">Conteggio app per stato attuale.</p>
                 </div>
                 <div style="padding: 1.5rem;">
                     ${this.renderStatItem('Totale App', dati.statsApp.totale, 'mobile-alt', '--blu-700')}
@@ -913,6 +926,7 @@ const Report = {
                     <h2 style="margin: 0; font-size: 1.125rem; font-weight: 700;">
                         <i class="fas fa-file-contract"></i> Contratti
                     </h2>
+                    <p style="margin: 0.25rem 0 0; font-size: 0.75rem; opacity: 0.85;">Riepilogo contratti per stato.</p>
                 </div>
                 <div style="padding: 1.5rem;">
                     ${this.renderStatItem('Totale Contratti', stats.contratti?.totale || 0, 'file-contract', '--verde-700')}
@@ -920,6 +934,222 @@ const Report = {
                     ${this.renderStatItem('In Scadenza', stats.contratti?.inScadenza || 0, 'exclamation-triangle', '--giallo-avviso')}
                     ${this.renderStatItem('Scaduti', stats.contratti?.scaduti || 0, 'times-circle', '--rosso')}
                 </div>
+            </div>
+        `;
+    },
+
+    renderClientLifetimeValue() {
+        const { fatture, clienti, app } = this.datiCache;
+
+        // Calcola fatturato cumulativo per cliente su TUTTE le fatture (non filtrate per anno)
+        const ltvPerCliente = {};
+        fatture.forEach(f => {
+            if (!f.clienteId) return;
+            const isNC = f.tipoDocumento === 'NOTA_DI_CREDITO' || (f.numeroFatturaCompleto || '').startsWith('NC-');
+            const importo = isNC ? -Math.abs(f.importoTotale || 0) : (f.importoTotale || 0);
+
+            if (!ltvPerCliente[f.clienteId]) {
+                const cliente = clienti.find(c => c.id === f.clienteId);
+                const appCliente = app.find(a => a.clientePaganteId === f.clienteId);
+                ltvPerCliente[f.clienteId] = {
+                    clienteId: f.clienteId,
+                    nome: cliente?.ragioneSociale || f.clienteRagioneSociale || 'Sconosciuto',
+                    provincia: cliente?.provincia || '',
+                    tipo: appCliente?.tipoPagamento || '',
+                    totale: 0,
+                    primaFattura: null,
+                    ultimaFattura: null,
+                    numFatture: 0
+                };
+            }
+
+            ltvPerCliente[f.clienteId].totale += importo;
+            if (!isNC) ltvPerCliente[f.clienteId].numFatture++;
+
+            const dataF = new Date(f.dataEmissione);
+            if (!ltvPerCliente[f.clienteId].primaFattura || dataF < ltvPerCliente[f.clienteId].primaFattura) {
+                ltvPerCliente[f.clienteId].primaFattura = dataF;
+            }
+            if (!ltvPerCliente[f.clienteId].ultimaFattura || dataF > ltvPerCliente[f.clienteId].ultimaFattura) {
+                ltvPerCliente[f.clienteId].ultimaFattura = dataF;
+            }
+        });
+
+        const topLTV = Object.values(ltvPerCliente)
+            .filter(c => c.totale > 0)
+            .sort((a, b) => b.totale - a.totale)
+            .slice(0, 15);
+
+        const totaleLTV = topLTV.reduce((s, c) => s + c.totale, 0);
+        const oggi = new Date();
+
+        return `
+            <div class="card fade-in" style="box-shadow: 0 8px 24px rgba(0,0,0,0.08);">
+                <div class="card-header" style="background: linear-gradient(135deg, #6A1B9A 0%, #AB47BC 100%); color: white; padding: 1.25rem;">
+                    <h2 style="margin: 0; font-size: 1.25rem; font-weight: 900;">
+                        <i class="fas fa-gem"></i> Client Lifetime Value
+                    </h2>
+                    <p style="margin: 0.25rem 0 0; font-size: 0.75rem; opacity: 0.9;">
+                        Fatturato cumulativo per cliente dalla prima fattura mai emessa ad oggi.
+                        A differenza della Top 10, che mostra solo l'anno selezionato, qui il valore include tutti gli anni.
+                    </p>
+                </div>
+                <div class="table-responsive" style="max-height: 500px; overflow-y: auto;">
+                    <table class="table" style="margin: 0;">
+                        <thead style="background: var(--grigio-100); position: sticky; top: 0; z-index: 1;">
+                            <tr>
+                                <th style="padding: 0.5rem 0.75rem;">#</th>
+                                <th style="padding: 0.5rem 0.75rem;">Cliente</th>
+                                <th style="text-align: center; padding: 0.5rem 0.75rem;">Anni</th>
+                                <th style="text-align: center; padding: 0.5rem 0.75rem;">Fatture</th>
+                                <th style="text-align: right; padding: 0.5rem 0.75rem;">LTV</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${topLTV.map((c, i) => {
+                                const anniCliente = c.primaFattura ? Math.max(1, Math.ceil((oggi - c.primaFattura) / (365.25 * 24 * 60 * 60 * 1000))) : 1;
+                                const mediaAnnua = c.totale / anniCliente;
+                                const percTotale = totaleLTV > 0 ? ((c.totale / totaleLTV) * 100).toFixed(1) : 0;
+                                const badgeColor = c.tipo === 'DIRETTO' ? 'var(--verde-700)' : c.tipo === 'RIVENDITORE' ? 'var(--blu-700)' : 'var(--grigio-500)';
+                                const tipoHtml = c.tipo ? ' · <span style="color: ' + badgeColor + '; font-weight: 600;">' + c.tipo + '</span>' : '';
+
+                                return '<tr style="cursor: pointer; transition: all 0.3s;" onclick="UI.showPage(\'dettaglio-cliente\', \'' + c.clienteId + '\')" onmouseenter="this.style.background=\'var(--blu-100)\'" onmouseleave="this.style.background=\'\'">'
+                                    + '<td style="padding: 0.5rem 0.75rem; font-weight: 700; color: var(--grigio-500); text-align: center;">' + (i + 1) + '</td>'
+                                    + '<td style="padding: 0.5rem 0.75rem;">'
+                                    + '<div style="font-weight: 700; color: var(--blu-700); font-size: 0.9rem;">' + c.nome + '</div>'
+                                    + '<div style="font-size: 0.7rem; color: var(--grigio-500);">' + c.provincia + tipoHtml + '</div>'
+                                    + '</td>'
+                                    + '<td style="text-align: center; padding: 0.5rem 0.75rem;">'
+                                    + '<div style="font-weight: 700; font-size: 0.9rem;">' + anniCliente + '</div>'
+                                    + '<div style="font-size: 0.65rem; color: var(--grigio-500);">' + DataService.formatCurrency(mediaAnnua) + '/anno</div>'
+                                    + '</td>'
+                                    + '<td style="text-align: center; padding: 0.5rem 0.75rem; font-weight: 600;">' + c.numFatture + '</td>'
+                                    + '<td style="text-align: right; padding: 0.5rem 0.75rem;">'
+                                    + '<div style="font-weight: 900; color: #6A1B9A; font-size: 1rem;">' + DataService.formatCurrency(c.totale) + '</div>'
+                                    + '<div style="font-size: 0.65rem; color: var(--grigio-500);">' + percTotale + '% del totale</div>'
+                                    + '</td></tr>';
+                            }).join('')}
+                        </tbody>
+                    </table>
+                </div>
+                ${Object.values(ltvPerCliente).filter(c => c.totale > 0).length > 15 ?
+                    '<div style="padding: 0.75rem; text-align: center; color: var(--grigio-500); font-size: 0.8rem; border-top: 1px solid var(--grigio-300);">Mostrati i primi 15 di ' + Object.values(ltvPerCliente).filter(c => c.totale > 0).length + ' clienti</div>'
+                : ''}
+            </div>
+        `;
+    },
+
+    renderPipelineContratti() {
+        const { contratti, clienti } = this.datiCache;
+        const oggi = new Date();
+
+        // Filtra contratti attivi con scadenza
+        const contrattiAttivi = (contratti || []).filter(c =>
+            (c.stato === 'ATTIVO' || c.stato === 'IN_RINNOVO') && c.dataScadenza
+        );
+
+        // Classifica per finestre temporali
+        const finestre = [
+            { label: '1 mese', giorni: 30, colore: '#D32F2F', bg: 'rgba(211,47,47,0.1)', icon: 'exclamation-circle' },
+            { label: '3 mesi', giorni: 90, colore: '#FFCC00', bg: 'rgba(255,204,0,0.1)', icon: 'exclamation-triangle' },
+            { label: '6 mesi', giorni: 180, colore: '#0288D1', bg: 'rgba(2,136,209,0.1)', icon: 'info-circle' }
+        ];
+
+        const pipeline = finestre.map(f => {
+            const inFinestra = contrattiAttivi.filter(c => {
+                const scad = new Date(c.dataScadenza);
+                const giorniRimanenti = Math.ceil((scad - oggi) / (1000 * 60 * 60 * 24));
+                return giorniRimanenti > 0 && giorniRimanenti <= f.giorni;
+            });
+
+            const valoreRischio = inFinestra.reduce((sum, c) => {
+                if (c.importoAnnuale) return sum + c.importoAnnuale;
+                if (c.importoMensile) return sum + (c.importoMensile * 12);
+                return sum;
+            }, 0);
+
+            return {
+                ...f,
+                contratti: inFinestra,
+                numContratti: inFinestra.length,
+                valoreRischio
+            };
+        });
+
+        // Dettaglio contratti in scadenza entro 3 mesi (per la tabella)
+        const contrattiUrgenti = contrattiAttivi
+            .map(c => {
+                const scad = new Date(c.dataScadenza);
+                const giorniRimanenti = Math.ceil((scad - oggi) / (1000 * 60 * 60 * 24));
+                const cliente = clienti.find(cl => cl.id === c.clienteId);
+                const valore = c.importoAnnuale || (c.importoMensile ? c.importoMensile * 12 : 0);
+                return { ...c, giorniRimanenti, nomeCliente: cliente?.ragioneSociale || 'Sconosciuto', valore };
+            })
+            .filter(c => c.giorniRimanenti > 0 && c.giorniRimanenti <= 180)
+            .sort((a, b) => a.giorniRimanenti - b.giorniRimanenti)
+            .slice(0, 12);
+
+        return `
+            <div class="card fade-in" style="box-shadow: 0 8px 24px rgba(0,0,0,0.08);">
+                <div class="card-header" style="background: linear-gradient(135deg, #E65100 0%, #FF8F00 100%); color: white; padding: 1.25rem;">
+                    <h2 style="margin: 0; font-size: 1.25rem; font-weight: 900;">
+                        <i class="fas fa-hourglass-half"></i> Pipeline Contratti
+                    </h2>
+                    <p style="margin: 0.25rem 0 0; font-size: 0.75rem; opacity: 0.9;">
+                        Contratti attivi in scadenza nei prossimi 1, 3 e 6 mesi. Mostra il valore annuale a rischio per ogni finestra temporale.
+                    </p>
+                </div>
+
+                <!-- Riepilogo finestre -->
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; border-bottom: 1px solid var(--grigio-300);">
+                    ${pipeline.map(p => `
+                        <div style="padding: 1rem; text-align: center; background: ${p.bg}; border-right: 1px solid var(--grigio-300);">
+                            <div style="font-size: 0.7rem; color: var(--grigio-700); font-weight: 600; text-transform: uppercase; margin-bottom: 0.25rem;">
+                                <i class="fas fa-${p.icon}" style="color: ${p.colore};"></i> Entro ${p.label}
+                            </div>
+                            <div style="font-size: 1.5rem; font-weight: 900; color: ${p.colore};">${p.numContratti}</div>
+                            <div style="font-size: 0.75rem; color: var(--grigio-700); font-weight: 600;">
+                                ${DataService.formatCurrency(p.valoreRischio)}
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+
+                <!-- Dettaglio contratti urgenti -->
+                ${contrattiUrgenti.length > 0 ? `
+                    <div class="table-responsive" style="max-height: 350px; overflow-y: auto;">
+                        <table class="table" style="margin: 0; font-size: 0.85rem;">
+                            <thead style="background: var(--grigio-100); position: sticky; top: 0; z-index: 1;">
+                                <tr>
+                                    <th style="padding: 0.5rem 0.75rem;">Cliente</th>
+                                    <th style="text-align: center; padding: 0.5rem 0.75rem;">Scadenza</th>
+                                    <th style="text-align: right; padding: 0.5rem 0.75rem;">Valore/anno</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${contrattiUrgenti.map(c => {
+                                    const urgenzaColor = c.giorniRimanenti <= 30 ? '#D32F2F' : c.giorniRimanenti <= 90 ? '#FFCC00' : '#0288D1';
+                                    const scadStr = new Date(c.dataScadenza).toLocaleDateString('it-IT', { day: '2-digit', month: 'short', year: 'numeric' });
+                                    const valoreStr = c.valore > 0 ? DataService.formatCurrency(c.valore) : '–';
+
+                                    return '<tr style="cursor: pointer; transition: all 0.3s;" onclick="UI.showPage(\'dettaglio-cliente\', \'' + c.clienteId + '\')" onmouseenter="this.style.background=\'var(--blu-100)\'" onmouseleave="this.style.background=\'\'">'
+                                        + '<td style="padding: 0.5rem 0.75rem;"><div style="font-weight: 700; color: var(--blu-700);">' + c.nomeCliente + '</div></td>'
+                                        + '<td style="text-align: center; padding: 0.5rem 0.75rem;">'
+                                        + '<span style="padding: 0.2rem 0.5rem; background: ' + urgenzaColor + '20; color: ' + urgenzaColor + '; border-radius: 12px; font-weight: 700; font-size: 0.8rem;">' + c.giorniRimanenti + 'gg</span>'
+                                        + '<div style="font-size: 0.65rem; color: var(--grigio-500); margin-top: 0.125rem;">' + scadStr + '</div>'
+                                        + '</td>'
+                                        + '<td style="text-align: right; padding: 0.5rem 0.75rem; font-weight: 700; color: var(--grigio-900);">' + valoreStr + '</td>'
+                                        + '</tr>';
+                                }).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                ` : `
+                    <div style="padding: 2rem; text-align: center; color: var(--grigio-500);">
+                        <i class="fas fa-check-circle" style="font-size: 2rem; color: var(--verde-700); margin-bottom: 0.5rem; display: block;"></i>
+                        <p style="font-weight: 700; color: var(--verde-700); margin: 0;">Nessun contratto in scadenza nei prossimi 6 mesi</p>
+                    </div>
+                `}
             </div>
         `;
     },
@@ -937,6 +1167,7 @@ const Report = {
                     <h2 style="margin: 0; font-size: 1.125rem; font-weight: 700;">
                         <i class="fas fa-file-invoice"></i> Stato Fatture
                     </h2>
+                    <p style="margin: 0.25rem 0 0; font-size: 0.75rem; opacity: 0.85;">Conteggio fatture per stato di pagamento.</p>
                 </div>
                 <div style="padding: 1.5rem;">
                     ${this.renderStatItem('Totale', totale, 'file-invoice', '--grigio-900')}
