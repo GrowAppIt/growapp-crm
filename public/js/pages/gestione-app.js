@@ -377,8 +377,8 @@ const GestioneApp = {
                         <i class="fas fa-check-circle"></i> QA OK
                     </span>
                     ` : needsQualityCheck && app.statoApp === 'ATTIVA' ? `
-                    <span class="badge" style="background: var(--giallo-avviso); color: #856404; cursor: pointer;" onclick="UI.showPage('dettaglio-app', '${app.id}')" title="Controllo qualità necessario">
-                        <i class="fas fa-clipboard-check"></i> Controllo QA
+                    <span class="badge" style="background: var(--giallo-avviso); color: #856404; cursor: pointer;" onclick="UI.showPage('dettaglio-app', '${app.id}')" title="${app.dataUltimoControlloQualita ? 'Controllo qualità da aggiornare (>30gg)' : 'Primo controllo qualità da effettuare'}">
+                        <i class="fas fa-clipboard-check"></i> ${app.dataUltimoControlloQualita ? 'QA da aggiornare' : 'QA da effettuare'}
                     </span>
                     ` : ''}
                     <span class="badge ${badgeClass}">

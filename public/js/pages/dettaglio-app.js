@@ -494,7 +494,7 @@ const DettaglioApp = {
                 </div>
                 <div class="card-body">
                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(250px, 100%), 1fr)); gap: 1.5rem;">
-                        ${this.renderInfoItem('Cliente Pagante', clientePagante?.ragioneSociale || 'Non collegata', 'building', !clientePagante)}
+                        ${this.renderInfoItem('Cliente Pagante', clientePagante?.ragioneSociale || null, 'building')}
                         ${this.renderInfoItem('Tipo Pagamento', app.tipoPagamento, 'credit-card')}
                         ${this.renderInfoItem('Stato App', app.statoApp?.replace('_', ' '), 'toggle-on')}
                         ${this.renderInfoItem('Referente', app.referenteComune, 'user-tie')}
@@ -517,8 +517,8 @@ const DettaglioApp = {
                 </div>
                 <div class="card-body">
                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(250px, 100%), 1fr)); gap: 1.5rem;">
-                        ${this.renderInfoItem('Pubblicazione Apple', app.dataPubblicazioneApple ? DataService.formatDate(app.dataPubblicazioneApple) : 'Non pubblicata', 'apple')}
-                        ${this.renderInfoItem('Pubblicazione Android', app.dataPubblicazioneAndroid ? DataService.formatDate(app.dataPubblicazioneAndroid) : 'Non pubblicata', 'android')}
+                        ${this.renderInfoItem('Pubblicazione Apple', app.dataPubblicazioneApple ? DataService.formatDate(app.dataPubblicazioneApple) : null, 'apple')}
+                        ${this.renderInfoItem('Pubblicazione Android', app.dataPubblicazioneAndroid ? DataService.formatDate(app.dataPubblicazioneAndroid) : null, 'android')}
                     </div>
 
                     ${hasCredenzialiApple ? `
@@ -754,6 +754,14 @@ const DettaglioApp = {
         const popolazione = app.popolazione || 0;
         const penetrazione = popolazione > 0 ? Math.min(100, (downloads / popolazione) * 100).toFixed(1) : 0;
 
+        // Controlla se ci sono metriche reali o è tutto a zero (non popolato)
+        const hasMetricheReali = downloads > 0 || consensiPush > 0 || launchesMonth > 0 || pageViewsMonth > 0;
+
+        // Helper per mostrare valore o "da rilevare"
+        const metricaVal = (val, color) => val > 0
+            ? `<div style="font-size: 2rem; font-weight: 700; color: var(--${color});">${val.toLocaleString('it-IT')}</div>`
+            : `<div style="font-size: 1.25rem; font-weight: 600; color: var(--grigio-400); font-style: italic;">Da rilevare</div>`;
+
         return `
             <div class="card">
                 <div class="card-header">
@@ -762,45 +770,46 @@ const DettaglioApp = {
                     </h2>
                 </div>
                 <div class="card-body">
+                    ${!hasMetricheReali ? `
+                    <div style="background: var(--blu-100); border-left: 4px solid var(--blu-300); padding: 0.75rem 1rem; border-radius: 8px; margin-bottom: 1.25rem; font-size: 0.85rem; color: var(--blu-700);">
+                        <i class="fas fa-info-circle"></i> Le metriche non sono ancora state rilevate per questa app
+                    </div>
+                    ` : ''}
                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr)); gap: 1.5rem;">
                         <div>
-                            <div style="font-size: 2rem; font-weight: 700; color: var(--blu-700);">
-                                ${downloads.toLocaleString('it-IT')}
-                            </div>
+                            ${metricaVal(downloads, 'blu-700')}
                             <div style="color: var(--grigio-500); font-size: 0.875rem;">
                                 <i class="fas fa-download"></i> Downloads
                                 ${lastUpdate ? `<br><small>(${lastUpdate})</small>` : ''}
                             </div>
                         </div>
                         <div>
-                            <div style="font-size: 2rem; font-weight: 700; color: var(--blu-500);">
-                                ${consensiPush.toLocaleString('it-IT')}
-                            </div>
+                            ${metricaVal(consensiPush, 'blu-500')}
                             <div style="color: var(--grigio-500); font-size: 0.875rem;">
                                 <i class="fas fa-mobile-alt"></i> Consensi Push
                             </div>
                         </div>
                         <div>
+                            ${popolazione > 0 ? `
                             <div style="font-size: 2rem; font-weight: 700; color: var(--verde-700);">
                                 ${penetrazione}%
                             </div>
+                            ` : `
+                            <div style="font-size: 1.25rem; font-weight: 600; color: var(--grigio-400); font-style: italic;">Da rilevare</div>
+                            `}
                             <div style="color: var(--grigio-500); font-size: 0.875rem;">
                                 <i class="fas fa-users"></i> Penetrazione
                                 ${popolazione > 0 ? `<br><small>(${popolazione.toLocaleString('it-IT')} ab.)</small>` : ''}
                             </div>
                         </div>
                         <div>
-                            <div style="font-size: 2rem; font-weight: 700; color: var(--grigio-700);">
-                                ${launchesMonth.toLocaleString('it-IT')}
-                            </div>
+                            ${metricaVal(launchesMonth, 'grigio-700')}
                             <div style="color: var(--grigio-500); font-size: 0.875rem;">
                                 <i class="fas fa-rocket"></i> Lanci/mese
                             </div>
                         </div>
                         <div>
-                            <div style="font-size: 2rem; font-weight: 700; color: var(--grigio-700);">
-                                ${pageViewsMonth.toLocaleString('it-IT')}
-                            </div>
+                            ${metricaVal(pageViewsMonth, 'grigio-700')}
                             <div style="color: var(--grigio-500); font-size: 0.875rem;">
                                 <i class="fas fa-eye"></i> Views/mese
                             </div>
@@ -837,7 +846,7 @@ const DettaglioApp = {
                 <div class="card-header">
                     <h2 class="card-title">
                         <i class="fas fa-clipboard-check"></i> Controllo Qualità
-                        ${isQANegativo ? `<span class="badge" style="background: var(--rosso-errore); color: white; font-size: 0.75rem; padding: 0.25rem 0.5rem; border-radius: 12px; margin-left: 0.5rem;"><i class="fas fa-times-circle"></i> QA KO</span>` : needsCheck ? `<span class="badge" style="background: var(--giallo-avviso); color: #856404; font-size: 0.75rem; padding: 0.25rem 0.5rem; border-radius: 12px; margin-left: 0.5rem;"><i class="fas fa-info-circle"></i> Controllo necessario</span>` : ''}
+                        ${isQANegativo ? `<span class="badge" style="background: var(--rosso-errore); color: white; font-size: 0.75rem; padding: 0.25rem 0.5rem; border-radius: 12px; margin-left: 0.5rem;"><i class="fas fa-times-circle"></i> QA KO</span>` : needsCheck ? `<span class="badge" style="background: var(--giallo-avviso); color: #856404; font-size: 0.75rem; padding: 0.25rem 0.5rem; border-radius: 12px; margin-left: 0.5rem;"><i class="fas fa-info-circle"></i> ${app.dataUltimoControlloQualita ? 'Controllo da aggiornare' : 'Da effettuare'}</span>` : ''}
                     </h2>
                 </div>
                 <div class="card-body">
@@ -859,13 +868,13 @@ const DettaglioApp = {
                     ` : needsCheck ? `
                     <div style="background: linear-gradient(135deg, #FFF9E6 0%, #FFF3CD 100%); border-left: 4px solid var(--giallo-avviso); padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem;">
                         <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
-                            <i class="fas fa-exclamation-triangle" style="color: var(--giallo-avviso); font-size: 1.5rem;"></i>
+                            <i class="fas fa-${app.dataUltimoControlloQualita ? 'exclamation-triangle' : 'info-circle'}" style="color: var(--giallo-avviso); font-size: 1.5rem;"></i>
                             <div>
                                 <div style="font-weight: 700; color: #856404; font-size: 1rem;">
-                                    ${app.dataUltimoControlloQualita ? `È passato più di 1 mese dall'ultimo controllo` : `Nessun controllo qualità effettuato`}
+                                    ${app.dataUltimoControlloQualita ? `È passato più di 1 mese dall'ultimo controllo` : `Primo controllo qualità da effettuare`}
                                 </div>
                                 <div style="font-size: 0.875rem; color: #856404; margin-top: 0.25rem;">
-                                    ${app.dataUltimoControlloQualita ? `Ultimo controllo: ${DataService.formatDate(app.dataUltimoControlloQualita)} (${giorniPassati} giorni fa)` : `Si consiglia di effettuare un controllo qualità dell'app`}
+                                    ${app.dataUltimoControlloQualita ? `Ultimo controllo: ${DataService.formatDate(app.dataUltimoControlloQualita)} (${giorniPassati} giorni fa)` : `Non è ancora stato registrato nessun controllo qualità per questa app`}
                                 </div>
                             </div>
                         </div>
@@ -908,8 +917,8 @@ const DettaglioApp = {
                     ` : `
                     <div class="empty-state" style="padding: 2rem;">
                         <i class="fas fa-clipboard-check" style="font-size: 3rem; color: var(--grigio-300); margin-bottom: 1rem;"></i>
-                        <p style="color: var(--grigio-500); margin: 0;">Nessun controllo qualità effettuato</p>
-                        <p style="color: var(--grigio-400); font-size: 0.875rem; margin-top: 0.5rem;">Clicca su Modifica per aggiungere la data del primo controllo</p>
+                        <p style="color: var(--grigio-500); margin: 0;">Primo controllo qualità da effettuare</p>
+                        <p style="color: var(--grigio-400); font-size: 0.875rem; margin-top: 0.5rem;">Non è ancora stato registrato nessun controllo qualità per questa app</p>
                     </div>
                     `}
                 </div>
@@ -958,8 +967,8 @@ const DettaglioApp = {
                     <div style="font-size: 0.75rem; font-weight: 600; color: var(--grigio-500); text-transform: uppercase; margin-bottom: 0.25rem;">
                         <i class="fas fa-${icon}"></i> ${label}
                     </div>
-                    <div style="color: var(--grigio-400); font-style: italic;">
-                        Non specificato
+                    <div style="color: var(--grigio-400); font-style: italic; font-size: 0.875rem;">
+                        <i class="fas fa-minus-circle" style="font-size: 0.7rem; margin-right: 0.25rem;"></i> Dato non inserito
                     </div>
                 </div>
             `;
