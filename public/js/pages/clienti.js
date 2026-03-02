@@ -182,6 +182,7 @@ const Clienti = {
                             ? '<span class="badge" style="background: #D32F2F; color: white;"><i class="fas fa-exclamation-triangle"></i> SENZA CONTRATTO</span>'
                             : `<span class="badge ${badgeClass}">${(cliente.statoContratto || 'N/A').replace('_', ' ')}</span>`
                         }
+                        ${!AuthService.canViewOnlyOwnData() ? `
                         <button
                             class="btn-icon"
                             onclick="Clienti.eliminaCliente('${cliente.id}', '${cliente.ragioneSociale.replace(/'/g, "\\'")}')"
@@ -190,6 +191,7 @@ const Clienti = {
                         >
                             <i class="fas fa-trash"></i>
                         </button>
+                        ` : ''}
                     </div>
                 </div>
             `;

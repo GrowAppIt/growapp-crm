@@ -1891,21 +1891,54 @@ const Dashboard = {
             return isNC ? -Math.abs(importo) : importo;
         };
 
-        // Fatturato totale (pagate + note di credito)
-        const fatturatoTotale = fatture
-            .filter(f => f.statoPagamento === 'PAGATA' || f.tipoDocumento === 'NOTA_DI_CREDITO')
-            .reduce((sum, f) => sum + calcolaImportoFattura(f), 0);
+        // Helper: parsing date robusto (supporta Firestore Timestamp, stringa ISO, Date)
+        const parseData = (d) => {
+            if (!d) return null;
+            if (d.toDate) return d.toDate(); // Firestore Timestamp
+            if (d.seconds) return new Date(d.seconds * 1000); // Firestore Timestamp raw
+            const parsed = new Date(d);
+            return isNaN(parsed.getTime()) ? null : parsed;
+        };
 
-        // Fatturato anno corrente
+        // ── FATTURATO EMESSO (tutte le fatture emesse, al netto delle NC) ──
+        // Per l'agente "fatturato" = valore fatturato/emesso, non solo incassato
         const annoCorrente = oggi.getFullYear();
-        const fatturatoAnno = fatture
-            .filter(f => (f.statoPagamento === 'PAGATA' || f.tipoDocumento === 'NOTA_DI_CREDITO') && f.dataEmissione && new Date(f.dataEmissione).getFullYear() === annoCorrente)
+        const meseCorrente = oggi.getMonth();
+
+        // Fatture valide (esclude solo bozze se ce ne sono)
+        const fattureValide = fatture.filter(f => f.tipoDocumento !== 'PROFORMA');
+
+        // Fatturato EMESSO totale (tutte le fatture emesse di tutti gli anni)
+        const fatturatoTotale = fattureValide
             .reduce((sum, f) => sum + calcolaImportoFattura(f), 0);
 
-        // Fatturato mese corrente
-        const meseCorrente = oggi.getMonth();
-        const fatturatoMese = fatture
-            .filter(f => (f.statoPagamento === 'PAGATA' || f.tipoDocumento === 'NOTA_DI_CREDITO') && f.dataEmissione && new Date(f.dataEmissione).getFullYear() === annoCorrente && new Date(f.dataEmissione).getMonth() === meseCorrente)
+        // Fatturato EMESSO anno corrente
+        const fatturatoAnno = fattureValide
+            .filter(f => {
+                const de = parseData(f.dataEmissione);
+                return de && de.getFullYear() === annoCorrente;
+            })
+            .reduce((sum, f) => sum + calcolaImportoFattura(f), 0);
+
+        // Fatturato EMESSO mese corrente
+        const fatturatoMese = fattureValide
+            .filter(f => {
+                const de = parseData(f.dataEmissione);
+                return de && de.getFullYear() === annoCorrente && de.getMonth() === meseCorrente;
+            })
+            .reduce((sum, f) => sum + calcolaImportoFattura(f), 0);
+
+        // Fatturato INCASSATO (solo PAGATA) — per le sotto-etichette
+        const fatturatoIncassatoAnno = fattureValide
+            .filter(f => {
+                if (f.statoPagamento !== 'PAGATA' && f.tipoDocumento !== 'NOTA_DI_CREDITO') return false;
+                const de = parseData(f.dataEmissione);
+                return de && de.getFullYear() === annoCorrente;
+            })
+            .reduce((sum, f) => sum + calcolaImportoFattura(f), 0);
+
+        const fatturatoIncassatoTotale = fattureValide
+            .filter(f => f.statoPagamento === 'PAGATA' || f.tipoDocumento === 'NOTA_DI_CREDITO')
             .reduce((sum, f) => sum + calcolaImportoFattura(f), 0);
 
         // Contratti in scadenza
@@ -2014,13 +2047,16 @@ const Dashboard = {
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
                 <div style="background: linear-gradient(135deg, var(--blu-700), var(--blu-500)); border-radius: 12px; padding: 1.5rem; color: white; text-align: center;">
                     <div style="font-size: 0.85rem; opacity: 0.8; margin-bottom: 0.5rem;">
-                        <i class="fas fa-euro-sign"></i> Fatturato ${annoCorrente}
+                        <i class="fas fa-file-invoice-dollar"></i> Fatturato ${annoCorrente}
                     </div>
                     <div style="font-size: 1.8rem; font-weight: 900;">${DataService.formatCurrency(fatturatoAnno)}</div>
+                    <div style="font-size: 0.7rem; opacity: 0.7; margin-top: 0.35rem;">
+                        <i class="fas fa-check-circle"></i> Incassato: ${DataService.formatCurrency(fatturatoIncassatoAnno)}
+                    </div>
                 </div>
                 <div style="background: linear-gradient(135deg, var(--verde-700), var(--verde-500)); border-radius: 12px; padding: 1.5rem; color: white; text-align: center;">
                     <div style="font-size: 0.85rem; opacity: 0.8; margin-bottom: 0.5rem;">
-                        <i class="fas fa-chart-line"></i> Fatturato Mese
+                        <i class="fas fa-calendar-alt"></i> Fatturato Mese
                     </div>
                     <div style="font-size: 1.8rem; font-weight: 900;">${DataService.formatCurrency(fatturatoMese)}</div>
                 </div>
@@ -2029,6 +2065,9 @@ const Dashboard = {
                         <i class="fas fa-coins"></i> Fatturato Totale
                     </div>
                     <div style="font-size: 1.8rem; font-weight: 900;">${DataService.formatCurrency(fatturatoTotale)}</div>
+                    <div style="font-size: 0.7rem; opacity: 0.7; margin-top: 0.35rem;">
+                        <i class="fas fa-check-circle"></i> Incassato: ${DataService.formatCurrency(fatturatoIncassatoTotale)}
+                    </div>
                 </div>
             </div>
 
@@ -2352,10 +2391,16 @@ const Dashboard = {
 
     // === Riepilogo clienti per agente ===
     renderAgenteClientiRecap(clienti, contratti, fatture) {
-        // Top 5 clienti per fatturato (note di credito sottraggono)
+        // Top 5 clienti per fatturato EMESSO (tutte le fatture, note di credito sottraggono)
         const clientiFatturato = clienti.map(c => {
             const ids = new Set([c.id, c.clienteIdLegacy].filter(Boolean));
-            const fattCliente = fatture.filter(f => ids.has(f.clienteId) && (f.statoPagamento === 'PAGATA' || f.tipoDocumento === 'NOTA_DI_CREDITO'));
+            const nomeNorm = (c.ragioneSociale || '').trim().toLowerCase();
+            const fattCliente = fatture.filter(f => {
+                if (f.tipoDocumento === 'PROFORMA') return false;
+                if (f.clienteId && ids.has(f.clienteId)) return true;
+                if (f.clienteRagioneSociale && f.clienteRagioneSociale.trim().toLowerCase() === nomeNorm) return true;
+                return false;
+            });
             const totale = fattCliente.reduce((sum, f) => {
                 const isNC = f.tipoDocumento === 'NOTA_DI_CREDITO' || (f.numeroFatturaCompleto || '').startsWith('NC-');
                 return sum + (isNC ? -Math.abs(f.importoTotale || 0) : (f.importoTotale || 0));

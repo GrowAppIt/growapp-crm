@@ -616,9 +616,11 @@ const DettaglioCliente = {
                     <h2 class="card-title">
                         <i class="fas fa-sticky-note"></i> Note
                     </h2>
+                    ${!AuthService.canViewOnlyOwnData() ? `
                     <button class="btn btn-primary btn-sm" onclick="DettaglioCliente.showNuovaNota()">
                         <i class="fas fa-plus"></i> Nuova Nota
                     </button>
+                    ` : ''}
                 </div>
 
                 <!-- Form nuova nota (nascosto) -->
@@ -838,6 +840,7 @@ const DettaglioCliente = {
                                 <i class="fas fa-clock" style="margin-right: 0.2rem;"></i>${dataStr}
                             </span>
                         </div>
+                        ${!AuthService.canViewOnlyOwnData() ? `
                         <div style="display: flex; gap: 0.25rem; flex-shrink: 0;">
                             <button onclick="DettaglioCliente.editNota('${nota.id}')" title="Modifica" style="
                                 background: none; border: none; cursor: pointer;
@@ -854,6 +857,7 @@ const DettaglioCliente = {
                                 <i class="fas fa-trash" style="font-size: 0.8125rem;"></i>
                             </button>
                         </div>
+                        ` : ''}
                     </div>
 
                     <!-- Testo nota -->
@@ -1183,9 +1187,11 @@ const DettaglioCliente = {
                     <h2 class="card-title">
                         <i class="fas fa-folder-open"></i> Documenti Cliente
                     </h2>
+                    ${!AuthService.canViewOnlyOwnData() ? `
                     <button class="btn btn-primary" onclick="DettaglioCliente.showUploadDocumento()">
                         <i class="fas fa-upload"></i> Carica Documento
                     </button>
+                    ` : ''}
                 </div>
 
                 ${documenti.length === 0 ? `

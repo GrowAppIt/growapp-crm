@@ -46,7 +46,7 @@ const AuthService = {
         ],
         AGENTE: [
             'view_own_data', 'view_clients', 'view_contracts', 'view_apps',
-            'view_invoices', 'manage_clients', 'manage_contracts',
+            'view_invoices', // ⚠️ Solo lettura su clienti, contratti, fatture, app
             'view_dev_tasks', 'manage_dev_tasks', // ✅ TASK: visualizzazione + creazione
             'view_company_info', 'manage_business_card' // ✅ Impostazioni base
         ],

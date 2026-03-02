@@ -266,6 +266,7 @@ const Contratti = {
                     <span class="badge ${badgeClass}">
                         ${contratto.stato?.replace('_', ' ') || 'N/A'}
                     </span>
+                    ${!AuthService.canViewOnlyOwnData() ? `
                     <button
                         class="btn-icon"
                         onclick="event.stopPropagation(); Contratti.eliminaContratto('${contratto.id}', '${contratto.numeroContratto?.replace(/'/g, "\\'")}', '${contratto.clienteRagioneSociale?.replace(/'/g, "\\'")}')"
@@ -274,6 +275,7 @@ const Contratti = {
                     >
                         <i class="fas fa-trash"></i>
                     </button>
+                    ` : ''}
                 </div>
             </div>
         `;

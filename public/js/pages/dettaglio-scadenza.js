@@ -36,6 +36,7 @@ const DettaglioScadenza = {
                         <button class="btn btn-secondary btn-sm" onclick="UI.showPage('scadenzario')">
                             <i class="fas fa-arrow-left"></i> Torna allo scadenzario
                         </button>
+                        ${!AuthService.canViewOnlyOwnData() ? `
                         <div style="display: flex; gap: 0.5rem;">
                             ${!scadenza.completata ? `
                                 <button class="btn btn-success btn-sm" onclick="FormsManager.marcaScadenzaCompletata('${scadenza.id}')">
@@ -46,6 +47,7 @@ const DettaglioScadenza = {
                                 <i class="fas fa-edit"></i> Modifica
                             </button>
                         </div>
+                        ` : ''}
                     </div>
                     <h1 style="font-size: 2rem; font-weight: 700; color: var(--blu-700); margin-bottom: 0.5rem;">
                         <i class="fas fa-${this.getTipoIcon(scadenza.tipo)}"></i> ${this.getTipoLabel(scadenza.tipo)}

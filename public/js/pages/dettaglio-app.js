@@ -984,9 +984,11 @@ const DettaglioApp = {
                     <h2 class="card-title">
                         <i class="fas fa-folder-open"></i> Documenti App
                     </h2>
+                    ${!AuthService.canViewOnlyOwnData() ? `
                     <button class="btn btn-primary" onclick="DettaglioApp.showUploadDocumento()">
                         <i class="fas fa-upload"></i> Carica Documento
                     </button>
+                    ` : ''}
                 </div>
 
                 ${this.documenti.length === 0 ? `
@@ -1444,9 +1446,11 @@ const DettaglioApp = {
                     <i class="fas fa-plug" style="font-size:3rem;color:var(--grigio-300);margin-bottom:1rem;"></i>
                     <h3 style="color:var(--grigio-700);">Integrazione CMS non configurata</h3>
                     <p style="color:var(--grigio-500);margin-top:0.5rem;">Per vedere le statistiche, modifica l'app e inserisci il <strong>Webzine ID</strong> e il <strong>Token API</strong> nella sezione Metriche.</p>
+                    ${!AuthService.canViewOnlyOwnData() ? `
                     <button class="btn btn-primary" style="margin-top:1rem;" onclick="DettaglioApp.editApp()">
                         <i class="fas fa-edit"></i> Configura Integrazione
                     </button>
+                    ` : ''}
                 </div>`;
         }
 

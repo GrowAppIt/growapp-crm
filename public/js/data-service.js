@@ -1044,7 +1044,7 @@ const DataService = {
 
             // 3. Carica fatture, contratti e app in parallelo (ogni query gestita singolarmente)
             const [tutteFattureResult, tuttiContrattiResult, tutteAppResult, scadenzeResult] = await Promise.allSettled([
-                this.getFatture({ limit: 1000 }),
+                this.getFatture({ limit: 5000 }),
                 this.getContratti(),
                 this.getApps(),
                 this.getScadenze({ agente: agenteNome })
@@ -1062,11 +1062,22 @@ const DataService = {
             if (tutteAppResult.status === 'rejected') console.warn('Errore caricamento app agente:', tutteAppResult.reason);
             if (scadenzeResult.status === 'rejected') console.warn('Errore caricamento scadenze agente:', scadenzeResult.reason);
 
-            // 4. Filtra fatture per clienti dell'agente
-            const fatture = tutteFatture.filter(f => clienteIds.has(f.clienteId));
+            // 4. Filtra fatture per clienti dell'agente (match su clienteId O ragioneSociale)
+            const ragioneSocialeSet = new Set(clienti.map(c => (c.ragioneSociale || '').trim().toLowerCase()).filter(Boolean));
+            const fatture = tutteFatture.filter(f => {
+                // Match primario: per clienteId (Firestore doc ID o legacy ID)
+                if (f.clienteId && clienteIds.has(f.clienteId)) return true;
+                // Match fallback: per ragioneSociale (utile se clienteId non corrisponde)
+                if (f.clienteRagioneSociale && ragioneSocialeSet.has(f.clienteRagioneSociale.trim().toLowerCase())) return true;
+                return false;
+            });
 
-            // 5. Filtra contratti per clienti dell'agente
-            const contratti = tuttiContratti.filter(c => clienteIds.has(c.clienteId));
+            // 5. Filtra contratti per clienti dell'agente (match su clienteId O ragioneSociale)
+            const contratti = tuttiContratti.filter(c => {
+                if (c.clienteId && clienteIds.has(c.clienteId)) return true;
+                if (c.clienteRagioneSociale && ragioneSocialeSet.has(c.clienteRagioneSociale.trim().toLowerCase())) return true;
+                return false;
+            });
 
             // 6. Filtra app per clienti dell'agente (solo match esatti su ID)
             const app = tutteApp.filter(a => {

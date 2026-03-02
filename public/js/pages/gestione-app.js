@@ -342,6 +342,7 @@ const GestioneApp = {
                 </div>
 
                 <!-- Select Cliente Pagante -->
+                ${!AuthService.canViewOnlyOwnData() ? `
                 <select
                     class="form-input"
                     style="width: 250px;"
@@ -355,6 +356,11 @@ const GestioneApp = {
                         </option>
                     `).join('')}
                 </select>
+                ` : `
+                <span style="font-size: 0.85rem; color: var(--grigio-700);">
+                    ${app.clientePaganteId ? clienti.find(c => c.id === app.clientePaganteId)?.ragioneSociale || 'Cliente collegato' : '<em style="color: var(--grigio-500);">Non collegata</em>'}
+                </span>
+                `}
 
                 <div style="display: flex; gap: 0.5rem; align-items: center;">
                     ${numAlert > 0 ? `
