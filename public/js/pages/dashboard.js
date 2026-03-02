@@ -1928,12 +1928,18 @@ const Dashboard = {
         // Scadenze calcolate da contratti e fatture reali
         let scadenzeScadute = [];
         let scadenzeImminenti = [];
+        let scadenzeImminentiAlert = []; // Finestra 3gg per widget "Prossime Attività"
         try {
             const scadenzeCalcolate = await DataService.getScadenzeCompute({
                 contratti: contratti,
                 fatture: fatture,
                 clienti: clienti
             });
+
+            // Finestra alert (3gg) — per widget prossime attività
+            const finestraAlert = new Date(oggi);
+            finestraAlert.setDate(finestraAlert.getDate() + 3);
+
             scadenzeScadute = scadenzeCalcolate.tutteLeScadenze.filter(s =>
                 s.dataScadenza && new Date(s.dataScadenza) < oggi
             );
@@ -1941,6 +1947,11 @@ const Dashboard = {
                 if (!s.dataScadenza) return false;
                 const ds = new Date(s.dataScadenza);
                 return ds >= oggi && ds <= tra30giorni;
+            });
+            scadenzeImminentiAlert = scadenzeCalcolate.tutteLeScadenze.filter(s => {
+                if (!s.dataScadenza) return false;
+                const ds = new Date(s.dataScadenza);
+                return ds >= oggi && ds <= finestraAlert;
             });
         } catch (e) { console.warn('Errore calcolo scadenze agente:', e); }
 
