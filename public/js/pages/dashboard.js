@@ -138,12 +138,20 @@ const Dashboard = {
 
             // Scadenze compute (passa dati già caricati per evitare ulteriori query)
             let scadenzeScadute = [];
-            let scadenzeImminenti = [];
+            let scadenzeImminenti = [];     // Finestra 30gg per il widget principale dashboard
+            let scadenzeImminentiAlert = []; // Finestra 3gg per badge sidebar e widget "Prossime Attività"
             let scadenzeScaduteSospese = []; // Fatture in contenzioso/dissesto — escluse di default
             try {
                 const scadenzeCalcolateResult = await DataService.getScadenzeCompute({ contratti: contrattiTutti, fatture: fatture, clienti: clienti });
-                const finestraImminente = new Date(oggi);
-                finestraImminente.setDate(finestraImminente.getDate() + (_sysDash2.sogliaImminente || 3));
+
+                // Finestra alert (3gg) — per badge e widget prossime attività
+                const finestraAlert = new Date(oggi);
+                finestraAlert.setDate(finestraAlert.getDate() + (_sysDash2.sogliaImminente || 3));
+
+                // Finestra widget (30gg) — per il widget "Scadenze Imminenti" in dashboard
+                const finestraWidget = new Date(oggi);
+                finestraWidget.setDate(finestraWidget.getDate() + 30);
+
                 const _tutteScadenzeScadute = scadenzeCalcolateResult.tutteLeScadenze.filter(s =>
                     s.dataScadenza && new Date(s.dataScadenza) < oggi
                 );
@@ -151,10 +159,19 @@ const Dashboard = {
                 const _isCreditoSospeso = (s) => s.creditoSospeso === true || s.creditoSospeso === 'true';
                 scadenzeScadute = _tutteScadenzeScadute.filter(s => !(s.tipo === 'FATTURA_INCASSO' && _isCreditoSospeso(s)));
                 scadenzeScaduteSospese = _tutteScadenzeScadute.filter(s => s.tipo === 'FATTURA_INCASSO' && _isCreditoSospeso(s));
+
+                // Scadenze imminenti (30gg) per il widget principale
                 scadenzeImminenti = scadenzeCalcolateResult.tutteLeScadenze.filter(s => {
                     if (!s.dataScadenza) return false;
                     const ds = new Date(s.dataScadenza);
-                    return ds >= oggi && ds <= finestraImminente;
+                    return ds >= oggi && ds <= finestraWidget;
+                });
+
+                // Scadenze imminenti (3gg) per badge e alert
+                scadenzeImminentiAlert = scadenzeCalcolateResult.tutteLeScadenze.filter(s => {
+                    if (!s.dataScadenza) return false;
+                    const ds = new Date(s.dataScadenza);
+                    return ds >= oggi && ds <= finestraAlert;
                 });
             } catch (e) { console.warn('Dashboard: errore getScadenzeCompute', e); }
 
@@ -170,6 +187,7 @@ const Dashboard = {
                             stats,
                             scadenzeScadute,
                             scadenzeImminenti,
+                            scadenzeImminentiAlert,
                             contrattiInScadenza,
                             fattureInScadenza,
                             clienti,
@@ -191,7 +209,7 @@ const Dashboard = {
             ).length;
             const taskApertiCount = tasks.filter(t => (t.stato === 'TODO' || t.stato === 'IN_PROGRESS') && !t.archiviato).length;
             // Badge sidebar: conta scadute + imminenti (≤3gg)
-            const scadenzeBadgeCount = scadenzeScadute.length + scadenzeImminenti.length;
+            const scadenzeBadgeCount = scadenzeScadute.length + scadenzeImminentiAlert.length;
             UI.updateSidebarBadges({
                 scadenzeScadute: scadenzeBadgeCount,
                 fattureNonPagate: fattureNonPagateCount,
@@ -2057,7 +2075,7 @@ const Dashboard = {
                     <h3 style="font-size: 1rem; font-weight: 700; color: var(--blu-700); margin-bottom: 1rem;">
                         <i class="fas fa-calendar-week"></i> Prossime Attività (3gg)
                     </h3>
-                    ${this.renderWidgetProssimeAttivita([...scadenzeScadute, ...scadenzeImminenti])}
+                    ${this.renderWidgetProssimeAttivita([...scadenzeScadute, ...scadenzeImminentiAlert])}
                 </div>
 
                 <!-- I MIEI TASK APERTI -->

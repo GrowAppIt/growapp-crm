@@ -14,15 +14,16 @@ const Report = {
 
         try {
             // Carica tutti i dati necessari
-            const [stats, fatture, clienti, app] = await Promise.all([
+            const [stats, fatture, clienti, app, contratti] = await Promise.all([
                 DataService.getStatistiche(),
                 DataService.getFatture({ limit: 5000 }),
                 DataService.getClienti(),
-                DataService.getApps()
+                DataService.getApps(),
+                DataService.getContratti()
             ]);
 
             // Cache dati per filtri
-            this.datiCache = { stats, fatture, clienti, app };
+            this.datiCache = { stats, fatture, clienti, app, contratti };
 
             const mainContent = document.getElementById('mainContent');
             mainContent.innerHTML = `
@@ -49,6 +50,9 @@ const Report = {
                 <!-- KPI Cards Animate -->
                 ${this.renderKPICards()}
 
+                <!-- Previsione Fatturato Fine Anno -->
+                ${this.renderPrevisioneFatturato()}
+
                 <!-- Confronto Anno su Anno -->
                 ${this.renderConfrontoAnnoSuAnno()}
 
@@ -61,11 +65,14 @@ const Report = {
                 <!-- Grafici Secondari -->
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(400px, 100%), 1fr)); gap: 1.5rem; margin-top: 1.5rem;">
                     ${this.renderSemestraleChart()}
-                    ${this.renderDistribuzioneGestione()}
+                    ${this.renderFatturatoPerRegione()}
                 </div>
 
                 <!-- Top Clienti -->
                 ${this.renderTopClienti()}
+
+                <!-- Clienti a Rischio Churn -->
+                ${this.renderClientiRischioChurn()}
 
                 <!-- Statistiche Dettagliate -->
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(350px, 100%), 1fr)); gap: 1.5rem; margin-top: 1.5rem;">
@@ -336,6 +343,34 @@ const Report = {
     },
 
     renderTipoClientiChart() {
+        // Calcola dati per mini-tabella
+        const { fattureFiltrate } = this.calcolaDatiFiltrati();
+        const { app } = this.datiCache;
+
+        let fatturatoDiretto = 0, fatturatoRivenditore = 0, fatturatoNC = 0;
+        const clientiDiretto = new Set(), clientiRivenditore = new Set(), clientiNC = new Set();
+
+        fattureFiltrate.forEach(f => {
+            const appCliente = app.find(a => a.clientePaganteId === f.clienteId);
+            const importo = f.importoTotale || 0;
+
+            if (appCliente?.tipoPagamento === 'DIRETTO') {
+                fatturatoDiretto += importo;
+                clientiDiretto.add(f.clienteId);
+            } else if (appCliente?.tipoPagamento === 'RIVENDITORE') {
+                fatturatoRivenditore += importo;
+                clientiRivenditore.add(f.clienteId);
+            } else {
+                fatturatoNC += importo;
+                clientiNC.add(f.clienteId);
+            }
+        });
+
+        const totale = fatturatoDiretto + fatturatoRivenditore + fatturatoNC;
+        const percD = totale > 0 ? ((fatturatoDiretto / totale) * 100).toFixed(1) : '0.0';
+        const percR = totale > 0 ? ((fatturatoRivenditore / totale) * 100).toFixed(1) : '0.0';
+        const percNC = totale > 0 ? ((fatturatoNC / totale) * 100).toFixed(1) : '0.0';
+
         return `
             <div class="card fade-in" style="box-shadow: 0 8px 24px rgba(0,0,0,0.08);">
                 <div class="card-header" style="background: linear-gradient(135deg, var(--verde-700) 0%, var(--verde-500) 100%); color: white;">
@@ -344,8 +379,415 @@ const Report = {
                     </h2>
                 </div>
                 <div style="padding: 1.5rem;">
-                    <canvas id="chartTipoClienti" style="max-height: 350px;"></canvas>
+                    <canvas id="chartTipoClienti" style="max-height: 280px;"></canvas>
+                    <!-- Mini-tabella riepilogo -->
+                    <table style="width: 100%; margin-top: 1rem; border-collapse: collapse; font-size: 0.875rem;">
+                        <thead>
+                            <tr style="border-bottom: 2px solid var(--grigio-300);">
+                                <th style="text-align: left; padding: 0.5rem; font-weight: 700; color: var(--grigio-700);">Tipo</th>
+                                <th style="text-align: center; padding: 0.5rem; font-weight: 700; color: var(--grigio-700);">Clienti</th>
+                                <th style="text-align: right; padding: 0.5rem; font-weight: 700; color: var(--grigio-700);">Fatturato</th>
+                                <th style="text-align: right; padding: 0.5rem; font-weight: 700; color: var(--grigio-700);">%</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr style="border-bottom: 1px solid var(--grigio-300);">
+                                <td style="padding: 0.5rem;"><span style="display: inline-block; width: 12px; height: 12px; border-radius: 3px; background: rgba(76, 175, 80, 0.8); margin-right: 0.5rem; vertical-align: middle;"></span>Diretto</td>
+                                <td style="text-align: center; padding: 0.5rem; font-weight: 700;">${clientiDiretto.size}</td>
+                                <td style="text-align: right; padding: 0.5rem; font-weight: 700; color: var(--verde-700);">${DataService.formatCurrency(fatturatoDiretto)}</td>
+                                <td style="text-align: right; padding: 0.5rem; font-weight: 600;">${percD}%</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid var(--grigio-300);">
+                                <td style="padding: 0.5rem;"><span style="display: inline-block; width: 12px; height: 12px; border-radius: 3px; background: rgba(33, 150, 243, 0.8); margin-right: 0.5rem; vertical-align: middle;"></span>Rivenditore</td>
+                                <td style="text-align: center; padding: 0.5rem; font-weight: 700;">${clientiRivenditore.size}</td>
+                                <td style="text-align: right; padding: 0.5rem; font-weight: 700; color: var(--blu-700);">${DataService.formatCurrency(fatturatoRivenditore)}</td>
+                                <td style="text-align: right; padding: 0.5rem; font-weight: 600;">${percR}%</td>
+                            </tr>
+                            ${fatturatoNC > 0 ? `
+                            <tr style="border-bottom: 1px solid var(--grigio-300);">
+                                <td style="padding: 0.5rem;"><span style="display: inline-block; width: 12px; height: 12px; border-radius: 3px; background: rgba(158, 158, 158, 0.6); margin-right: 0.5rem; vertical-align: middle;"></span>Non Class.</td>
+                                <td style="text-align: center; padding: 0.5rem; font-weight: 700;">${clientiNC.size}</td>
+                                <td style="text-align: right; padding: 0.5rem; font-weight: 700; color: var(--grigio-500);">${DataService.formatCurrency(fatturatoNC)}</td>
+                                <td style="text-align: right; padding: 0.5rem; font-weight: 600;">${percNC}%</td>
+                            </tr>
+                            ` : ''}
+                        </tbody>
+                    </table>
                 </div>
+            </div>
+        `;
+    },
+
+    // === PREVISIONE FATTURATO ===
+
+    renderPrevisioneFatturato() {
+        const dati = this.calcolaDatiFiltrati();
+        const { contratti } = this.datiCache;
+        const anno = this.filtri.anno;
+        const oggi = new Date();
+        const annoCorrente = oggi.getFullYear();
+
+        // Calcola fatturato mese per mese
+        const datiMensili = new Array(12).fill(0);
+        dati.fattureFiltrate.forEach(f => {
+            const mese = new Date(f.dataEmissione).getMonth();
+            datiMensili[mese] += f.importoTotale || 0;
+        });
+
+        // Identifica ultimo mese con dati
+        let ultimoMeseConDati = -1;
+        for (let i = 11; i >= 0; i--) {
+            if (datiMensili[i] > 0) { ultimoMeseConDati = i; break; }
+        }
+
+        // Fatturato YTD (realizzato)
+        const fatturatoYTD = datiMensili.reduce((a, b) => a + b, 0);
+
+        // Proiezione Trend: media mensile × 12
+        const mesiConDati = datiMensili.filter(v => v > 0).length || 1;
+        const mediaMensile = fatturatoYTD / mesiConDati;
+        const proiezioneTrend = mediaMensile * 12;
+
+        // Proiezione Contratti: somma importo annuale contratti attivi
+        const contrattiAttivi = (contratti || []).filter(c => c.stato === 'ATTIVO' || c.stato === 'IN_RINNOVO');
+        const proiezioneContratti = contrattiAttivi.reduce((sum, c) => {
+            if (c.importoAnnuale) return sum + c.importoAnnuale;
+            if (c.importoMensile) return sum + (c.importoMensile * 12);
+            return sum;
+        }, 0);
+
+        // Differenza proiezione vs anno precedente
+        const datiPrec = this.calcolaDatiFiltrati(anno - 1);
+        const fatturatoAnnoPrec = datiPrec.fatturatoTotale;
+        const varTrend = fatturatoAnnoPrec > 0 ? ((proiezioneTrend - fatturatoAnnoPrec) / fatturatoAnnoPrec * 100).toFixed(1) : null;
+
+        const isAnnoPassato = anno < annoCorrente;
+        const labelProiezione = isAnnoPassato ? 'Anno Completato' : 'Proiezione Fine Anno';
+
+        return `
+            <div class="card fade-in" style="margin-top: 1.5rem; box-shadow: 0 8px 24px rgba(0,0,0,0.08); border: 2px solid var(--verde-300);">
+                <div class="card-header" style="background: linear-gradient(135deg, var(--verde-700) 0%, var(--verde-500) 100%); color: white; padding: 1.5rem;">
+                    <h2 style="margin: 0; font-size: 1.5rem; font-weight: 900;">
+                        <i class="fas fa-chart-line"></i> ${labelProiezione} ${anno}
+                    </h2>
+                    <p style="margin: 0.5rem 0 0; font-size: 0.875rem; opacity: 0.9;">
+                        ${isAnnoPassato ? 'Riepilogo anno concluso' : 'Proiezione basata sull\'andamento e sui contratti attivi'}
+                    </p>
+                </div>
+                <div style="padding: 1.5rem;">
+                    <!-- 3 KPI Cards -->
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+                        <!-- Fatturato YTD -->
+                        <div style="background: var(--verde-100); padding: 1.25rem; border-radius: 12px; text-align: center;">
+                            <div style="font-size: 0.75rem; font-weight: 700; color: var(--grigio-500); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.5rem;">
+                                <i class="fas fa-check-circle" style="color: var(--verde-700);"></i> Realizzato
+                            </div>
+                            <div style="font-size: 1.75rem; font-weight: 900; color: var(--verde-700);">
+                                ${DataService.formatCurrency(fatturatoYTD)}
+                            </div>
+                            <div style="font-size: 0.75rem; color: var(--grigio-500); margin-top: 0.25rem;">
+                                ${mesiConDati} mes${mesiConDati === 1 ? 'e' : 'i'} con fatturato
+                            </div>
+                        </div>
+
+                        <!-- Proiezione Trend -->
+                        <div style="background: var(--blu-100); padding: 1.25rem; border-radius: 12px; text-align: center; ${isAnnoPassato ? 'opacity: 0.5;' : ''}">
+                            <div style="font-size: 0.75rem; font-weight: 700; color: var(--grigio-500); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.5rem;">
+                                <i class="fas fa-arrow-trend-up" style="color: var(--blu-700);"></i> Proiezione Trend
+                            </div>
+                            <div style="font-size: 1.75rem; font-weight: 900; color: var(--blu-700);">
+                                ${isAnnoPassato ? '—' : DataService.formatCurrency(proiezioneTrend)}
+                            </div>
+                            ${!isAnnoPassato && varTrend !== null ? `
+                                <div style="font-size: 0.75rem; color: ${parseFloat(varTrend) >= 0 ? 'var(--verde-700)' : 'var(--rosso)'}; margin-top: 0.25rem; font-weight: 700;">
+                                    <i class="fas fa-${parseFloat(varTrend) >= 0 ? 'arrow-up' : 'arrow-down'}"></i>
+                                    ${varTrend > 0 ? '+' : ''}${varTrend}% vs ${anno - 1}
+                                </div>
+                            ` : `<div style="font-size: 0.75rem; color: var(--grigio-500); margin-top: 0.25rem;">Media mensile × 12</div>`}
+                        </div>
+
+                        <!-- Proiezione Contratti -->
+                        <div style="background: linear-gradient(135deg, #FFF8E1, white); padding: 1.25rem; border-radius: 12px; text-align: center;">
+                            <div style="font-size: 0.75rem; font-weight: 700; color: var(--grigio-500); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.5rem;">
+                                <i class="fas fa-file-contract" style="color: #FF8F00;"></i> Valore Contratti Attivi
+                            </div>
+                            <div style="font-size: 1.75rem; font-weight: 900; color: #FF8F00;">
+                                ${DataService.formatCurrency(proiezioneContratti)}
+                            </div>
+                            <div style="font-size: 0.75rem; color: var(--grigio-500); margin-top: 0.25rem;">
+                                ${contrattiAttivi.length} contratt${contrattiAttivi.length === 1 ? 'o' : 'i'} attiv${contrattiAttivi.length === 1 ? 'o' : 'i'}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Grafico Previsione -->
+                    ${!isAnnoPassato ? '<canvas id="chartPrevisione" style="max-height: 300px;"></canvas>' : ''}
+                </div>
+            </div>
+        `;
+    },
+
+    // === RISCHIO CHURN ===
+
+    calcolaRischioChurn() {
+        const { clienti, contratti, fatture, app } = this.datiCache;
+        const oggi = new Date();
+        const risultati = [];
+
+        // Per ogni cliente con almeno un contratto attivo o un'app attiva
+        clienti.forEach(cliente => {
+            const clienteId = cliente.id;
+
+            // Contratti del cliente
+            const contrattiCliente = (contratti || []).filter(c => c.clienteId === clienteId);
+            const contrattiAttivi = contrattiCliente.filter(c => c.stato === 'ATTIVO' || c.stato === 'IN_RINNOVO');
+
+            // App del cliente
+            const appCliente = app.filter(a => a.clientePaganteId === clienteId || a.clienteId === clienteId);
+            const appAttive = appCliente.filter(a => a.statoApp === 'ATTIVA');
+
+            // Considera solo clienti attivi
+            if (contrattiAttivi.length === 0 && appAttive.length === 0) return;
+
+            let score = 0;
+            let dettagli = { contratto: '', fatture: '', engagement: '', tenure: '' };
+
+            // 1. CONTRATTO IN SCADENZA (35%)
+            let scoreContratto = 0;
+            if (contrattiAttivi.length > 0) {
+                const scadenzeContratti = contrattiAttivi
+                    .filter(c => c.dataScadenza)
+                    .map(c => {
+                        const scad = new Date(c.dataScadenza);
+                        const giorniAllaScadenza = Math.ceil((scad - oggi) / (1000 * 60 * 60 * 24));
+                        return giorniAllaScadenza;
+                    })
+                    .filter(g => g > 0);
+
+                if (scadenzeContratti.length > 0) {
+                    const minGiorni = Math.min(...scadenzeContratti);
+                    if (minGiorni <= 60) {
+                        scoreContratto = 35;
+                        dettagli.contratto = `Scade in ${minGiorni}gg`;
+                    } else if (minGiorni <= 90) {
+                        scoreContratto = 25;
+                        dettagli.contratto = `Scade in ${minGiorni}gg`;
+                    } else if (minGiorni <= 180) {
+                        scoreContratto = 15;
+                        dettagli.contratto = `Scade in ${minGiorni}gg`;
+                    } else {
+                        dettagli.contratto = `OK (${minGiorni}gg)`;
+                    }
+                } else {
+                    // Contratti senza scadenza
+                    dettagli.contratto = 'Nessuna scadenza';
+                }
+            } else {
+                dettagli.contratto = 'No contratto';
+                scoreContratto = 20; // Rischio medio se non ha contratti ma ha app
+            }
+            score += scoreContratto;
+
+            // 2. FATTURE NON PAGATE (25%)
+            let scoreFatture = 0;
+            const fattureNonPagate = fatture.filter(f =>
+                f.clienteId === clienteId &&
+                f.statoPagamento === 'NON_PAGATA' &&
+                f.tipoDocumento !== 'NOTA_DI_CREDITO'
+            );
+            const numNonPagate = fattureNonPagate.length;
+            if (numNonPagate >= 3) {
+                scoreFatture = 25;
+                dettagli.fatture = `${numNonPagate} non pagate`;
+            } else if (numNonPagate === 2) {
+                scoreFatture = 18;
+                dettagli.fatture = '2 non pagate';
+            } else if (numNonPagate === 1) {
+                scoreFatture = 10;
+                dettagli.fatture = '1 non pagata';
+            } else {
+                dettagli.fatture = 'Tutto pagato';
+            }
+            score += scoreFatture;
+
+            // 3. CALO ENGAGEMENT APP (25%)
+            let scoreEngagement = 0;
+            if (appAttive.length > 0) {
+                // Confronta lanci ultimo mese vs media
+                const appConDati = appAttive.filter(a => a.launchesMonth > 0 || a.totalDownloads > 0);
+                if (appConDati.length > 0) {
+                    const lanciFrecenti = appConDati.reduce((s, a) => s + (a.launchesMonth || 0), 0);
+                    const downloads = appConDati.reduce((s, a) => s + (a.totalDownloads || 0), 0);
+                    // Se ha molti downloads ma pochi lanci = bassa retention
+                    if (downloads > 100 && lanciFrecenti < downloads * 0.05) {
+                        scoreEngagement = 25;
+                        dettagli.engagement = 'Molto basso';
+                    } else if (downloads > 100 && lanciFrecenti < downloads * 0.1) {
+                        scoreEngagement = 18;
+                        dettagli.engagement = 'Basso';
+                    } else if (downloads > 50 && lanciFrecenti < downloads * 0.15) {
+                        scoreEngagement = 10;
+                        dettagli.engagement = 'Medio-basso';
+                    } else if (lanciFrecenti > 0) {
+                        dettagli.engagement = 'OK';
+                    } else {
+                        dettagli.engagement = 'N/D';
+                    }
+                } else {
+                    dettagli.engagement = 'Nessun dato';
+                    scoreEngagement = 5; // Leggero rischio se non ci sono dati
+                }
+            } else {
+                dettagli.engagement = 'No app attiva';
+            }
+            score += scoreEngagement;
+
+            // 4. TENURE (15%)
+            let scoreTenure = 0;
+            const datePrimoCtr = contrattiCliente
+                .filter(c => c.dataInizio)
+                .map(c => new Date(c.dataInizio))
+                .sort((a, b) => a - b);
+
+            if (datePrimoCtr.length > 0) {
+                const anniCliente = (oggi - datePrimoCtr[0]) / (1000 * 60 * 60 * 24 * 365);
+                if (anniCliente < 1) {
+                    scoreTenure = 15;
+                    dettagli.tenure = `${Math.round(anniCliente * 12)}m`;
+                } else if (anniCliente < 2) {
+                    scoreTenure = 10;
+                    dettagli.tenure = `${anniCliente.toFixed(1)}a`;
+                } else {
+                    scoreTenure = 5;
+                    dettagli.tenure = `${anniCliente.toFixed(1)}a`;
+                }
+            } else {
+                scoreTenure = 10;
+                dettagli.tenure = 'N/D';
+            }
+            score += scoreTenure;
+
+            // Solo clienti con score > 30
+            if (score > 30) {
+                risultati.push({
+                    clienteId,
+                    nome: cliente.ragioneSociale || cliente.nome || 'Sconosciuto',
+                    provincia: cliente.provincia || '',
+                    score: Math.min(score, 100),
+                    dettagli,
+                    fattureNonPagate: numNonPagate,
+                    importoNonPagato: fattureNonPagate.reduce((s, f) => s + (f.importoTotale || 0), 0)
+                });
+            }
+        });
+
+        return risultati.sort((a, b) => b.score - a.score);
+    },
+
+    renderClientiRischioChurn() {
+        const clientiRischio = this.calcolaRischioChurn();
+        const totaleClienti = this.datiCache.clienti.length;
+
+        if (clientiRischio.length === 0) {
+            return `
+                <div class="card fade-in" style="margin-top: 1.5rem; box-shadow: 0 8px 24px rgba(0,0,0,0.08);">
+                    <div class="card-header" style="background: linear-gradient(135deg, var(--verde-700) 0%, var(--verde-500) 100%); color: white; padding: 1.5rem;">
+                        <h2 style="margin: 0; font-size: 1.5rem; font-weight: 900;">
+                            <i class="fas fa-shield-alt"></i> Rischio Churn
+                        </h2>
+                    </div>
+                    <div style="padding: 2rem; text-align: center; color: var(--grigio-500);">
+                        <i class="fas fa-check-circle" style="font-size: 3rem; color: var(--verde-700); margin-bottom: 1rem; display: block;"></i>
+                        <p style="font-size: 1.125rem; font-weight: 700; color: var(--verde-700);">Nessun cliente a rischio churn rilevato</p>
+                        <p>Tutti i clienti attivi hanno indicatori positivi.</p>
+                    </div>
+                </div>
+            `;
+        }
+
+        const clientiVisibili = clientiRischio.slice(0, 15);
+        const altRischio = clientiRischio.filter(c => c.score > 70).length;
+        const medRischio = clientiRischio.filter(c => c.score > 40 && c.score <= 70).length;
+
+        return `
+            <div class="card fade-in" style="margin-top: 1.5rem; box-shadow: 0 8px 24px rgba(0,0,0,0.08); border: 2px solid rgba(211, 47, 47, 0.3);">
+                <div class="card-header" style="background: linear-gradient(135deg, #D32F2F 0%, #FF5722 100%); color: white; padding: 1.5rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                        <div>
+                            <h2 style="margin: 0; font-size: 1.5rem; font-weight: 900;">
+                                <i class="fas fa-exclamation-triangle"></i> Clienti a Rischio Churn
+                            </h2>
+                            <p style="margin: 0.25rem 0 0; font-size: 0.875rem; opacity: 0.9;">
+                                ${clientiRischio.length} client${clientiRischio.length === 1 ? 'e' : 'i'} su ${totaleClienti} con indicatori di rischio
+                            </p>
+                        </div>
+                        <div style="display: flex; gap: 0.75rem;">
+                            ${altRischio > 0 ? `<span style="padding: 0.375rem 0.75rem; background: rgba(255,255,255,0.25); border-radius: 20px; font-size: 0.8rem; font-weight: 700;">
+                                <i class="fas fa-circle" style="color: #FF1744; font-size: 0.5rem; vertical-align: middle;"></i> ${altRischio} Alto
+                            </span>` : ''}
+                            ${medRischio > 0 ? `<span style="padding: 0.375rem 0.75rem; background: rgba(255,255,255,0.25); border-radius: 20px; font-size: 0.8rem; font-weight: 700;">
+                                <i class="fas fa-circle" style="color: #FFCC00; font-size: 0.5rem; vertical-align: middle;"></i> ${medRischio} Medio
+                            </span>` : ''}
+                        </div>
+                    </div>
+                </div>
+                <div class="table-responsive">
+                    <table class="table" style="margin: 0;">
+                        <thead style="background: var(--grigio-100);">
+                            <tr>
+                                <th style="padding: 0.75rem;">Cliente</th>
+                                <th style="text-align: center; padding: 0.75rem; width: 120px;">Rischio</th>
+                                <th style="text-align: center; padding: 0.75rem;">Contratto</th>
+                                <th style="text-align: center; padding: 0.75rem;">Fatture</th>
+                                <th style="text-align: center; padding: 0.75rem;">Engagement</th>
+                                <th style="text-align: center; padding: 0.75rem;">Tenure</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${clientiVisibili.map(c => {
+                                const barColor = c.score > 70 ? '#D32F2F' : c.score > 40 ? '#FFCC00' : 'var(--verde-500)';
+                                const barBg = c.score > 70 ? 'rgba(211,47,47,0.15)' : c.score > 40 ? 'rgba(255,204,0,0.15)' : 'var(--verde-100)';
+                                const labelRischio = c.score > 70 ? 'Alto' : c.score > 40 ? 'Medio' : 'Basso';
+
+                                return `
+                                    <tr style="cursor: pointer; transition: all 0.3s;" onclick="UI.showPage('dettaglio-cliente', '${c.clienteId}')" onmouseenter="this.style.background='var(--blu-100)'" onmouseleave="this.style.background=''">
+                                        <td style="padding: 0.75rem;">
+                                            <div style="font-weight: 700; color: var(--blu-700);">${c.nome}</div>
+                                            <div style="font-size: 0.75rem; color: var(--grigio-500);">${c.provincia}</div>
+                                        </td>
+                                        <td style="text-align: center; padding: 0.75rem;">
+                                            <div style="font-weight: 900; color: ${barColor}; font-size: 1.125rem; margin-bottom: 0.25rem;">${c.score}</div>
+                                            <div style="background: ${barBg}; border-radius: 10px; height: 8px; overflow: hidden;">
+                                                <div style="width: ${c.score}%; height: 100%; background: ${barColor}; border-radius: 10px;"></div>
+                                            </div>
+                                            <div style="font-size: 0.625rem; color: ${barColor}; font-weight: 700; margin-top: 0.125rem;">${labelRischio}</div>
+                                        </td>
+                                        <td style="text-align: center; padding: 0.75rem; font-size: 0.8rem; color: var(--grigio-700);">
+                                            ${c.dettagli.contratto}
+                                        </td>
+                                        <td style="text-align: center; padding: 0.75rem;">
+                                            <div style="font-size: 0.8rem; color: ${c.fattureNonPagate > 0 ? 'var(--rosso)' : 'var(--grigio-700)'}; font-weight: ${c.fattureNonPagate > 0 ? '700' : '400'};">
+                                                ${c.dettagli.fatture}
+                                            </div>
+                                            ${c.importoNonPagato > 0 ? `<div style="font-size: 0.7rem; color: var(--rosso);">${DataService.formatCurrency(c.importoNonPagato)}</div>` : ''}
+                                        </td>
+                                        <td style="text-align: center; padding: 0.75rem; font-size: 0.8rem; color: var(--grigio-700);">
+                                            ${c.dettagli.engagement}
+                                        </td>
+                                        <td style="text-align: center; padding: 0.75rem; font-size: 0.8rem; color: var(--grigio-700);">
+                                            ${c.dettagli.tenure}
+                                        </td>
+                                    </tr>
+                                `;
+                            }).join('')}
+                        </tbody>
+                    </table>
+                </div>
+                ${clientiRischio.length > 15 ? `
+                    <div style="padding: 1rem; text-align: center; color: var(--grigio-500); font-size: 0.875rem; border-top: 1px solid var(--grigio-300);">
+                        Mostrati 15 di ${clientiRischio.length} clienti a rischio
+                    </div>
+                ` : ''}
             </div>
         `;
     },
@@ -365,16 +807,16 @@ const Report = {
         `;
     },
 
-    renderDistribuzioneGestione() {
+    renderFatturatoPerRegione() {
         return `
             <div class="card fade-in" style="box-shadow: 0 8px 24px rgba(0,0,0,0.08);">
                 <div class="card-header" style="background: linear-gradient(135deg, var(--grigio-900) 0%, var(--grigio-700) 100%); color: white;">
                     <h2 style="margin: 0; font-size: 1.25rem; font-weight: 700;">
-                        <i class="fas fa-briefcase"></i> Per Gestione Commerciale
+                        <i class="fas fa-map-marked-alt"></i> Fatturato per Regione
                     </h2>
                 </div>
                 <div style="padding: 1.5rem;">
-                    <canvas id="chartGestione" style="max-height: 300px;"></canvas>
+                    <canvas id="chartRegione" style="max-height: 350px;"></canvas>
                 </div>
             </div>
         `;
@@ -663,7 +1105,8 @@ const Report = {
         this.createFatturatoMensileChart();
         this.createTipoClientiChart();
         this.createSemestraleChart();
-        this.createGestioneChart();
+        this.createRegioneChart();
+        this.createPrevisioneChart();
     },
 
     createFatturatoMensileChart() {
@@ -842,7 +1285,7 @@ const Report = {
         this.charts.tipoClienti = new Chart(ctx, {
             type: 'doughnut',
             data: {
-                labels: ['Diretto Growapp', 'Tramite Rivenditore', 'Non Classificato'],
+                labels: ['Diretto', 'Tramite Rivenditore', 'Non Classificato'],
                 datasets: [{
                     data: [fatturatoDiretto, fatturatoRivenditore, fatturatoNonClassificato],
                     backgroundColor: [
@@ -984,81 +1427,237 @@ const Report = {
         });
     },
 
-    createGestioneChart() {
-        const ctx = document.getElementById('chartGestione');
+    createPrevisioneChart() {
+        const ctx = document.getElementById('chartPrevisione');
         if (!ctx) return;
 
-        const { fattureFiltrate } = this.calcolaDatiFiltrati();
-        const { app, clienti } = this.datiCache;
+        const dati = this.calcolaDatiFiltrati();
+        const anno = this.filtri.anno;
+        const oggi = new Date();
 
-        // Calcola per gestione
-        const fatturatoPerGestione = {};
+        const mesi = ['Gen', 'Feb', 'Mar', 'Apr', 'Mag', 'Giu', 'Lug', 'Ago', 'Set', 'Ott', 'Nov', 'Dic'];
 
-        fattureFiltrate.forEach(f => {
-            const cliente = clienti.find(c => c.id === f.clienteId);
-            const appCliente = app.find(a => a.clientePaganteId === f.clienteId);
-            const gestione = cliente?.gestione || appCliente?.gestione || 'Non Specificato';
-
-            if (!fatturatoPerGestione[gestione]) {
-                fatturatoPerGestione[gestione] = 0;
-            }
-            fatturatoPerGestione[gestione] += f.importoTotale || 0;
+        // Dati mensili cumulativi
+        const datiMensili = new Array(12).fill(0);
+        dati.fattureFiltrate.forEach(f => {
+            const mese = new Date(f.dataEmissione).getMonth();
+            datiMensili[mese] += f.importoTotale || 0;
         });
 
-        const labels = Object.keys(fatturatoPerGestione);
-        const data = Object.values(fatturatoPerGestione);
-        const colors = [
-            'rgba(20, 82, 132, 0.8)',
-            'rgba(76, 175, 80, 0.8)',
-            'rgba(255, 152, 0, 0.8)',
-            'rgba(156, 39, 176, 0.8)',
-            'rgba(244, 67, 54, 0.8)'
-        ];
-
-        // Distruggi grafico esistente
-        if (this.charts.gestione) {
-            this.charts.gestione.destroy();
+        // Cumulativo
+        const cumulativo = [];
+        let cumSum = 0;
+        for (let i = 0; i < 12; i++) {
+            cumSum += datiMensili[i];
+            cumulativo.push(cumSum);
         }
 
-        // Crea grafico
-        this.charts.gestione = new Chart(ctx, {
-            type: 'pie',
+        // Ultimo mese con dati
+        let ultimoMese = -1;
+        for (let i = 11; i >= 0; i--) {
+            if (datiMensili[i] > 0) { ultimoMese = i; break; }
+        }
+
+        if (ultimoMese < 0) return; // nessun dato
+
+        // Dataset realizzato (fino a ultimoMese incluso)
+        const realizzato = cumulativo.map((v, i) => i <= ultimoMese ? v : null);
+
+        // Dataset proiezione (da ultimoMese in poi, tratteggiato)
+        const mesiConDati = datiMensili.filter(v => v > 0).length || 1;
+        const mediaMensile = cumulativo[ultimoMese] / mesiConDati;
+        const proiezione = new Array(12).fill(null);
+        proiezione[ultimoMese] = cumulativo[ultimoMese]; // punto di congiunzione
+        for (let i = ultimoMese + 1; i < 12; i++) {
+            proiezione[i] = cumulativo[ultimoMese] + mediaMensile * (i - ultimoMese);
+        }
+
+        // Distruggi grafico esistente
+        if (this.charts.previsione) {
+            this.charts.previsione.destroy();
+        }
+
+        this.charts.previsione = new Chart(ctx, {
+            type: 'line',
             data: {
-                labels,
-                datasets: [{
-                    data,
-                    backgroundColor: colors.slice(0, labels.length),
-                    borderColor: colors.slice(0, labels.length).map(c => c.replace('0.8', '1')),
-                    borderWidth: 3
-                }]
+                labels: mesi,
+                datasets: [
+                    {
+                        label: 'Realizzato',
+                        data: realizzato,
+                        borderColor: 'rgba(60, 164, 52, 1)',
+                        backgroundColor: 'rgba(60, 164, 52, 0.15)',
+                        borderWidth: 3,
+                        fill: true,
+                        tension: 0.3,
+                        pointRadius: 5,
+                        pointBackgroundColor: 'rgba(60, 164, 52, 1)',
+                        pointBorderColor: 'white',
+                        pointBorderWidth: 2
+                    },
+                    {
+                        label: 'Proiezione',
+                        data: proiezione,
+                        borderColor: 'rgba(20, 82, 132, 0.7)',
+                        backgroundColor: 'rgba(20, 82, 132, 0.08)',
+                        borderWidth: 3,
+                        borderDash: [8, 4],
+                        fill: true,
+                        tension: 0.3,
+                        pointRadius: 4,
+                        pointBackgroundColor: 'rgba(20, 82, 132, 0.7)',
+                        pointBorderColor: 'white',
+                        pointBorderWidth: 2
+                    }
+                ]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: true,
                 animation: {
                     duration: 1500,
-                    easing: 'easeInOutQuart',
-                    animateRotate: true,
-                    animateScale: true
+                    easing: 'easeInOutQuart'
                 },
                 plugins: {
                     legend: {
-                        position: 'bottom',
+                        display: true,
+                        position: 'top',
                         labels: {
-                            font: { size: 12, weight: 'bold' },
-                            padding: 12
+                            font: { size: 13, weight: 'bold' },
+                            padding: 15
                         }
                     },
                     tooltip: {
                         callbacks: {
+                            label: (context) => context.dataset.label + ': ' + DataService.formatCurrency(context.parsed.y)
+                        },
+                        backgroundColor: 'rgba(0,0,0,0.8)',
+                        padding: 12,
+                        titleFont: { size: 14, weight: 'bold' },
+                        bodyFont: { size: 13 }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        grid: { color: 'rgba(0,0,0,0.05)' },
+                        ticks: {
+                            callback: (value) => DataService.formatCurrency(value),
+                            font: { size: 11 }
+                        }
+                    },
+                    x: {
+                        grid: { display: false },
+                        ticks: { font: { size: 12, weight: 'bold' } }
+                    }
+                }
+            }
+        });
+    },
+
+    createRegioneChart() {
+        const ctx = document.getElementById('chartRegione');
+        if (!ctx) return;
+
+        const { fattureFiltrate } = this.calcolaDatiFiltrati();
+        const { clienti } = this.datiCache;
+
+        // Calcola per regione
+        const fatturatoPerRegione = {};
+
+        fattureFiltrate.forEach(f => {
+            const cliente = clienti.find(c => c.id === f.clienteId);
+            const regione = cliente?.regione || 'Non Specificata';
+
+            if (!fatturatoPerRegione[regione]) {
+                fatturatoPerRegione[regione] = 0;
+            }
+            fatturatoPerRegione[regione] += f.importoTotale || 0;
+        });
+
+        // Ordina per fatturato decrescente
+        const sorted = Object.entries(fatturatoPerRegione).sort((a, b) => b[1] - a[1]);
+        const labels = sorted.map(s => s[0]);
+        const data = sorted.map(s => s[1]);
+
+        const colors = [
+            'rgba(20, 82, 132, 0.8)',
+            'rgba(46, 109, 168, 0.8)',
+            'rgba(76, 175, 80, 0.8)',
+            'rgba(60, 164, 52, 0.8)',
+            'rgba(255, 152, 0, 0.8)',
+            'rgba(156, 39, 176, 0.8)',
+            'rgba(0, 188, 212, 0.8)',
+            'rgba(244, 67, 54, 0.8)',
+            'rgba(121, 85, 72, 0.8)',
+            'rgba(96, 125, 139, 0.8)',
+            'rgba(255, 193, 7, 0.8)',
+            'rgba(63, 81, 181, 0.8)',
+            'rgba(0, 150, 136, 0.8)',
+            'rgba(233, 30, 99, 0.8)',
+            'rgba(103, 58, 183, 0.8)',
+            'rgba(205, 220, 57, 0.8)',
+            'rgba(255, 87, 34, 0.8)',
+            'rgba(158, 158, 158, 0.7)',
+            'rgba(33, 150, 243, 0.8)',
+            'rgba(139, 195, 74, 0.8)'
+        ];
+
+        // Distruggi grafico esistente
+        if (this.charts.regione) {
+            this.charts.regione.destroy();
+        }
+
+        // Crea grafico bar orizzontale
+        this.charts.regione = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels,
+                datasets: [{
+                    label: 'Fatturato',
+                    data,
+                    backgroundColor: colors.slice(0, labels.length),
+                    borderColor: colors.slice(0, labels.length).map(c => c.replace('0.8', '1')),
+                    borderWidth: 2,
+                    borderRadius: 6
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: {
+                    duration: 1500,
+                    easing: 'easeInOutQuart'
+                },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
                             label: (context) => {
                                 const total = data.reduce((a, b) => a + b, 0);
-                                const perc = ((context.parsed / total) * 100).toFixed(1);
-                                return context.label + ': ' + DataService.formatCurrency(context.parsed) + ' (' + perc + '%)';
+                                const perc = ((context.parsed.x / total) * 100).toFixed(1);
+                                return DataService.formatCurrency(context.parsed.x) + ' (' + perc + '%)';
                             }
                         },
                         backgroundColor: 'rgba(0,0,0,0.8)',
-                        padding: 12
+                        padding: 12,
+                        titleFont: { size: 14, weight: 'bold' },
+                        bodyFont: { size: 13 }
+                    }
+                },
+                scales: {
+                    x: {
+                        beginAtZero: true,
+                        grid: { color: 'rgba(0,0,0,0.05)' },
+                        ticks: {
+                            callback: (value) => DataService.formatCurrency(value),
+                            font: { size: 11 }
+                        }
+                    },
+                    y: {
+                        grid: { display: false },
+                        ticks: { font: { size: 12, weight: 'bold' } }
                     }
                 }
             }
