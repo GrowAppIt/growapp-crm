@@ -2392,11 +2392,11 @@
     async function classifyUnclassifiedItems(allItems) {
       const classifications = getCachedClassifications() || {};
 
-      // Filtra solo notizie dal 2026 non ancora classificate
-      const jan1st2026 = new Date('2026-01-01T00:00:00').getTime();
+      // Filtra solo notizie dal 1° marzo 2026 in poi, non ancora classificate
+      const mar1st2026 = new Date('2026-03-01T00:00:00').getTime();
       const unclassified = allItems.filter(it => {
         const id = it._id || stableId(it);
-        return (!classifications[id]) && it.ts && it.ts >= jan1st2026;
+        return (!classifications[id]) && it.ts && it.ts >= mar1st2026;
       });
 
       if (unclassified.length === 0) {
@@ -2407,45 +2407,62 @@
       console.log(`[AI] ${unclassified.length} notizie da classificare...`);
 
       // Processa in batch da 25 (la funzione accetta max 30)
-      const BATCH_SIZE = 25;
+      // Batch da 20 (allineato con il limite della serverless function)
+      const BATCH_SIZE = 20;
       let classified = 0;
-      let totalUsage = { input_tokens: 0, output_tokens: 0 };
+      let skipped = 0;
+      let apiDown = false;
 
       for (let i = 0; i < unclassified.length; i += BATCH_SIZE) {
         const batch = unclassified.slice(i, i + BATCH_SIZE);
-        const results = await classifyNewsBatch(batch);
 
-        if (!results) {
-          console.warn('[AI] Classificazione interrotta (API non disponibile). Riproverà al prossimo refresh.');
-          return; // Esce silenziosamente: il monitor funziona comunque
+        try {
+          const results = await classifyNewsBatch(batch);
+
+          if (!results) {
+            // API non disponibile (non configurata): esce silenziosamente
+            if (classified === 0) {
+              console.log('[AI] API non configurata, classificazione saltata.');
+              return;
+            }
+            // API andata giù a metà: interrompi ma salva quello che abbiamo
+            apiDown = true;
+            break;
+          }
+
+          // Salva su Firestore e aggiorna cache
+          await saveClassifications(results);
+          for (const r of results) {
+            addToClassificationsCache(r.id, {
+              category: r.category,
+              categoryLabel: r.categoryLabel,
+              relevance: r.relevance,
+              reason: r.reason,
+              classifiedAt: Date.now()
+            });
+          }
+
+          classified += results.length;
+          console.log(`[AI] Classificate ${classified}/${unclassified.length} notizie`);
+
+        } catch (batchErr) {
+          // Errore su questo batch: logga e CONTINUA col prossimo
+          skipped += batch.length;
+          console.warn(`[AI] Errore batch ${Math.floor(i/BATCH_SIZE)+1}, saltato (${batch.length} notizie):`, batchErr.message);
         }
 
-        // Salva su Firestore e aggiorna cache
-        await saveClassifications(results);
-        for (const r of results) {
-          addToClassificationsCache(r.id, {
-            category: r.category,
-            categoryLabel: r.categoryLabel,
-            relevance: r.relevance,
-            reason: r.reason,
-            classifiedAt: Date.now()
-          });
-        }
-
-        classified += results.length;
-        console.log(`[AI] Classificate ${classified}/${unclassified.length} notizie`);
-
-        // Piccola pausa tra batch per non sovraccaricare
+        // Pausa tra batch per non sovraccaricare
         if (i + BATCH_SIZE < unclassified.length) {
-          await new Promise(r => setTimeout(r, 500));
+          await new Promise(r => setTimeout(r, 800));
         }
       }
 
-      console.log(`[AI] Classificazione completata: ${classified} notizie processate.`);
-
-      // Ri-renderizza con i badge
-      await renderItems(window.allItems);
-      showNotification(`AI: ${classified} notizie classificate!`);
+      if (classified > 0) {
+        console.log(`[AI] Classificazione completata: ${classified} processate${skipped ? ', ' + skipped + ' saltate' : ''}.`);
+        // Ri-renderizza con i badge
+        await renderItems(window.allItems);
+        showNotification(`AI: ${classified} notizie classificate!`);
+      }
     }
 
     async function cleanupOldItems() {

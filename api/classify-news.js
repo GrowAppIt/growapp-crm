@@ -23,11 +23,43 @@ const CATEGORIES = [
   { id: 'ambiente', label: 'Ambiente e verde', keywords: 'parchi, aree verdi, animali, randagismo, disinfestazioni, alberi' },
 ];
 
-const CATEGORY_LIST = CATEGORIES.map(c => `- "${c.id}" → ${c.label} (${c.keywords})`).join('\n');
+const CATEGORY_LIST = CATEGORIES.map(c => `- "${c.id}" = ${c.label} (${c.keywords})`).join('\n');
+
+/**
+ * Pulisce il testo da HTML, caratteri di controllo, emoji problematici
+ * e lo tronca a maxLen caratteri.
+ */
+function sanitizeText(raw, maxLen) {
+  if (!raw) return '';
+  let text = raw
+    // Rimuovi tag HTML
+    .replace(/<[^>]*>/g, ' ')
+    // Decodifica entità HTML comuni
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#039;/g, "'")
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&#\d+;/g, ' ')
+    .replace(/&\w+;/g, ' ')
+    // Rimuovi caratteri di controllo (tranne newline e tab)
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
+    // Rimuovi caratteri Unicode problematici (surrogate pairs rotti, etc.)
+    .replace(/[\uFFFD\uFFFE\uFFFF]/g, '')
+    // Normalizza spazi e newline
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (text.length > maxLen) {
+    text = text.substring(0, maxLen);
+  }
+  return text;
+}
 
 module.exports = async function handler(req, res) {
 
-  // CORS headers (il Monitor RSS gira nello stesso dominio, ma per sicurezza)
+  // CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -43,7 +75,7 @@ module.exports = async function handler(req, res) {
   // Leggi la chiave API dalle Environment Variables di Vercel
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
-    console.error('[classify-news] ANTHROPIC_API_KEY non configurata nelle Environment Variables di Vercel');
+    console.error('[classify-news] ANTHROPIC_API_KEY non configurata');
     return res.status(500).json({ error: 'Chiave API non configurata sul server.' });
   }
 
@@ -53,40 +85,41 @@ module.exports = async function handler(req, res) {
     return res.status(400).json({ error: 'Invia un array "items" con almeno un elemento.' });
   }
 
-  // Limite: max 30 notizie per chiamata (per restare nei limiti di token)
-  const batch = items.slice(0, 30);
+  // Limite: max 20 notizie per chiamata (ridotto per sicurezza)
+  const batch = items.slice(0, 20);
 
-  // Costruisci il prompt per Claude Haiku
+  // Costruisci il prompt con testo sanitizzato
   const newsBlock = batch.map((item, i) => {
-    const desc = (item.description || '').substring(0, 300);
-    return `[${i}] Fonte: ${item.feedName || 'N/A'}\nTitolo: ${item.title || 'Senza titolo'}\nDescrizione: ${desc}`;
-  }).join('\n\n');
+    const title = sanitizeText(item.title, 200) || 'Senza titolo';
+    const desc = sanitizeText(item.description, 250);
+    const feed = sanitizeText(item.feedName, 80) || 'N/A';
+    return `[${i}] Fonte: ${feed} | Titolo: ${title}${desc ? ' | Testo: ' + desc : ''}`;
+  }).join('\n');
 
   const systemPrompt = `Sei un assistente che classifica notizie per app comunali italiane (Comune.Digital).
 
 Per ogni notizia devi decidere:
-1. Se è RILEVANTE per un'app comunale (contenuto utile per i cittadini)
-2. La CATEGORIA più pertinente
+1. Se e' RILEVANTE per un'app comunale (contenuto utile per i cittadini)
+2. La CATEGORIA piu' pertinente
 3. Un PUNTEGGIO di rilevanza da 1 a 10
 
 Categorie disponibili:
 ${CATEGORY_LIST}
-- "non_rilevante" → Notizia non pertinente per le app (comunicati politici generici, notizie nazionali, auguri, condoglianze, contenuti vaghi)
+- "non_rilevante" = Notizia non pertinente (comunicati politici generici, auguri, condoglianze, contenuti vaghi)
 
 Criteri di rilevanza (punteggio 1-10):
-- 8-10: Contenuto DIRETTAMENTE utilizzabile nell'app (nuovo calendario differenziata, evento con data/luogo, cambio orari ufficio)
-- 5-7: Contenuto POTENZIALMENTE utile ma generico (iniziativa culturale senza dettagli, menzione servizi senza novità)
+- 8-10: Contenuto DIRETTAMENTE utilizzabile nell'app (calendario differenziata, evento con data/luogo, cambio orari ufficio)
+- 5-7: Contenuto POTENZIALMENTE utile ma generico
 - 1-4: Rilevanza bassa o marginale
 - 0: Non rilevante
 
-RISPONDI SOLO con un array JSON valido, senza altro testo. Ogni elemento deve avere:
-- "idx": numero indice della notizia [0, 1, 2...]
+RISPONDI SOLO con un array JSON valido. Ogni elemento:
+- "idx": indice della notizia (numero)
 - "cat": id categoria (stringa)
-- "score": punteggio 1-10 (numero) oppure 0 se non rilevante
-- "reason": motivazione brevissima in italiano (max 15 parole)
+- "score": punteggio 0-10 (numero)
+- "reason": motivazione breve in italiano (max 12 parole)
 
-Esempio di risposta:
-[{"idx":0,"cat":"eventi","score":8,"reason":"Evento culturale con data e luogo specifici"},{"idx":1,"cat":"non_rilevante","score":0,"reason":"Comunicato politico generico senza info utili"}]`;
+Esempio: [{"idx":0,"cat":"eventi","score":8,"reason":"Evento con data e luogo specifici"}]`;
 
   const userMessage = `Classifica queste ${batch.length} notizie:\n\n${newsBlock}`;
 
@@ -114,17 +147,16 @@ Esempio di risposta:
       return res.status(502).json({
         error: 'Errore dalla API Anthropic',
         status: response.status,
-        detail: errBody.substring(0, 200)
+        detail: errBody.substring(0, 300)
       });
     }
 
     const data = await response.json();
     const textContent = data.content?.[0]?.text || '[]';
 
-    // Estrai il JSON dalla risposta (gestisci anche se Haiku aggiunge testo extra)
+    // Estrai il JSON dalla risposta
     let classifications;
     try {
-      // Cerca un array JSON nella risposta
       const jsonMatch = textContent.match(/\[[\s\S]*\]/);
       if (jsonMatch) {
         classifications = JSON.parse(jsonMatch[0]);
@@ -132,8 +164,8 @@ Esempio di risposta:
         classifications = JSON.parse(textContent);
       }
     } catch (parseErr) {
-      console.error('[classify-news] Errore parsing risposta AI:', parseErr.message, 'Testo:', textContent.substring(0, 500));
-      return res.status(502).json({ error: 'Risposta AI non valida', raw: textContent.substring(0, 300) });
+      console.error('[classify-news] Errore parsing:', parseErr.message, 'Testo:', textContent.substring(0, 300));
+      return res.status(502).json({ error: 'Risposta AI non valida', raw: textContent.substring(0, 200) });
     }
 
     // Mappa i risultati con gli ID originali
@@ -141,18 +173,20 @@ Esempio di risposta:
     CATEGORIES.forEach(c => { categoryLabels[c.id] = c.label; });
     categoryLabels['non_rilevante'] = 'Non rilevante';
 
-    const results = classifications.map(cl => {
-      const originalItem = batch[cl.idx];
-      return {
-        id: originalItem?.id || `idx_${cl.idx}`,
+    const results = [];
+    for (const cl of classifications) {
+      const idx = typeof cl.idx === 'number' ? cl.idx : parseInt(cl.idx);
+      if (isNaN(idx) || idx < 0 || idx >= batch.length) continue;
+      const originalItem = batch[idx];
+      results.push({
+        id: originalItem?.id || ('idx_' + idx),
         category: cl.cat || 'non_rilevante',
-        categoryLabel: categoryLabels[cl.cat] || cl.cat,
+        categoryLabel: categoryLabels[cl.cat] || cl.cat || 'Non rilevante',
         relevance: typeof cl.score === 'number' ? cl.score : 0,
         reason: cl.reason || ''
-      };
-    });
+      });
+    }
 
-    // Info sui token usati (per monitoraggio costi)
     const usage = data.usage || {};
 
     return res.status(200).json({
