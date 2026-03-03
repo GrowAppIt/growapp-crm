@@ -406,10 +406,13 @@ const DettaglioCliente = {
                     </div>
                     ` : ''}
 
-                    <!-- Pulsante Genera Comunicazione -->
-                    <div style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--grigio-300);">
+                    <!-- Pulsanti Genera Comunicazione -->
+                    <div style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--grigio-300); display: flex; flex-direction: column; gap: 0.75rem;">
                         <button class="btn btn-secondary" onclick="DettaglioCliente.mostraModalTemplate()" style="width: 100%;">
                             <i class="fas fa-envelope"></i> Genera Comunicazione Email/PEC
+                        </button>
+                        <button class="btn btn-primary" onclick="LetterGenerator.open('${this.clienteId}')" style="width: 100%; background: linear-gradient(135deg, var(--blu-700), var(--blu-500)); border: none;">
+                            <i class="fas fa-robot"></i> Genera Lettera AI
                         </button>
                     </div>
                 </div>
