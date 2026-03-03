@@ -879,7 +879,7 @@ const GeneratoreWebapp = (() => {
   function render() {
     // Permission check
     if (!AuthService.hasPermission('manage_webapp_templates')) {
-      document.getElementById('page-container').innerHTML = `
+      document.getElementById('mainContent').innerHTML = `
         <div style="padding: 40px; text-align: center; color: #d32f2f;">
           <i class="fas fa-lock" style="font-size: 48px; margin-bottom: 20px;"></i>
           <h2>Accesso negato</h2>
@@ -889,7 +889,7 @@ const GeneratoreWebapp = (() => {
       return;
     }
 
-    const container = document.getElementById('page-container');
+    const container = document.getElementById('mainContent');
     container.innerHTML = `
       <div class="generatore-webapp">
         <div class="page-header">
