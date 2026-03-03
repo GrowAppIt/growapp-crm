@@ -100,6 +100,9 @@ const UI = {
             case 'aggiorna-push':
                 AggiornaPush.render();
                 break;
+            case 'generatore-webapp':
+                GeneratoreWebapp.render();
+                break;
             // Pagine di dettaglio
             case 'dettaglio-cliente':
                 if (id) DettaglioCliente.render(id);

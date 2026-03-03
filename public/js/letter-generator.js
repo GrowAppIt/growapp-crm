@@ -675,12 +675,9 @@ ${fullText}
                 ${result.usage ? `<span><i class="fas fa-coins"></i> ${result.usage.input_tokens + result.usage.output_tokens} tokens</span>` : ''}
             </div>
 
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-top: 1.25rem;">
-                <button class="btn btn-secondary" onclick="LetterGenerator._copyToClipboard()" style="padding: 0.85rem; border-radius: 12px;">
+            <div style="margin-top: 1.25rem;">
+                <button class="btn btn-primary" onclick="LetterGenerator._copyToClipboard()" style="padding: 0.85rem; border-radius: 12px; font-weight: 700; width: 100%;">
                     <i class="fas fa-copy"></i> Copia testo
-                </button>
-                <button class="btn btn-primary" onclick="LetterGenerator._downloadDocx()" style="padding: 0.85rem; border-radius: 12px; font-weight: 700;">
-                    <i class="fas fa-file-word"></i> Scarica Word
                 </button>
             </div>
         `);
@@ -705,147 +702,6 @@ ${fullText}
             document.execCommand('copy');
             document.body.removeChild(ta);
             UI.showSuccess('Testo copiato negli appunti!');
-        }
-    },
-
-    async _downloadDocx() {
-        if (!this._generatedSections) return;
-
-        try {
-            // Carica la libreria docx on-demand se non gia' presente
-            if (typeof docx === 'undefined' || typeof window.docx === 'undefined') {
-                await new Promise((resolve, reject) => {
-                    if (document.querySelector('script[data-docx-lib]')) {
-                        const check = setInterval(() => {
-                            if (typeof window.docx !== 'undefined') { clearInterval(check); resolve(); }
-                        }, 200);
-                        setTimeout(() => { clearInterval(check); reject(new Error('Timeout caricamento libreria')); }, 15000);
-                        return;
-                    }
-                    const s = document.createElement('script');
-                    s.src = 'https://unpkg.com/docx@9.1.1/build/index.umd.js';
-                    s.setAttribute('data-docx-lib', 'true');
-                    s.onload = () => {
-                        const check = setInterval(() => {
-                            if (typeof window.docx !== 'undefined') { clearInterval(check); resolve(); }
-                        }, 100);
-                        setTimeout(() => { clearInterval(check); reject(new Error('Libreria docx caricata ma non disponibile')); }, 5000);
-                    };
-                    s.onerror = () => reject(new Error('Impossibile caricare la libreria docx'));
-                    document.head.appendChild(s);
-                });
-            }
-
-            const sections = this._generatedSections;
-            const cliente = this._currentCliente;
-            const azienda = this._currentAzienda;
-            const children = [];
-
-            // --- INTESTAZIONE AZIENDA ---
-            children.push(
-                new docx.Paragraph({
-                    children: [new docx.TextRun({ text: azienda.nomeAzienda || azienda.ragioneSociale || 'Growapp S.r.l.', bold: true, size: 32, color: '145284', font: 'Titillium Web' })],
-                    spacing: { after: 60 }
-                })
-            );
-
-            const aziendaInfo = [
-                azienda.indirizzoAzienda || azienda.indirizzo,
-                azienda.emailAzienda || azienda.email,
-                azienda.pecAzienda || azienda.pec ? 'PEC: ' + (azienda.pecAzienda || azienda.pec) : null,
-                azienda.telefonoAzienda || azienda.telefono ? 'Tel: ' + (azienda.telefonoAzienda || azienda.telefono) : null,
-                azienda.sitoAzienda || azienda.sito
-            ].filter(Boolean).join(' | ');
-
-            if (aziendaInfo) {
-                children.push(new docx.Paragraph({
-                    children: [new docx.TextRun({ text: aziendaInfo, size: 16, color: '9B9B9B', font: 'Titillium Web' })],
-                    spacing: { after: 100 }
-                }));
-            }
-
-            children.push(new docx.Paragraph({
-                border: { bottom: { color: '145284', space: 1, style: docx.BorderStyle.SINGLE, size: 6 } },
-                spacing: { after: 300 }
-            }));
-
-            // --- DATA ---
-            const oggi = new Date();
-            const dataLettera = `${oggi.getDate()} ${['Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'][oggi.getMonth()]} ${oggi.getFullYear()}`;
-            children.push(new docx.Paragraph({
-                children: [new docx.TextRun({ text: dataLettera, size: 20, color: '4A4A4A', font: 'Titillium Web' })],
-                alignment: docx.AlignmentType.RIGHT,
-                spacing: { after: 300 }
-            }));
-
-            // --- DESTINATARIO ---
-            const dest = [
-                cliente.ragioneSociale,
-                cliente.indirizzo,
-                [cliente.cap, cliente.comune, cliente.provincia ? '(' + cliente.provincia + ')' : ''].filter(Boolean).join(' ')
-            ].filter(Boolean);
-
-            dest.forEach(line => {
-                children.push(new docx.Paragraph({
-                    children: [new docx.TextRun({ text: line, size: 22, font: 'Titillium Web', bold: line === cliente.ragioneSociale })],
-                    spacing: { after: 40 }
-                }));
-            });
-
-            children.push(new docx.Paragraph({ spacing: { after: 200 } }));
-
-            // --- CORPO LETTERA ---
-            const sectionTexts = [
-                sections.salutation, sections.intro, sections.body,
-                sections.stats || '', sections.closing, sections.signature
-            ].filter(Boolean);
-
-            sectionTexts.forEach((sectionText, idx) => {
-                const paragraphs = sectionText.split(/\n\n+/);
-                paragraphs.forEach(para => {
-                    const trimmed = para.trim();
-                    if (!trimmed) return;
-                    const isFirma = idx === sectionTexts.length - 1;
-                    const isSaluto = idx === 0;
-
-                    children.push(new docx.Paragraph({
-                        children: [new docx.TextRun({
-                            text: trimmed, size: 22, font: 'Titillium Web',
-                            bold: isSaluto || isFirma,
-                            color: isFirma ? '145284' : '1E1E1E'
-                        })],
-                        spacing: { after: 200 },
-                        alignment: docx.AlignmentType.JUSTIFIED
-                    }));
-                });
-            });
-
-            const doc = new docx.Document({
-                sections: [{
-                    properties: { page: { margin: { top: 1134, bottom: 1134, left: 1134, right: 1134 } } },
-                    children: children
-                }]
-            });
-
-            const blob = await docx.Packer.toBlob(doc);
-            const typeName = (this._selectedType.nome || 'Lettera').replace(/\s+/g, '_');
-            const clienteName = cliente.ragioneSociale.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 30);
-            const nomeFile = `Lettera_${typeName}_${clienteName}_${oggi.getFullYear()}${String(oggi.getMonth() + 1).padStart(2, '0')}${String(oggi.getDate()).padStart(2, '0')}.docx`;
-
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = nomeFile;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            window.URL.revokeObjectURL(url);
-
-            UI.showSuccess('Documento Word scaricato!');
-
-        } catch (error) {
-            console.error('[LetterGenerator] Errore generazione docx:', error);
-            UI.showError('Errore nella creazione del documento: ' + error.message);
         }
     },
 

@@ -37,13 +37,15 @@ const AuthService = {
         CTO: [
             'view_all_data', 'manage_apps', 'manage_dev_tasks', 'view_dev_tasks',
             'manage_app_content', 'manage_clients', 'manage_contracts',
-            'view_company_info', 'manage_business_card' // ✅ Può vedere Growapp + modificare biglietto (NO view_reports)
+            'view_company_info', 'manage_business_card', // ✅ Può vedere Growapp + modificare biglietto (NO view_reports)
+            'manage_webapp_templates' // ✅ Generatore Webapp
         ],
         SVILUPPATORE: [
             'view_dashboard', // ✅ Accesso Dashboard (senza dati amministrativi)
             'view_dev_tasks', 'manage_dev_tasks', 'manage_app_content', 'view_apps',
             'manage_apps', // ✅ Aggiunto: accesso Push Broadcast + gestione app
-            'view_company_info', 'manage_business_card' // ✅ Impostazioni base
+            'view_company_info', 'manage_business_card', // ✅ Impostazioni base
+            'manage_webapp_templates' // ✅ Generatore Webapp
         ],
         AGENTE: [
             'view_own_data', 'view_clients', 'view_contracts', 'view_apps',
@@ -55,7 +57,8 @@ const AuthService = {
             'view_dashboard', // ✅ Accesso Dashboard (senza dati amministrativi)
             'manage_app_content', 'view_apps', 'manage_apps',
             'view_dev_tasks', 'manage_dev_tasks', // ✅ Aggiunto TASK
-            'view_company_info', 'manage_business_card' // ✅ Impostazioni base
+            'view_company_info', 'manage_business_card', // ✅ Impostazioni base
+            'manage_webapp_templates' // ✅ Generatore Webapp
         ],
         CONTABILE: [
             'view_all_data', 'manage_invoices', 'manage_payments', 'view_reports',
@@ -293,7 +296,8 @@ const AuthService = {
             'monitor-rss': ['*', 'view_all_data', 'manage_apps', 'manage_app_content'], // Monitor RSS: NO agenti (esclusi view_clients, manage_clients che ha l'agente)
             'report-app': ['*', 'view_all_data', 'view_apps', 'manage_apps', 'manage_app_content'],
             'push-broadcast': ['*', 'view_all_data', 'manage_apps'],
-            'aggiorna-push': ['*', 'view_all_data', 'manage_apps']
+            'aggiorna-push': ['*', 'view_all_data', 'manage_apps'],
+            'generatore-webapp': ['*', 'manage_webapp_templates']
         };
 
         const requiredPermissions = pagePermissions[pageName] || [];
