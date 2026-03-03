@@ -1659,37 +1659,73 @@ const Settings = {
             return;
         }
 
-        // Conferma
-        const conferma = confirm(
-            `⚠️ DISATTIVAZIONE UTENTE ⚠️\n\n` +
-            `Stai per DISATTIVARE l'utente:\n${userName}\n\n` +
-            `L'utente verrà disattivato e non potrà più accedere.\n` +
-            `Potrai riattivarlo modificando il suo stato.\n\n` +
-            `Vuoi procedere?`
-        );
-
-        if (!conferma) return;
-
-        UI.showLoading();
-
+        // Controlla se l'utente è già disattivato
+        let utenteDoc;
         try {
-            // SOFT DELETE: Disattiva l'utente invece di eliminarlo
-            // Questo evita problemi con Firebase Auth e permette di riattivare l'utente
-            await db.collection('utenti').doc(userId).update({
-                stato: 'DISATTIVO',
-                disabledAt: firebase.firestore.FieldValue.serverTimestamp(),
-                disabledBy: AuthService.getUserId()
-            });
+            utenteDoc = await db.collection('utenti').doc(userId).get();
+        } catch (e) {
+            UI.showError('Errore lettura utente: ' + e.message);
+            return;
+        }
 
-            UI.showSuccess(`Utente ${userName} disattivato con successo`);
+        const utenteData = utenteDoc.exists ? utenteDoc.data() : {};
+        const isAlreadyDisabled = utenteData.stato === 'DISATTIVO';
 
-            // Ricarica lista
-            this.loadUtentiList();
+        if (isAlreadyDisabled) {
+            // L'utente è già disattivato → offri eliminazione definitiva
+            const conferma = confirm(
+                `🗑️ ELIMINAZIONE DEFINITIVA ⚠️\n\n` +
+                `L'utente "${userName}" è già disattivato.\n\n` +
+                `Vuoi ELIMINARE DEFINITIVAMENTE il suo record dal database?\n` +
+                `Questa azione è irreversibile.\n\n` +
+                `Nota: l'account Firebase Auth resterà ma non potrà accedere.`
+            );
 
-        } catch (error) {
-            console.error('Errore disattivazione utente:', error);
-            UI.showError('Errore: ' + error.message);
-            UI.hideLoading();
+            if (!conferma) return;
+
+            UI.showLoading();
+
+            try {
+                await db.collection('utenti').doc(userId).delete();
+                UI.hideLoading();
+                UI.showSuccess(`Utente ${userName} eliminato definitivamente`);
+                this.loadUtentiList();
+            } catch (error) {
+                console.error('Errore eliminazione utente:', error);
+                UI.hideLoading();
+                UI.showError('Errore eliminazione: ' + error.message);
+            }
+        } else {
+            // L'utente è attivo → soft delete (disattiva)
+            const conferma = confirm(
+                `⚠️ DISATTIVAZIONE UTENTE ⚠️\n\n` +
+                `Stai per DISATTIVARE l'utente:\n${userName}\n\n` +
+                `L'utente verrà disattivato e non potrà più accedere.\n` +
+                `Potrai riattivarlo modificando il suo stato.\n\n` +
+                `Per eliminarlo definitivamente, clicca di nuovo Elimina dopo la disattivazione.\n\n` +
+                `Vuoi procedere?`
+            );
+
+            if (!conferma) return;
+
+            UI.showLoading();
+
+            try {
+                await db.collection('utenti').doc(userId).update({
+                    stato: 'DISATTIVO',
+                    disabledAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    disabledBy: AuthService.getUserId()
+                });
+
+                UI.hideLoading();
+                UI.showSuccess(`Utente ${userName} disattivato con successo`);
+                this.loadUtentiList();
+
+            } catch (error) {
+                console.error('Errore disattivazione utente:', error);
+                UI.hideLoading();
+                UI.showError('Errore: ' + error.message);
+            }
         }
     },
 

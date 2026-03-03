@@ -677,27 +677,50 @@ const UI = {
             const oggi = new Date();
             oggi.setHours(0, 0, 0, 0);
 
-            // Carica dati in parallelo (query leggere, con limit basso)
-            const [fattureNP, fattureP, tasksResult] = await Promise.all([
-                DataService.getFatture({ statoPagamento: 'NON_PAGATA', limit: 200 }),
-                DataService.getFatture({ statoPagamento: 'PARZIALMENTE_PAGATA', limit: 200 }),
-                (typeof TaskService !== 'undefined' && AuthService.canAccessPage('task'))
-                    ? TaskService.getAllTasks({ limit: 100 }).catch(() => ({ tasks: [] }))
-                    : Promise.resolve({ tasks: [] })
-            ]);
+            // Verifica se l'utente è un agente → filtra solo i propri dati
+            const isAgente = AuthService.canViewOnlyOwnData();
+            const agenteNome = isAgente ? AuthService.getAgenteFilterName() : null;
 
-            const fattureNonPagate = [...fattureNP, ...fattureP].filter(f => f.tipoDocumento !== 'NOTA_DI_CREDITO').length;
+            let fattureNonPagate = 0;
+            let taskAperti = 0;
 
-            const taskAperti = (tasksResult.tasks || []).filter(t => (t.stato === 'TODO' || t.stato === 'IN_PROGRESS') && !t.archiviato).length;
+            if (isAgente && agenteNome) {
+                // AGENTE: carica solo fatture dei propri clienti
+                const datiAgente = await DataService.getDatiAgente(agenteNome);
+                const fattureAgente = datiAgente.fatture || [];
+                fattureNonPagate = fattureAgente.filter(f =>
+                    (f.statoPagamento === 'NON_PAGATA' || f.statoPagamento === 'PARZIALMENTE_PAGATA') &&
+                    f.tipoDocumento !== 'NOTA_DI_CREDITO'
+                ).length;
+            } else {
+                // NON AGENTE: carica tutte le fatture
+                const [fattureNP, fattureP] = await Promise.all([
+                    DataService.getFatture({ statoPagamento: 'NON_PAGATA', limit: 200 }),
+                    DataService.getFatture({ statoPagamento: 'PARZIALMENTE_PAGATA', limit: 200 })
+                ]);
+                fattureNonPagate = [...fattureNP, ...fattureP].filter(f => f.tipoDocumento !== 'NOTA_DI_CREDITO').length;
+            }
 
-            // Scadenze: conta scadute + imminenti (≤3 giorni)
+            // Task aperti (non filtrati per agente, i task sono assegnati per utente)
+            const tasksResult = (typeof TaskService !== 'undefined' && AuthService.canAccessPage('task'))
+                ? await TaskService.getAllTasks({ limit: 100 }).catch(() => ({ tasks: [] }))
+                : { tasks: [] };
+            taskAperti = (tasksResult.tasks || []).filter(t => (t.stato === 'TODO' || t.stato === 'IN_PROGRESS') && !t.archiviato).length;
+
+            // Scadenze: conta scadute + imminenti (≤soglia giorni)
             let scadenzeScadute = 0;
             try {
                 const _sysBadge = SettingsService.getSystemSettingsSync();
                 const sogliaGiorni = _sysBadge.sogliaImminente || 3;
                 const limiteBadge = new Date(oggi);
                 limiteBadge.setDate(limiteBadge.getDate() + sogliaGiorni);
-                const scadenze = await DataService.getScadenzeCompute({});
+
+                // Se agente, filtra scadenze per i propri clienti
+                const opzioniScadenze = {};
+                if (isAgente && agenteNome) {
+                    opzioniScadenze.agente = agenteNome;
+                }
+                const scadenze = await DataService.getScadenzeCompute(opzioniScadenze);
                 scadenzeScadute = (scadenze.tutteLeScadenze || []).filter(s =>
                     s.dataScadenza && new Date(s.dataScadenza) <= limiteBadge
                 ).length;
