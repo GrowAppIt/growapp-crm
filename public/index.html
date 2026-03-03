@@ -23,12 +23,12 @@
          in fondo al body con defer per non bloccare il rendering iniziale -->
 
     <!-- Custom CSS — ?v=VERSIONE per invalidare cache browser -->
-    <link rel="stylesheet" href="css/styles.css?v=2.9.6">
+    <link rel="stylesheet" href="css/styles.css?v=2.9.7">
 
     <!-- 🔄 Cache Busting Automatico — cambia APP_VERSION per forzare reload globale -->
     <script>
     (function() {
-        var APP_VERSION = '2.9.6';
+        var APP_VERSION = '2.9.7';
         var storedVersion = localStorage.getItem('crm_app_version');
         if (storedVersion && storedVersion !== APP_VERSION) {
             localStorage.setItem('crm_app_version', APP_VERSION);
@@ -104,9 +104,9 @@
                 </a>
                 <div style="display: flex; align-items: center; gap: 1rem;">
                     <!-- Pulsante Notifiche -->
-                    <button class="notification-toggle" id="notificationToggle" style="position: relative; background: none; border: none; color: white; font-size: 1.5rem; cursor: pointer;">
-                        <i class="fas fa-bell"></i>
-                        <span id="notificationBadge" class="notification-badge hidden" style="position: absolute; top: -5px; right: -5px; background: var(--rosso-errore); color: white; border-radius: 50%; width: 20px; height: 20px; font-size: 0.75rem; font-weight: 700; display: flex; align-items: center; justify-content: center;">0</span>
+                    <button class="notification-toggle" id="notificationToggle" style="position: relative; background: none; border: none; color: white; font-size: 1.5rem; cursor: pointer; padding: 0.5rem; z-index: 10; min-width: 44px; min-height: 44px; display: flex; align-items: center; justify-content: center;">
+                        <i class="fas fa-bell" style="pointer-events: none;"></i>
+                        <span id="notificationBadge" class="notification-badge hidden" style="position: absolute; top: 0; right: 0; background: var(--rosso-errore); color: white; border-radius: 50%; width: 20px; height: 20px; font-size: 0.75rem; font-weight: 700; display: flex; align-items: center; justify-content: center; pointer-events: none;">0</span>
                     </button>
 
                     <!-- Profilo Utente con Foto -->
@@ -198,7 +198,7 @@
                 <button class="btn btn-secondary btn-block" id="logoutBtn">
                     <i class="fas fa-sign-out-alt"></i> Esci
                 </button>
-                <div style="text-align:center;margin-top:0.5rem;font-size:0.7rem;color:var(--grigio-500);opacity:0.7;">v2.9.6</div>
+                <div style="text-align:center;margin-top:0.5rem;font-size:0.7rem;color:var(--grigio-500);opacity:0.7;">v2.9.7</div>
             </div>
         </nav>
 
@@ -278,42 +278,42 @@
     <!-- App Scripts — ?v=VERSIONE per invalidare cache browser
          ⚠️ IMPORTANTE: Quando fai deploy di modifiche, incrementa la versione (es. 2.4.0 → 2.4.1)
          ⚠️ IMPORTANTE: env.js deve essere caricato PRIMA di firebase-config.js -->
-    <script src="js/env.js?v=2.9.6"></script>
-    <script src="js/firebase-config.js?v=2.9.6"></script>
-    <script src="js/auth.js?v=2.9.6"></script>
-    <script src="js/data-service.js?v=2.9.6"></script>
-    <script src="js/settings-service.js?v=2.9.6"></script>
-    <script src="js/task-service.js?v=2.9.6"></script>
-    <script src="js/notification-service.js?v=2.9.6"></script>
-    <script src="js/document-service.js?v=2.9.6"></script>
-    <script src="js/comment-service.js?v=2.9.6"></script>
-    <script src="js/template-service.js?v=2.9.6"></script>
-    <script src="js/comuni-service.js?v=2.9.6"></script>
-    <script src="js/ui.js?v=2.9.6"></script>
-    <script src="js/forms.js?v=2.9.6"></script>
-    <script src="js/export.js?v=2.9.6"></script>
-    <script src="js/utility-sistema-clienti-orfani.js?v=2.9.6"></script>
-    <script src="js/pages/dashboard.js?v=2.9.6"></script>
-    <script src="js/pages/scadenzario.js?v=2.9.6"></script>
-    <script src="js/pages/dettaglio-scadenza.js?v=2.9.6"></script>
-    <script src="js/pages/clienti.js?v=2.9.6"></script>
-    <script src="js/pages/dettaglio-cliente.js?v=2.9.6"></script>
-    <script src="js/pages/fatture.js?v=2.9.6"></script>
-    <script src="js/pages/dettaglio-fattura.js?v=2.9.6"></script>
-    <script src="js/pages/report.js?v=2.9.6"></script>
-    <script src="js/pages/settings.js?v=2.9.6"></script>
-    <script src="js/pages/gestione-app.js?v=2.9.6"></script>
-    <script src="js/pages/dettaglio-app.js?v=2.9.6"></script>
-    <script src="js/pages/gestione-task.js?v=2.9.6"></script>
-    <script src="js/pages/contratti.js?v=2.9.6"></script>
-    <script src="js/pages/dettaglio-contratto.js?v=2.9.6"></script>
-    <script src="js/pages/mappa-clienti.js?v=2.9.6"></script>
-    <script src="js/pages/promemoria.js?v=2.9.6"></script>
-    <script src="js/pages/monitor-rss.js?v=2.9.6"></script>
-    <script src="js/goodbarber-service.js?v=2.9.6"></script>
-    <script src="js/pages/report-goodbarber.js?v=2.9.6"></script>
-    <script src="js/pages/push-broadcast.js?v=2.9.6"></script>
-    <script src="js/pages/aggiorna-push.js?v=2.9.6"></script>
-    <script src="js/app.js?v=2.9.6"></script>
+    <script src="js/env.js?v=2.9.7"></script>
+    <script src="js/firebase-config.js?v=2.9.7"></script>
+    <script src="js/auth.js?v=2.9.7"></script>
+    <script src="js/data-service.js?v=2.9.7"></script>
+    <script src="js/settings-service.js?v=2.9.7"></script>
+    <script src="js/task-service.js?v=2.9.7"></script>
+    <script src="js/notification-service.js?v=2.9.7"></script>
+    <script src="js/document-service.js?v=2.9.7"></script>
+    <script src="js/comment-service.js?v=2.9.7"></script>
+    <script src="js/template-service.js?v=2.9.7"></script>
+    <script src="js/comuni-service.js?v=2.9.7"></script>
+    <script src="js/ui.js?v=2.9.7"></script>
+    <script src="js/forms.js?v=2.9.7"></script>
+    <script src="js/export.js?v=2.9.7"></script>
+    <script src="js/utility-sistema-clienti-orfani.js?v=2.9.7"></script>
+    <script src="js/pages/dashboard.js?v=2.9.7"></script>
+    <script src="js/pages/scadenzario.js?v=2.9.7"></script>
+    <script src="js/pages/dettaglio-scadenza.js?v=2.9.7"></script>
+    <script src="js/pages/clienti.js?v=2.9.7"></script>
+    <script src="js/pages/dettaglio-cliente.js?v=2.9.7"></script>
+    <script src="js/pages/fatture.js?v=2.9.7"></script>
+    <script src="js/pages/dettaglio-fattura.js?v=2.9.7"></script>
+    <script src="js/pages/report.js?v=2.9.7"></script>
+    <script src="js/pages/settings.js?v=2.9.7"></script>
+    <script src="js/pages/gestione-app.js?v=2.9.7"></script>
+    <script src="js/pages/dettaglio-app.js?v=2.9.7"></script>
+    <script src="js/pages/gestione-task.js?v=2.9.7"></script>
+    <script src="js/pages/contratti.js?v=2.9.7"></script>
+    <script src="js/pages/dettaglio-contratto.js?v=2.9.7"></script>
+    <script src="js/pages/mappa-clienti.js?v=2.9.7"></script>
+    <script src="js/pages/promemoria.js?v=2.9.7"></script>
+    <script src="js/pages/monitor-rss.js?v=2.9.7"></script>
+    <script src="js/goodbarber-service.js?v=2.9.7"></script>
+    <script src="js/pages/report-goodbarber.js?v=2.9.7"></script>
+    <script src="js/pages/push-broadcast.js?v=2.9.7"></script>
+    <script src="js/pages/aggiorna-push.js?v=2.9.7"></script>
+    <script src="js/app.js?v=2.9.7"></script>
 </body>
 </html>

@@ -281,13 +281,15 @@ const NotificationUI = {
         if (notifToggle) {
             notifToggle.addEventListener('click', (e) => {
                 e.stopPropagation();
+                e.preventDefault();
                 this.toggleDropdown();
             });
         }
 
         // Chiudi dropdown cliccando fuori
+        // Usa .closest() per gestire il click sia sul button che sull'icona <i> interna
         document.addEventListener('click', (e) => {
-            if (!notifDropdown.contains(e.target) && e.target.id !== 'notificationToggle') {
+            if (!notifDropdown.contains(e.target) && !e.target.closest('#notificationToggle')) {
                 notifDropdown.classList.add('hidden');
             }
         });
@@ -301,6 +303,11 @@ const NotificationUI = {
         const isHidden = dropdown.classList.contains('hidden');
 
         if (isHidden) {
+            // Posiziona dropdown subito sotto l'header
+            const header = document.querySelector('.app-header');
+            if (header) {
+                dropdown.style.top = (header.offsetHeight + 8) + 'px';
+            }
             dropdown.classList.remove('hidden');
             await this.loadNotifications();
         } else {

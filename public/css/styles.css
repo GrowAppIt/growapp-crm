@@ -279,7 +279,7 @@ img {
     grid-template-areas:
         "header"
         "main";
-    grid-template-rows: var(--header-height) 1fr;
+    grid-template-rows: auto 1fr;
     height: 100vh;
 }
 
@@ -298,7 +298,7 @@ img {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    height: 100%;
+    min-height: var(--header-height);
     padding: 0 1rem;
 }
 
