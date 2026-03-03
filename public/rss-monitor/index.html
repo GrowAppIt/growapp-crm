@@ -1156,6 +1156,111 @@
       }
     }
 
+    /* AI CLASSIFICATION BADGES */
+    .ai-classification{
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+      padding:5px 12px;
+      border-radius:8px;
+      font-size:12px;
+      font-weight:700;
+      white-space:nowrap;
+      letter-spacing:.2px;
+    }
+    .ai-classification i{
+      font-size:11px;
+    }
+    .ai-classification.cat-differenziata{
+      background:#E2F8DE; color:#2A752F; border:1px solid #A4E89A;
+    }
+    .ai-classification.cat-eventi{
+      background:#fef3c7; color:#92400e; border:1px solid #fcd34d;
+    }
+    .ai-classification.cat-servizi{
+      background:#D1E2F2; color:#0D3A5C; border:1px solid #7BA7CE;
+    }
+    .ai-classification.cat-turismo{
+      background:#e0f2fe; color:#0369a1; border:1px solid #7dd3fc;
+    }
+    .ai-classification.cat-salute_trasporti{
+      background:#fce7f3; color:#9d174d; border:1px solid #f9a8d4;
+    }
+    .ai-classification.cat-scuola{
+      background:#ede9fe; color:#5b21b6; border:1px solid #c4b5fd;
+    }
+    .ai-classification.cat-bandi{
+      background:#fff7ed; color:#9a3412; border:1px solid #fdba74;
+    }
+    .ai-classification.cat-lavori_viabilita{
+      background:#fef9c3; color:#854d0e; border:1px solid #fde047;
+    }
+    .ai-classification.cat-ambiente{
+      background:#dcfce7; color:#166534; border:1px solid #86efac;
+    }
+    .ai-relevance{
+      display:inline-flex;
+      align-items:center;
+      gap:4px;
+      padding:4px 10px;
+      border-radius:6px;
+      font-size:11px;
+      font-weight:800;
+      white-space:nowrap;
+    }
+    .ai-relevance.high{
+      background:linear-gradient(135deg, #3CA434, #2A752F);
+      color:#fff;
+    }
+    .ai-relevance.medium{
+      background:linear-gradient(135deg, #FFCC00, #e6b800);
+      color:#1E1E1E;
+    }
+    .ai-relevance.low{
+      background:#f0f0f0;
+      color:#9B9B9B;
+    }
+    .ai-reason{
+      font-size:11px;
+      color:var(--text-muted);
+      font-style:italic;
+      margin-top:4px;
+    }
+    .ai-bar{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      flex-wrap:wrap;
+      margin-top:10px;
+      padding-top:10px;
+      border-top:1px dashed #e8e8e8;
+    }
+    .ai-bar-label{
+      font-size:10px;
+      font-weight:700;
+      color:var(--primary-light);
+      text-transform:uppercase;
+      letter-spacing:.5px;
+      display:flex;
+      align-items:center;
+      gap:4px;
+    }
+    .ai-analyzing{
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+      padding:5px 12px;
+      border-radius:8px;
+      font-size:11px;
+      font-weight:600;
+      color:var(--text-muted);
+      background:#f8f9fb;
+      border:1px dashed var(--border);
+    }
+    .ai-analyzing i{
+      animation: spin 1s linear infinite;
+    }
+
     /* LOADING */
     .loading{
       text-align:center;
@@ -1387,6 +1492,10 @@
             <span class="kpi-value" id="kpiInactive" style="color: var(--warning);">0</span>
             <span class="kpi-label">inattivi</span>
           </div>
+          <div class="kpi" id="kpiAiWrap" style="display:none; border-color: rgba(60,164,52,.3);">
+            <span class="kpi-value" id="kpiAiRelevant" style="color: var(--success);">0</span>
+            <span class="kpi-label"><i class="fa-solid fa-wand-magic-sparkles" style="font-size:10px;margin-right:3px;"></i>rilevanti AI</span>
+          </div>
         </div>
 
         <div class="progress-bar" id="progressBar">
@@ -1440,6 +1549,28 @@
                 <option value="10" selected>Ogni 10 minuti</option>
                 <option value="15">Ogni 15 minuti</option>
                 <option value="30">Ogni 30 minuti</option>
+              </select>
+            </div>
+
+            <div class="filter-group">
+              <label class="filter-label">
+                <i class="fa-solid fa-wand-magic-sparkles"></i>
+                Categoria AI
+              </label>
+              <select id="aiCategoryFilter" class="filter-input">
+                <option value="__ALL__">Tutte le categorie</option>
+                <option value="__RELEVANT__">Solo rilevanti (score ≥ 5)</option>
+                <option value="__HIGH__">Alta rilevanza (score ≥ 7)</option>
+                <option value="differenziata">♻️ Raccolta differenziata</option>
+                <option value="eventi">🎭 Eventi e cultura</option>
+                <option value="servizi">🏛️ Servizi e uffici</option>
+                <option value="turismo">🗺️ Turismo / POI</option>
+                <option value="salute_trasporti">🏥 Salute e trasporti</option>
+                <option value="scuola">🎓 Scuola e istruzione</option>
+                <option value="bandi">📋 Bandi e contributi</option>
+                <option value="lavori_viabilita">🚧 Lavori e viabilità</option>
+                <option value="ambiente">🌿 Ambiente e verde</option>
+                <option value="non_rilevante">⊘ Non rilevante</option>
               </select>
             </div>
 
@@ -2122,6 +2253,201 @@
       return result;
     }
 
+    /******************************************************************
+     * AI CLASSIFICATION — Classificazione intelligente notizie
+     *
+     * LAYER OPZIONALE: se l'API non è configurata o non risponde,
+     * tutto funziona normalmente senza badge AI.
+     * I risultati vengono salvati su Firestore (rss_classifications)
+     * così ogni notizia viene analizzata una sola volta.
+     ******************************************************************/
+
+    // Cache locale classificazioni (come per read/assignments)
+    let _cachedClassifications = null;
+
+    async function refreshClassificationsCache() {
+      try {
+        const snapshot = await crmDb.collection('rss_classifications').get();
+        const result = {};
+        snapshot.docs.forEach(doc => { result[doc.id] = doc.data(); });
+        _cachedClassifications = result;
+      } catch (e) {
+        console.warn('[AI] Errore caricamento classificazioni:', e);
+        _cachedClassifications = {};
+      }
+      return _cachedClassifications;
+    }
+
+    function getCachedClassifications() { return _cachedClassifications; }
+
+    function addToClassificationsCache(id, data) {
+      if (_cachedClassifications) _cachedClassifications[id] = data;
+    }
+
+    // Mappa icone per categoria
+    const AI_CATEGORY_ICONS = {
+      differenziata: 'fa-recycle',
+      eventi: 'fa-calendar-star',
+      servizi: 'fa-building-columns',
+      turismo: 'fa-map-location-dot',
+      salute_trasporti: 'fa-kit-medical',
+      scuola: 'fa-graduation-cap',
+      bandi: 'fa-file-invoice-dollar',
+      lavori_viabilita: 'fa-road',
+      ambiente: 'fa-leaf',
+      non_rilevante: 'fa-circle-minus'
+    };
+
+    const AI_CATEGORY_LABELS = {
+      differenziata: 'Raccolta differenziata',
+      eventi: 'Eventi e cultura',
+      servizi: 'Servizi e uffici',
+      turismo: 'Turismo / POI',
+      salute_trasporti: 'Salute e trasporti',
+      scuola: 'Scuola e istruzione',
+      bandi: 'Bandi e contributi',
+      lavori_viabilita: 'Lavori e viabilità',
+      ambiente: 'Ambiente e verde',
+      non_rilevante: 'Non rilevante'
+    };
+
+    /**
+     * Classifica un batch di notizie tramite la Serverless Function.
+     * Ritorna un array di classificazioni o null se l'API non è disponibile.
+     */
+    async function classifyNewsBatch(items) {
+      try {
+        // Determina l'URL base: se siamo in iframe, usa l'origine del parent (il CRM)
+        let baseUrl = '';
+        try {
+          baseUrl = window.parent.location.origin;
+        } catch (e) {
+          baseUrl = window.location.origin;
+        }
+
+        const payload = items.map(it => ({
+          id: it._id || stableId(it),
+          title: it.title || '',
+          description: (it.desc || '').substring(0, 300),
+          feedName: it.feedName || ''
+        }));
+
+        const response = await fetch(baseUrl + '/api/classify-news', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ items: payload })
+        });
+
+        if (!response.ok) {
+          const errText = await response.text();
+          console.warn('[AI] API classificazione non disponibile:', response.status, errText.substring(0, 100));
+          return null; // Fallback silenzioso: nessun badge AI
+        }
+
+        const data = await response.json();
+        return data.results || null;
+
+      } catch (err) {
+        console.warn('[AI] Classificazione non disponibile (API non configurata?):', err.message);
+        return null; // Fallback silenzioso
+      }
+    }
+
+    /**
+     * Salva le classificazioni su Firestore in batch.
+     */
+    async function saveClassifications(classifications) {
+      if (!classifications || classifications.length === 0) return;
+
+      try {
+        const chunks = [];
+        for (let i = 0; i < classifications.length; i += 450) {
+          chunks.push(classifications.slice(i, i + 450));
+        }
+
+        for (const chunk of chunks) {
+          const batch = crmDb.batch();
+          for (const cl of chunk) {
+            const docRef = crmDb.collection('rss_classifications').doc(cl.id);
+            batch.set(docRef, purify({
+              category: cl.category || 'non_rilevante',
+              categoryLabel: cl.categoryLabel || '',
+              relevance: cl.relevance || 0,
+              reason: cl.reason || '',
+              classifiedAt: Date.now()
+            }));
+          }
+          await batch.commit();
+        }
+      } catch (e) {
+        console.warn('[AI] Errore salvataggio classificazioni:', e);
+      }
+    }
+
+    /**
+     * Classifica le notizie nuove (non ancora classificate).
+     * Chiamata DOPO il fetch dei feed, in background.
+     * Non blocca il rendering — i badge appariranno al prossimo refresh.
+     */
+    async function classifyUnclassifiedItems(allItems) {
+      const classifications = getCachedClassifications() || {};
+
+      // Filtra solo notizie dal 2026 non ancora classificate
+      const jan1st2026 = new Date('2026-01-01T00:00:00').getTime();
+      const unclassified = allItems.filter(it => {
+        const id = it._id || stableId(it);
+        return (!classifications[id]) && it.ts && it.ts >= jan1st2026;
+      });
+
+      if (unclassified.length === 0) {
+        console.log('[AI] Tutte le notizie sono già classificate.');
+        return;
+      }
+
+      console.log(`[AI] ${unclassified.length} notizie da classificare...`);
+
+      // Processa in batch da 25 (la funzione accetta max 30)
+      const BATCH_SIZE = 25;
+      let classified = 0;
+      let totalUsage = { input_tokens: 0, output_tokens: 0 };
+
+      for (let i = 0; i < unclassified.length; i += BATCH_SIZE) {
+        const batch = unclassified.slice(i, i + BATCH_SIZE);
+        const results = await classifyNewsBatch(batch);
+
+        if (!results) {
+          console.warn('[AI] Classificazione interrotta (API non disponibile). Riproverà al prossimo refresh.');
+          return; // Esce silenziosamente: il monitor funziona comunque
+        }
+
+        // Salva su Firestore e aggiorna cache
+        await saveClassifications(results);
+        for (const r of results) {
+          addToClassificationsCache(r.id, {
+            category: r.category,
+            categoryLabel: r.categoryLabel,
+            relevance: r.relevance,
+            reason: r.reason,
+            classifiedAt: Date.now()
+          });
+        }
+
+        classified += results.length;
+        console.log(`[AI] Classificate ${classified}/${unclassified.length} notizie`);
+
+        // Piccola pausa tra batch per non sovraccaricare
+        if (i + BATCH_SIZE < unclassified.length) {
+          await new Promise(r => setTimeout(r, 500));
+        }
+      }
+
+      console.log(`[AI] Classificazione completata: ${classified} notizie processate.`);
+
+      // Ri-renderizza con i badge
+      await renderItems(window.allItems);
+      showNotification(`AI: ${classified} notizie classificate!`);
+    }
+
     async function cleanupOldItems() {
       console.log('[Cleanup] Avvio pulizia post più vecchi di 10 giorni...');
       const cutoffTime = Date.now() - (10 * 24 * 60 * 60 * 1000);
@@ -2145,6 +2471,15 @@
           deletedCount++;
         });
         if (assignSnapshot.docs.length > 0) await batch2.commit();
+
+        // Pulizia rss_classifications
+        const classSnapshot = await crmDb.collection('rss_classifications').where('classifiedAt', '<', cutoffTime).get();
+        const batch3 = crmDb.batch();
+        classSnapshot.docs.forEach(doc => {
+          batch3.delete(doc.ref);
+          deletedCount++;
+        });
+        if (classSnapshot.docs.length > 0) await batch3.commit();
 
         console.log(`[Cleanup] Completata! Rimossi ${deletedCount} record vecchi.`);
       } catch (error) {
@@ -2440,9 +2775,10 @@
       }
 
       window.allFeeds = feeds;
-      // Refresh cache read/assignments all'inizio del caricamento
+      // Refresh cache read/assignments/classifications all'inizio del caricamento
       const readSet = await refreshReadCache();
       await refreshAssignmentsCache();
+      await refreshClassificationsCache();
       const statusMap = {};
 
       $('progressFill').style.width = "0%";
@@ -2583,6 +2919,12 @@
       }
 
       setupAutoRefresh();
+
+      // Classificazione AI in background (non blocca il rendering)
+      // Se l'API non è configurata, semplicemente non fa nulla
+      classifyUnclassifiedItems(window.allItems).catch(e => {
+        console.warn('[AI] Errore classificazione in background:', e.message);
+      });
     }
 
     /******************************************************************
@@ -2594,6 +2936,7 @@
       const showRead = $("showRead").checked;
       const showAssigned = $("showAssigned").checked;
       const last48h = $("last48h").checked;
+      const aiCatFilter = $("aiCategoryFilter") ? $("aiCategoryFilter").value : "__ALL__";
       const now = Date.now();
       const cutoff48 = now - 48 * 60 * 60 * 1000;
 
@@ -2603,11 +2946,13 @@
       // Usa cache locale — evita query Firestore ad ogni cambio filtro
       const readSet = getCachedReadSet() || await refreshReadCache();
       const assignments = getCachedAssignments() || await refreshAssignmentsCache();
+      const classifications = getCachedClassifications() || {};
 
       let filtered = items.filter(it => {
         const id = stableId(it);
         const isReadItem = readSet.has(id);
         const assigned = assignments[id];
+        const classification = classifications[id];
 
         // Filtro data: escludi notizie prima del 1° gennaio 2026
         if (it.ts && it.ts < jan1st2026) return false;
@@ -2633,6 +2978,20 @@
           }
         }
 
+        // Filtro categoria AI (solo se attivo e se ci sono classificazioni)
+        if (aiCatFilter !== "__ALL__") {
+          const cl = classification;
+          if (aiCatFilter === "__RELEVANT__") {
+            if (!cl || (cl.relevance || 0) < 5) return false;
+          } else if (aiCatFilter === "__HIGH__") {
+            if (!cl || (cl.relevance || 0) < 7) return false;
+          } else if (aiCatFilter === "non_rilevante") {
+            if (!cl || cl.category !== "non_rilevante") return false;
+          } else {
+            if (!cl || cl.category !== aiCatFilter) return false;
+          }
+        }
+
         if (!q) return true;
         const hay = (it.title + " " + it.feedName + " " + it.desc).toLowerCase();
         return hay.includes(q);
@@ -2644,6 +3003,18 @@
       const itemsDal2026 = items.filter(x => x.ts && x.ts >= jan1st2026);
       $("kpiItems").textContent = itemsDal2026.length.toString();
       $("kpiNew").textContent = itemsDal2026.filter(x => x._isNew).length.toString();
+
+      // KPI notizie rilevanti AI (score >= 5)
+      const aiRelevantCount = itemsDal2026.filter(x => {
+        const cl = classifications[x._id || stableId(x)];
+        return cl && (cl.relevance || 0) >= 5;
+      }).length;
+      if (aiRelevantCount > 0) {
+        $("kpiAiRelevant").textContent = aiRelevantCount.toString();
+        $("kpiAiWrap").style.display = "";
+      } else {
+        $("kpiAiWrap").style.display = "none";
+      }
 
       const list = $("newsList");
       list.innerHTML = "";
@@ -2793,6 +3164,42 @@
         }
 
         main.appendChild(actions);
+
+        // AI Classification bar (se disponibile)
+        const classificationData = classifications ? classifications[id] : null;
+        if (classificationData && classificationData.category && classificationData.category !== 'non_rilevante') {
+          const aiBar = document.createElement("div");
+          aiBar.className = "ai-bar";
+
+          const aiLabel = document.createElement("span");
+          aiLabel.className = "ai-bar-label";
+          aiLabel.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> AI';
+          aiBar.appendChild(aiLabel);
+
+          const catIcon = AI_CATEGORY_ICONS[classificationData.category] || 'fa-tag';
+          const catBadge = document.createElement("span");
+          catBadge.className = `ai-classification cat-${classificationData.category}`;
+          catBadge.innerHTML = `<i class="fa-solid ${catIcon}"></i> ${escapeHtml(classificationData.categoryLabel || AI_CATEGORY_LABELS[classificationData.category] || classificationData.category)}`;
+          aiBar.appendChild(catBadge);
+
+          const relevance = classificationData.relevance || 0;
+          const relClass = relevance >= 7 ? 'high' : (relevance >= 4 ? 'medium' : 'low');
+          const relBadge = document.createElement("span");
+          relBadge.className = `ai-relevance ${relClass}`;
+          relBadge.innerHTML = `<i class="fa-solid fa-signal"></i> ${relevance}/10`;
+          relBadge.title = classificationData.reason || '';
+          aiBar.appendChild(relBadge);
+
+          if (classificationData.reason) {
+            const reasonEl = document.createElement("span");
+            reasonEl.className = "ai-reason";
+            reasonEl.textContent = classificationData.reason;
+            aiBar.appendChild(reasonEl);
+          }
+
+          main.appendChild(aiBar);
+        }
+
         row.appendChild(main);
 
         if (it.image) {
@@ -3311,6 +3718,13 @@
         renderItems(window.allItems);
       });
 
+      // Filtro categoria AI
+      if ($("aiCategoryFilter")) {
+        $("aiCategoryFilter").addEventListener("change", () => {
+          renderItems(window.allItems);
+        });
+      }
+
       $("autoRefresh").addEventListener("change", () => {
         setupAutoRefresh();
         const minutes = parseInt($("autoRefresh").value);
@@ -3380,6 +3794,7 @@
         $("showRead").checked = false;
         $("showAssigned").checked = false;
         $("last48h").checked = false;
+        if ($("aiCategoryFilter")) $("aiCategoryFilter").value = "__ALL__";
         renderItems(window.allItems);
       });
 
