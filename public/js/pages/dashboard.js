@@ -180,8 +180,22 @@ const Dashboard = {
 
             // FASE 2: Sostituisce l'intera area skeleton con i widget reali
             const dashboardBody = document.getElementById('dashboardBody');
+
+            // === WIDGET SCADENZE FUTURE APP (per SUPER_ADMIN e CONTENT_MANAGER) ===
+            let widgetScadenzeFutureHtml = '';
+            const _ruoloWidget = AuthService.getUserRole();
+            if (_ruoloWidget === 'SUPER_ADMIN' || _ruoloWidget === 'CONTENT_MANAGER') {
+                const scadenzeFutureApp = this._collectAllFutureAppDeadlines(app);
+                if (scadenzeFutureApp.length > 0) {
+                    // Salva in cache per il drill-down
+                    this._scadenzeFutureAppCache = scadenzeFutureApp;
+                    widgetScadenzeFutureHtml = this._renderWidgetScadenzeFutureApp(scadenzeFutureApp);
+                }
+            }
+
             if (dashboardBody) {
                 dashboardBody.innerHTML = `
+                    ${widgetScadenzeFutureHtml}
                     <div style="display: grid; gap: 1.5rem;">
                         ${await this.renderEnabledWidgets(enabledWidgets, {
                             stats,
@@ -1837,6 +1851,369 @@ const Dashboard = {
         `;
 
         return html;
+    },
+
+    // ============================================
+    // === WIDGET SCADENZE FUTURE APP ===
+    // === (SUPER_ADMIN + CONTENT_MANAGER) ===
+    // ============================================
+
+    // Cache per il drill-down
+    _scadenzeFutureAppCache: [],
+
+    /**
+     * Raccoglie TUTTE le scadenze future delle app (da oggi in poi, senza limite di giorni).
+     * Include: Raccolta Differenziata, Farmacie di Turno, Notifiche Farmacie, Certificato Apple, Altra Scadenza.
+     */
+    _collectAllFutureAppDeadlines(apps) {
+        const oggi = new Date();
+        oggi.setHours(0, 0, 0, 0);
+        const scadenze = [];
+
+        (apps || []).forEach(a => {
+            const nomeApp = a.nomeApp || a.nome || 'App senza nome';
+            const appId = a.id;
+            const comune = a.comune || a.nomeComune || '';
+
+            // Raccolta Differenziata
+            if (a.ultimaDataRaccoltaDifferenziata) {
+                const d = new Date(a.ultimaDataRaccoltaDifferenziata);
+                d.setHours(0, 0, 0, 0);
+                if (d >= oggi) {
+                    scadenze.push({ tipo: 'Raccolta Differenziata', icona: 'fas fa-recycle', colore: '#2E6DA8', data: a.ultimaDataRaccoltaDifferenziata, nomeApp, appId, comune });
+                }
+            }
+            // Farmacie di Turno
+            if (a.ultimaDataFarmacieTurno) {
+                const d = new Date(a.ultimaDataFarmacieTurno);
+                d.setHours(0, 0, 0, 0);
+                if (d >= oggi) {
+                    scadenze.push({ tipo: 'Farmacie di Turno', icona: 'fas fa-pills', colore: '#3CA434', data: a.ultimaDataFarmacieTurno, nomeApp, appId, comune });
+                }
+            }
+            // Notifiche Farmacie
+            if (a.ultimaDataNotificheFarmacie) {
+                const d = new Date(a.ultimaDataNotificheFarmacie);
+                d.setHours(0, 0, 0, 0);
+                if (d >= oggi) {
+                    scadenze.push({ tipo: 'Notifiche Farmacie', icona: 'fas fa-bell', colore: '#F59E0B', data: a.ultimaDataNotificheFarmacie, nomeApp, appId, comune });
+                }
+            }
+            // Certificato Apple
+            if (a.scadenzaCertificatoApple) {
+                const d = new Date(a.scadenzaCertificatoApple);
+                d.setHours(0, 0, 0, 0);
+                if (d >= oggi) {
+                    scadenze.push({ tipo: 'Certificato Apple', icona: 'fab fa-apple', colore: '#555', data: a.scadenzaCertificatoApple, nomeApp, appId, comune });
+                }
+            }
+            // Altra Scadenza
+            if (a.altraScadenzaData) {
+                const d = new Date(a.altraScadenzaData);
+                d.setHours(0, 0, 0, 0);
+                if (d >= oggi) {
+                    scadenze.push({ tipo: a.altraScadenzaNote || 'Altra Scadenza', icona: 'fas fa-bookmark', colore: '#9B9B9B', data: a.altraScadenzaData, nomeApp, appId, comune });
+                }
+            }
+        });
+
+        // Ordina cronologicamente (dalla più prossima alla più lontana)
+        scadenze.sort((a, b) => new Date(a.data) - new Date(b.data));
+        return scadenze;
+    },
+
+    /**
+     * Renderizza il widget/banner cliccabile in cima alla dashboard.
+     * Mostra un riepilogo con contatori per tipologia e un invito a cliccare.
+     */
+    _renderWidgetScadenzeFutureApp(scadenze) {
+        const oggi = new Date();
+        oggi.setHours(0, 0, 0, 0);
+
+        // Conta per fasce temporali
+        const tra7gg = new Date(oggi);
+        tra7gg.setDate(tra7gg.getDate() + 7);
+        const tra30gg = new Date(oggi);
+        tra30gg.setDate(tra30gg.getDate() + 30);
+
+        const entro7 = scadenze.filter(s => new Date(s.data) <= tra7gg).length;
+        const entro30 = scadenze.filter(s => new Date(s.data) <= tra30gg).length;
+        const oltre30 = scadenze.length - entro30;
+
+        // Conta per tipologia
+        const tipologie = {};
+        scadenze.forEach(s => {
+            const chiave = s.tipo;
+            tipologie[chiave] = (tipologie[chiave] || 0) + 1;
+        });
+
+        // Badge tipologie (le più rilevanti)
+        const badgeTipologie = Object.entries(tipologie)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 4)
+            .map(([tipo, count]) => {
+                const icona = tipo === 'Raccolta Differenziata' ? 'fa-recycle' :
+                              tipo === 'Farmacie di Turno' ? 'fa-pills' :
+                              tipo === 'Notifiche Farmacie' ? 'fa-bell' :
+                              tipo === 'Certificato Apple' ? 'fa-apple' : 'fa-bookmark';
+                const iconPrefix = tipo === 'Certificato Apple' ? 'fab' : 'fas';
+                return `<span style="background: rgba(255,255,255,0.2); padding: 0.2rem 0.6rem; border-radius: 12px; font-size: 0.75rem; white-space: nowrap;"><i class="${iconPrefix} ${icona}" style="margin-right: 3px;"></i>${tipo}: <strong>${count}</strong></span>`;
+            }).join(' ');
+
+        return `
+            <div id="widgetScadenzeFutureApp" onclick="Dashboard.mostraScadenzeFutureApp()" style="
+                background: linear-gradient(135deg, #145284 0%, #2E6DA8 50%, #3CA434 100%);
+                border-radius: 16px;
+                padding: 1.25rem 1.5rem;
+                margin-bottom: 1.5rem;
+                cursor: pointer;
+                color: white;
+                box-shadow: 0 4px 15px rgba(20, 82, 132, 0.3);
+                transition: transform 0.2s, box-shadow 0.2s;
+                position: relative;
+                overflow: hidden;
+            " onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 20px rgba(20,82,132,0.4)';" onmouseout="this.style.transform='';this.style.boxShadow='0 4px 15px rgba(20,82,132,0.3)';">
+                <!-- Icona decorativa di sfondo -->
+                <i class="fas fa-calendar-check" style="position: absolute; right: 1.5rem; top: 50%; transform: translateY(-50%); font-size: 4rem; opacity: 0.12;"></i>
+
+                <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
+                    <div style="background: rgba(255,255,255,0.2); width: 52px; height: 52px; border-radius: 14px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                        <i class="fas fa-calendar-alt" style="font-size: 1.5rem;"></i>
+                    </div>
+                    <div style="flex: 1; min-width: 200px;">
+                        <div style="font-size: 1.15rem; font-weight: 900; margin-bottom: 0.3rem; letter-spacing: 0.02em;">
+                            <i class="fas fa-clipboard-list" style="margin-right: 0.4rem;"></i>
+                            Scadenze Contenuti App
+                            <span style="background: rgba(255,255,255,0.25); padding: 0.15rem 0.6rem; border-radius: 20px; font-size: 0.85rem; margin-left: 0.5rem;">${scadenze.length}</span>
+                        </div>
+                        <div style="font-size: 0.85rem; opacity: 0.9; margin-bottom: 0.5rem;">
+                            Pianifica in anticipo gli aggiornamenti delle app
+                        </div>
+                        <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center;">
+                            ${entro7 > 0 ? `<span style="background: rgba(211,47,47,0.35); padding: 0.2rem 0.6rem; border-radius: 12px; font-size: 0.75rem; font-weight: 700;"><i class="fas fa-exclamation-circle" style="margin-right: 3px;"></i>Entro 7gg: ${entro7}</span>` : ''}
+                            ${entro30 > entro7 ? `<span style="background: rgba(255,204,0,0.3); padding: 0.2rem 0.6rem; border-radius: 12px; font-size: 0.75rem; font-weight: 700;"><i class="fas fa-clock" style="margin-right: 3px;"></i>Entro 30gg: ${entro30 - entro7}</span>` : ''}
+                            ${oltre30 > 0 ? `<span style="background: rgba(255,255,255,0.15); padding: 0.2rem 0.6rem; border-radius: 12px; font-size: 0.75rem;"><i class="fas fa-hourglass-half" style="margin-right: 3px;"></i>Oltre 30gg: ${oltre30}</span>` : ''}
+                        </div>
+                    </div>
+                    <div style="flex-shrink: 0; text-align: right;">
+                        <div style="background: rgba(255,255,255,0.2); padding: 0.5rem 1rem; border-radius: 12px; font-size: 0.8rem; font-weight: 700;">
+                            <i class="fas fa-chevron-right" style="margin-left: 0.3rem;"></i> Vedi tutte
+                        </div>
+                    </div>
+                </div>
+                ${badgeTipologie ? `<div style="display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.75rem;">${badgeTipologie}</div>` : ''}
+            </div>
+
+            <!-- Container per l'elenco espandibile -->
+            <div id="scadenzeFutureAppPanel" style="display: none; margin-bottom: 1.5rem;"></div>
+        `;
+    },
+
+    /**
+     * Mostra/nasconde il pannello con l'elenco completo delle scadenze future.
+     * Viene chiamato al click sul widget.
+     */
+    mostraScadenzeFutureApp() {
+        const panel = document.getElementById('scadenzeFutureAppPanel');
+        if (!panel) return;
+
+        // Toggle: se è già visibile, nascondi
+        if (panel.style.display !== 'none') {
+            panel.style.display = 'none';
+            return;
+        }
+
+        const scadenze = this._scadenzeFutureAppCache || [];
+        if (scadenze.length === 0) {
+            panel.innerHTML = '<div class="card"><div class="empty-state"><i class="fas fa-check-circle"></i><h3>Nessuna scadenza futura</h3></div></div>';
+            panel.style.display = '';
+            return;
+        }
+
+        const oggi = new Date();
+        oggi.setHours(0, 0, 0, 0);
+
+        // Tipologie per filtri
+        const tipologieDef = [
+            { key: 'Raccolta Differenziata', label: 'Raccolta Diff.', icona: 'fas fa-recycle', color: '#2E6DA8' },
+            { key: 'Farmacie di Turno', label: 'Farmacie Turno', icona: 'fas fa-pills', color: '#3CA434' },
+            { key: 'Notifiche Farmacie', label: 'Notifiche Farm.', icona: 'fas fa-bell', color: '#F59E0B' },
+            { key: 'Certificato Apple', label: 'Certificato Apple', icona: 'fab fa-apple', color: '#555' },
+            { key: '_altro', label: 'Altra Scadenza', icona: 'fas fa-bookmark', color: '#9B9B9B' }
+        ];
+
+        // Conta per tipo
+        const contiPerTipo = {};
+        scadenze.forEach(s => {
+            const chiave = tipologieDef.find(t => t.key === s.tipo) ? s.tipo : '_altro';
+            contiPerTipo[chiave] = (contiPerTipo[chiave] || 0) + 1;
+        });
+
+        // Raggruppa per mese
+        const perMese = {};
+        scadenze.forEach(s => {
+            const d = new Date(s.data);
+            const chiaveMese = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+            if (!perMese[chiaveMese]) perMese[chiaveMese] = [];
+            perMese[chiaveMese].push(s);
+        });
+
+        const mesiLabel = ['Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno', 'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre'];
+
+        // Barra filtri
+        let filtriHtml = `
+            <div id="scadFutFiltri" style="display:flex;flex-wrap:wrap;gap:0.5rem;padding:0.75rem 1rem;border-bottom:1px solid var(--grigio-300);background:var(--grigio-100);border-radius:12px 12px 0 0;">
+                <button class="btn btn-sm scadFut-filtro attivo" data-filtro="tutti" onclick="Dashboard._filtroScadenzeFuture('tutti')" style="background:var(--blu-700);color:white;border:none;border-radius:20px;padding:0.35rem 0.85rem;font-size:0.8rem;font-weight:600;cursor:pointer;">
+                    Tutte <span style="background:rgba(255,255,255,0.3);padding:0.1rem 0.4rem;border-radius:10px;margin-left:4px;font-size:0.7rem;">${scadenze.length}</span>
+                </button>
+                ${tipologieDef.map(t => {
+                    const count = contiPerTipo[t.key] || 0;
+                    if (count === 0) return '';
+                    return `<button class="btn btn-sm scadFut-filtro" data-filtro="${t.key}" onclick="Dashboard._filtroScadenzeFuture('${t.key}')" style="background:white;color:var(--grigio-700);border:1px solid var(--grigio-300);border-radius:20px;padding:0.35rem 0.85rem;font-size:0.8rem;font-weight:600;cursor:pointer;">
+                        <i class="${t.icona}" style="margin-right:4px;color:${t.color};"></i>${t.label} <span style="background:var(--grigio-100);padding:0.1rem 0.4rem;border-radius:10px;margin-left:4px;font-size:0.7rem;">${count}</span>
+                    </button>`;
+                }).join('')}
+            </div>
+        `;
+
+        // Render righe raggruppate per mese
+        let listaHtml = '';
+        const mesiOrdinati = Object.keys(perMese).sort();
+        mesiOrdinati.forEach(chiaveMese => {
+            const [anno, mese] = chiaveMese.split('-');
+            const meseIdx = parseInt(mese) - 1;
+            const items = perMese[chiaveMese];
+
+            listaHtml += `
+                <div class="scadFut-mese-header" style="padding: 0.6rem 1rem; background: var(--blu-100); border-left: 4px solid var(--blu-700); margin-top: 0.5rem; font-weight: 700; color: var(--blu-700); font-size: 0.9rem; display: flex; justify-content: space-between; align-items: center;">
+                    <span><i class="fas fa-calendar" style="margin-right: 0.5rem;"></i>${mesiLabel[meseIdx]} ${anno}</span>
+                    <span style="background: var(--blu-700); color: white; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem;" class="scadFut-mese-count" data-mese="${chiaveMese}">${items.length}</span>
+                </div>
+                <div class="list-group">
+            `;
+
+            items.forEach(s => {
+                const giorni = Math.ceil((new Date(s.data) - oggi) / (1000 * 60 * 60 * 24));
+                const tipoFiltro = tipologieDef.find(t => t.key === s.tipo) ? s.tipo : '_altro';
+
+                // Colore urgenza
+                let badgeColor, badgeBg, badgeLabel;
+                if (giorni === 0) {
+                    badgeColor = '#D32F2F'; badgeBg = '#FFEBEE'; badgeLabel = 'OGGI';
+                } else if (giorni <= 3) {
+                    badgeColor = '#D32F2F'; badgeBg = '#FFEBEE'; badgeLabel = `tra ${giorni}gg`;
+                } else if (giorni <= 7) {
+                    badgeColor = '#E65100'; badgeBg = '#FFF3E0'; badgeLabel = `tra ${giorni}gg`;
+                } else if (giorni <= 30) {
+                    badgeColor = '#F59E0B'; badgeBg = '#FFFDE7'; badgeLabel = `tra ${giorni}gg`;
+                } else {
+                    badgeColor = 'var(--blu-500)'; badgeBg = 'var(--blu-100)'; badgeLabel = `tra ${giorni}gg`;
+                }
+
+                listaHtml += `
+                    <div class="list-item scadFut-item" data-tipo-scadenza="${tipoFiltro}" style="cursor:pointer; transition: background 0.15s;" onclick="UI.showPage('dettaglio-app','${s.appId}')" onmouseover="this.style.background='var(--grigio-100)'" onmouseout="this.style.background=''">
+                        <div style="display:flex;justify-content:space-between;align-items:center;gap:1rem;">
+                            <div style="flex-shrink:0; width:36px; height:36px; border-radius:10px; background:${s.colore || '#2E6DA8'}15; display:flex; align-items:center; justify-content:center;">
+                                <i class="${s.icona}" style="color:${s.colore || '#2E6DA8'};font-size:1rem;"></i>
+                            </div>
+                            <div style="flex:1;min-width:0;">
+                                <div style="font-weight:600;color:var(--grigio-900);font-size:0.9rem;">
+                                    ${s.tipo}
+                                </div>
+                                <div style="font-size:0.8rem;color:var(--grigio-500);margin-top:2px;">
+                                    <i class="fas fa-mobile-alt" style="width:14px;text-align:center;margin-right:4px;"></i>${s.nomeApp}${s.comune ? ' &bull; <i class="fas fa-map-marker-alt" style="margin:0 2px;"></i>' + s.comune : ''}
+                                </div>
+                            </div>
+                            <div style="text-align:right;flex-shrink:0;">
+                                <span style="background:${badgeBg};color:${badgeColor};padding:0.2rem 0.6rem;border-radius:12px;font-size:0.75rem;font-weight:700;">${badgeLabel}</span>
+                                <div style="font-size:0.75rem;color:var(--grigio-500);margin-top:0.25rem;">${DataService.formatDate(s.data)}</div>
+                            </div>
+                        </div>
+                    </div>`;
+            });
+
+            listaHtml += '</div>';
+        });
+
+        panel.innerHTML = `
+            <div class="card fade-in" style="border: 2px solid var(--blu-300); border-radius: 16px; overflow: hidden;">
+                <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;background:white;padding:1rem 1.25rem;">
+                    <h2 class="card-title" style="font-size:1.1rem;margin:0;">
+                        <i class="fas fa-clipboard-list" style="color:var(--blu-700);margin-right:0.5rem;"></i>
+                        Tutte le Scadenze Future (${scadenze.length})
+                    </h2>
+                    <button class="btn btn-secondary btn-sm" onclick="document.getElementById('scadenzeFutureAppPanel').style.display='none'" style="border-radius:20px;">
+                        <i class="fas fa-times"></i> Chiudi
+                    </button>
+                </div>
+                ${filtriHtml}
+                <div style="max-height:600px;overflow-y:auto;">
+                    ${listaHtml}
+                </div>
+            </div>
+        `;
+
+        panel.style.display = '';
+        panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    },
+
+    /**
+     * Filtro per tipologia nell'elenco scadenze future
+     */
+    _filtroScadenzeFuture(filtro) {
+        // Aggiorna stile bottoni
+        document.querySelectorAll('.scadFut-filtro').forEach(btn => {
+            if (btn.dataset.filtro === filtro) {
+                btn.style.background = 'var(--blu-700)';
+                btn.style.color = 'white';
+                btn.style.border = 'none';
+            } else {
+                btn.style.background = 'white';
+                btn.style.color = 'var(--grigio-700)';
+                btn.style.border = '1px solid var(--grigio-300)';
+            }
+        });
+
+        // Mostra/nascondi gli item
+        const items = document.querySelectorAll('.scadFut-item');
+        const mesiCounters = {};
+
+        items.forEach(item => {
+            const tipoItem = item.dataset.tipoScadenza;
+            const mostra = filtro === 'tutti' || tipoItem === filtro;
+            item.style.display = mostra ? '' : 'none';
+
+            // Aggiorna contatori mese
+            if (mostra) {
+                // Trova il mese di appartenenza cercando il header precedente
+                let el = item.parentElement;
+                while (el && !el.previousElementSibling?.classList?.contains('scadFut-mese-header')) {
+                    el = el.parentElement;
+                }
+                if (el && el.previousElementSibling) {
+                    const headerEl = el.previousElementSibling;
+                    const countEl = headerEl.querySelector('.scadFut-mese-count');
+                    if (countEl) {
+                        const chiaveMese = countEl.dataset.mese;
+                        mesiCounters[chiaveMese] = (mesiCounters[chiaveMese] || 0) + 1;
+                    }
+                }
+            }
+        });
+
+        // Aggiorna visibilità e contatori degli header mese
+        document.querySelectorAll('.scadFut-mese-header').forEach(header => {
+            const countEl = header.querySelector('.scadFut-mese-count');
+            if (countEl) {
+                const chiaveMese = countEl.dataset.mese;
+                const count = mesiCounters[chiaveMese] || 0;
+                countEl.textContent = count;
+                // Nascondi l'intero blocco mese se nessun item è visibile
+                const listGroup = header.nextElementSibling;
+                header.style.display = count > 0 ? '' : 'none';
+                if (listGroup) listGroup.style.display = count > 0 ? '' : 'none';
+            }
+        });
     },
 
     getTipoScadenzaLabel(tipo) {
