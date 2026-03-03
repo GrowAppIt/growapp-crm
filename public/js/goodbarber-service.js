@@ -573,21 +573,20 @@ const GoodBarberService = {
     const endDate = this._formatDate(new Date());
     const startDate = this._daysAgo(30);
 
-    // Effettua tutte le chiamate in parallelo
+    // Chiamate API attive (9 endpoint)
+    // Rimossi: getDownloads (history), getPageViewsPerWeekDay, getProspects (endpoint non funzionante)
     const promises = [
-      this.getDownloads(webzineId, token, startDate, endDate, 'all'),
-      this.getGlobalDownloads(webzineId, token, 'all'),
-      this.getLaunches(webzineId, token, startDate, endDate, 'all'),
-      this.getUniqueLaunches(webzineId, token, startDate, endDate, 'all'),
-      this.getPageViews(webzineId, token, startDate, endDate, 'all'),
-      this.getPageViewsPerWeekDay(webzineId, token, startDate, endDate),
-      this.getSessionTimes(webzineId, token, startDate, endDate),
-      this.getDevicesGlobal(webzineId, token, 'all'),
-      this.getMobileOsDistribution(webzineId, token),
-      this.getOsVersions(webzineId, token, 'all')
+      this.getGlobalDownloads(webzineId, token, 'all'),                    // 0
+      this.getLaunches(webzineId, token, startDate, endDate, 'all'),       // 1
+      this.getUniqueLaunches(webzineId, token, startDate, endDate, 'all'), // 2
+      this.getPageViews(webzineId, token, startDate, endDate, 'all'),      // 3
+      this.getSessionTimes(webzineId, token, startDate, endDate),          // 4
+      this.getDevicesGlobal(webzineId, token, 'all'),                      // 5
+      this.getMobileOsDistribution(webzineId, token),                      // 6
+      this.getOsVersions(webzineId, token, 'all'),                         // 7
+      this.getGroups(webzineId, token)                                     // 8
     ];
 
-    // Usa allSettled per non bloccare tutto se un endpoint fallisce
     return Promise.allSettled(promises)
       .then(function(results) {
         var getValue = function(r) { return r.status === 'fulfilled' ? r.value : null; };
@@ -598,29 +597,32 @@ const GoodBarberService = {
             end: endDate,
             days: 30
           },
-          downloads: getValue(results[0]),
-          downloads_global: getValue(results[1]),
-          launches: getValue(results[2]),
-          unique_launches: getValue(results[3]),
-          page_views: getValue(results[4]),
-          page_views_per_week_day: getValue(results[5]),
-          session_times: getValue(results[6]),
-          devices_global: getValue(results[7]),
-          mobile_os_distribution: getValue(results[8]),
-          os_versions: getValue(results[9]),
+          downloads_global: getValue(results[0]),
+          launches: getValue(results[1]),
+          unique_launches: getValue(results[2]),
+          page_views: getValue(results[3]),
+          session_times: getValue(results[4]),
+          devices_global: getValue(results[5]),
+          mobile_os_distribution: getValue(results[6]),
+          os_versions: getValue(results[7]),
+          groups: getValue(results[8]),
           retrieved_at: new Date().toISOString()
         };
 
-        // Log eventuali errori parziali
-        var errors = results.filter(function(r) { return r.status === 'rejected'; });
-        if (errors.length > 0) {
-          console.warn('GoodBarber API: ' + errors.length + ' endpoint(s) failed:',
-            errors.map(function(e) { return e.reason?.message || e.reason; }));
+        // Log errori parziali
+        var endpointNames = ['downloads_global','launches','unique_launches','page_views','session_times','devices_global','mobile_os_distribution','os_versions','groups'];
+        var failCount = 0;
+        results.forEach(function(r, i) {
+          if (r.status === 'rejected') {
+            failCount++;
+            console.warn('[GoodBarber API] ' + endpointNames[i] + ' failed:', r.reason?.message || r.reason);
+          }
+        });
+        if (failCount > 0) {
+          console.warn('[GoodBarber API] ' + failCount + '/' + results.length + ' endpoint(s) failed');
         }
 
-        // Memorizza nella cache
         self._cacheSet(cacheKey, statsData);
-
         return statsData;
       });
   },

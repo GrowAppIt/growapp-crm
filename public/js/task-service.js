@@ -835,16 +835,35 @@ const TaskService = {
 
                 // Verifica se esiste già una notifica recente (ultime 24h) per evitare spam
                 const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+                let skipNotifica = false;
 
-                const existingNotif = await db.collection('notifications')
-                    .where('taskId', '==', task.id)
-                    .where('type', '==', type === 'DUE_SOON' ? NotificationService.TYPES.TASK_DUE_SOON : NotificationService.TYPES.TASK_OVERDUE)
-                    .where('createdAt', '>', firebase.firestore.Timestamp.fromDate(oneDayAgo))
-                    .limit(1)
-                    .get();
+                try {
+                    const existingNotif = await db.collection('notifications')
+                        .where('taskId', '==', task.id)
+                        .where('type', '==', type === 'DUE_SOON' ? NotificationService.TYPES.TASK_DUE_SOON : NotificationService.TYPES.TASK_OVERDUE)
+                        .where('createdAt', '>', firebase.firestore.Timestamp.fromDate(oneDayAgo))
+                        .limit(1)
+                        .get();
+
+                    if (!existingNotif.empty) skipNotifica = true;
+                } catch (indexErr) {
+                    // Se l'indice composito non esiste, fallback: cerca solo per taskId e tipo
+                    console.warn('⚠️ Indice mancante per check duplicati notifiche, uso fallback');
+                    const fallback = await db.collection('notifications')
+                        .where('taskId', '==', task.id)
+                        .where('type', '==', type === 'DUE_SOON' ? NotificationService.TYPES.TASK_DUE_SOON : NotificationService.TYPES.TASK_OVERDUE)
+                        .limit(5)
+                        .get();
+
+                    fallback.forEach(doc => {
+                        const d = doc.data();
+                        const createdDate = d.createdAt?.toDate ? d.createdAt.toDate() : new Date(d.createdAt || 0);
+                        if (createdDate > oneDayAgo) skipNotifica = true;
+                    });
+                }
 
                 // Se esiste già notifica recente, salta
-                if (!existingNotif.empty) continue;
+                if (skipNotifica) continue;
 
                 // Crea notifiche
                 await NotificationService.createNotificationsForUsers(

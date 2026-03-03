@@ -74,24 +74,50 @@ const NotificationService = {
                 throw new Error('Utente non autenticato');
             }
 
-            let query = db.collection('notifications')
-                .where('userId', '==', userId);
+            let notifications = [];
 
-            if (onlyUnread) {
-                query = query.where('read', '==', false);
-            }
+            try {
+                // Tentativo con orderBy (richiede indice composito Firestore)
+                let query = db.collection('notifications')
+                    .where('userId', '==', userId);
 
-            query = query.orderBy('createdAt', 'desc').limit(limit);
+                if (onlyUnread) {
+                    query = query.where('read', '==', false);
+                }
 
-            const snapshot = await query.get();
+                query = query.orderBy('createdAt', 'desc').limit(limit);
+                const snapshot = await query.get();
 
-            const notifications = [];
-            snapshot.forEach(doc => {
-                notifications.push({
-                    id: doc.id,
-                    ...doc.data()
+                snapshot.forEach(doc => {
+                    notifications.push({ id: doc.id, ...doc.data() });
                 });
-            });
+            } catch (indexError) {
+                // Fallback senza orderBy se l'indice composito non esiste
+                console.warn('⚠️ Indice Firestore mancante per notifications, uso fallback:', indexError.message);
+
+                let fallbackQuery = db.collection('notifications')
+                    .where('userId', '==', userId);
+
+                if (onlyUnread) {
+                    fallbackQuery = fallbackQuery.where('read', '==', false);
+                }
+
+                fallbackQuery = fallbackQuery.limit(limit * 2);
+                const fallbackSnapshot = await fallbackQuery.get();
+
+                fallbackSnapshot.forEach(doc => {
+                    notifications.push({ id: doc.id, ...doc.data() });
+                });
+
+                // Ordina manualmente per data decrescente
+                notifications.sort((a, b) => {
+                    const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt || 0);
+                    const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt || 0);
+                    return dateB - dateA;
+                });
+
+                notifications = notifications.slice(0, limit);
+            }
 
             return { success: true, notifications };
         } catch (error) {

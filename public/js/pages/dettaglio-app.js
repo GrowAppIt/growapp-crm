@@ -272,7 +272,7 @@ const DettaglioApp = {
                 ${this.app && this.app.goodbarberWebzineId ? `
                 <button class="tab-button ${this.currentTab === 'statistiche' ? 'active' : ''}"
                     onclick="DettaglioApp.switchTab('statistiche')" style="${tabStyle('statistiche')}">
-                    <i class="fas fa-chart-bar"></i> Statistiche GB
+                    <i class="fas fa-chart-bar"></i> Statistiche CMS
                 </button>
                 ` : ''}
             </div>
@@ -1536,7 +1536,7 @@ const DettaglioApp = {
         }
     },
 
-    // === TAB STATISTICHE GOODBARBER ===
+    // === TAB STATISTICHE CMS ===
 
     renderStatisticheGB(app) {
         if (!app.goodbarberWebzineId || !app.goodbarberToken) {
@@ -1618,26 +1618,39 @@ const DettaglioApp = {
         try {
             const stats = await GoodBarberService.getAllStats(app.goodbarberWebzineId, app.goodbarberToken);
 
-            // Salva cache su Firestore — mappo le chiavi della risposta getAllStats
-            const osDist = stats.mobile_os_distribution || {};
+            // Mappo le chiavi della risposta getAllStats
+            // OS Distribution: gestisci sia formato piatto che annidato
+            const rawOs = stats.mobile_os_distribution || {};
+            const osDist = rawOs.ios_devices_percentage !== undefined ? rawOs
+                         : rawOs.mobile_os_distribution ? rawOs.mobile_os_distribution
+                         : rawOs;
+
+            // Groups: può essere { groups: [...] } o array diretto
+            const rawGroups = stats.groups || {};
+            const groupsList = Array.isArray(rawGroups) ? rawGroups
+                             : Array.isArray(rawGroups.groups) ? rawGroups.groups
+                             : [];
+
+            // Session Times: può essere { history: [...], total_sessions: N } o array diretto
+            const rawSessions = stats.session_times || {};
+            const sessionHistory = Array.isArray(rawSessions) ? rawSessions
+                                 : Array.isArray(rawSessions.history) ? rawSessions.history
+                                 : Array.isArray(rawSessions.session_times) ? rawSessions.session_times
+                                 : [];
+            const sessionTotal = rawSessions.total_sessions || rawSessions.total || 0;
+
             const cacheData = {
                 lastUpdate: new Date().toISOString(),
                 totalDownloads: stats.downloads_global?.total_global_downloads || 0,
-                downloadVersions: stats.downloads_global?.versions || [],
                 launchesMonth: stats.launches?.total_launches || 0,
                 uniqueLaunchesMonth: stats.unique_launches?.total_unique_launches || 0,
                 pageViewsMonth: stats.page_views?.total_page_views || 0,
-                pageViewsPerWeekDay: stats.page_views_per_week_day || {},
-                sessionTimes: stats.session_times?.history || [],
-                totalSessions: stats.session_times?.total_sessions || 0,
+                sessionTimes: sessionHistory,
+                totalSessions: sessionTotal,
                 devices: stats.devices_global?.devices || [],
                 totalDevices: stats.devices_global?.total_devices || 0,
                 osDistribution: osDist,
-                osVersions: stats.os_versions?.os_versions || [],
-                downloadsHistory: stats.downloads?.history || [],
-                launchesHistory: stats.launches?.history || [],
-                pageViewsHistory: stats.page_views?.history || [],
-                rawData: stats
+                groups: groupsList
             };
 
             await DataService.updateApp(app.id, { gbStatsCache: cacheData });
@@ -1683,35 +1696,32 @@ const DettaglioApp = {
         const totalSessions = cache.totalSessions || 0;
         const totalDevices = cache.totalDevices || 0;
         const osDist = cache.osDistribution || {};
-        const iosPerc = osDist.ios_devices_percentage || 0;
-        const androidPerc = osDist.android_devices_percentage || 0;
+        const iosPerc = parseFloat(osDist.ios_devices_percentage || osDist.ios || 0) || 0;
+        const androidPerc = parseFloat(osDist.android_devices_percentage || osDist.android || 0) || 0;
         const groups = cache.groups || [];
-        const prospects = cache.prospects || {};
-        const prospectCount = prospects.count || 0;
 
-        // Calcola sessione media
+        // Consensi Push (campo manuale dalla scheda App)
+        const app = this.app || {};
+        const consensiPush = app.consensiPush || 0;
+        const pushAggiornatoIl = app.pushAggiornatoIl ? DataService.formatDate(app.pushAggiornatoIl) : '';
+        const pushAggiornatoDa = app.pushAggiornatoDa || '';
+
+        // Calcola durata sessione più frequente
         let avgSession = 'N/D';
         if (cache.sessionTimes && cache.sessionTimes.length > 0) {
             const sessionMap = {};
             cache.sessionTimes.forEach(s => {
-                sessionMap[s.session_time] = (sessionMap[s.session_time] || 0) + s.sessions;
+                const label = s.session_time || s.label || s.time || s.duration || 'Sconosciuto';
+                const count = s.sessions || s.count || s.nb_sessions || s.value || 1;
+                sessionMap[label] = (sessionMap[label] || 0) + count;
             });
             const sorted = Object.entries(sessionMap).sort((a, b) => b[1] - a[1]);
             if (sorted.length > 0) avgSession = sorted[0][0];
         }
 
-        // Page views per giorno settimana
-        const weekDays = cache.pageViewsPerWeekDay || {};
-        const maxPV = Math.max(1, ...Object.values(weekDays));
-        const giorniIT = { Monday: 'Lun', Tuesday: 'Mar', Wednesday: 'Mer', Thursday: 'Gio', Friday: 'Ven', Saturday: 'Sab', Sunday: 'Dom' };
-
         // Top devices
         const topDevices = (cache.devices || []).slice(0, 8);
         const maxDevCount = Math.max(1, ...topDevices.map(d => d.devices));
-
-        // Downloads history (ultimi 30 gg - grafico barre)
-        const dlHistory = (cache.downloadsHistory || []).slice(-30);
-        const maxDlDay = Math.max(1, ...dlHistory.map(d => d.downloads));
 
         return `
             <!-- KPI Cards -->
@@ -1731,6 +1741,11 @@ const DettaglioApp = {
                 <div class="card" style="text-align:center;padding:1rem;">
                     <div style="font-size:2rem;font-weight:900;color:#F59E0B;">${uniqueLaunches.toLocaleString('it-IT')}</div>
                     <div style="font-size:0.8rem;color:var(--grigio-500);"><i class="fas fa-user"></i> Lanci Unici (30gg)</div>
+                </div>
+                <div class="card" style="text-align:center;padding:1rem;">
+                    <div style="font-size:2rem;font-weight:900;color:var(--verde-700);">${consensiPush > 0 ? consensiPush.toLocaleString('it-IT') : '–'}</div>
+                    <div style="font-size:0.8rem;color:var(--grigio-500);"><i class="fas fa-bell"></i> Consensi Push</div>
+                    ${pushAggiornatoIl ? '<div style="font-size:0.7rem;color:var(--grigio-400);margin-top:0.25rem;">Aggiorn. ' + pushAggiornatoIl + (pushAggiornatoDa ? ' da ' + pushAggiornatoDa : '') + '</div>' : '<div style="font-size:0.7rem;color:var(--grigio-400);margin-top:0.25rem;font-style:italic;">Dato manuale</div>'}
                 </div>
             </div>
 
@@ -1761,43 +1776,6 @@ const DettaglioApp = {
                 </div>
             </div>
 
-            <!-- Page Views per giorno settimana -->
-            ${Object.keys(weekDays).length > 0 ? `
-            <div class="card" style="padding:1.25rem;">
-                <h3 style="font-size:1rem;font-weight:700;color:var(--grigio-900);margin-bottom:1rem;">
-                    <i class="fas fa-calendar-week" style="color:var(--blu-500);"></i> Page Views per Giorno
-                </h3>
-                <div style="display:flex;gap:0.5rem;align-items:flex-end;height:120px;">
-                    ${['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'].map(day => {
-                        const val = weekDays[day] || 0;
-                        const perc = Math.round(val / maxPV * 100);
-                        return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:0.25rem;">
-                            <span style="font-size:0.7rem;font-weight:700;color:var(--grigio-700);">${val}</span>
-                            <div style="width:100%;height:${Math.max(4, perc)}%;background:var(--blu-300);border-radius:4px 4px 0 0;min-height:4px;transition:height 0.3s;"></div>
-                            <span style="font-size:0.7rem;color:var(--grigio-500);">${giorniIT[day]}</span>
-                        </div>`;
-                    }).join('')}
-                </div>
-            </div>` : ''}
-
-            <!-- Download History (ultimi 30gg) -->
-            ${dlHistory.length > 0 ? `
-            <div class="card" style="padding:1.25rem;">
-                <h3 style="font-size:1rem;font-weight:700;color:var(--grigio-900);margin-bottom:1rem;">
-                    <i class="fas fa-chart-bar" style="color:var(--verde-700);"></i> Download ultimi 30 giorni
-                </h3>
-                <div style="display:flex;gap:2px;align-items:flex-end;height:80px;overflow-x:auto;">
-                    ${dlHistory.map(d => {
-                        const perc = Math.round(d.downloads / maxDlDay * 100);
-                        const day = d.date ? d.date.split('-')[2] : '';
-                        return `<div style="flex:1;min-width:8px;display:flex;flex-direction:column;align-items:center;gap:1px;">
-                            <div style="width:100%;height:${Math.max(2, perc)}%;background:var(--verde-500);border-radius:2px 2px 0 0;min-height:2px;"></div>
-                            ${dlHistory.length <= 15 ? `<span style="font-size:0.55rem;color:var(--grigio-500);">${day}</span>` : ''}
-                        </div>`;
-                    }).join('')}
-                </div>
-            </div>` : ''}
-
             <!-- Top Dispositivi -->
             ${topDevices.length > 0 ? `
             <div class="card" style="padding:1.25rem;">
@@ -1820,29 +1798,20 @@ const DettaglioApp = {
                 </div>
             </div>` : ''}
 
-            <!-- Community & Prospect -->
-            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:1rem;">
-                <div class="card" style="padding:1.25rem;">
-                    <h3 style="font-size:1rem;font-weight:700;color:var(--grigio-900);margin-bottom:1rem;">
-                        <i class="fas fa-users" style="color:var(--blu-700);"></i> Prospect
-                    </h3>
-                    <div style="font-size:2rem;font-weight:900;color:var(--blu-700);">${prospectCount}</div>
-                    <div style="font-size:0.8rem;color:var(--grigio-500);">Utenti registrati</div>
-                </div>
-                <div class="card" style="padding:1.25rem;">
-                    <h3 style="font-size:1rem;font-weight:700;color:var(--grigio-900);margin-bottom:1rem;">
-                        <i class="fas fa-layer-group" style="color:var(--verde-700);"></i> Gruppi Utenti
-                    </h3>
-                    ${groups.length > 0 ? `
-                        <div style="display:flex;flex-wrap:wrap;gap:0.5rem;">
-                            ${groups.map(g => `
-                                <span style="background:${g.is_default ? 'var(--blu-100)' : 'var(--grigio-100)'};color:${g.is_default ? 'var(--blu-700)' : 'var(--grigio-700)'};padding:0.25rem 0.75rem;border-radius:12px;font-size:0.8rem;font-weight:600;">
-                                    ${g.label}${g.is_default ? ' (default)' : ''}
-                                </span>
-                            `).join('')}
-                        </div>
-                    ` : '<p style="color:var(--grigio-500);font-size:0.85rem;">Nessun gruppo configurato</p>'}
-                </div>
+            <!-- Gruppi Utenti -->
+            <div class="card" style="padding:1.25rem;">
+                <h3 style="font-size:1rem;font-weight:700;color:var(--grigio-900);margin-bottom:1rem;">
+                    <i class="fas fa-layer-group" style="color:var(--verde-700);"></i> Gruppi Utenti
+                </h3>
+                ${groups.length > 0 ? `
+                    <div style="display:flex;flex-wrap:wrap;gap:0.5rem;">
+                        ${groups.map(g => `
+                            <span style="background:${g.is_default ? 'var(--blu-100)' : 'var(--grigio-100)'};color:${g.is_default ? 'var(--blu-700)' : 'var(--grigio-700)'};padding:0.25rem 0.75rem;border-radius:12px;font-size:0.8rem;font-weight:600;">
+                                ${g.label}${g.is_default ? ' (default)' : ''}
+                            </span>
+                        `).join('')}
+                    </div>
+                ` : '<p style="color:var(--grigio-500);font-size:0.85rem;">Nessun gruppo configurato</p>'}
             </div>
 
             <!-- Sessioni -->

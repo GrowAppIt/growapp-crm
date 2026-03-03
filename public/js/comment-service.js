@@ -171,8 +171,8 @@ const CommentService = {
             const destinatari = new Set();
 
             // Notifica chi ha creato il task
-            if (task.creatoDA && task.creatoDA !== utenteCorrente.uid) {
-                destinatari.add(task.creatoDA);
+            if (task.creatoDa && task.creatoDa !== utenteCorrente.uid) {
+                destinatari.add(task.creatoDa);
             }
 
             // Notifica gli assegnati
