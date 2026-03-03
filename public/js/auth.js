@@ -42,6 +42,7 @@ const AuthService = {
         SVILUPPATORE: [
             'view_dashboard', // ✅ Accesso Dashboard (senza dati amministrativi)
             'view_dev_tasks', 'manage_dev_tasks', 'manage_app_content', 'view_apps',
+            'manage_apps', // ✅ Aggiunto: accesso Push Broadcast + gestione app
             'view_company_info', 'manage_business_card' // ✅ Impostazioni base
         ],
         AGENTE: [
