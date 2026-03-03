@@ -2,56 +2,72 @@
  * Letter Generator Module — Generazione Lettere AI + Download .docx
  *
  * Modulo completo che gestisce:
- * 1. Raccolta dati dal CRM (DataService, GoodBarberService, TemplateService)
- * 2. Wizard multi-step per configurare la lettera
- * 3. Chiamata all'AI (POST /api/generate-letter)
- * 4. Anteprima del testo generato
- * 5. Generazione e download del file .docx
+ * 1. Caricamento dinamico tipi lettera da Firestore (impostazioni/ai_letter_types)
+ * 2. Raccolta dati dal CRM (DataService, GoodBarberService, TemplateService)
+ * 3. Wizard multi-step per configurare la lettera
+ * 4. Chiamata all'AI (POST /api/generate-letter)
+ * 5. Anteprima del testo generato
+ * 6. Generazione e download del file .docx
  *
- * Dipendenze: DataService, AuthService, TemplateService, GoodBarberService (opzionale),
- *             docx library (caricata da CDN)
+ * I tipi di lettera e le sezioni dati sono configurabili dalle Impostazioni del CRM.
+ *
+ * Dipendenze: DataService, AuthService, TemplateService (getDatiAzienda),
+ *             GoodBarberService (opzionale), docx library (caricata on-demand da CDN)
  */
 const LetterGenerator = {
 
     // ============================================================
-    // CONFIGURAZIONE — Tipi di lettera disponibili
+    // TIPI DI LETTERA DEFAULT — usati al primo avvio per inizializzare Firestore
     // ============================================================
-    LETTER_TYPES: [
-        {
+    _DEFAULT_TYPES: {
+        rinnovo_contratto: {
             id: 'rinnovo_contratto',
-            label: 'Rinnovo Contratto',
-            icon: 'fas fa-file-contract',
-            color: '#145284',
-            description: 'Proposta di rinnovo per contratti in scadenza o scaduti',
-            requires: 'contratto'
+            nome: 'Rinnovo Contratto',
+            descrizione: 'Proposta di rinnovo per contratti in scadenza o scaduti',
+            icona: 'fas fa-file-contract',
+            colore: '#145284',
+            richiede: 'contratto',
+            promptAI: 'Ringrazia per la collaborazione passata. Evidenzia i risultati ottenuti (statistiche app se disponibili). Proponi il rinnovo alle stesse condizioni o migliorate. Indica la data di scadenza del contratto attuale. Invita a un incontro o chiamata per discutere il rinnovo.',
+            sezioniDati: ['includes_contract_details', 'includes_payment_history', 'includes_app_stats', 'includes_renewal_proposal'],
+            isDefault: true,
+            ordine: 1
         },
-        {
+        sollecito_pagamento: {
             id: 'sollecito_pagamento',
-            label: 'Sollecito Pagamento',
-            icon: 'fas fa-file-invoice-dollar',
-            color: '#D32F2F',
-            description: 'Sollecito cortese per fatture non pagate',
-            requires: 'fattura'
+            nome: 'Sollecito Pagamento',
+            descrizione: 'Sollecito cortese per fatture non pagate',
+            icona: 'fas fa-file-invoice-dollar',
+            colore: '#D32F2F',
+            richiede: 'fattura',
+            promptAI: 'Tono cortese ma fermo. Indica chiaramente le fatture non pagate con numeri e importi. Ricorda le condizioni di pagamento concordate. Proponi modalita\' di pagamento o dilazione se appropriato. Invita a contattare per chiarimenti.',
+            sezioniDati: ['includes_payment_history', 'includes_contract_details'],
+            isDefault: true,
+            ordine: 2
         },
-        {
+        benvenuto: {
             id: 'benvenuto',
-            label: 'Benvenuto',
-            icon: 'fas fa-handshake',
-            color: '#3CA434',
-            description: 'Lettera di benvenuto per nuovi clienti',
-            requires: null
+            nome: 'Benvenuto',
+            descrizione: 'Lettera di benvenuto per nuovi clienti',
+            icona: 'fas fa-handshake',
+            colore: '#3CA434',
+            richiede: null,
+            promptAI: 'Tono caloroso e accogliente. Presenta brevemente i servizi offerti. Illustra i prossimi step (formazione, configurazione app, ecc.). Fornisci i contatti di riferimento per assistenza. Esprimi entusiasmo per la nuova collaborazione.',
+            sezioniDati: ['includes_contract_details'],
+            isDefault: true,
+            ordine: 3
         }
-    ],
+    },
 
-    // Sezioni opzionali che l'utente può includere
-    OPTIONAL_SECTIONS: [
-        { id: 'includes_payment_history', label: 'Storico pagamenti', icon: 'fas fa-receipt', description: 'Include riepilogo fatture emesse e stato pagamenti' },
-        { id: 'includes_app_stats', label: 'Statistiche App', icon: 'fas fa-chart-line', description: 'Include download, utenti attivi e utilizzo dell\'app' },
-        { id: 'includes_contract_details', label: 'Dettagli contratto', icon: 'fas fa-file-alt', description: 'Include numero, importo, date e tipologia del contratto' },
-        { id: 'includes_renewal_proposal', label: 'Proposta di rinnovo', icon: 'fas fa-redo', description: 'Include proposta esplicita di rinnovo alle stesse condizioni' }
-    ],
+    // Definizioni sezioni dati disponibili (usate nelle Impostazioni e nel wizard)
+    SECTION_DEFINITIONS: {
+        includes_payment_history: { id: 'includes_payment_history', label: 'Storico pagamenti', icon: 'fas fa-receipt', description: 'Include riepilogo fatture emesse e stato pagamenti' },
+        includes_app_stats: { id: 'includes_app_stats', label: 'Statistiche App', icon: 'fas fa-chart-line', description: 'Include download, utenti attivi e utilizzo dell\'app' },
+        includes_contract_details: { id: 'includes_contract_details', label: 'Dettagli contratto', icon: 'fas fa-file-alt', description: 'Include numero, importo, date e tipologia del contratto' },
+        includes_renewal_proposal: { id: 'includes_renewal_proposal', label: 'Proposta di rinnovo', icon: 'fas fa-redo', description: 'Include proposta esplicita di rinnovo alle stesse condizioni' }
+    },
 
-    // Cache dati per il wizard corrente
+    // Cache
+    _letterTypesCache: null,
     _currentClienteId: null,
     _currentCliente: null,
     _currentContratti: [],
@@ -60,6 +76,62 @@ const LetterGenerator = {
     _currentAppStats: null,
     _currentAzienda: null,
     _generatedSections: null,
+    _selectedType: null,
+    _selectedEntity: null,
+
+    // ============================================================
+    // CARICAMENTO TIPI DA FIRESTORE
+    // ============================================================
+    async loadLetterTypes(forceReload) {
+        if (this._letterTypesCache && !forceReload) return this._letterTypesCache;
+
+        try {
+            const doc = await db.collection('impostazioni').doc('ai_letter_types').get();
+            if (doc.exists && doc.data().types && Object.keys(doc.data().types).length > 0) {
+                this._letterTypesCache = doc.data().types;
+            } else {
+                // Primo avvio: inizializza con i tipi default
+                await this._initDefaultTypes();
+            }
+        } catch (e) {
+            console.warn('[LetterGenerator] Errore caricamento tipi, uso defaults:', e);
+            this._letterTypesCache = { ...this._DEFAULT_TYPES };
+        }
+
+        return this._letterTypesCache;
+    },
+
+    async _initDefaultTypes() {
+        console.log('[LetterGenerator] Inizializzazione tipi default su Firestore...');
+        try {
+            const user = firebase.auth().currentUser;
+            await db.collection('impostazioni').doc('ai_letter_types').set({
+                types: { ...this._DEFAULT_TYPES },
+                ultimaModifica: new Date().toISOString(),
+                modificatoDa: user?.displayName || 'Sistema',
+                modificatoDaId: user?.uid || 'system'
+            });
+            this._letterTypesCache = { ...this._DEFAULT_TYPES };
+        } catch (e) {
+            console.error('[LetterGenerator] Errore inizializzazione tipi:', e);
+            this._letterTypesCache = { ...this._DEFAULT_TYPES };
+        }
+    },
+
+    /**
+     * Restituisce i tipi come array ordinato per campo 'ordine'
+     */
+    _getTypesArray() {
+        if (!this._letterTypesCache) return [];
+        return Object.values(this._letterTypesCache).sort((a, b) => (a.ordine || 99) - (b.ordine || 99));
+    },
+
+    /**
+     * Invalida la cache dei tipi (usato da Settings dopo un salvataggio)
+     */
+    invalidateCache() {
+        this._letterTypesCache = null;
+    },
 
     // ============================================================
     // PUNTO DI INGRESSO — Apre il wizard
@@ -67,13 +139,15 @@ const LetterGenerator = {
     async open(clienteId) {
         this._currentClienteId = clienteId;
         this._generatedSections = null;
+        this._selectedType = null;
+        this._selectedEntity = null;
 
-        // Mostra loading
         UI.showLoading();
 
         try {
-            // Carica tutti i dati in parallelo
-            const [cliente, contratti, fatture, azienda] = await Promise.all([
+            // Carica tipi lettera + dati cliente in parallelo
+            const [letterTypes, cliente, contratti, fatture, azienda] = await Promise.all([
+                this.loadLetterTypes(),
                 DataService.getCliente(clienteId),
                 DataService.getContratti ? DataService.getContratti({ clienteId }) : DataService.getContrattiCliente(clienteId),
                 DataService.getFattureCliente(clienteId),
@@ -87,7 +161,6 @@ const LetterGenerator = {
             }
 
             this._currentCliente = cliente;
-            // Filtra contratti per questo cliente (se getContratti restituisce tutti)
             this._currentContratti = (contratti || []).filter(c => {
                 const ids = [clienteId, cliente.clienteIdLegacy].filter(Boolean);
                 return ids.includes(c.clienteId);
@@ -110,8 +183,6 @@ const LetterGenerator = {
             }
 
             UI.hideLoading();
-
-            // Mostra Step 1
             this._showStep1();
 
         } catch (error) {
@@ -122,20 +193,32 @@ const LetterGenerator = {
     },
 
     // ============================================================
-    // STEP 1 — Selezione tipo di lettera
+    // STEP 1 — Selezione tipo di lettera (DINAMICO da Firestore)
     // ============================================================
     _showStep1() {
         const cliente = this._currentCliente;
+        const types = this._getTypesArray();
 
-        const typeCards = this.LETTER_TYPES.map(type => {
-            // Verifica disponibilità
+        if (types.length === 0) {
+            this._showModal(`
+                <div style="text-align: center; padding: 2rem;">
+                    <i class="fas fa-inbox" style="font-size: 3rem; color: var(--grigio-300); margin-bottom: 1rem;"></i>
+                    <h3 style="color: var(--grigio-700);">Nessun tipo di lettera configurato</h3>
+                    <p style="color: var(--grigio-500); font-size: 0.85rem;">Vai in Impostazioni &gt; Generatore Lettere AI per configurare i tipi di lettera disponibili.</p>
+                </div>
+            `);
+            return;
+        }
+
+        const typeCards = types.map(type => {
+            // Verifica disponibilita'
             let disabled = false;
             let disabledMsg = '';
-            if (type.requires === 'contratto' && this._currentContratti.length === 0) {
+            if (type.richiede === 'contratto' && this._currentContratti.length === 0) {
                 disabled = true;
                 disabledMsg = 'Nessun contratto presente';
             }
-            if (type.requires === 'fattura') {
+            if (type.richiede === 'fattura') {
                 const nonPagate = this._currentFatture.filter(f => f.statoPagamento === 'NON_PAGATA' || f.statoPagamento === 'PARZIALMENTE_PAGATA');
                 if (nonPagate.length === 0) {
                     disabled = true;
@@ -143,34 +226,35 @@ const LetterGenerator = {
                 }
             }
 
+            const color = type.colore || '#145284';
+            const icon = type.icona || 'fas fa-envelope';
+
             return `
                 <div class="letter-type-card ${disabled ? 'disabled' : ''}"
                      data-type="${type.id}"
                      onclick="${disabled ? '' : `LetterGenerator._onTypeSelected('${type.id}')`}"
                      style="
                         background: white;
-                        border: 2px solid ${disabled ? 'var(--grigio-300)' : type.color + '30'};
+                        border: 2px solid ${disabled ? 'var(--grigio-300)' : color + '30'};
                         border-radius: 14px;
                         padding: 1.25rem;
                         cursor: ${disabled ? 'not-allowed' : 'pointer'};
                         transition: all 0.2s;
                         opacity: ${disabled ? '0.5' : '1'};
-                        ${disabled ? '' : `
-                            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
-                        `}
+                        ${disabled ? '' : 'box-shadow: 0 2px 8px rgba(0,0,0,0.04);'}
                      "
                      ${disabled ? '' : `
-                        onmouseover="this.style.borderColor='${type.color}';this.style.boxShadow='0 4px 16px ${type.color}20';"
-                        onmouseout="this.style.borderColor='${type.color}30';this.style.boxShadow='0 2px 8px rgba(0,0,0,0.04)';"
+                        onmouseover="this.style.borderColor='${color}';this.style.boxShadow='0 4px 16px ${color}20';"
+                        onmouseout="this.style.borderColor='${color}30';this.style.boxShadow='0 2px 8px rgba(0,0,0,0.04)';"
                      `}
                 >
                     <div style="display: flex; align-items: center; gap: 1rem;">
-                        <div style="width: 48px; height: 48px; border-radius: 12px; background: ${type.color}15; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-                            <i class="${type.icon}" style="font-size: 1.25rem; color: ${type.color};"></i>
+                        <div style="width: 48px; height: 48px; border-radius: 12px; background: ${color}15; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                            <i class="${icon}" style="font-size: 1.25rem; color: ${color};"></i>
                         </div>
                         <div style="flex: 1; min-width: 0;">
-                            <div style="font-weight: 700; color: var(--grigio-900); font-size: 1rem; margin-bottom: 0.2rem;">${type.label}</div>
-                            <div style="font-size: 0.8rem; color: var(--grigio-500);">${type.description}</div>
+                            <div style="font-weight: 700; color: var(--grigio-900); font-size: 1rem; margin-bottom: 0.2rem;">${type.nome}</div>
+                            <div style="font-size: 0.8rem; color: var(--grigio-500);">${type.descrizione || ''}</div>
                             ${disabled ? `<div style="font-size: 0.75rem; color: var(--rosso-errore); margin-top: 0.25rem;"><i class="fas fa-info-circle"></i> ${disabledMsg}</div>` : ''}
                         </div>
                         ${disabled ? '' : '<i class="fas fa-chevron-right" style="color: var(--grigio-300); flex-shrink: 0;"></i>'}
@@ -193,14 +277,14 @@ const LetterGenerator = {
     },
 
     _onTypeSelected(typeId) {
-        const type = this.LETTER_TYPES.find(t => t.id === typeId);
+        const type = this._letterTypesCache[typeId];
         if (!type) return;
 
         this._selectedType = type;
 
-        if (type.requires === 'contratto') {
+        if (type.richiede === 'contratto') {
             this._showStep2Contratto();
-        } else if (type.requires === 'fattura') {
+        } else if (type.richiede === 'fattura') {
             this._showStep2Fattura();
         } else {
             this._selectedEntity = null;
@@ -209,7 +293,7 @@ const LetterGenerator = {
     },
 
     // ============================================================
-    // STEP 2 — Selezione entità (contratto o fattura)
+    // STEP 2 — Selezione entita' (contratto o fattura)
     // ============================================================
     _showStep2Contratto() {
         const contratti = this._currentContratti
@@ -305,7 +389,7 @@ const LetterGenerator = {
     },
 
     _onEntitySelected(entityId) {
-        if (this._selectedType.requires === 'contratto') {
+        if (this._selectedType.richiede === 'contratto') {
             this._selectedEntity = this._currentContratti.find(c => c.id === entityId);
         } else {
             this._selectedEntity = this._currentFatture.find(f => f.id === entityId);
@@ -314,14 +398,19 @@ const LetterGenerator = {
     },
 
     // ============================================================
-    // STEP 3 — Selezione sezioni opzionali
+    // STEP 3 — Selezione sezioni opzionali (DINAMICHE per tipo)
     // ============================================================
     _showStep3() {
         const hasApp = !!this._currentApp;
+        // Mostra solo le sezioni configurate per questo tipo di lettera
+        const availableSectionIds = this._selectedType.sezioniDati || [];
 
-        const checkboxes = this.OPTIONAL_SECTIONS.map(section => {
-            const disabled = section.id === 'includes_app_stats' && !hasApp;
-            const checked = !disabled && section.id !== 'includes_app_stats'; // pre-check tutto tranne stats (serve API)
+        const checkboxes = availableSectionIds.map(sectionId => {
+            const section = this.SECTION_DEFINITIONS[sectionId];
+            if (!section) return '';
+
+            const disabled = sectionId === 'includes_app_stats' && !hasApp;
+            const checked = !disabled && sectionId !== 'includes_app_stats';
 
             return `
                 <label style="
@@ -343,7 +432,10 @@ const LetterGenerator = {
                     </div>
                 </label>
             `;
-        }).join('');
+        }).filter(Boolean).join('');
+
+        const sectionLabel = this._selectedType.nome || 'Lettera';
+        const sectionIcon = this._selectedType.icona || 'fas fa-envelope';
 
         this._showModal(`
             <div style="margin-bottom: 1.5rem;">
@@ -356,15 +448,17 @@ const LetterGenerator = {
                 </button>
             </div>
 
-            <!-- Riepilogo tipo + entità -->
+            <!-- Riepilogo tipo + entita' -->
             <div style="background: var(--blu-100); border-radius: 10px; padding: 0.75rem 1rem; margin-bottom: 1rem; font-size: 0.85rem;">
-                <strong style="color: var(--blu-700);"><i class="${this._selectedType.icon}"></i> ${this._selectedType.label}</strong>
+                <strong style="color: var(--blu-700);"><i class="${sectionIcon}"></i> ${sectionLabel}</strong>
                 ${this._selectedEntity ? `<span style="color: var(--grigio-500);"> &bull; ${this._selectedEntity.numeroContratto || this._selectedEntity.numeroFatturaCompleto || ''}</span>` : ''}
             </div>
 
-            <div style="display: grid; gap: 0.5rem; margin-bottom: 1.5rem;">
-                ${checkboxes}
-            </div>
+            ${checkboxes ? `
+                <div style="display: grid; gap: 0.5rem; margin-bottom: 1.5rem;">
+                    ${checkboxes}
+                </div>
+            ` : ''}
 
             <!-- Istruzioni personalizzate -->
             <div style="margin-bottom: 1.5rem;">
@@ -387,9 +481,10 @@ const LetterGenerator = {
     async _generateLetter() {
         // Raccogli le sezioni selezionate
         const selectedSections = {};
-        this.OPTIONAL_SECTIONS.forEach(section => {
-            const checkbox = document.getElementById('letterOpt_' + section.id);
-            if (checkbox) selectedSections[section.id] = checkbox.checked;
+        const availableSectionIds = this._selectedType.sezioniDati || [];
+        availableSectionIds.forEach(sectionId => {
+            const checkbox = document.getElementById('letterOpt_' + sectionId);
+            if (checkbox) selectedSections[sectionId] = checkbox.checked;
         });
 
         const customInstructions = (document.getElementById('letterCustomInstructions')?.value || '').trim();
@@ -425,7 +520,6 @@ const LetterGenerator = {
                 try {
                     const stats = await GoodBarberService.getAllStats(this._currentApp.goodbarberWebzineId, this._currentApp.goodbarberToken);
                     if (stats) {
-                        // Estrai dati chiave dalle statistiche
                         appStats = {
                             downloads: stats.downloads_global?.total || stats.downloads_global?.count || null,
                             launches: stats.launches?.total || stats.launches?.count || null,
@@ -439,9 +533,14 @@ const LetterGenerator = {
                 }
             }
 
-            // Prepara il payload
+            // Prepara il payload con letterTypeInfo dinamico
             const payload = {
-                letterType: this._selectedType.id,
+                letterTypeInfo: {
+                    id: this._selectedType.id,
+                    nome: this._selectedType.nome,
+                    descrizione: this._selectedType.descrizione || '',
+                    promptAI: this._selectedType.promptAI
+                },
                 cliente: {
                     ragioneSociale: this._currentCliente.ragioneSociale,
                     tipo: this._currentCliente.tipo,
@@ -454,7 +553,7 @@ const LetterGenerator = {
                     telefono: this._currentCliente.telefono,
                     referente: this._currentCliente.referente || this._currentCliente.referenteComune || null
                 },
-                contratto: this._selectedEntity && this._selectedType.requires === 'contratto' ? {
+                contratto: this._selectedEntity && this._selectedType.richiede === 'contratto' ? {
                     numeroContratto: this._selectedEntity.numeroContratto,
                     oggetto: this._selectedEntity.oggetto,
                     importoAnnuale: this._selectedEntity.importoAnnuale,
@@ -483,8 +582,8 @@ const LetterGenerator = {
                 customInstructions: customInstructions || null
             };
 
-            // Se il tipo è sollecito, passa la fattura specifica come contratto field alternativo
-            if (this._selectedType.requires === 'fattura' && this._selectedEntity) {
+            // Se il tipo e' sollecito, passa la fattura specifica
+            if (this._selectedType.richiede === 'fattura' && this._selectedEntity) {
                 payload.fattura_sollecitata = {
                     numeroFatturaCompleto: this._selectedEntity.numeroFatturaCompleto,
                     importoTotale: this._selectedEntity.importoTotale,
@@ -512,7 +611,6 @@ const LetterGenerator = {
             const result = await response.json();
             this._generatedSections = result.sections;
 
-            // Mostra anteprima
             this._showStep4Preview(result);
 
         } catch (error) {
@@ -543,7 +641,6 @@ const LetterGenerator = {
         const sections = result.sections;
         const metadata = result.metadata || {};
 
-        // Formatta il testo per l'anteprima
         const fullText = [
             sections.salutation,
             sections.intro,
@@ -569,18 +666,15 @@ const LetterGenerator = {
                 </div>
             </div>
 
-            <!-- Anteprima lettera -->
             <div style="background: white; border: 1px solid var(--grigio-300); border-radius: 12px; padding: 1.5rem; max-height: 400px; overflow-y: auto; font-size: 0.9rem; line-height: 1.7; white-space: pre-wrap; font-family: 'Titillium Web', serif; box-shadow: inset 0 2px 4px rgba(0,0,0,0.04);">
 ${fullText}
             </div>
 
-            <!-- Metadata -->
             <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.75rem; font-size: 0.75rem; color: var(--grigio-500);">
                 <span><i class="fas fa-robot"></i> Generata da AI &bull; ${metadata.charCount || '?'} caratteri</span>
                 ${result.usage ? `<span><i class="fas fa-coins"></i> ${result.usage.input_tokens + result.usage.output_tokens} tokens</span>` : ''}
             </div>
 
-            <!-- Pulsanti azione -->
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-top: 1.25rem;">
                 <button class="btn btn-secondary" onclick="LetterGenerator._copyToClipboard()" style="padding: 0.85rem; border-radius: 12px;">
                     <i class="fas fa-copy"></i> Copia testo
@@ -604,7 +698,6 @@ ${fullText}
             await navigator.clipboard.writeText(fullText);
             UI.showSuccess('Testo copiato negli appunti!');
         } catch (e) {
-            // Fallback
             const ta = document.createElement('textarea');
             ta.value = fullText;
             document.body.appendChild(ta);
@@ -619,17 +712,33 @@ ${fullText}
         if (!this._generatedSections) return;
 
         try {
-            // Verifica che la libreria docx sia disponibile
-            if (typeof docx === 'undefined') {
-                UI.showError('Libreria docx non disponibile. Prova a ricaricare la pagina.');
-                return;
+            // Carica la libreria docx on-demand se non gia' presente
+            if (typeof docx === 'undefined' || typeof window.docx === 'undefined') {
+                await new Promise((resolve, reject) => {
+                    if (document.querySelector('script[data-docx-lib]')) {
+                        const check = setInterval(() => {
+                            if (typeof window.docx !== 'undefined') { clearInterval(check); resolve(); }
+                        }, 200);
+                        setTimeout(() => { clearInterval(check); reject(new Error('Timeout caricamento libreria')); }, 15000);
+                        return;
+                    }
+                    const s = document.createElement('script');
+                    s.src = 'https://unpkg.com/docx@9.1.1/build/index.umd.js';
+                    s.setAttribute('data-docx-lib', 'true');
+                    s.onload = () => {
+                        const check = setInterval(() => {
+                            if (typeof window.docx !== 'undefined') { clearInterval(check); resolve(); }
+                        }, 100);
+                        setTimeout(() => { clearInterval(check); reject(new Error('Libreria docx caricata ma non disponibile')); }, 5000);
+                    };
+                    s.onerror = () => reject(new Error('Impossibile caricare la libreria docx'));
+                    document.head.appendChild(s);
+                });
             }
 
             const sections = this._generatedSections;
             const cliente = this._currentCliente;
             const azienda = this._currentAzienda;
-
-            // Costruisci i paragrafi del documento
             const children = [];
 
             // --- INTESTAZIONE AZIENDA ---
@@ -655,7 +764,6 @@ ${fullText}
                 }));
             }
 
-            // Linea separatrice
             children.push(new docx.Paragraph({
                 border: { bottom: { color: '145284', space: 1, style: docx.BorderStyle.SINGLE, size: 6 } },
                 spacing: { after: 300 }
@@ -684,35 +792,25 @@ ${fullText}
                 }));
             });
 
-            children.push(new docx.Paragraph({ spacing: { after: 200 } })); // spazio
+            children.push(new docx.Paragraph({ spacing: { after: 200 } }));
 
-            // --- CORPO LETTERA (sezioni AI) ---
+            // --- CORPO LETTERA ---
             const sectionTexts = [
-                sections.salutation,
-                sections.intro,
-                sections.body,
-                sections.stats || '',
-                sections.closing,
-                sections.signature
+                sections.salutation, sections.intro, sections.body,
+                sections.stats || '', sections.closing, sections.signature
             ].filter(Boolean);
 
             sectionTexts.forEach((sectionText, idx) => {
-                // Supporta \n\n come separatore di paragrafi
                 const paragraphs = sectionText.split(/\n\n+/);
                 paragraphs.forEach(para => {
                     const trimmed = para.trim();
                     if (!trimmed) return;
-
-                    // La firma è in grassetto
                     const isFirma = idx === sectionTexts.length - 1;
-                    // Il saluto è in grassetto
                     const isSaluto = idx === 0;
 
                     children.push(new docx.Paragraph({
                         children: [new docx.TextRun({
-                            text: trimmed,
-                            size: 22,
-                            font: 'Titillium Web',
+                            text: trimmed, size: 22, font: 'Titillium Web',
                             bold: isSaluto || isFirma,
                             color: isFirma ? '145284' : '1E1E1E'
                         })],
@@ -722,23 +820,18 @@ ${fullText}
                 });
             });
 
-            // Crea il documento
             const doc = new docx.Document({
                 sections: [{
-                    properties: {
-                        page: {
-                            margin: { top: 1134, bottom: 1134, left: 1134, right: 1134 } // ~2cm
-                        }
-                    },
+                    properties: { page: { margin: { top: 1134, bottom: 1134, left: 1134, right: 1134 } } },
                     children: children
                 }]
             });
 
-            // Genera il blob e scarica
             const blob = await docx.Packer.toBlob(doc);
-            const nomeFile = `Lettera_${this._selectedType.label.replace(/\s+/g, '_')}_${cliente.ragioneSociale.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 30)}_${oggi.getFullYear()}${String(oggi.getMonth() + 1).padStart(2, '0')}${String(oggi.getDate()).padStart(2, '0')}.docx`;
+            const typeName = (this._selectedType.nome || 'Lettera').replace(/\s+/g, '_');
+            const clienteName = cliente.ragioneSociale.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 30);
+            const nomeFile = `Lettera_${typeName}_${clienteName}_${oggi.getFullYear()}${String(oggi.getMonth() + 1).padStart(2, '0')}${String(oggi.getDate()).padStart(2, '0')}.docx`;
 
-            // Download
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
@@ -760,7 +853,6 @@ ${fullText}
     // MODAL — Gestione overlay modale
     // ============================================================
     _showModal(contentHtml) {
-        // Rimuovi eventuale modal precedente
         const existing = document.getElementById('letterModal');
         if (existing) {
             existing.querySelector('#letterModalBody').innerHTML = contentHtml;
@@ -785,7 +877,6 @@ ${fullText}
                     box-shadow: 0 20px 60px rgba(0,0,0,0.3);
                     animation: letterModalIn 0.25s ease-out;
                 ">
-                    <!-- Header -->
                     <div style="
                         background: linear-gradient(135deg, #145284, #2E6DA8);
                         color: white; padding: 1.25rem 1.5rem;
@@ -800,7 +891,6 @@ ${fullText}
                             <i class="fas fa-times"></i>
                         </button>
                     </div>
-                    <!-- Body -->
                     <div id="letterModalBody" style="padding: 1.5rem;">
                         ${contentHtml}
                     </div>

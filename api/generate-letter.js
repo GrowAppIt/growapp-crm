@@ -6,28 +6,12 @@
  * mai esposta al frontend.
  *
  * Endpoint: POST /api/generate-letter
- * Body: { letterType, cliente, contratto, fatture, app, appStats, azienda, selectedSections, customInstructions }
+ * Body: { letterTypeInfo, cliente, contratto, fatture, app, appStats, azienda, selectedSections, customInstructions }
  * Response: { sections: { salutation, intro, body, stats, closing, signature }, metadata, usage }
+ *
+ * I tipi di lettera sono DINAMICI e configurati dall'admin nelle Impostazioni del CRM.
+ * Il frontend passa letterTypeInfo con nome, descrizione e promptAI personalizzato.
  */
-
-// Tipi di lettera supportati
-const LETTER_TYPES = {
-  rinnovo_contratto: {
-    id: 'rinnovo_contratto',
-    label: 'Proposta di Rinnovo Contratto',
-    description: 'Lettera per proporre il rinnovo di un contratto in scadenza o scaduto'
-  },
-  sollecito_pagamento: {
-    id: 'sollecito_pagamento',
-    label: 'Sollecito Pagamento',
-    description: 'Lettera di sollecito per fatture non pagate'
-  },
-  benvenuto: {
-    id: 'benvenuto',
-    label: 'Benvenuto Nuovo Cliente',
-    description: 'Lettera di benvenuto per nuovi clienti'
-  }
-};
 
 /**
  * Pulisce il testo da HTML, caratteri di controllo e lo tronca a maxLen.
@@ -83,11 +67,11 @@ module.exports = async function handler(req, res) {
     return res.status(500).json({ error: 'Chiave API non configurata sul server.' });
   }
 
-  const { letterType, cliente, contratto, fatture, app, appStats, azienda, selectedSections, customInstructions } = req.body || {};
+  const { letterTypeInfo, cliente, contratto, fatture, app, appStats, azienda, selectedSections, customInstructions } = req.body || {};
 
-  // Validazione
-  if (!letterType || !LETTER_TYPES[letterType]) {
-    return res.status(400).json({ error: `Tipo lettera non valido. Tipi supportati: ${Object.keys(LETTER_TYPES).join(', ')}` });
+  // Validazione — il tipo di lettera e' ora passato dal frontend con tutte le info
+  if (!letterTypeInfo || !letterTypeInfo.nome || !letterTypeInfo.promptAI) {
+    return res.status(400).json({ error: 'Dati tipo lettera mancanti (nome e promptAI obbligatori).' });
   }
   if (!cliente || !cliente.ragioneSociale) {
     return res.status(400).json({ error: 'Dati cliente mancanti (ragioneSociale obbligatoria).' });
@@ -164,15 +148,24 @@ module.exports = async function handler(req, res) {
     if (azienda.sitoAzienda || azienda.sito) dataContext += `- Sito web: ${sanitizeText(azienda.sitoAzienda || azienda.sito, 100)}\n`;
   }
 
-  // Costruisci il system prompt
-  const letterTypeInfo = LETTER_TYPES[letterType];
+  // --- FATTURA SOLLECITATA (per solleciti pagamento) ---
+  if (req.body?.fattura_sollecitata) {
+    const fs = req.body.fattura_sollecitata;
+    dataContext += `\n## FATTURA OGGETTO DEL SOLLECITO\n`;
+    if (fs.numeroFatturaCompleto) dataContext += `- Numero: ${fs.numeroFatturaCompleto}\n`;
+    if (fs.importoTotale) dataContext += `- Importo: ${formatCurrency(fs.importoTotale)}\n`;
+    if (fs.dataEmissione) dataContext += `- Emessa il: ${formatDate(fs.dataEmissione)}\n`;
+    if (fs.dataScadenza) dataContext += `- Scadenza pagamento: ${formatDate(fs.dataScadenza)}\n`;
+    if (fs.statoPagamento) dataContext += `- Stato: ${fs.statoPagamento}\n`;
+  }
 
+  // Costruisci il system prompt con le istruzioni AI personalizzate dall'admin
   const systemPrompt = `Sei un esperto di comunicazione aziendale italiana. Generi lettere professionali per Growapp S.r.l. (marchio "Comune.Digital"), un'azienda che sviluppa app per comuni italiani.
 
-TIPO DI LETTERA RICHIESTA: ${letterTypeInfo.label}
-${letterTypeInfo.description}
+TIPO DI LETTERA RICHIESTA: ${sanitizeText(letterTypeInfo.nome, 200)}
+${letterTypeInfo.descrizione ? sanitizeText(letterTypeInfo.descrizione, 500) : ''}
 
-ISTRUZIONI:
+ISTRUZIONI GENERALI:
 1. Scrivi in italiano formale (dare del "Lei" al destinatario)
 2. Tono: professionale, orientato alla partnership, positivo e propositivo
 3. Personalizza FORTEMENTE usando i dati forniti: cita numeri di contratto, importi, date, nomi dei comuni, statistiche di utilizzo
@@ -182,28 +175,8 @@ ISTRUZIONI:
 7. Lunghezza: 300-500 parole per il corpo della lettera
 8. NON inventare dati: usa SOLO le informazioni fornite
 
-${letterType === 'rinnovo_contratto' ? `
-SPECIFICHE PER RINNOVO CONTRATTO:
-- Ringrazia per la collaborazione passata
-- Evidenzia i risultati ottenuti (statistiche app se disponibili)
-- Proponi il rinnovo alle stesse condizioni o migliorate
-- Indica la data di scadenza del contratto attuale
-- Invita a un incontro o chiamata per discutere il rinnovo
-` : letterType === 'sollecito_pagamento' ? `
-SPECIFICHE PER SOLLECITO PAGAMENTO:
-- Tono cortese ma fermo
-- Indica chiaramente le fatture non pagate con numeri e importi
-- Ricorda le condizioni di pagamento concordate
-- Proponi modalita' di pagamento o dilazione se appropriato
-- Invita a contattare per chiarimenti
-` : `
-SPECIFICHE PER BENVENUTO:
-- Tono caloroso e accogliente
-- Presenta brevemente i servizi offerti
-- Illustra i prossimi step (formazione, configurazione app, ecc.)
-- Fornisci i contatti di riferimento per assistenza
-- Esprimi entusiasmo per la nuova collaborazione
-`}
+ISTRUZIONI SPECIFICHE PER QUESTO TIPO DI LETTERA:
+${sanitizeText(letterTypeInfo.promptAI, 2000)}
 
 ${customInstructions ? `ISTRUZIONI AGGIUNTIVE DALL'UTENTE:\n${sanitizeText(customInstructions, 500)}\n` : ''}
 
@@ -221,7 +194,7 @@ FORMATO DI RISPOSTA — Rispondi SOLO con un JSON valido:
 
 IMPORTANTE: Rispondi ESCLUSIVAMENTE con il JSON, nessun testo prima o dopo, nessun markdown.`;
 
-  const userMessage = `Genera una lettera di tipo "${letterTypeInfo.label}" con i seguenti dati:\n${dataContext}`;
+  const userMessage = `Genera una lettera di tipo "${sanitizeText(letterTypeInfo.nome, 100)}" con i seguenti dati:\n${dataContext}`;
 
   try {
     const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -276,7 +249,8 @@ IMPORTANTE: Rispondi ESCLUSIVAMENTE con il JSON, nessun testo prima o dopo, ness
     return res.status(200).json({
       sections: letterContent.sections,
       metadata: {
-        letterType,
+        letterType: letterTypeInfo.id,
+        letterTypeName: letterTypeInfo.nome,
         clienteName: cliente.ragioneSociale,
         generatedAt: new Date().toISOString(),
         charCount: Object.values(letterContent.sections).join('').length

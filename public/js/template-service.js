@@ -1,7 +1,15 @@
 /**
  * 📧 TEMPLATE SERVICE
- * Gestisce i template predefiniti per comunicazioni email/PEC
- * Placeholder: {{campo}} → sostituiti con dati reali
+ *
+ * ⚠️ DEPRECATO dalla v2.9.15 — Il sistema di template statici a placeholder è stato
+ * sostituito dal nuovo sistema AI Letter Types dinamico (LetterGenerator + Firestore).
+ *
+ * L'UNICA funzione ancora attiva è getDatiAzienda(), usata da LetterGenerator.
+ * Il resto (TEMPLATES, generaTesto, loadTemplatePersonalizzati, copyToClipboard)
+ * è mantenuto solo per retrocompatibilità e verrà rimosso in una versione futura.
+ *
+ * Nuovo flusso: Impostazioni → Generatore Lettere AI → CRUD tipi con prompt AI
+ *               Dettaglio Cliente → Genera Lettera AI → LetterGenerator
  */
 
 const TemplateService = {
@@ -10,7 +18,8 @@ const TemplateService = {
     _datiAzienda: null,
 
     /**
-     * Lista template disponibili
+     * @deprecated Usare i tipi dinamici da Firestore (impostazioni/ai_letter_types)
+     * Lista template disponibili (DEPRECATA)
      */
     TEMPLATES: [
         {
@@ -131,6 +140,7 @@ Cordiali saluti,
     _templatePersonalizzati: null,
 
     /**
+     * @deprecated Non più utilizzato. I template personalizzati sono ora gestiti come AI Letter Types.
      * Carica template personalizzati da Firestore (se esistono)
      */
     async loadTemplatePersonalizzati() {
@@ -151,8 +161,8 @@ Cordiali saluti,
     },
 
     /**
+     * @deprecated Usare LetterGenerator per la generazione di lettere AI.
      * Genera testo dal template sostituendo i placeholder
-     * Usa prima i template personalizzati da Firestore, poi quelli di default
      */
     async generaTesto(templateId, cliente, entita = null) {
         const templateBase = this.TEMPLATES.find(t => t.id === templateId);
@@ -220,6 +230,7 @@ Cordiali saluti,
     },
 
     /**
+     * @deprecated Utility generica, verrà rimossa insieme al TemplateService.
      * Copia testo negli appunti
      */
     async copyToClipboard(testo) {

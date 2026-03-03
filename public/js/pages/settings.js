@@ -78,7 +78,7 @@ const Settings = {
                         class="settings-tab ${this.currentTab === 'template' ? 'active' : ''}"
                         onclick="Settings.switchTab('template')"
                     >
-                        <i class="fas fa-envelope-open-text"></i> Template Email
+                        <i class="fas fa-robot"></i> Generatore Lettere AI
                     </button>
                     ` : ''}
                     ${AuthService.hasPermission('manage_users') ? `
@@ -3175,51 +3175,41 @@ const Settings = {
     },
 
     // =====================================================
-    // TAB TEMPLATE EMAIL/PEC
+    // TAB GENERATORE LETTERE AI
     // =====================================================
 
-    _templateEditabili: null,
+    _aiLetterTypes: null,
 
     renderTemplateTab() {
-        // Carica template da Firestore in background
-        this.loadTemplateEmailFromFirestore();
+        // Carica tipi lettera AI da Firestore
+        this._loadAILetterTypes();
 
         return `
             <div class="card">
-                <div class="card-header">
-                    <h2 class="card-title"><i class="fas fa-envelope-open-text"></i> Template Comunicazioni Email/PEC</h2>
+                <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
+                    <h2 class="card-title"><i class="fas fa-robot"></i> Generatore Lettere AI</h2>
+                    <button class="btn btn-primary btn-sm" onclick="Settings._openLetterTypeModal()" style="background: linear-gradient(135deg, var(--blu-700), var(--blu-500)); border: none;">
+                        <i class="fas fa-plus"></i> Aggiungi Tipo Lettera
+                    </button>
                 </div>
                 <div style="padding: 1.5rem;">
                     <p style="color: var(--grigio-700); margin-bottom: 1rem; font-size: 0.9rem;">
-                        Modifica i template delle comunicazioni standard. I placeholder come <code>{{ragioneSociale}}</code>, <code>{{nomeAzienda}}</code>, ecc. verranno sostituiti automaticamente con i dati reali del cliente quando generi una comunicazione.
+                        Configura i tipi di lettera disponibili nel generatore AI. Ogni tipo ha un prompt personalizzato che guida l'intelligenza artificiale nella creazione della lettera, e una selezione di dati CRM da includere automaticamente.
                     </p>
 
                     <div style="background: var(--blu-100); padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem; font-size: 0.85rem;">
-                        <strong><i class="fas fa-info-circle"></i> Placeholder disponibili:</strong><br>
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.25rem; margin-top: 0.5rem;">
-                            <span><code>{{ragioneSociale}}</code> — Nome cliente</span>
-                            <span><code>{{nomeAzienda}}</code> — Nome Growapp</span>
-                            <span><code>{{emailCliente}}</code> — Email cliente</span>
-                            <span><code>{{emailAzienda}}</code> — Email Growapp</span>
-                            <span><code>{{pecCliente}}</code> — PEC cliente</span>
-                            <span><code>{{pecAzienda}}</code> — PEC Growapp</span>
-                            <span><code>{{telefonoCliente}}</code> — Tel. cliente</span>
-                            <span><code>{{telefonoAzienda}}</code> — Tel. Growapp</span>
-                            <span><code>{{numeroFattura}}</code> — N. fattura</span>
-                            <span><code>{{importoFattura}}</code> — Importo fattura</span>
-                            <span><code>{{dataEmissione}}</code> — Data emissione</span>
-                            <span><code>{{numeroContratto}}</code> — N. contratto</span>
-                            <span><code>{{oggettoContratto}}</code> — Oggetto contr.</span>
-                            <span><code>{{importoContratto}}</code> — Importo contr.</span>
-                            <span><code>{{dataScadenza}}</code> — Data scadenza</span>
-                            <span><code>{{periodicita}}</code> — Periodicità</span>
+                        <strong><i class="fas fa-info-circle"></i> Come funziona:</strong>
+                        <div style="margin-top: 0.5rem; line-height: 1.6;">
+                            Ogni tipo di lettera ha un <strong>Prompt AI</strong> che istruisce l'intelligenza artificiale su come scrivere la lettera.
+                            Puoi anche selezionare quali <strong>dati del CRM</strong> includere automaticamente (contratti, fatture, statistiche app).
+                            L'AI personalizza ogni lettera con i dati reali del cliente.
                         </div>
                     </div>
 
-                    <div id="templateEditorContainer">
+                    <div id="aiLetterTypesContainer">
                         <div style="text-align: center; padding: 2rem;">
                             <i class="fas fa-spinner fa-spin" style="font-size: 1.5rem; color: var(--blu-500);"></i>
-                            <p style="margin-top: 0.5rem; color: var(--grigio-500);">Caricamento template...</p>
+                            <p style="margin-top: 0.5rem; color: var(--grigio-500);">Caricamento tipi di lettera...</p>
                         </div>
                     </div>
                 </div>
@@ -3227,308 +3217,338 @@ const Settings = {
         `;
     },
 
+    // Icone disponibili per i tipi di lettera
+    _LETTER_ICONS: [
+        { value: 'fas fa-file-contract', label: 'Contratto' },
+        { value: 'fas fa-file-invoice-dollar', label: 'Fattura' },
+        { value: 'fas fa-handshake', label: 'Handshake' },
+        { value: 'fas fa-envelope', label: 'Busta' },
+        { value: 'fas fa-sync-alt', label: 'Rinnovo' },
+        { value: 'fas fa-exclamation-circle', label: 'Avviso' },
+        { value: 'fas fa-calendar-alt', label: 'Calendario' },
+        { value: 'fas fa-star', label: 'Stella' },
+        { value: 'fas fa-gift', label: 'Regalo' },
+        { value: 'fas fa-bullhorn', label: 'Annuncio' },
+        { value: 'fas fa-heart', label: 'Cuore' },
+        { value: 'fas fa-chart-line', label: 'Report' },
+        { value: 'fas fa-user-plus', label: 'Nuovo utente' },
+        { value: 'fas fa-bell', label: 'Notifica' },
+        { value: 'fas fa-cog', label: 'Servizio' }
+    ],
+
+    _LETTER_COLORS: ['#145284', '#2E6DA8', '#3CA434', '#D32F2F', '#FFCC00', '#0288D1', '#7B1FA2', '#E64A19', '#00897B', '#5D4037'],
+
     /**
-     * Carica template da Firestore, o usa quelli di default da TemplateService
+     * Carica i tipi di lettera AI da Firestore e li renderizza
      */
-    async loadTemplateEmailFromFirestore() {
+    async _loadAILetterTypes() {
         try {
-            const doc = await db.collection('impostazioni').doc('template_email').get();
-            let templateSalvati = {};
-
-            if (doc.exists) {
-                templateSalvati = doc.data().templates || {};
-            }
-
-            // Merge: per ogni template di default, usa quello salvato su Firestore se esiste
-            const templateFinali = TemplateService.TEMPLATES.map(t => {
-                const salvato = templateSalvati[t.id];
-                return {
-                    ...t,
-                    oggetto: salvato?.oggetto || t.oggetto,
-                    corpo: salvato?.corpo || t.corpo
-                };
-            });
-
-            this._templateEditabili = templateFinali;
-            this.renderTemplateEditors(templateFinali);
-
+            await LetterGenerator.loadLetterTypes();
+            this._aiLetterTypes = LetterGenerator._letterTypesCache;
+            this._renderAILetterTypesCards();
         } catch (error) {
-            console.error('Errore caricamento template:', error);
-            // Fallback: usa quelli di default
-            this._templateEditabili = TemplateService.TEMPLATES;
-            this.renderTemplateEditors(TemplateService.TEMPLATES);
+            console.error('Errore caricamento tipi lettera AI:', error);
+            const container = document.getElementById('aiLetterTypesContainer');
+            if (container) container.innerHTML = '<p style="color: var(--rosso-errore);">Errore nel caricamento. Ricarica la pagina.</p>';
         }
     },
 
     /**
-     * Renderizza i form di editing per ciascun template
+     * Renderizza le card dei tipi di lettera AI
      */
-    renderTemplateEditors(templates) {
-        const container = document.getElementById('templateEditorContainer');
+    _renderAILetterTypesCards() {
+        const container = document.getElementById('aiLetterTypesContainer');
         if (!container) return;
 
+        const types = this._aiLetterTypes ? Object.values(this._aiLetterTypes).sort((a, b) => (a.ordine || 99) - (b.ordine || 99)) : [];
+
+        if (types.length === 0) {
+            container.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--grigio-500);"><i class="fas fa-inbox" style="font-size: 2rem; margin-bottom: 0.5rem;"></i><p>Nessun tipo di lettera configurato.</p></div>';
+            return;
+        }
+
         let html = '';
+        types.forEach(type => {
+            const color = type.colore || '#145284';
+            const icon = type.icona || 'fas fa-envelope';
+            const isDefault = type.isDefault === true;
+            const sectionLabels = (type.sezioniDati || []).map(id => {
+                const def = LetterGenerator.SECTION_DEFINITIONS[id];
+                return def ? def.label : id;
+            });
 
-        templates.forEach((t, idx) => {
             html += `
-                <div style="border: 1px solid var(--grigio-300); border-radius: 12px; margin-bottom: 1.5rem; overflow: hidden;">
-                    <!-- Header template -->
-                    <div
-                        onclick="Settings.toggleTemplateEditor('tplEditor_${idx}')"
-                        style="padding: 1rem 1.25rem; background: var(--grigio-100); cursor: pointer; display: flex; align-items: center; justify-content: space-between;"
-                    >
-                        <div style="display: flex; align-items: center; gap: 0.75rem;">
-                            <div style="width: 36px; height: 36px; border-radius: 50%; background: ${t.color}20; display: flex; align-items: center; justify-content: center;">
-                                <i class="${t.icon}" style="color: ${t.color};"></i>
+                <div style="border: 1px solid var(--grigio-300); border-radius: 14px; margin-bottom: 1rem; overflow: hidden; transition: all 0.2s;" onmouseover="this.style.boxShadow='0 4px 12px rgba(0,0,0,0.08)'" onmouseout="this.style.boxShadow='none'">
+                    <div style="padding: 1.25rem; display: flex; align-items: flex-start; gap: 1rem;">
+                        <div style="width: 44px; height: 44px; border-radius: 12px; background: ${color}15; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                            <i class="${icon}" style="font-size: 1.15rem; color: ${color};"></i>
+                        </div>
+                        <div style="flex: 1; min-width: 0;">
+                            <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.25rem;">
+                                <strong style="font-size: 1rem; color: var(--grigio-900);">${this.escapeHtml(type.nome)}</strong>
+                                ${isDefault ? '<span style="font-size: 0.65rem; background: var(--blu-100); color: var(--blu-700); padding: 0.15rem 0.5rem; border-radius: 8px; font-weight: 700;">PREDEFINITO</span>' : ''}
+                                <span style="font-size: 0.65rem; background: ${color}15; color: ${color}; padding: 0.15rem 0.5rem; border-radius: 8px;">${type.richiede === 'contratto' ? 'Richiede contratto' : type.richiede === 'fattura' ? 'Richiede fattura' : 'Solo cliente'}</span>
                             </div>
-                            <div>
-                                <strong style="font-size: 0.95rem; color: var(--grigio-900);">${t.nome}</strong>
-                                <div style="font-size: 0.75rem; color: var(--grigio-500);">${t.richiede ? 'Richiede: ' + t.richiede : 'Solo dati cliente'}</div>
+                            <div style="font-size: 0.8rem; color: var(--grigio-500); margin-bottom: 0.5rem;">${this.escapeHtml(type.descrizione || '')}</div>
+                            ${sectionLabels.length > 0 ? `<div style="font-size: 0.75rem; color: var(--grigio-500);"><i class="fas fa-database"></i> Dati: ${sectionLabels.join(', ')}</div>` : ''}
+                            <div style="margin-top: 0.5rem; font-size: 0.75rem; color: var(--grigio-500); background: var(--grigio-100); padding: 0.5rem 0.75rem; border-radius: 8px; line-height: 1.5;">
+                                <strong>Prompt AI:</strong> ${this.escapeHtml((type.promptAI || '').substring(0, 150))}${(type.promptAI || '').length > 150 ? '...' : ''}
                             </div>
                         </div>
-                        <i class="fas fa-chevron-down" id="tplChevron_${idx}" style="color: var(--grigio-500); transition: transform 0.2s;"></i>
                     </div>
-
-                    <!-- Editor (nascosto di default) -->
-                    <div id="tplEditor_${idx}" style="display: none; padding: 1.25rem;">
-                        <div style="margin-bottom: 1rem;">
-                            <label style="display: block; font-size: 0.8rem; font-weight: 600; color: var(--grigio-700); margin-bottom: 0.35rem;">
-                                Oggetto email
-                            </label>
-                            <input
-                                type="text"
-                                id="tplOggetto_${t.id}"
-                                value="${this.escapeHtmlAttr(t.oggetto)}"
-                                style="width: 100%; padding: 0.6rem; border: 1px solid var(--grigio-300); border-radius: 6px; font-family: 'Titillium Web', sans-serif; font-size: 0.9rem;"
-                            />
-                        </div>
-                        <div style="margin-bottom: 1rem;">
-                            <label style="display: block; font-size: 0.8rem; font-weight: 600; color: var(--grigio-700); margin-bottom: 0.35rem;">
-                                Corpo del messaggio
-                            </label>
-                            <textarea
-                                id="tplCorpo_${t.id}"
-                                style="width: 100%; min-height: 280px; padding: 0.75rem; border: 1px solid var(--grigio-300); border-radius: 6px; font-family: 'Titillium Web', sans-serif; font-size: 0.9rem; line-height: 1.6; resize: vertical;"
-                            >${this.escapeHtml(t.corpo)}</textarea>
-                        </div>
-                        <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
-                            <button
-                                class="btn btn-secondary"
-                                onclick="Settings.ripristinaTemplateDefault('${t.id}', ${idx})"
-                                style="font-size: 0.85rem;"
-                            >
-                                <i class="fas fa-undo"></i> Ripristina Default
+                    <div style="padding: 0 1.25rem 1rem; display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                        <button class="btn btn-secondary btn-sm" onclick="Settings._openLetterTypeModal('${type.id}')" style="font-size: 0.8rem;">
+                            <i class="fas fa-edit"></i> Modifica
+                        </button>
+                        <button class="btn btn-secondary btn-sm" onclick="Settings._duplicateLetterType('${type.id}')" style="font-size: 0.8rem;">
+                            <i class="fas fa-copy"></i> Duplica
+                        </button>
+                        ${!isDefault ? `
+                            <button class="btn btn-secondary btn-sm" onclick="Settings._deleteLetterType('${type.id}')" style="font-size: 0.8rem; color: var(--rosso-errore); border-color: var(--rosso-errore);">
+                                <i class="fas fa-trash"></i> Elimina
                             </button>
-                            <button
-                                class="btn btn-primary"
-                                onclick="Settings.salvaTemplate('${t.id}')"
-                                style="font-size: 0.85rem;"
-                            >
-                                <i class="fas fa-save"></i> Salva Template
-                            </button>
-                        </div>
+                        ` : ''}
                     </div>
                 </div>
             `;
         });
 
-        // Pulsante salva tutti
-        html += `
-            <div style="text-align: center; margin-top: 1rem;">
-                <button class="btn btn-primary" onclick="Settings.salvaTuttiTemplate()" style="padding: 0.75rem 2rem;">
-                    <i class="fas fa-save"></i> Salva Tutti i Template
-                </button>
-            </div>
-        `;
-
         container.innerHTML = html;
     },
 
-    toggleTemplateEditor(editorId) {
-        const editor = document.getElementById(editorId);
-        if (!editor) return;
-        const isOpen = editor.style.display !== 'none';
-        editor.style.display = isOpen ? 'none' : 'block';
+    /**
+     * Apre la modal per aggiungere/modificare un tipo di lettera
+     */
+    _openLetterTypeModal(typeId) {
+        const isEdit = !!typeId;
+        const type = isEdit && this._aiLetterTypes ? this._aiLetterTypes[typeId] : {};
 
-        // Ruota chevron
-        const idx = editorId.replace('tplEditor_', '');
-        const chevron = document.getElementById('tplChevron_' + idx);
-        if (chevron) {
-            chevron.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(180deg)';
-        }
+        const iconOptions = this._LETTER_ICONS.map(ic =>
+            `<option value="${ic.value}" ${type.icona === ic.value ? 'selected' : ''}>${ic.label}</option>`
+        ).join('');
+
+        const colorSwatches = this._LETTER_COLORS.map(c =>
+            `<div onclick="document.getElementById('ltColoreInput').value='${c}';document.querySelectorAll('.lt-color-swatch').forEach(s=>s.style.outline='none');this.style.outline='3px solid var(--grigio-900)'"
+                 class="lt-color-swatch"
+                 style="width: 32px; height: 32px; border-radius: 8px; background: ${c}; cursor: pointer; ${type.colore === c ? 'outline: 3px solid var(--grigio-900);' : ''}"
+            ></div>`
+        ).join('');
+
+        const allSections = Object.values(LetterGenerator.SECTION_DEFINITIONS);
+        const selectedSections = type.sezioniDati || [];
+        const sectionCheckboxes = allSections.map(s =>
+            `<label style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0; cursor: pointer;">
+                <input type="checkbox" name="ltSection_${s.id}" ${selectedSections.includes(s.id) ? 'checked' : ''} style="accent-color: var(--blu-700);">
+                <span style="font-size: 0.85rem;"><i class="${s.icon}" style="color: var(--blu-500); width: 18px;"></i> ${s.label}</span>
+            </label>`
+        ).join('');
+
+        const modalHtml = `
+            <div id="letterTypeModalOverlay" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 10001; display: flex; align-items: center; justify-content: center; padding: 1rem; backdrop-filter: blur(4px);" onclick="if(event.target===this) this.remove()">
+                <div style="background: white; border-radius: 16px; width: min(95vw, 580px); max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.3);">
+                    <div style="background: linear-gradient(135deg, #145284, #2E6DA8); color: white; padding: 1.25rem 1.5rem; border-radius: 16px 16px 0 0; display: flex; justify-content: space-between; align-items: center;">
+                        <h3 style="margin: 0; font-size: 1.1rem; font-weight: 900;"><i class="fas fa-${isEdit ? 'edit' : 'plus'}"></i> ${isEdit ? 'Modifica' : 'Nuovo'} Tipo Lettera</h3>
+                        <button onclick="document.getElementById('letterTypeModalOverlay').remove()" style="background: rgba(255,255,255,0.2); border: none; color: white; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-size: 1rem;"><i class="fas fa-times"></i></button>
+                    </div>
+                    <div style="padding: 1.5rem;">
+                        <div style="margin-bottom: 1rem;">
+                            <label style="font-weight: 600; font-size: 0.85rem; color: var(--grigio-700); display: block; margin-bottom: 0.35rem;">Nome *</label>
+                            <input type="text" id="ltNomeInput" value="${this.escapeHtmlAttr(type.nome || '')}" placeholder="Es: Proposta Commerciale" style="width: 100%; padding: 0.65rem; border: 1px solid var(--grigio-300); border-radius: 8px; font-family: inherit; font-size: 0.9rem;">
+                        </div>
+                        <div style="margin-bottom: 1rem;">
+                            <label style="font-weight: 600; font-size: 0.85rem; color: var(--grigio-700); display: block; margin-bottom: 0.35rem;">Descrizione</label>
+                            <input type="text" id="ltDescrizioneInput" value="${this.escapeHtmlAttr(type.descrizione || '')}" placeholder="Breve descrizione del tipo di lettera" style="width: 100%; padding: 0.65rem; border: 1px solid var(--grigio-300); border-radius: 8px; font-family: inherit; font-size: 0.9rem;">
+                        </div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                            <div>
+                                <label style="font-weight: 600; font-size: 0.85rem; color: var(--grigio-700); display: block; margin-bottom: 0.35rem;">Icona</label>
+                                <select id="ltIconaInput" style="width: 100%; padding: 0.65rem; border: 1px solid var(--grigio-300); border-radius: 8px; font-family: inherit;">${iconOptions}</select>
+                            </div>
+                            <div>
+                                <label style="font-weight: 600; font-size: 0.85rem; color: var(--grigio-700); display: block; margin-bottom: 0.35rem;">Richiede entita'</label>
+                                <select id="ltRichiedeInput" style="width: 100%; padding: 0.65rem; border: 1px solid var(--grigio-300); border-radius: 8px; font-family: inherit;">
+                                    <option value="" ${!type.richiede ? 'selected' : ''}>Nessuna</option>
+                                    <option value="contratto" ${type.richiede === 'contratto' ? 'selected' : ''}>Contratto</option>
+                                    <option value="fattura" ${type.richiede === 'fattura' ? 'selected' : ''}>Fattura</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div style="margin-bottom: 1rem;">
+                            <label style="font-weight: 600; font-size: 0.85rem; color: var(--grigio-700); display: block; margin-bottom: 0.35rem;">Colore</label>
+                            <input type="hidden" id="ltColoreInput" value="${type.colore || '#145284'}">
+                            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">${colorSwatches}</div>
+                        </div>
+                        <div style="margin-bottom: 1rem;">
+                            <label style="font-weight: 600; font-size: 0.85rem; color: var(--grigio-700); display: block; margin-bottom: 0.35rem;">Prompt AI * <span style="font-weight: 400; color: var(--grigio-500);">(istruzioni per l'intelligenza artificiale)</span></label>
+                            <textarea id="ltPromptAIInput" placeholder="Descrivi come l'AI deve scrivere questa lettera. Es: Ringrazia per la collaborazione. Proponi il rinnovo alle stesse condizioni. Invita a un incontro..." style="width: 100%; min-height: 120px; padding: 0.75rem; border: 1px solid var(--grigio-300); border-radius: 8px; font-family: inherit; font-size: 0.9rem; resize: vertical; line-height: 1.6;">${this.escapeHtml(type.promptAI || '')}</textarea>
+                        </div>
+                        <div style="margin-bottom: 1.5rem;">
+                            <label style="font-weight: 600; font-size: 0.85rem; color: var(--grigio-700); display: block; margin-bottom: 0.35rem;">Dati CRM da includere</label>
+                            <div style="display: grid; gap: 0.25rem;">${sectionCheckboxes}</div>
+                        </div>
+                        <div style="display: flex; gap: 0.75rem; justify-content: flex-end;">
+                            <button class="btn btn-secondary" onclick="document.getElementById('letterTypeModalOverlay').remove()">Annulla</button>
+                            <button class="btn btn-primary" onclick="Settings._saveLetterType('${typeId || ''}')">
+                                <i class="fas fa-save"></i> Salva
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // Rimuovi modal precedente se esiste
+        const existing = document.getElementById('letterTypeModalOverlay');
+        if (existing) existing.remove();
+
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
     },
 
     /**
-     * Salva un singolo template su Firestore
+     * Salva un tipo di lettera (nuovo o modificato) su Firestore
      */
-    async salvaTemplate(templateId) {
+    async _saveLetterType(editingTypeId) {
+        const nome = (document.getElementById('ltNomeInput')?.value || '').trim();
+        const promptAI = (document.getElementById('ltPromptAIInput')?.value || '').trim();
+
+        if (!nome) { UI.showError('Il nome e\' obbligatorio'); return; }
+        if (!promptAI) { UI.showError('Il prompt AI e\' obbligatorio'); return; }
+
+        const descrizione = (document.getElementById('ltDescrizioneInput')?.value || '').trim();
+        const icona = document.getElementById('ltIconaInput')?.value || 'fas fa-envelope';
+        const colore = document.getElementById('ltColoreInput')?.value || '#145284';
+        const richiede = document.getElementById('ltRichiedeInput')?.value || null;
+
+        // Raccogli sezioni selezionate
+        const sezioniDati = [];
+        Object.keys(LetterGenerator.SECTION_DEFINITIONS).forEach(sId => {
+            const cb = document.querySelector(`[name="ltSection_${sId}"]`);
+            if (cb && cb.checked) sezioniDati.push(sId);
+        });
+
         try {
-            const oggettoInput = document.getElementById('tplOggetto_' + templateId);
-            const corpoInput = document.getElementById('tplCorpo_' + templateId);
-            if (!oggettoInput || !corpoInput) return;
+            // Carica stato attuale
+            const docRef = db.collection('impostazioni').doc('ai_letter_types');
+            const docSnap = await docRef.get();
+            let allTypes = docSnap.exists ? (docSnap.data().types || {}) : {};
 
-            // Carica template esistenti da Firestore
-            const doc = await db.collection('impostazioni').doc('template_email').get();
-            let templates = {};
-            if (doc.exists) {
-                templates = doc.data().templates || {};
-            }
+            const typeId = editingTypeId || ('custom_' + Date.now());
+            const existingType = allTypes[typeId] || {};
 
-            // Aggiorna questo template
-            templates[templateId] = {
-                oggetto: oggettoInput.value,
-                corpo: corpoInput.value
+            allTypes[typeId] = {
+                id: typeId,
+                nome,
+                descrizione,
+                icona,
+                colore,
+                richiede: richiede || null,
+                promptAI,
+                sezioniDati,
+                isDefault: existingType.isDefault || false,
+                ordine: existingType.ordine || (Object.keys(allTypes).length + 1)
             };
 
-            await db.collection('impostazioni').doc('template_email').set({
-                templates: templates,
+            await docRef.set({
+                types: allTypes,
                 ultimaModifica: new Date().toISOString(),
                 modificatoDa: AuthService.getUserName(),
                 modificatoDaId: AuthService.getUserId()
             });
 
-            // Aggiorna anche il TemplateService in memoria + invalida cache
-            TemplateService._templatePersonalizzati = null;
-            const tpl = TemplateService.TEMPLATES.find(t => t.id === templateId);
-            if (tpl) {
-                tpl.oggetto = oggettoInput.value;
-                tpl.corpo = corpoInput.value;
-            }
+            // Invalida cache e ricarica
+            LetterGenerator.invalidateCache();
+            this._aiLetterTypes = allTypes;
+            this._renderAILetterTypesCards();
 
-            UI.showSuccess('Template "' + templateId + '" salvato!');
+            // Chiudi modal
+            const modal = document.getElementById('letterTypeModalOverlay');
+            if (modal) modal.remove();
+
+            UI.showSuccess(editingTypeId ? 'Tipo lettera aggiornato!' : 'Nuovo tipo lettera creato!');
 
         } catch (error) {
-            console.error('Errore salvataggio template:', error);
-            UI.showError('Errore nel salvataggio del template');
+            console.error('Errore salvataggio tipo lettera:', error);
+            UI.showError('Errore nel salvataggio: ' + error.message);
         }
     },
 
     /**
-     * Salva tutti i template contemporaneamente
+     * Duplica un tipo di lettera
      */
-    async salvaTuttiTemplate() {
+    async _duplicateLetterType(typeId) {
+        if (!this._aiLetterTypes || !this._aiLetterTypes[typeId]) return;
+
+        const original = this._aiLetterTypes[typeId];
+        const newId = 'custom_' + Date.now();
+
         try {
-            const templates = {};
+            const docRef = db.collection('impostazioni').doc('ai_letter_types');
+            const docSnap = await docRef.get();
+            let allTypes = docSnap.exists ? (docSnap.data().types || {}) : {};
 
-            TemplateService.TEMPLATES.forEach(t => {
-                const oggettoInput = document.getElementById('tplOggetto_' + t.id);
-                const corpoInput = document.getElementById('tplCorpo_' + t.id);
-                if (oggettoInput && corpoInput) {
-                    templates[t.id] = {
-                        oggetto: oggettoInput.value,
-                        corpo: corpoInput.value
-                    };
+            allTypes[newId] = {
+                ...original,
+                id: newId,
+                nome: original.nome + ' (copia)',
+                isDefault: false,
+                ordine: Object.keys(allTypes).length + 1
+            };
 
-                    // Aggiorna anche in memoria
-                    t.oggetto = oggettoInput.value;
-                    t.corpo = corpoInput.value;
-                }
-            });
-
-            await db.collection('impostazioni').doc('template_email').set({
-                templates: templates,
+            await docRef.set({
+                types: allTypes,
                 ultimaModifica: new Date().toISOString(),
                 modificatoDa: AuthService.getUserName(),
                 modificatoDaId: AuthService.getUserId()
             });
 
-            // Invalida cache TemplateService
-            TemplateService._templatePersonalizzati = null;
+            LetterGenerator.invalidateCache();
+            this._aiLetterTypes = allTypes;
+            this._renderAILetterTypesCards();
 
-            UI.showSuccess('Tutti i template salvati con successo!');
+            UI.showSuccess('Tipo lettera duplicato! Puoi ora modificarlo.');
 
         } catch (error) {
-            console.error('Errore salvataggio template:', error);
-            UI.showError('Errore nel salvataggio');
+            console.error('Errore duplicazione:', error);
+            UI.showError('Errore nella duplicazione');
         }
     },
 
     /**
-     * Ripristina un template ai valori di default (hardcoded)
+     * Elimina un tipo di lettera personalizzato
      */
-    ripristinaTemplateDefault(templateId, idx) {
-        // Trova il template di default nel codice originale di TemplateService
-        // Per ripristinare, serve il testo originale hardcoded
-        const defaultTemplates = {
-            'sollecito_pagamento': {
-                oggetto: 'Sollecito pagamento fattura n. {{numeroFattura}}',
-                corpo: `Gentile {{ragioneSociale}},
+    async _deleteLetterType(typeId) {
+        if (!this._aiLetterTypes || !this._aiLetterTypes[typeId]) return;
+        if (this._aiLetterTypes[typeId].isDefault) {
+            UI.showError('I tipi predefiniti non possono essere eliminati');
+            return;
+        }
 
-con la presente ci permettiamo di ricordarVi che la fattura n. {{numeroFattura}} del {{dataEmissione}}, di importo pari a €{{importoFattura}}, risulta ad oggi non ancora saldata.
+        if (!confirm('Sei sicuro di voler eliminare il tipo "' + this._aiLetterTypes[typeId].nome + '"?')) return;
 
-Vi invitiamo cortesemente a provvedere al pagamento entro i prossimi 15 giorni dalla ricezione della presente comunicazione.
+        try {
+            const docRef = db.collection('impostazioni').doc('ai_letter_types');
+            const docSnap = await docRef.get();
+            let allTypes = docSnap.exists ? (docSnap.data().types || {}) : {};
 
-Per qualsiasi chiarimento o necessità, non esitate a contattarci.
+            delete allTypes[typeId];
 
-Cordiali saluti,
-{{nomeAzienda}}
-{{emailAzienda}}
-{{telefonoAzienda}}`
-            },
-            'conferma_rinnovo': {
-                oggetto: 'Conferma rinnovo contratto n. {{numeroContratto}}',
-                corpo: `Gentile {{ragioneSociale}},
+            await docRef.set({
+                types: allTypes,
+                ultimaModifica: new Date().toISOString(),
+                modificatoDa: AuthService.getUserName(),
+                modificatoDaId: AuthService.getUserId()
+            });
 
-siamo lieti di confermarVi il rinnovo del contratto n. {{numeroContratto}} relativo a "{{oggettoContratto}}".
+            LetterGenerator.invalidateCache();
+            this._aiLetterTypes = allTypes;
+            this._renderAILetterTypesCards();
 
-Il contratto è stato rinnovato con le seguenti condizioni:
-- Importo contratto: €{{importoContratto}}
-- Periodicità: {{periodicita}}
-- Nuova scadenza: {{dataScadenza}}
+            UI.showSuccess('Tipo lettera eliminato');
 
-Rimaniamo a disposizione per qualsiasi chiarimento.
-
-Cordiali saluti,
-{{nomeAzienda}}
-{{emailAzienda}}
-{{telefonoAzienda}}`
-            },
-            'benvenuto': {
-                oggetto: 'Benvenuto in {{nomeAzienda}} - {{ragioneSociale}}',
-                corpo: `Gentile {{ragioneSociale}},
-
-siamo lieti di darVi il benvenuto tra i nostri clienti!
-
-Il nostro team è a Vostra completa disposizione per supportarVi in ogni fase del percorso. Di seguito i nostri recapiti per qualsiasi necessità:
-
-Email: {{emailAzienda}}
-Telefono: {{telefonoAzienda}}
-PEC: {{pecAzienda}}
-
-Non esitate a contattarci per qualsiasi domanda o richiesta.
-
-Un cordiale benvenuto,
-{{nomeAzienda}}`
-            },
-            'scadenza_contratto': {
-                oggetto: 'Avviso scadenza contratto n. {{numeroContratto}}',
-                corpo: `Gentile {{ragioneSociale}},
-
-desideriamo informarVi che il contratto n. {{numeroContratto}} relativo a "{{oggettoContratto}}" è in scadenza il {{dataScadenza}}.
-
-L'importo contratto attuale è di €{{importoContratto}} con periodicità {{periodicita}}.
-
-Vi invitiamo a contattarci per discutere le condizioni di rinnovo e garantire la continuità del servizio.
-
-Restiamo a disposizione per un incontro o una call.
-
-Cordiali saluti,
-{{nomeAzienda}}
-{{emailAzienda}}
-{{telefonoAzienda}}`
-            }
-        };
-
-        const def = defaultTemplates[templateId];
-        if (!def) return;
-
-        const oggettoInput = document.getElementById('tplOggetto_' + templateId);
-        const corpoInput = document.getElementById('tplCorpo_' + templateId);
-
-        if (oggettoInput) oggettoInput.value = def.oggetto;
-        if (corpoInput) corpoInput.value = def.corpo;
-
-        UI.showSuccess('Template ripristinato ai valori di default. Clicca "Salva" per confermare.');
+        } catch (error) {
+            console.error('Errore eliminazione:', error);
+            UI.showError('Errore nell\'eliminazione');
+        }
     },
 
     // Caricamento massivo feed RSS rimosso (completato). Audit appSenzaFeed attivo in avviaAudit().

@@ -406,11 +406,8 @@ const DettaglioCliente = {
                     </div>
                     ` : ''}
 
-                    <!-- Pulsanti Genera Comunicazione -->
-                    <div style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--grigio-300); display: flex; flex-direction: column; gap: 0.75rem;">
-                        <button class="btn btn-secondary" onclick="DettaglioCliente.mostraModalTemplate()" style="width: 100%;">
-                            <i class="fas fa-envelope"></i> Genera Comunicazione Email/PEC
-                        </button>
+                    <!-- Pulsante Genera Lettera AI -->
+                    <div style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--grigio-300);">
                         <button class="btn btn-primary" onclick="LetterGenerator.open('${this.clienteId}')" style="width: 100%; background: linear-gradient(135deg, var(--blu-700), var(--blu-500)); border: none;">
                             <i class="fas fa-robot"></i> Genera Lettera AI
                         </button>
@@ -1461,232 +1458,18 @@ const DettaglioCliente = {
     },
 
     // =====================================================
-    // TEMPLATE EMAIL/PEC
+    // [DEPRECATO] TEMPLATE EMAIL/PEC — Rimosso in v2.9.15
+    // Sostituito dal sistema LetterGenerator con AI
     // =====================================================
 
-    /**
-     * Mostra modal per selezionare e generare template comunicazione
+    /* Vecchi metodi rimossi:
+     * - mostraModalTemplate()
+     * - onTemplateSelezionato()
+     * - generaTestoTemplate()
+     * - copiaOggettoTemplate()
+     * - copiaCorpoTemplate()
+     * - copiaTuttoTemplate()
      */
-    async mostraModalTemplate() {
-        try {
-            // Carica contratti e fatture del cliente per le selezioni
-            const [contratti, fatture] = await Promise.all([
-                DataService.getContrattiCliente(this.clienteId),
-                DataService.getFattureCliente(this.clienteId)
-            ]);
-
-            // Cache per uso successivo
-            this._templateContratti = contratti;
-            this._templateFatture = fatture;
-
-            const templateCards = TemplateService.TEMPLATES.map(t => `
-                <div
-                    class="template-card"
-                    id="tplCard_${t.id}"
-                    onclick="DettaglioCliente.onTemplateSelezionato('${t.id}')"
-                    style="padding: 1rem; border: 2px solid var(--grigio-300); border-radius: 10px; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 0.75rem;"
-                    onmouseover="this.style.borderColor='${t.color}'; this.style.background='${t.color}10'"
-                    onmouseout="if(!this.classList.contains('selected')){this.style.borderColor='var(--grigio-300)'; this.style.background='white'}"
-                >
-                    <div style="width: 40px; height: 40px; border-radius: 50%; background: ${t.color}20; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-                        <i class="${t.icon}" style="color: ${t.color};"></i>
-                    </div>
-                    <div>
-                        <strong style="font-size: 0.9rem; color: var(--grigio-900);">${t.nome}</strong>
-                        ${t.richiede ? `<div style="font-size: 0.75rem; color: var(--grigio-500);">Richiede selezione ${t.richiede}</div>` : '<div style="font-size: 0.75rem; color: var(--grigio-500);">Solo dati cliente</div>'}
-                    </div>
-                </div>
-            `).join('');
-
-            const modalHtml = `
-                <div id="templateModal" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 1rem;">
-                    <div style="background: white; border-radius: 16px; width: 100%; max-width: 700px; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.3);">
-                        <!-- Header -->
-                        <div style="padding: 1.5rem; border-bottom: 1px solid var(--grigio-300); display: flex; justify-content: space-between; align-items: center;">
-                            <h2 style="font-size: 1.25rem; font-weight: 700; color: var(--blu-700); margin: 0;">
-                                <i class="fas fa-envelope"></i> Genera Comunicazione
-                            </h2>
-                            <button onclick="DettaglioCliente.chiudiModalTemplate()" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--grigio-500); padding: 0.25rem;">
-                                <i class="fas fa-times"></i>
-                            </button>
-                        </div>
-
-                        <!-- Step 1: Selezione Template -->
-                        <div style="padding: 1.5rem;">
-                            <p style="font-size: 0.875rem; color: var(--grigio-700); margin-bottom: 1rem;">Seleziona il tipo di comunicazione:</p>
-                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;" id="templateGrid">
-                                ${templateCards}
-                            </div>
-                        </div>
-
-                        <!-- Step 2: Selezione entità (se necessario) -->
-                        <div id="templateEntitaSection" style="display: none; padding: 0 1.5rem 1rem;">
-                        </div>
-
-                        <!-- Step 3: Testo generato -->
-                        <div id="templateOutputSection" style="display: none; padding: 0 1.5rem 1.5rem;">
-                            <div style="margin-bottom: 0.75rem;">
-                                <label style="font-size: 0.8rem; font-weight: 600; color: var(--grigio-700);">Oggetto:</label>
-                                <input type="text" id="templateOggetto" readonly style="width: 100%; padding: 0.5rem; border: 1px solid var(--grigio-300); border-radius: 6px; font-family: 'Titillium Web', sans-serif; background: var(--grigio-100); margin-top: 0.25rem;" />
-                            </div>
-                            <div style="margin-bottom: 1rem;">
-                                <label style="font-size: 0.8rem; font-weight: 600; color: var(--grigio-700);">Corpo messaggio:</label>
-                                <textarea id="templateCorpo" readonly style="width: 100%; min-height: 250px; padding: 0.75rem; border: 1px solid var(--grigio-300); border-radius: 6px; font-family: 'Titillium Web', sans-serif; background: var(--grigio-100); resize: vertical; margin-top: 0.25rem; line-height: 1.5;"></textarea>
-                            </div>
-                            <div style="display: flex; gap: 0.5rem;">
-                                <button class="btn btn-primary" onclick="DettaglioCliente.copiaOggettoTemplate()" style="flex: 1;">
-                                    <i class="fas fa-copy"></i> Copia Oggetto
-                                </button>
-                                <button class="btn btn-primary" onclick="DettaglioCliente.copiaCorpoTemplate()" style="flex: 2;">
-                                    <i class="fas fa-copy"></i> Copia Corpo
-                                </button>
-                                <button class="btn btn-secondary" onclick="DettaglioCliente.copiaTuttoTemplate()" style="flex: 1;">
-                                    <i class="fas fa-clipboard"></i> Copia Tutto
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            `;
-
-            document.body.insertAdjacentHTML('beforeend', modalHtml);
-
-        } catch (error) {
-            console.error('Errore apertura modal template:', error);
-            UI.showError('Errore nell\'apertura dei template');
-        }
-    },
-
-    chiudiModalTemplate() {
-        const modal = document.getElementById('templateModal');
-        if (modal) modal.remove();
-    },
-
-    /**
-     * Gestisce selezione di un template
-     */
-    async onTemplateSelezionato(templateId) {
-        this._selectedTemplateId = templateId;
-        const template = TemplateService.TEMPLATES.find(t => t.id === templateId);
-        if (!template) return;
-
-        // Evidenzia card selezionata
-        document.querySelectorAll('.template-card').forEach(card => {
-            card.classList.remove('selected');
-            card.style.borderColor = 'var(--grigio-300)';
-            card.style.background = 'white';
-        });
-        const selectedCard = document.getElementById(`tplCard_${templateId}`);
-        if (selectedCard) {
-            selectedCard.classList.add('selected');
-            selectedCard.style.borderColor = template.color;
-            selectedCard.style.background = template.color + '10';
-        }
-
-        const entitaSection = document.getElementById('templateEntitaSection');
-        const outputSection = document.getElementById('templateOutputSection');
-
-        // Se richiede selezione entità
-        if (template.richiede === 'fattura') {
-            if (this._templateFatture.length === 0) {
-                entitaSection.innerHTML = '<p style="color: var(--rosso-errore); font-size: 0.875rem;"><i class="fas fa-exclamation-triangle"></i> Nessuna fattura trovata per questo cliente</p>';
-                entitaSection.style.display = 'block';
-                outputSection.style.display = 'none';
-                return;
-            }
-            entitaSection.innerHTML = `
-                <label style="font-size: 0.8rem; font-weight: 600; color: var(--grigio-700);">Seleziona fattura:</label>
-                <select id="templateEntitaSelect" onchange="DettaglioCliente.generaTestoTemplate()" style="width: 100%; padding: 0.75rem; border: 1px solid var(--grigio-300); border-radius: 8px; font-family: 'Titillium Web', sans-serif; margin-top: 0.25rem;">
-                    <option value="">-- Seleziona una fattura --</option>
-                    ${this._templateFatture.map((f, idx) => `<option value="${idx}">${f.numeroFatturaCompleto} • ${DataService.formatCurrency(f.importoTotale || 0)} • ${f.statoPagamento?.replace('_', ' ') || ''}</option>`).join('')}
-                </select>
-            `;
-            entitaSection.style.display = 'block';
-            outputSection.style.display = 'none';
-
-        } else if (template.richiede === 'contratto') {
-            if (this._templateContratti.length === 0) {
-                entitaSection.innerHTML = '<p style="color: var(--rosso-errore); font-size: 0.875rem;"><i class="fas fa-exclamation-triangle"></i> Nessun contratto trovato per questo cliente</p>';
-                entitaSection.style.display = 'block';
-                outputSection.style.display = 'none';
-                return;
-            }
-            entitaSection.innerHTML = `
-                <label style="font-size: 0.8rem; font-weight: 600; color: var(--grigio-700);">Seleziona contratto:</label>
-                <select id="templateEntitaSelect" onchange="DettaglioCliente.generaTestoTemplate()" style="width: 100%; padding: 0.75rem; border: 1px solid var(--grigio-300); border-radius: 8px; font-family: 'Titillium Web', sans-serif; margin-top: 0.25rem;">
-                    <option value="">-- Seleziona un contratto --</option>
-                    ${this._templateContratti.map((c, idx) => `<option value="${idx}">${c.numeroContratto} • ${c.oggetto || 'Senza oggetto'} • ${c.stato || ''}</option>`).join('')}
-                </select>
-            `;
-            entitaSection.style.display = 'block';
-            outputSection.style.display = 'none';
-
-        } else {
-            // Template senza selezione entità → genera direttamente
-            entitaSection.style.display = 'none';
-            await this.generaTestoTemplate();
-        }
-    },
-
-    /**
-     * Genera il testo dal template selezionato
-     */
-    async generaTestoTemplate() {
-        const template = TemplateService.TEMPLATES.find(t => t.id === this._selectedTemplateId);
-        if (!template) return;
-
-        let entita = null;
-        if (template.richiede) {
-            const select = document.getElementById('templateEntitaSelect');
-            if (!select || select.value === '') return;
-            const idx = parseInt(select.value);
-            if (template.richiede === 'fattura') {
-                entita = this._templateFatture[idx];
-            } else {
-                entita = this._templateContratti[idx];
-            }
-        }
-
-        try {
-            const cliente = await DataService.getCliente(this.clienteId);
-            const risultato = await TemplateService.generaTesto(this._selectedTemplateId, cliente, entita);
-
-            document.getElementById('templateOggetto').value = risultato.oggetto;
-            document.getElementById('templateCorpo').value = risultato.corpo;
-            document.getElementById('templateOutputSection').style.display = 'block';
-
-        } catch (error) {
-            console.error('Errore generazione testo:', error);
-            UI.showError('Errore nella generazione del testo');
-        }
-    },
-
-    async copiaOggettoTemplate() {
-        const testo = document.getElementById('templateOggetto')?.value;
-        if (testo && await TemplateService.copyToClipboard(testo)) {
-            UI.showSuccess('Oggetto copiato negli appunti!');
-        } else {
-            UI.showError('Errore nella copia');
-        }
-    },
-
-    async copiaCorpoTemplate() {
-        const testo = document.getElementById('templateCorpo')?.value;
-        if (testo && await TemplateService.copyToClipboard(testo)) {
-            UI.showSuccess('Corpo messaggio copiato negli appunti!');
-        } else {
-            UI.showError('Errore nella copia');
-        }
-    },
-
-    async copiaTuttoTemplate() {
-        const oggetto = document.getElementById('templateOggetto')?.value || '';
-        const corpo = document.getElementById('templateCorpo')?.value || '';
-        const tutto = `Oggetto: ${oggetto}\n\n${corpo}`;
-        if (await TemplateService.copyToClipboard(tutto)) {
-            UI.showSuccess('Comunicazione completa copiata negli appunti!');
-        } else {
-            UI.showError('Errore nella copia');
-        }
-    }
+    _templateDeprecated: true // placeholder per mantenere la virgola nell'oggetto
 };
+/* === FINE DettaglioCliente === */
