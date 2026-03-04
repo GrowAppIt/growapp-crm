@@ -199,6 +199,17 @@ IMPORTANTE: Rispondi ESCLUSIVAMENTE con il JSON, nessun testo prima o dopo, ness
   const userMessage = `Genera una lettera di tipo "${sanitizeText(letterTypeInfo.nome, 100)}" con i seguenti dati:\n${dataContext}`;
 
   try {
+    // Costruisci il JSON e rimuovi eventuali surrogate pairs rotti dal body finale
+    let requestBody = JSON.stringify({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 2048,
+      system: systemPrompt,
+      messages: [{ role: 'user', content: userMessage }]
+    });
+    requestBody = requestBody
+      .replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/g, '')
+      .replace(/(^|[^\uD800-\uDBFF])[\uDC00-\uDFFF]/g, '$1');
+
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -206,12 +217,7 @@ IMPORTANTE: Rispondi ESCLUSIVAMENTE con il JSON, nessun testo prima o dopo, ness
         'x-api-key': apiKey,
         'anthropic-version': '2023-06-01'
       },
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 2048,
-        system: systemPrompt,
-        messages: [{ role: 'user', content: userMessage }]
-      })
+      body: requestBody
     });
 
     if (!response.ok) {
