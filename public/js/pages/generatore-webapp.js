@@ -71,6 +71,8 @@ const GeneratoreWebapp = (() => {
       .then(doc => {
         if (doc.exists && doc.data().templates) {
           state.templates = doc.data().templates;
+          // Migrazione: aggiungi nuovi modelli predefiniti se mancanti
+          return _migrateNewDefaults();
         } else {
           // Initialize with defaults if document doesn't exist
           return _initDefaultTemplates();
@@ -85,6 +87,44 @@ const GeneratoreWebapp = (() => {
         UI.showError('Errore nel caricamento dei modelli: ' + error.message);
         console.error('Error loading templates:', error);
       });
+  }
+
+  function _migrateNewDefaults() {
+    let needsSave = false;
+
+    // Migrazione v2.9.18: aggiungi Cartolina 8 Marzo se mancante
+    if (!state.templates['cartolina_8_marzo']) {
+      state.templates['cartolina_8_marzo'] = {
+        id: 'cartolina_8_marzo',
+        nome: 'Cartolina 8 Marzo',
+        descrizione: 'Cartolina digitale per la Festa della Donna con condivisione social',
+        icona: 'fa-heart',
+        colore: '#C2185B',
+        versione: '1.0',
+        multiFile: true,
+        campiVariabili: [
+          { id: 'nome_comune', label: 'Nome Comune', tipo: 'text', required: true, sezione: 'base', placeholder: 'es. Candela' },
+          { id: 'url_stemma', label: 'URL Logo/Stemma Comune (opzionale)', tipo: 'text', required: false, sezione: 'base', placeholder: 'https://...' },
+          { id: 'url_cartolina_view', label: 'URL pagina visualizzazione cartolina', tipo: 'text', required: true, sezione: 'link', placeholder: 'https://example.com/cartolina-view.html' },
+          { id: 'url_scarica_app', label: 'URL scarica app', tipo: 'text', required: true, sezione: 'link', placeholder: 'https://example.com/scarica-app' },
+          { id: 'url_homepage', label: 'URL homepage app', tipo: 'text', required: true, sezione: 'link', placeholder: 'https://example.com' }
+        ],
+        files: [
+          { id: 'crea', nome: 'cartolina-crea.html', label: 'Pagina Creazione Cartolina', codiceHTML: _getDefaultTemplateCartolina8MarzoCrea() },
+          { id: 'view', nome: 'cartolina-view.html', label: 'Pagina Visualizzazione Cartolina', codiceHTML: _getDefaultTemplateCartolina8MarzoView() }
+        ],
+        isDefault: true,
+        ordine: 2,
+        createdAt: new Date().toISOString(),
+        createdBy: 'Sistema'
+      };
+      needsSave = true;
+      console.log('[GeneratoreWebapp] Migrazione: aggiunto modello Cartolina 8 Marzo');
+    }
+
+    if (needsSave) {
+      return _saveAllTemplates();
+    }
   }
 
   function _initDefaultTemplates() {
