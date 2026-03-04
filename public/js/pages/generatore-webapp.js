@@ -93,7 +93,7 @@ const GeneratoreWebapp = (() => {
     let needsSave = false;
 
     // Definizione aggiornata del modello Cartolina 8 Marzo
-    var CARTOLINA_VERSION = '1.7'; // Bump: testo completo in condividi e copia link
+    var CARTOLINA_VERSION = '1.8'; // Bump: Base64 per tutti i params, URL corto per WhatsApp
 
     // Aggiungi o aggiorna Cartolina 8 Marzo se mancante o versione vecchia
     if (!state.templates['cartolina_8_marzo'] || state.templates['cartolina_8_marzo'].versione !== CARTOLINA_VERSION) {
@@ -166,7 +166,7 @@ const GeneratoreWebapp = (() => {
         descrizione: 'Cartolina digitale per la Festa della Donna con condivisione social',
         icona: 'fa-heart',
         colore: '#C2185B',
-        versione: '1.7',
+        versione: '1.8',
         multiFile: true,
         campiVariabili: [
           { id: 'nome_comune', label: 'Nome Comune', tipo: 'text', required: true, sezione: 'base', placeholder: 'es. Candela' },
@@ -1395,21 +1395,21 @@ const GeneratoreWebapp = (() => {
     var base = CONFIG.urlCartolina;
     var params = [];
 
-    // Dati del comune (sempre presenti)
+    // Funzione helper per codifica Base64 sicura per URL
+    function toB64(str) {
+      if (!str) return '';
+      return btoa(unescape(encodeURIComponent(str)));
+    }
+
+    // Dati del comune (tutti in Base64 per URL corto)
     params.push('cn=' + encodeURIComponent(CONFIG.nomeComune));
-    if (CONFIG.urlScaricaApp) params.push('sa=' + encodeURIComponent(CONFIG.urlScaricaApp));
-    if (CONFIG.urlHomepage) params.push('hp=' + encodeURIComponent(CONFIG.urlHomepage));
-    if (CONFIG.urlStemma) params.push('st=' + encodeURIComponent(CONFIG.urlStemma));
+    if (CONFIG.urlScaricaApp) params.push('sa=' + toB64(CONFIG.urlScaricaApp));
+    if (CONFIG.urlHomepage) params.push('hp=' + toB64(CONFIG.urlHomepage));
+    if (CONFIG.urlStemma) params.push('st=' + toB64(CONFIG.urlStemma));
 
     // Dati dell'utente (nome mittente + messaggio opzionale)
-    if (nome) {
-      var encodedNome = btoa(unescape(encodeURIComponent(nome)));
-      params.push('da=' + encodeURIComponent(encodedNome));
-    }
-    if (msg) {
-      var encodedMsg = btoa(unescape(encodeURIComponent(msg)));
-      params.push('msg=' + encodeURIComponent(encodedMsg));
-    }
+    if (nome) params.push('da=' + toB64(nome));
+    if (msg) params.push('msg=' + toB64(msg));
 
     // Costruisci URL con query params (? non #)
     if (params.length > 0) {

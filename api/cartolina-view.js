@@ -26,9 +26,9 @@ module.exports = (req, res) => {
   var cn = req.query.cn || 'Comune';
   var daRaw = req.query.da || '';
   var msgRaw = req.query.msg || '';
-  var sa = req.query.sa || '#';
-  var hp = req.query.hp || '#';
-  var st = req.query.st || '';
+  var saRaw = req.query.sa || '';
+  var hpRaw = req.query.hp || '';
+  var stRaw = req.query.st || '';
 
   // Decodifica Base64 → UTF-8
   function decodeBase64(str) {
@@ -37,7 +37,7 @@ module.exports = (req, res) => {
       return Buffer.from(decodeURIComponent(str), 'base64').toString('utf8');
     } catch (e) {
       try { return Buffer.from(str, 'base64').toString('utf8'); }
-      catch (e2) { return ''; }
+      catch (e2) { return str; }
     }
   }
 
@@ -58,6 +58,9 @@ module.exports = (req, res) => {
 
   var nomeMittente = decodeBase64(daRaw);
   var messaggio = decodeBase64(msgRaw);
+  var sa = decodeBase64(saRaw) || '#';
+  var hp = decodeBase64(hpRaw) || '#';
+  var st = decodeBase64(stRaw);
   var nomeComune = escHtml(cn);
   var scaricaApp = escAttr(sa);
   var homepage = escAttr(hp);
