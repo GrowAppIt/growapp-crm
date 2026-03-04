@@ -31,7 +31,8 @@ const GeneratoreWebapp = (() => {
     calendario: 'Calendario',
     servizi: 'Servizi',
     commerciali: 'Attività Commerciali',
-    documenti: 'Documenti'
+    documenti: 'Documenti',
+    link: 'Link e URL'
   };
 
   let state = {
@@ -113,6 +114,30 @@ const GeneratoreWebapp = (() => {
         codiceHTML: _getDefaultTemplateRaccoltaDifferenziata(),
         isDefault: true,
         ordine: 1,
+        createdAt: new Date().toISOString(),
+        createdBy: 'Sistema'
+      },
+      'cartolina_8_marzo': {
+        id: 'cartolina_8_marzo',
+        nome: 'Cartolina 8 Marzo',
+        descrizione: 'Cartolina digitale per la Festa della Donna con condivisione social',
+        icona: 'fa-heart',
+        colore: '#C2185B',
+        versione: '1.0',
+        multiFile: true,
+        campiVariabili: [
+          { id: 'nome_comune', label: 'Nome Comune', tipo: 'text', required: true, sezione: 'base', placeholder: 'es. Candela' },
+          { id: 'url_stemma', label: 'URL Logo/Stemma Comune (opzionale)', tipo: 'text', required: false, sezione: 'base', placeholder: 'https://...' },
+          { id: 'url_cartolina_view', label: 'URL pagina visualizzazione cartolina', tipo: 'text', required: true, sezione: 'link', placeholder: 'https://example.com/cartolina-view.html' },
+          { id: 'url_scarica_app', label: 'URL scarica app', tipo: 'text', required: true, sezione: 'link', placeholder: 'https://example.com/scarica-app' },
+          { id: 'url_homepage', label: 'URL homepage app', tipo: 'text', required: true, sezione: 'link', placeholder: 'https://example.com' }
+        ],
+        files: [
+          { id: 'crea', nome: 'cartolina-crea.html', label: 'Pagina Creazione Cartolina', codiceHTML: _getDefaultTemplateCartolina8MarzoCrea() },
+          { id: 'view', nome: 'cartolina-view.html', label: 'Pagina Visualizzazione Cartolina', codiceHTML: _getDefaultTemplateCartolina8MarzoView() }
+        ],
+        isDefault: true,
+        ordine: 2,
         createdAt: new Date().toISOString(),
         createdBy: 'Sistema'
       }
@@ -427,8 +452,29 @@ const GeneratoreWebapp = (() => {
       return '';
     }
 
-    let html = template.codiceHTML;
+    // Handle multi-file templates
+    if (template.multiFile && template.files) {
+      const result = [];
+      template.files.forEach(file => {
+        let html = file.codiceHTML;
+        html = _applyPlaceholders(html, template, formValues);
+        result.push({
+          id: file.id,
+          nome: file.nome,
+          label: file.label,
+          html: html
+        });
+      });
+      return result;
+    }
 
+    // Handle single-file templates
+    let html = template.codiceHTML;
+    html = _applyPlaceholders(html, template, formValues);
+    return html;
+  }
+
+  function _applyPlaceholders(html, template, formValues) {
     // Process simple fields
     template.campiVariabili.forEach(campo => {
       const value = formValues[campo.id];
@@ -471,12 +517,13 @@ const GeneratoreWebapp = (() => {
     var stemmaUrl = formValues['url_stemma'] || '';
     var stemmaBlock;
     if (stemmaUrl) {
-      stemmaBlock = '<img src="' + escapeHtml(stemmaUrl) + '" alt="Stemma Comune" style="width:100%;height:100%;object-fit:cover;">';
+      stemmaBlock = '<img src="' + escapeHtml(stemmaUrl) + '" alt="Logo Comune" style="height:36px;">';
     } else {
       var nomeComune = escapeHtml(formValues['nome_comune'] || 'Comune');
-      stemmaBlock = '<span>Comune<br>di<br>' + nomeComune + '</span>';
+      stemmaBlock = '<i class="fas fa-landmark"></i> Comune di <strong style="margin-left:4px">' + nomeComune + '</strong>';
     }
     html = html.replace(/\{\{STEMMA_BLOCK\}\}/g, stemmaBlock);
+    html = html.replace(/\{\{STEMMA_CARTOLINA\}\}/g, stemmaBlock);
 
     return html;
   }
@@ -556,7 +603,1427 @@ const GeneratoreWebapp = (() => {
     return '    var HOLIDAYS = [\n' + items.join(',\n') + '\n    ];';
   }
 
-  // ============================================================================
+
+  function _getDefaultTemplateCartolina8MarzoCrea() {
+    return `<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>8 Marzo – Invia la tua cartolina</title>
+<link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@500;700&family=Titillium+Web:wght@300;400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<style>
+  :root {
+    --blu-900: #0D3A5C;
+    --blu-700: #145284;
+    --blu-500: #2E6DA8;
+    --blu-300: #7BA7CE;
+    --blu-100: #D1E2F2;
+    --verde-700: #3CA434;
+    --verde-500: #59C64D;
+    --verde-300: #A4E89A;
+    --verde-100: #E2F8DE;
+    --grigio-900: #1E1E1E;
+    --grigio-700: #4A4A4A;
+    --grigio-500: #9B9B9B;
+    --grigio-300: #D9D9D9;
+    --grigio-100: #F5F5F5;
+    --mimosa: #F5C842;
+    --mimosa-chiaro: #FBE8A2;
+    --mimosa-scuro: #C9960A;
+    --rosa: #C2185B;
+    --rosa-chiaro: #E06090;
+    --rosa-bg: #FDE8EF;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Titillium Web', sans-serif;
+    background: linear-gradient(160deg, #0D3A5C 0%, #145284 35%, #1B6A6E 65%, #1A7C5A 100%);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px 16px 60px;
+    position: relative;
+    overflow-x: hidden;
+  }
+
+  /* PETALI ANIMATI */
+  .petalo {
+    position: fixed;
+    opacity: 0;
+    pointer-events: none;
+    animation: caduta linear infinite;
+    z-index: 0;
+  }
+  @keyframes caduta {
+    0%   { transform: translateY(-60px) rotate(0deg) scale(0.8); opacity: 0; }
+    10%  { opacity: 0.7; }
+    90%  { opacity: 0.3; }
+    100% { transform: translateY(110vh) rotate(720deg) scale(0.4); opacity: 0; }
+  }
+
+  /* SFONDO DECORATIVO */
+  body::before {
+    content: '';
+    position: fixed;
+    top: -50%;
+    right: -30%;
+    width: 80vw;
+    height: 80vw;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(245,200,66,0.08) 0%, transparent 70%);
+    z-index: 0;
+    pointer-events: none;
+  }
+  body::after {
+    content: '';
+    position: fixed;
+    bottom: -40%;
+    left: -20%;
+    width: 70vw;
+    height: 70vw;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(194,24,91,0.08) 0%, transparent 70%);
+    z-index: 0;
+    pointer-events: none;
+  }
+
+  /* LOGO BAR */
+  .logo-bar {
+    width: 100%;
+    max-width: 460px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 0 20px;
+    position: relative;
+    z-index: 10;
+  }
+  .logo-comune {
+    color: white;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    opacity: 0.9;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .logo-comune i { color: var(--mimosa); font-size: 1rem; }
+  /*
+    📌 IMMAGINE LOGO: sostituisci il div.logo-comune con:
+    <img src="URL_LOGO" alt="Logo Comune" style="height:38px;">
+    oppure aggiungi l'img dentro il div mantenendo il testo
+  */
+  .data-badge {
+    background: linear-gradient(135deg, var(--mimosa) 0%, #F0B800 100%);
+    color: #1a1a1a;
+    font-weight: 700;
+    font-size: 0.65rem;
+    padding: 5px 13px;
+    border-radius: 20px;
+    letter-spacing: 1.2px;
+    box-shadow: 0 2px 10px rgba(245,200,66,0.3);
+  }
+
+  /* HEADER */
+  .header-section {
+    text-align: center;
+    position: relative;
+    z-index: 10;
+    margin-bottom: 20px;
+    animation: fadeDown 0.6s ease both;
+  }
+  @keyframes fadeDown {
+    from { opacity: 0; transform: translateY(-14px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .header-emoji {
+    display: block;
+    margin-bottom: 8px;
+  }
+  .header-emoji img {
+    height: 70px;
+    object-fit: contain;
+    filter: drop-shadow(0 3px 8px rgba(0,0,0,0.2));
+    animation: pulse 3s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+  }
+  h1 {
+    color: white;
+    font-size: 1.55rem;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    margin-bottom: 4px;
+  }
+  .subtitle {
+    color: rgba(255,255,255,0.75);
+    font-size: 0.92rem;
+    font-weight: 400;
+    letter-spacing: 0.2px;
+  }
+
+  /* ANTEPRIMA CARTOLINA */
+  .card-wrapper {
+    width: 100%;
+    max-width: 460px;
+    position: relative;
+    z-index: 10;
+    margin-bottom: 20px;
+    animation: popIn 0.5s cubic-bezier(.22,1.4,.36,1) 0.15s both;
+  }
+  @keyframes popIn {
+    from { opacity: 0; transform: scale(0.9); }
+    to   { opacity: 1; transform: scale(1); }
+  }
+
+  .card-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: rgba(255,255,255,0.5);
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+  .card-label i { font-size: 0.65rem; }
+
+  #cartolina {
+    width: 100%;
+    border-radius: 18px;
+    overflow: hidden;
+    box-shadow:
+      0 4px 15px rgba(0,0,0,0.15),
+      0 20px 50px rgba(0,0,0,0.35);
+    background: white;
+    position: relative;
+    min-height: 280px;
+    display: flex;
+    flex-direction: column;
+    transition: box-shadow 0.3s ease;
+  }
+
+  .card-bg {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(155deg, #FDE8EF 0%, #FFF8E1 35%, #FFF0F5 65%, #E3F0FF 100%);
+  }
+  .card-bg::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(circle at 10% 15%, rgba(245,200,66,0.25) 0%, transparent 40%),
+      radial-gradient(circle at 90% 80%, rgba(194,24,91,0.12) 0%, transparent 40%),
+      radial-gradient(circle at 75% 10%, rgba(92,196,220,0.12) 0%, transparent 30%);
+  }
+  .card-bg::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    opacity: 0.04;
+    background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='30' cy='30' r='4' fill='%23F5C842'/%3E%3Ccircle cx='10' cy='10' r='3' fill='%23C2185B'/%3E%3Ccircle cx='50' cy='50' r='3' fill='%23C2185B'/%3E%3C/svg%3E");
+    background-size: 60px 60px;
+  }
+
+  .card-nastro {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 5px;
+    background: linear-gradient(90deg, var(--rosa) 0%, var(--rosa-chiaro) 50%, var(--mimosa) 100%);
+    z-index: 3;
+  }
+  .card-deco-tr {
+    position: absolute;
+    top: 10px; right: 12px;
+    font-size: 2rem;
+    line-height: 1;
+    z-index: 2;
+    filter: drop-shadow(1px 2px 3px rgba(0,0,0,0.12));
+    animation: dondola 4s ease-in-out infinite;
+  }
+  .card-deco-bl {
+    position: absolute;
+    bottom: 60px; left: 12px;
+    font-size: 1.5rem;
+    line-height: 1;
+    z-index: 2;
+    animation: dondola 5s ease-in-out infinite reverse;
+  }
+
+  .card-content {
+    position: relative;
+    z-index: 4;
+    padding: 20px 20px 16px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .card-data-label {
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 3px;
+    color: var(--rosa);
+    text-transform: uppercase;
+    margin-bottom: 2px;
+    opacity: 0.7;
+  }
+  .card-titolo {
+    font-family: 'Dancing Script', cursive;
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--rosa);
+    line-height: 1.1;
+    text-shadow: 1px 1px 0 rgba(255,255,255,0.6);
+  }
+  .card-titolo span { color: var(--mimosa-scuro); }
+
+  .card-quote {
+    font-size: 0.92rem;
+    font-style: italic;
+    color: var(--grigio-700);
+    line-height: 1.65;
+    max-width: 82%;
+    padding: 10px 14px;
+    background: rgba(255,255,255,0.65);
+    border-radius: 10px;
+    border-left: 3px solid var(--mimosa);
+    backdrop-filter: blur(4px);
+  }
+
+  .card-msg-utente {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--rosa);
+    line-height: 1.55;
+    max-width: 75%;
+    padding: 7px 12px;
+    background: linear-gradient(135deg, rgba(253,232,239,0.8), rgba(255,240,245,0.7));
+    border-radius: 10px;
+    border-left: 3px solid var(--rosa-chiaro);
+    display: none;
+    animation: fadeIn 0.3s ease;
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .card-msg-utente.visible { display: block; }
+
+  .card-mittente {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--grigio-500);
+    font-style: italic;
+    display: none;
+    margin-top: 2px;
+  }
+  .card-mittente.visible { display: block; }
+
+  .card-footer {
+    display: flex;
+    justify-content: space-between;
+    margin-top: auto;
+    align-items: flex-end;
+  }
+  .card-footer-comune {
+    font-size: 0.56rem;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--grigio-500);
+    line-height: 1.6;
+  }
+  .card-footer-comune span {
+    display: block;
+    font-size: 0.7rem;
+    color: var(--blu-700);
+    font-weight: 700;
+  }
+  .card-mimosa {
+    font-size: 1.8rem;
+    animation: dondola 3s ease-in-out infinite;
+    filter: drop-shadow(1px 2px 4px rgba(0,0,0,0.15));
+  }
+  @keyframes dondola {
+    0%,100% { transform: rotate(-6deg); }
+    50%      { transform: rotate(6deg); }
+  }
+
+  /* FORM */
+  .form-section {
+    width: 100%;
+    max-width: 460px;
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 16px;
+    padding: 18px;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    position: relative;
+    z-index: 10;
+    margin-bottom: 16px;
+    animation: fadeUp 0.5s ease 0.3s both;
+  }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .form-section h2 {
+    color: white;
+    font-size: 0.85rem;
+    font-weight: 700;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .form-section h2 i { color: var(--mimosa); font-size: 0.9rem; }
+
+  .input-group { display: flex; flex-direction: column; gap: 5px; margin-bottom: 14px; }
+  .input-group:last-child { margin-bottom: 0; }
+  .input-group label {
+    color: rgba(255,255,255,0.65);
+    font-size: 0.74rem;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+  }
+  .input-group input,
+  .input-group textarea {
+    width: 100%;
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.18);
+    border-radius: 12px;
+    padding: 12px 14px;
+    color: white;
+    font-family: 'Titillium Web', sans-serif;
+    font-size: 0.85rem;
+    outline: none;
+    transition: border-color 0.3s, background 0.3s, box-shadow 0.3s;
+    line-height: 1.5;
+  }
+  .input-group textarea { resize: none; }
+  .input-group input::placeholder,
+  .input-group textarea::placeholder { color: rgba(255,255,255,0.32); }
+  .input-group input:focus,
+  .input-group textarea:focus {
+    border-color: var(--mimosa);
+    background: rgba(255,255,255,0.15);
+    box-shadow: 0 0 0 3px rgba(245,200,66,0.15);
+  }
+  .char-count {
+    text-align: right;
+    font-size: 0.66rem;
+    color: rgba(255,255,255,0.35);
+    margin-top: 2px;
+    transition: color 0.3s;
+  }
+  .char-count.warning { color: var(--mimosa); }
+
+  /* BOTTONI CONDIVISIONE */
+  .condividi-section {
+    width: 100%;
+    max-width: 460px;
+    position: relative;
+    z-index: 10;
+    animation: fadeUp 0.5s ease 0.45s both;
+  }
+  .condividi-section h2 {
+    color: white;
+    font-size: 0.85rem;
+    font-weight: 700;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .condividi-section h2 i { color: var(--mimosa); font-size: 0.9rem; }
+
+  .btn-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 14px 14px;
+    border-radius: 14px;
+    border: none;
+    font-family: 'Titillium Web', sans-serif;
+    font-size: 0.84rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.25s ease;
+    letter-spacing: 0.3px;
+    position: relative;
+    overflow: hidden;
+  }
+  .btn:active { transform: scale(0.96); }
+  .btn i { font-size: 1rem; }
+
+  .btn-whatsapp {
+    background: linear-gradient(135deg, #25D366 0%, #1EB954 100%);
+    color: white;
+    box-shadow: 0 3px 12px rgba(37,211,102,0.3);
+  }
+  .btn-whatsapp:hover {
+    box-shadow: 0 5px 18px rgba(37,211,102,0.4);
+    transform: translateY(-1px);
+  }
+
+  .btn-condividi {
+    background: linear-gradient(135deg, var(--rosa) 0%, var(--rosa-chiaro) 100%);
+    color: white;
+    box-shadow: 0 3px 12px rgba(194,24,91,0.3);
+  }
+  .btn-condividi:hover {
+    box-shadow: 0 5px 18px rgba(194,24,91,0.4);
+    transform: translateY(-1px);
+  }
+
+  .btn-copia {
+    background: rgba(255,255,255,0.08);
+    color: white;
+    border: 1px solid rgba(255,255,255,0.18);
+    grid-column: span 2;
+  }
+  .btn-copia:hover {
+    background: rgba(255,255,255,0.15);
+    transform: translateY(-1px);
+  }
+  .btn-copia.copiato {
+    background: var(--verde-700);
+    border-color: var(--verde-700);
+    box-shadow: 0 3px 12px rgba(60,164,52,0.3);
+  }
+
+  /* INFORMATIVA PRIVACY */
+  .privacy-notice {
+    width: 100%;
+    max-width: 460px;
+    margin-top: 18px;
+    padding: 12px 16px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 12px;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    position: relative;
+    z-index: 10;
+    animation: fadeUp 0.5s ease 0.55s both;
+  }
+  .privacy-notice i {
+    color: var(--verde-300);
+    font-size: 0.85rem;
+    margin-top: 1px;
+    flex-shrink: 0;
+  }
+  .privacy-notice p {
+    color: rgba(255,255,255,0.45);
+    font-size: 0.68rem;
+    font-weight: 400;
+    line-height: 1.6;
+  }
+
+  /* TOAST */
+  .toast {
+    position: fixed;
+    bottom: 28px;
+    left: 50%;
+    transform: translateX(-50%) translateY(120px);
+    background: rgba(30,30,30,0.95);
+    color: white;
+    padding: 11px 24px;
+    border-radius: 24px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    z-index: 1000;
+    transition: transform 0.35s cubic-bezier(.22,1.4,.36,1);
+    white-space: nowrap;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.4);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+
+  /* FOOTER */
+  .footer-ist {
+    margin-top: 20px;
+    text-align: center;
+    color: rgba(255,255,255,0.25);
+    font-size: 0.66rem;
+    font-weight: 300;
+    position: relative;
+    z-index: 10;
+    line-height: 1.9;
+  }
+  .footer-ist a { color: rgba(255,255,255,0.4); text-decoration: none; transition: color 0.2s; }
+  .footer-ist a:hover { color: white; }
+</style>
+</head>
+<body>
+
+<div class="logo-bar">
+  <div class="logo-comune">
+    {{STEMMA_CARTOLINA}}
+  </div>
+  <div class="data-badge">8 MARZO 2026</div>
+</div>
+
+<div class="header-section">
+  <span class="header-emoji"><img src="https://estensioni.comune.digital/docs/mimosa.png" alt="Mimosa"></span>
+  <h1>Invia la tua cartolina</h1>
+  <p class="subtitle">Manda un pensiero speciale per la Festa della Donna</p>
+</div>
+
+<!-- ANTEPRIMA CARTOLINA -->
+<div class="card-wrapper">
+  <div class="card-label"><i class="fas fa-eye"></i> Anteprima</div>
+  <div id="cartolina">
+    <div class="card-bg"></div>
+    <div class="card-nastro"></div>
+    <div class="card-deco-tr">🌼🌿</div>
+    <div class="card-deco-bl">🌸</div>
+    <div class="card-content">
+      <div>
+        <div class="card-data-label">8 Marzo · Festa della Donna</div>
+        <div class="card-titolo">Buon 8<span> Marzo</span></div>
+      </div>
+      <div class="card-quote">
+        "Il rispetto non è un simbolo da esibire per un giorno.
+        <br>È una responsabilità quotidiana che passa dai gesti,
+        dalle scelte e dai diritti di tutte le donne."
+      </div>
+      <div class="card-msg-utente" id="msg-preview"></div>
+      <div class="card-mittente" id="mittente-preview"></div>
+      <div class="card-footer">
+        <div class="card-footer-comune">
+          Un pensiero a cura del
+          <span>Comune di {{nome_comune}}</span>
+        </div>
+        <div class="card-mimosa">🌼</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- FORM -->
+<div class="form-section">
+  <h2><i class="fas fa-pen-fancy"></i> Personalizza la cartolina</h2>
+
+  <div class="input-group">
+    <label for="nome-mittente">Il tuo nome <span style="opacity:0.5">(obbligatorio)</span></label>
+    <input type="text" id="nome-mittente" maxlength="40"
+      placeholder="Es: Mario, La tua amica Anna, Papà...">
+  </div>
+
+  <div class="input-group">
+    <label for="testo-utente">Un messaggio personale <span style="opacity:0.5">(opzionale)</span></label>
+    <textarea id="testo-utente" rows="3" maxlength="120"
+      placeholder="Es: Oggi ti penso con tutto il mio affetto!"></textarea>
+    <div class="char-count" id="char-count"><span id="count">0</span>/120</div>
+  </div>
+</div>
+
+<!-- CONDIVISIONE -->
+<div class="condividi-section">
+  <h2><i class="fas fa-share-alt"></i> Condividi la cartolina</h2>
+  <div class="btn-grid">
+    <button class="btn btn-whatsapp" onclick="condividiWhatsApp()">
+      <i class="fab fa-whatsapp"></i> WhatsApp
+    </button>
+    <button class="btn btn-condividi" onclick="condividiNativo()">
+      <i class="fas fa-share-alt"></i> Condividi
+    </button>
+    <button class="btn btn-copia" id="btn-copia" onclick="copiaLink()">
+      <i class="fas fa-link"></i> Copia link condivisione
+    </button>
+  </div>
+</div>
+
+<!-- INFORMATIVA PRIVACY -->
+<div class="privacy-notice">
+  <i class="fas fa-shield-alt"></i>
+  <p>
+    <strong>La tua privacy è al sicuro.</strong> Nessun dato personale viene salvato, raccolto o memorizzato dall'app.
+    Il messaggio e il nome del mittente viaggiano esclusivamente all'interno del link condiviso e non vengono archiviati su alcun server.
+  </p>
+</div>
+
+<div class="footer-ist">
+  Un'iniziativa del Comune · Powered by <a href="https://comune.digital" target="_blank">Comune.Digital</a>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  // ============================================================
+  // ⚙️ CONFIGURAZIONE – modifica questi 3 valori per ogni comune
+  // ============================================================
+  const CONFIG = {
+    nomeComune:    "{{nome_comune}}",
+    urlCartolina:  "{{url_cartolina_view}}",
+    urlScaricaApp: "{{url_scarica_app}}"
+  };
+  // ============================================================
+
+  // Petali animati
+  const petaliEmoji = ['🌸','🌼','💛','✨','🌿','💐'];
+  petaliEmoji.forEach((em) => {
+    for (let j = 0; j < 3; j++) {
+      const p = document.createElement('div');
+      p.className = 'petalo';
+      p.textContent = em;
+      const size = 0.7 + Math.random() * 1;
+      const dur = 8 + Math.random() * 8;
+      const delay = Math.random() * 12;
+      p.style.cssText = \`left:\${Math.random()*100}vw;font-size:\${size}rem;animation-duration:\${dur}s;animation-delay:\${delay}s\`;
+      document.body.prepend(p);
+    }
+  });
+
+  // Riferimenti DOM
+  const nomeMittente  = document.getElementById('nome-mittente');
+  const textarea      = document.getElementById('testo-utente');
+  const msgPreview    = document.getElementById('msg-preview');
+  const mittentePreview = document.getElementById('mittente-preview');
+  const countEl       = document.getElementById('count');
+  const charCount     = document.getElementById('char-count');
+
+  // Aggiorna anteprima nome mittente in tempo reale
+  nomeMittente.addEventListener('input', () => {
+    const nome = nomeMittente.value.trim();
+    if (nome) {
+      mittentePreview.textContent = '— ' + nome;
+      mittentePreview.classList.add('visible');
+    } else {
+      mittentePreview.textContent = '';
+      mittentePreview.classList.remove('visible');
+    }
+  });
+
+  // Aggiorna anteprima messaggio in tempo reale
+  textarea.addEventListener('input', () => {
+    const val = textarea.value.trim();
+    const len = textarea.value.length;
+    countEl.textContent = len;
+
+    if (len > 100) { charCount.classList.add('warning'); }
+    else           { charCount.classList.remove('warning'); }
+
+    if (val) {
+      msgPreview.textContent = '💬 "' + val + '"';
+      msgPreview.classList.add('visible');
+    } else {
+      msgPreview.textContent = '';
+      msgPreview.classList.remove('visible');
+    }
+  });
+
+  // ==========================================
+  // 🔗 Costruisce l'URL con messaggio + mittente
+  //    Entrambi codificati in Base64 nell'URL
+  // ==========================================
+  function getUrlConParametri() {
+    const msg  = textarea.value.trim();
+    const nome = nomeMittente.value.trim();
+    let url = CONFIG.urlCartolina;
+    const params = [];
+
+    if (nome) {
+      const encodedNome = btoa(unescape(encodeURIComponent(nome)));
+      params.push('da=' + encodeURIComponent(encodedNome));
+    }
+    if (msg) {
+      const encodedMsg = btoa(unescape(encodeURIComponent(msg)));
+      params.push('msg=' + encodeURIComponent(encodedMsg));
+    }
+
+    if (params.length > 0) {
+      url += '?' + params.join('&');
+    }
+    return url;
+  }
+
+  // Verifica che il nome mittente sia compilato
+  function verificaMittente() {
+    const nome = nomeMittente.value.trim();
+    if (!nome) {
+      nomeMittente.style.borderColor = '#D32F2F';
+      nomeMittente.style.boxShadow = '0 0 0 3px rgba(211,47,47,0.2)';
+      nomeMittente.focus();
+      mostraToast("Inserisci il tuo nome prima di condividere");
+      setTimeout(() => {
+        nomeMittente.style.borderColor = '';
+        nomeMittente.style.boxShadow = '';
+      }, 3000);
+      return false;
+    }
+    return true;
+  }
+
+  function getTesto() {
+    const msg  = textarea.value.trim();
+    const nome = nomeMittente.value.trim();
+    let testo = "🌸 Guarda la cartolina che ti ho inviato per la Festa della Donna!\\n";
+    testo += "Tramite l'app del Comune di " + CONFIG.nomeComune + "\\n";
+    if (nome) testo += "\\n✉️ Da: " + nome + "\\n";
+    if (msg)  testo += "💬 \\"" + msg + "\\"\\n";
+    testo += "\\n👇 Aprila qui:\\n" + getUrlConParametri();
+    return testo;
+  }
+
+  function condividiWhatsApp() {
+    if (!verificaMittente()) return;
+    window.open("https://wa.me/?text=" + encodeURIComponent(getTesto()), '_blank');
+    mostraToast("Apertura WhatsApp… 💚");
+  }
+
+  async function condividiNativo() {
+    if (!verificaMittente()) return;
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: "🌸 Cartolina 8 Marzo – " + CONFIG.nomeComune,
+          text: getTesto(),
+          url: getUrlConParametri()
+        });
+      } catch(e) { /* utente ha annullato */ }
+    } else {
+      try {
+        await navigator.clipboard.writeText(getTesto());
+        mostraToast("Testo copiato! 📋");
+      } catch(e) { mostraToast("Condivisione non supportata"); }
+    }
+  }
+
+  async function copiaLink() {
+    if (!verificaMittente()) return;
+    const btn = document.getElementById('btn-copia');
+    const url = getUrlConParametri();
+    try {
+      await navigator.clipboard.writeText(url);
+      btn.classList.add('copiato');
+      btn.innerHTML = '<i class="fas fa-check"></i> Link copiato!';
+      mostraToast("Link copiato negli appunti ✅");
+      setTimeout(() => {
+        btn.classList.remove('copiato');
+        btn.innerHTML = '<i class="fas fa-link"></i> Copia link condivisione';
+      }, 3000);
+    } catch(e) {
+      const el = document.createElement('textarea');
+      el.value = url;
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand('copy');
+      document.body.removeChild(el);
+      mostraToast("Link copiato! ✅");
+    }
+  }
+
+  function mostraToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 3000);
+  }
+</script>
+</body>
+</html>
+`;
+  }
+
+  function _getDefaultTemplateCartolina8MarzoView() {
+    return `<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>8 Marzo – La tua cartolina</title>
+<link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@500;700&family=Titillium+Web:wght@300;400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<style>
+  :root {
+    --blu-900: #0D3A5C;
+    --blu-700: #145284;
+    --blu-500: #2E6DA8;
+    --verde-700: #3CA434;
+    --verde-500: #59C64D;
+    --verde-300: #A4E89A;
+    --verde-100: #E2F8DE;
+    --grigio-700: #4A4A4A;
+    --grigio-500: #9B9B9B;
+    --mimosa: #F5C842;
+    --mimosa-scuro: #C9960A;
+    --rosa: #C2185B;
+    --rosa-chiaro: #E06090;
+    --rosa-bg: #FDE8EF;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Titillium Web', sans-serif;
+    background: linear-gradient(160deg, #0D3A5C 0%, #145284 35%, #1B6A6E 65%, #1A7C5A 100%);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 24px 16px 40px;
+    position: relative;
+    overflow-x: hidden;
+  }
+
+  /* SFONDO DECORATIVO */
+  body::before {
+    content: '';
+    position: fixed;
+    top: -50%;
+    right: -30%;
+    width: 80vw;
+    height: 80vw;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(245,200,66,0.08) 0%, transparent 70%);
+    z-index: 0;
+    pointer-events: none;
+  }
+  body::after {
+    content: '';
+    position: fixed;
+    bottom: -40%;
+    left: -20%;
+    width: 70vw;
+    height: 70vw;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(194,24,91,0.08) 0%, transparent 70%);
+    z-index: 0;
+    pointer-events: none;
+  }
+
+  /* PETALI */
+  .petalo {
+    position: fixed; opacity: 0; pointer-events: none;
+    animation: caduta linear infinite; z-index: 0;
+  }
+  @keyframes caduta {
+    0%   { transform: translateY(-60px) rotate(0deg) scale(0.8); opacity: 0; }
+    10%  { opacity: 0.7; }
+    90%  { opacity: 0.3; }
+    100% { transform: translateY(110vh) rotate(720deg) scale(0.4); opacity: 0; }
+  }
+
+  /* INTRO */
+  .intro {
+    text-align: center;
+    position: relative;
+    z-index: 10;
+    margin-bottom: 22px;
+    animation: fadeDown 0.7s ease both;
+  }
+  @keyframes fadeDown {
+    from { opacity: 0; transform: translateY(-16px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .intro-emoji {
+    display: block;
+    margin-bottom: 10px;
+  }
+  .intro-emoji img {
+    height: 80px;
+    object-fit: contain;
+    filter: drop-shadow(0 3px 8px rgba(0,0,0,0.2));
+    animation: pulse 3s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+  }
+  .intro h1 {
+    color: white;
+    font-size: 1.5rem;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    margin-bottom: 5px;
+  }
+  .intro p {
+    color: rgba(255,255,255,0.55);
+    font-size: 0.82rem;
+    font-weight: 300;
+  }
+  /* Se c'è un mittente, lo mostriamo nell'intro */
+  .intro-mittente {
+    display: none;
+    color: var(--mimosa);
+    font-size: 0.85rem;
+    font-weight: 700;
+    margin-top: 4px;
+  }
+  .intro-mittente.visible { display: block; }
+
+  /* CARTOLINA */
+  .card-wrapper {
+    width: 100%;
+    max-width: 460px;
+    position: relative;
+    z-index: 10;
+    margin-bottom: 28px;
+    animation: popIn 0.55s cubic-bezier(.22,1.4,.36,1) 0.2s both;
+  }
+  @keyframes popIn {
+    from { opacity: 0; transform: scale(0.88); }
+    to   { opacity: 1; transform: scale(1); }
+  }
+
+  .cartolina {
+    width: 100%;
+    border-radius: 20px;
+    overflow: hidden;
+    box-shadow:
+      0 4px 15px rgba(0,0,0,0.15),
+      0 22px 60px rgba(0,0,0,0.4);
+    background: white;
+    position: relative;
+    min-height: 280px;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .card-bg {
+    position: absolute; inset: 0;
+    background: linear-gradient(155deg, #FDE8EF 0%, #FFF8E1 35%, #FFF0F5 65%, #E3F0FF 100%);
+  }
+  .card-bg::before {
+    content: ''; position: absolute; inset: 0;
+    background:
+      radial-gradient(circle at 10% 15%, rgba(245,200,66,0.25) 0%, transparent 40%),
+      radial-gradient(circle at 90% 80%, rgba(194,24,91,0.12) 0%, transparent 40%),
+      radial-gradient(circle at 75% 10%, rgba(92,196,220,0.12) 0%, transparent 30%);
+  }
+  .card-bg::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    opacity: 0.04;
+    background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='30' cy='30' r='4' fill='%23F5C842'/%3E%3Ccircle cx='10' cy='10' r='3' fill='%23C2185B'/%3E%3Ccircle cx='50' cy='50' r='3' fill='%23C2185B'/%3E%3C/svg%3E");
+    background-size: 60px 60px;
+  }
+
+  .card-nastro {
+    position: absolute; top: 0; left: 0;
+    width: 100%; height: 5px;
+    background: linear-gradient(90deg, var(--rosa) 0%, var(--rosa-chiaro) 50%, var(--mimosa) 100%);
+    z-index: 3;
+  }
+  .card-deco-tr {
+    position: absolute; top: 10px; right: 12px;
+    font-size: 2rem; line-height: 1; z-index: 2;
+    filter: drop-shadow(1px 2px 3px rgba(0,0,0,0.12));
+    animation: dondola 4s ease-in-out infinite;
+  }
+  .card-deco-bl {
+    position: absolute; bottom: 60px; left: 12px;
+    font-size: 1.5rem; line-height: 1; z-index: 2;
+    animation: dondola 5s ease-in-out infinite reverse;
+  }
+
+  .card-content {
+    position: relative; z-index: 4;
+    padding: 20px 20px 16px;
+    flex: 1;
+    display: flex; flex-direction: column;
+    gap: 12px;
+  }
+  .card-data-label {
+    font-size: 0.6rem; font-weight: 700;
+    letter-spacing: 3px; color: var(--rosa);
+    text-transform: uppercase; margin-bottom: 2px;
+    opacity: 0.7;
+  }
+  .card-titolo {
+    font-family: 'Dancing Script', cursive;
+    font-size: 2rem; font-weight: 700;
+    color: var(--rosa); line-height: 1.1;
+    text-shadow: 1px 1px 0 rgba(255,255,255,0.6);
+  }
+  .card-titolo span { color: var(--mimosa-scuro); }
+
+  .card-quote {
+    font-size: 0.92rem; font-style: italic;
+    color: var(--grigio-700); line-height: 1.65;
+    max-width: 82%; padding: 10px 14px;
+    background: rgba(255,255,255,0.65);
+    border-radius: 10px; border-left: 3px solid var(--mimosa);
+    backdrop-filter: blur(4px);
+  }
+
+  /* MESSAGGIO PERSONALE (dall'URL) */
+  .card-msg-personale {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--rosa);
+    line-height: 1.55;
+    max-width: 78%;
+    padding: 8px 12px;
+    background: linear-gradient(135deg, rgba(253,232,239,0.8), rgba(255,240,245,0.7));
+    border-radius: 10px;
+    border-left: 3px solid var(--rosa-chiaro);
+    display: none;
+    animation: fadeInMsg 0.6s ease 0.6s both;
+  }
+  @keyframes fadeInMsg {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .card-msg-personale.visible { display: block; }
+
+  /* NOME MITTENTE dentro la cartolina */
+  .card-mittente {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #9B9B9B;
+    font-style: italic;
+    display: none;
+    margin-top: 2px;
+    animation: fadeInMsg 0.6s ease 0.8s both;
+  }
+  .card-mittente.visible { display: block; }
+
+  .card-footer {
+    display: flex; justify-content: space-between; align-items: flex-end;
+    margin-top: auto;
+  }
+  .card-footer-comune {
+    font-size: 0.56rem; font-weight: 700;
+    letter-spacing: 1.5px; text-transform: uppercase;
+    color: #9B9B9B; line-height: 1.6;
+  }
+  .card-footer-comune span {
+    display: block; font-size: 0.7rem;
+    color: var(--blu-700); font-weight: 700;
+  }
+  .card-mimosa {
+    font-size: 1.8rem;
+    animation: dondola 3s ease-in-out infinite;
+    filter: drop-shadow(1px 2px 4px rgba(0,0,0,0.15));
+  }
+  @keyframes dondola {
+    0%,100% { transform: rotate(-6deg); }
+    50%      { transform: rotate(6deg); }
+  }
+
+  /* SEZIONE DOWNLOAD APP – grande e visibile */
+  .download-section {
+    width: 100%;
+    max-width: 460px;
+    position: relative;
+    z-index: 10;
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 18px;
+    padding: 22px 18px;
+    text-align: center;
+    margin-bottom: 12px;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    animation: fadeUp 0.5s ease 0.5s both;
+  }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(14px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .download-section .download-icon {
+    font-size: 2.2rem;
+    margin-bottom: 8px;
+    display: block;
+  }
+  .download-section h2 {
+    color: white;
+    font-size: 1.15rem;
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+  .download-section p {
+    color: rgba(255,255,255,0.55);
+    font-size: 0.78rem;
+    font-weight: 300;
+    margin-bottom: 16px;
+    line-height: 1.5;
+  }
+
+  .azioni {
+    width: 100%;
+    max-width: 460px;
+    position: relative;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .btn {
+    display: flex; align-items: center; justify-content: center;
+    gap: 10px; padding: 16px 20px; border-radius: 14px;
+    border: none; font-family: 'Titillium Web', sans-serif;
+    font-size: 0.92rem; font-weight: 700; cursor: pointer;
+    transition: all 0.25s ease; text-decoration: none;
+    letter-spacing: 0.3px; width: 100%;
+    position: relative; overflow: hidden;
+  }
+  .btn:active { transform: scale(0.97); }
+  .btn i { font-size: 1.1rem; }
+
+  .btn-app {
+    background: linear-gradient(135deg, var(--verde-700) 0%, var(--verde-500) 100%);
+    color: white;
+    box-shadow: 0 4px 18px rgba(60,164,52,0.4);
+    font-size: 1rem;
+    padding: 18px 20px;
+  }
+  .btn-app:hover {
+    box-shadow: 0 6px 24px rgba(60,164,52,0.5);
+    transform: translateY(-2px);
+  }
+  .btn-app i { font-size: 1.2rem; }
+
+  .btn-home {
+    background: rgba(255,255,255,0.08);
+    color: white;
+    border: 1px solid rgba(255,255,255,0.18);
+  }
+  .btn-home:hover {
+    background: rgba(255,255,255,0.15);
+    transform: translateY(-1px);
+  }
+
+  .divider-testo {
+    text-align: center;
+    color: rgba(255,255,255,0.35);
+    font-size: 0.72rem;
+    font-weight: 300;
+    padding: 2px 0;
+  }
+
+  /* INFORMATIVA PRIVACY */
+  .privacy-notice {
+    width: 100%;
+    max-width: 460px;
+    margin-top: 18px;
+    padding: 12px 16px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 12px;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    position: relative;
+    z-index: 10;
+    animation: fadeUp 0.5s ease 0.7s both;
+  }
+  .privacy-notice i {
+    color: var(--verde-300);
+    font-size: 0.85rem;
+    margin-top: 1px;
+    flex-shrink: 0;
+  }
+  .privacy-notice p {
+    color: rgba(255,255,255,0.45);
+    font-size: 0.68rem;
+    font-weight: 400;
+    line-height: 1.6;
+  }
+
+  /* FOOTER */
+  .footer-ist {
+    margin-top: 16px;
+    text-align: center;
+    color: rgba(255,255,255,0.22);
+    font-size: 0.65rem;
+    font-weight: 300;
+    position: relative; z-index: 10;
+    line-height: 1.9;
+  }
+  .footer-ist a { color: rgba(255,255,255,0.38); text-decoration: none; transition: color 0.2s; }
+  .footer-ist a:hover { color: white; }
+</style>
+</head>
+<body>
+
+<!-- INTRO -->
+<div class="intro">
+  <span class="intro-emoji"><img src="https://estensioni.comune.digital/docs/mimosa.png" alt="Mimosa"></span>
+  <h1>Hai ricevuto una cartolina!</h1>
+  <p>Qualcuno ti pensa in questo giorno speciale</p>
+  <div class="intro-mittente" id="intro-mittente"></div>
+</div>
+
+<!-- CARTOLINA -->
+<div class="card-wrapper">
+  <div class="cartolina">
+    <div class="card-bg"></div>
+    <div class="card-nastro"></div>
+    <div class="card-deco-tr">🌼🌿</div>
+    <div class="card-deco-bl">🌸</div>
+    <div class="card-content">
+      <div>
+        <div class="card-data-label">8 Marzo · Festa della Donna</div>
+        <div class="card-titolo">Buon 8<span> Marzo</span></div>
+      </div>
+      <div class="card-quote">
+        "Il rispetto non è un simbolo da esibire per un giorno.
+        <br>È una responsabilità quotidiana che passa dai gesti,
+        dalle scelte e dai diritti di tutte le donne."
+      </div>
+      <!-- Messaggio personale (dall'URL) -->
+      <div class="card-msg-personale" id="msg-personale"></div>
+      <!-- Nome mittente (dall'URL) -->
+      <div class="card-mittente" id="card-mittente"></div>
+      <div class="card-footer">
+        <div class="card-footer-comune">
+          Un pensiero a cura del
+          <span>Comune di {{nome_comune}}</span>
+        </div>
+        <div class="card-mimosa">🌼</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SEZIONE DOWNLOAD APP – grande e visibile -->
+<div class="download-section">
+  <span class="download-icon">📱</span>
+  <h2>Non hai ancora l'app del Comune?</h2>
+  <p>Resta aggiornato su eventi, servizi e notizie del tuo Comune direttamente sul tuo smartphone</p>
+  <div class="azioni">
+    <a class="btn btn-app" href="https://TUO-DOMINIO.it/scarica-app" target="_blank" id="btn-app">
+      <i class="fas fa-download"></i> Scarica l'app del Comune
+    </a>
+    <div class="divider-testo">— oppure —</div>
+    <a class="btn btn-home" href="https://TUO-DOMINIO.it" id="btn-torna">
+      <i class="fas fa-home"></i> Vai all'homepage dell'app
+    </a>
+  </div>
+</div>
+
+<!-- INFORMATIVA PRIVACY -->
+<div class="privacy-notice">
+  <i class="fas fa-shield-alt"></i>
+  <p>
+    <strong>La tua privacy è al sicuro.</strong> Nessun dato personale viene salvato, raccolto o memorizzato dall'app.
+    Il messaggio e il nome del mittente viaggiano esclusivamente all'interno del link e non vengono archiviati su alcun server.
+  </p>
+</div>
+
+<div class="footer-ist">
+  Un'iniziativa del Comune · Powered by <a href="https://comune.digital" target="_blank">Comune.Digital</a>
+</div>
+
+<script>
+  // ============================================================
+  // ⚙️ CONFIGURAZIONE – modifica questi valori per ogni comune
+  // ============================================================
+  const CONFIG = {
+    nomeComune:    "{{nome_comune}}",
+    urlScaricaApp: "{{url_scarica_app}}",
+    urlHomepage:   "{{url_homepage}}"
+  };
+  // ============================================================
+
+  // Applica i link dinamicamente
+  document.getElementById('btn-app').href = CONFIG.urlScaricaApp;
+  document.getElementById('btn-torna').href = CONFIG.urlHomepage;
+
+  // ==========================================
+  // 📩 LEGGI MESSAGGIO E MITTENTE DALL'URL
+  //    "msg" = messaggio Base64
+  //    "da"  = nome mittente Base64
+  // ==========================================
+  (function() {
+    const params = new URLSearchParams(window.location.search);
+
+    // Funzione di decodifica sicura Base64 → UTF-8
+    function decodifica(str) {
+      try {
+        return decodeURIComponent(escape(atob(decodeURIComponent(str))));
+      } catch(e) {
+        return null;
+      }
+    }
+
+    // Sanitizza il testo (rimuove tag HTML per sicurezza)
+    function sanitizza(str) {
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    // Leggi il nome del mittente
+    const daParam = params.get('da');
+    if (daParam) {
+      const mittente = decodifica(daParam);
+      if (mittente && mittente.length > 0 && mittente.length <= 50) {
+        const nomeSafe = sanitizza(mittente);
+
+        // Mostra nell'intro
+        const introEl = document.getElementById('intro-mittente');
+        introEl.textContent = '✉️ Inviata da ' + nomeSafe;
+        introEl.classList.add('visible');
+
+        // Mostra nella cartolina
+        const cardEl = document.getElementById('card-mittente');
+        cardEl.textContent = '— ' + nomeSafe;
+        cardEl.classList.add('visible');
+      }
+    }
+
+    // Leggi il messaggio
+    const msgParam = params.get('msg');
+    if (msgParam) {
+      const messaggio = decodifica(msgParam);
+      if (messaggio && messaggio.length > 0 && messaggio.length <= 150) {
+        const msgSafe = sanitizza(messaggio);
+        const el = document.getElementById('msg-personale');
+        el.textContent = '💬 "' + msgSafe + '"';
+        el.classList.add('visible');
+      }
+    }
+  })();
+
+  // Petali animati
+  const petaliEmoji = ['🌸','🌼','💛','✨','🌿','💐'];
+  petaliEmoji.forEach(em => {
+    for (let j = 0; j < 3; j++) {
+      const p = document.createElement('div');
+      p.className = 'petalo';
+      p.textContent = em;
+      const size = 0.7 + Math.random() * 1;
+      const dur = 8 + Math.random() * 8;
+      const delay = Math.random() * 12;
+      p.style.cssText = \`left:\${Math.random()*100}vw;font-size:\${size}rem;animation-duration:\${dur}s;animation-delay:\${delay}s\`;
+      document.body.prepend(p);
+    }
+  });
+</script>
+</body>
+</html>
+`;
+  }
+
+
+    // ============================================================================
   // RENDERING FUNCTIONS
   // ============================================================================
 
@@ -638,7 +2105,7 @@ const GeneratoreWebapp = (() => {
     });
 
     // Sort sections in defined order
-    const sectionOrder = ['base', 'calendario', 'servizi', 'commerciali', 'documenti'];
+    const sectionOrder = ['base', 'calendario', 'servizi', 'commerciali', 'documenti', 'link'];
     const sortedSections = sectionOrder.filter(s => fieldsBySection[s]);
 
     sortedSections.forEach(sezione => {
@@ -827,7 +2294,7 @@ const GeneratoreWebapp = (() => {
     return container;
   }
 
-  function _renderGenerationPreview(html) {
+  function _renderGenerationPreview(htmlData) {
     const container = document.getElementById('generation-preview-container');
     if (!container) return;
 
@@ -836,9 +2303,79 @@ const GeneratoreWebapp = (() => {
     const previewSection = document.createElement('div');
     previewSection.className = 'preview-section';
 
+    // Check if multi-file (array) or single-file (string)
+    const isMultiFile = Array.isArray(htmlData);
+
     const title = document.createElement('h3');
     title.textContent = 'Anteprima Webapp';
     previewSection.appendChild(title);
+
+    if (isMultiFile) {
+      // Multi-file template - create tabs
+      const tabNav = document.createElement('div');
+      tabNav.className = 'preview-tabs-nav';
+      tabNav.style.cssText = 'display: flex; gap: 10px; margin-bottom: 15px; border-bottom: 2px solid #e0e0e0; flex-wrap: wrap;';
+
+      htmlData.forEach((file, index) => {
+        const btn = document.createElement('button');
+        btn.className = 'preview-tab-btn';
+        btn.style.cssText = index === 0 ? 'padding: 10px 20px; background: none; border: none; color: #145284; cursor: pointer; border-bottom: 3px solid #145284; font-weight: 600;' : 'padding: 10px 20px; background: none; border: none; color: #999; cursor: pointer; border-bottom: 3px solid transparent; font-weight: 600;';
+        btn.textContent = file.label;
+        btn.onclick = function() { _switchPreviewTab(index, htmlData); };
+        tabNav.appendChild(btn);
+      });
+
+      previewSection.appendChild(tabNav);
+
+      // Container for tab content
+      const tabContent = document.createElement('div');
+      tabContent.id = 'preview-tab-content';
+      previewSection.appendChild(tabContent);
+
+      // Show first tab
+      _switchPreviewTab(0, htmlData);
+    } else {
+      // Single-file template
+      const iframeContainer = document.createElement('div');
+      iframeContainer.className = 'preview-iframe-container';
+
+      const iframe = document.createElement('iframe');
+      iframe.className = 'preview-iframe';
+      iframe.sandbox.add('allow-same-origin');
+      iframeContainer.appendChild(iframe);
+      previewSection.appendChild(iframeContainer);
+
+      // Write HTML to iframe
+      iframe.contentDocument.open();
+      iframe.contentDocument.write(htmlData);
+      iframe.contentDocument.close();
+
+      const copyButtonDiv = document.createElement('div');
+      copyButtonDiv.className = 'copy-button-container';
+      copyButtonDiv.innerHTML = `
+        <button class="btn btn-primary" onclick="GeneratoreWebapp._copyHTMLToClipboard()">
+          <i class="fas fa-copy"></i> Copia codice HTML
+        </button>
+        <button class="btn btn-default" onclick="GeneratoreWebapp._downloadHTML()">
+          <i class="fas fa-download"></i> Scarica HTML
+        </button>
+      `;
+      previewSection.appendChild(copyButtonDiv);
+
+      state.generatedHTML = htmlData;
+    }
+
+    container.appendChild(previewSection);
+
+    // Store the generated data
+    state.generatedHTML = htmlData;
+  }
+
+  function _switchPreviewTab(index, htmlData) {
+    const file = htmlData[index];
+    const content = document.getElementById('preview-tab-content');
+
+    content.innerHTML = '';
 
     const iframeContainer = document.createElement('div');
     iframeContainer.className = 'preview-iframe-container';
@@ -847,29 +2384,35 @@ const GeneratoreWebapp = (() => {
     iframe.className = 'preview-iframe';
     iframe.sandbox.add('allow-same-origin');
     iframeContainer.appendChild(iframe);
-    previewSection.appendChild(iframeContainer);
+    content.appendChild(iframeContainer);
+
+    // Write HTML to iframe
+    iframe.contentDocument.open();
+    iframe.contentDocument.write(file.html);
+    iframe.contentDocument.close();
 
     const copyButtonDiv = document.createElement('div');
     copyButtonDiv.className = 'copy-button-container';
     copyButtonDiv.innerHTML = `
-      <button class="btn btn-primary" onclick="GeneratoreWebapp._copyHTMLToClipboard()">
-        <i class="fas fa-copy"></i> Copia codice HTML
+      <button class="btn btn-primary" onclick="GeneratoreWebapp._copyFileHTML(${index})">
+        <i class="fas fa-copy"></i> Copia codice ${file.nome}
       </button>
-      <button class="btn btn-default" onclick="GeneratoreWebapp._downloadHTML()">
-        <i class="fas fa-download"></i> Scarica HTML
+      <button class="btn btn-default" onclick="GeneratoreWebapp._downloadFileHTML(${index})">
+        <i class="fas fa-download"></i> Scarica ${file.nome}
       </button>
     `;
-    previewSection.appendChild(copyButtonDiv);
+    content.appendChild(copyButtonDiv);
 
-    container.appendChild(previewSection);
-
-    // Write HTML to iframe
-    iframe.contentDocument.open();
-    iframe.contentDocument.write(html);
-    iframe.contentDocument.close();
-
-    // Store the generated HTML
-    state.generatedHTML = html;
+    // Update active tab button
+    document.querySelectorAll('.preview-tab-btn').forEach((btn, i) => {
+      if (i === index) {
+        btn.style.color = '#145284';
+        btn.style.borderBottomColor = '#145284';
+      } else {
+        btn.style.color = '#999';
+        btn.style.borderBottomColor = 'transparent';
+      }
+    });
   }
 
   // ============================================================================
@@ -1121,6 +2664,12 @@ const GeneratoreWebapp = (() => {
       return;
     }
 
+    // Handle both single-file (string) and multi-file (array)
+    if (Array.isArray(state.generatedHTML)) {
+      UI.showError('Per i modelli multi-file, usa il pulsante specifico per ogni file');
+      return;
+    }
+
     navigator.clipboard.writeText(state.generatedHTML).then(() => {
       UI.showSuccess('Codice HTML copiato negli appunti');
     }).catch(() => {
@@ -1134,6 +2683,12 @@ const GeneratoreWebapp = (() => {
       return;
     }
 
+    // Handle both single-file (string) and multi-file (array)
+    if (Array.isArray(state.generatedHTML)) {
+      UI.showError('Per i modelli multi-file, usa il pulsante specifico per ogni file');
+      return;
+    }
+
     const template = state.templates[state.currentGenerationTemplate];
     const filename = (template.nome || 'webapp').toLowerCase().replace(/\s+/g, '_') + '.html';
 
@@ -1142,6 +2697,48 @@ const GeneratoreWebapp = (() => {
     const a = document.createElement('a');
     a.href = url;
     a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  function _copyFileHTML(fileIndex) {
+    if (!state.generatedHTML || !Array.isArray(state.generatedHTML)) {
+      UI.showError('Nessun HTML da copiare');
+      return;
+    }
+
+    const file = state.generatedHTML[fileIndex];
+    if (!file) {
+      UI.showError('File non trovato');
+      return;
+    }
+
+    navigator.clipboard.writeText(file.html).then(() => {
+      UI.showSuccess('Codice ' + file.nome + ' copiato negli appunti');
+    }).catch(() => {
+      UI.showError('Errore nella copia');
+    });
+  }
+
+  function _downloadFileHTML(fileIndex) {
+    if (!state.generatedHTML || !Array.isArray(state.generatedHTML)) {
+      UI.showError('Nessun HTML da scaricare');
+      return;
+    }
+
+    const file = state.generatedHTML[fileIndex];
+    if (!file) {
+      UI.showError('File non trovato');
+      return;
+    }
+
+    const blob = new Blob([file.html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = file.nome;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -1595,6 +3192,9 @@ const GeneratoreWebapp = (() => {
     _removeTextFromList: _removeTextFromList,
     _performGeneration: _performGeneration,
     _copyHTMLToClipboard: _copyHTMLToClipboard,
-    _downloadHTML: _downloadHTML
+    _downloadHTML: _downloadHTML,
+    _copyFileHTML: _copyFileHTML,
+    _downloadFileHTML: _downloadFileHTML,
+    _switchPreviewTab: _switchPreviewTab
   };
 })();
