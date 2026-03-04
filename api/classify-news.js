@@ -147,7 +147,7 @@ Esempio: [{"idx":0,"cat":"eventi","score":8,"reason":"Evento con data e luogo sp
       return res.status(502).json({
         error: 'Errore dalla API Anthropic',
         status: response.status,
-        detail: errBody.substring(0, 300)
+        detail: errBody.substring(0, 1000)
       });
     }
 

@@ -218,7 +218,7 @@ IMPORTANTE: Rispondi ESCLUSIVAMENTE con il JSON, nessun testo prima o dopo, ness
       return res.status(502).json({
         error: 'Errore dalla API Anthropic',
         status: response.status,
-        detail: errBody.substring(0, 300)
+        detail: errBody.substring(0, 1000)
       });
     }
 
