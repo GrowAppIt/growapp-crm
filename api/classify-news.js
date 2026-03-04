@@ -29,6 +29,34 @@ const CATEGORY_LIST = CATEGORIES.map(c => `- "${c.id}" = ${c.label} (${c.keyword
  * Pulisce il testo da HTML, caratteri di controllo, emoji problematici
  * e lo tronca a maxLen caratteri.
  */
+
+/**
+ * Rimuove i lone surrogates (caratteri Unicode rotti) da una stringa.
+ * Itera carattere per carattere — approccio più robusto delle regex.
+ */
+function removeLoneSurrogates(str) {
+  if (!str) return '';
+  let result = '';
+  for (let i = 0; i < str.length; i++) {
+    const code = str.charCodeAt(i);
+    if (code >= 0xD800 && code <= 0xDBFF) {
+      // High surrogate: controlla se è seguito da un low surrogate
+      const next = i + 1 < str.length ? str.charCodeAt(i + 1) : 0;
+      if (next >= 0xDC00 && next <= 0xDFFF) {
+        // Coppia valida — tieni entrambi
+        result += str[i] + str[i + 1];
+        i++;
+      }
+      // Altrimenti lone high surrogate — salta
+    } else if (code >= 0xDC00 && code <= 0xDFFF) {
+      // Lone low surrogate — salta
+    } else {
+      result += str[i];
+    }
+  }
+  return result;
+}
+
 function sanitizeText(raw, maxLen) {
   if (!raw) return '';
   let text = raw
@@ -137,9 +165,7 @@ Esempio: [{"idx":0,"cat":"eventi","score":8,"reason":"Evento con data e luogo sp
       ]
     });
     // Pulizia definitiva: rimuovi lone surrogates dal JSON serializzato
-    requestBody = requestBody
-      .replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/g, '')
-      .replace(/(^|[^\uD800-\uDBFF])[\uDC00-\uDFFF]/g, '$1');
+    requestBody = removeLoneSurrogates(requestBody);
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',

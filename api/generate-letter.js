@@ -14,6 +14,29 @@
  */
 
 /**
+ * Rimuove i lone surrogates (caratteri Unicode rotti) da una stringa.
+ */
+function removeLoneSurrogates(str) {
+  if (!str) return '';
+  let result = '';
+  for (let i = 0; i < str.length; i++) {
+    const code = str.charCodeAt(i);
+    if (code >= 0xD800 && code <= 0xDBFF) {
+      const next = i + 1 < str.length ? str.charCodeAt(i + 1) : 0;
+      if (next >= 0xDC00 && next <= 0xDFFF) {
+        result += str[i] + str[i + 1];
+        i++;
+      }
+    } else if (code >= 0xDC00 && code <= 0xDFFF) {
+      // skip
+    } else {
+      result += str[i];
+    }
+  }
+  return result;
+}
+
+/**
  * Pulisce il testo da HTML, caratteri di controllo e lo tronca a maxLen.
  */
 function sanitizeText(raw, maxLen) {
@@ -206,9 +229,7 @@ IMPORTANTE: Rispondi ESCLUSIVAMENTE con il JSON, nessun testo prima o dopo, ness
       system: systemPrompt,
       messages: [{ role: 'user', content: userMessage }]
     });
-    requestBody = requestBody
-      .replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/g, '')
-      .replace(/(^|[^\uD800-\uDBFF])[\uDC00-\uDFFF]/g, '$1');
+    requestBody = removeLoneSurrogates(requestBody);
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
