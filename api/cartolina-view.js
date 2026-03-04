@@ -56,11 +56,13 @@ module.exports = (req, res) => {
     return escHtml(str);
   }
 
+  // da e msg sono in Base64 (nome mittente e messaggio)
   var nomeMittente = decodeBase64(daRaw);
   var messaggio = decodeBase64(msgRaw);
-  var sa = decodeBase64(saRaw) || '#';
-  var hp = decodeBase64(hpRaw) || '#';
-  var st = decodeBase64(stRaw);
+  // sa, hp, st sono URL normali (già decodificati da Vercel query parser)
+  var sa = saRaw || '#';
+  var hp = hpRaw || '#';
+  var st = stRaw || '';
   var nomeComune = escHtml(cn);
   var scaricaApp = escAttr(sa);
   var homepage = escAttr(hp);

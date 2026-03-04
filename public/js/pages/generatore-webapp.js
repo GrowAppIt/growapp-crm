@@ -1395,20 +1395,19 @@ const GeneratoreWebapp = (() => {
     var base = CONFIG.urlCartolina;
     var params = [];
 
-    // Funzione helper per codifica Base64 sicura per URL
-    // Rimuove il padding = che WhatsApp interpreta come fine URL
+    // Funzione helper per codifica Base64 (solo per testo breve)
     function toB64(str) {
       if (!str) return '';
       return btoa(unescape(encodeURIComponent(str))).replace(/=+$/, '');
     }
 
-    // Dati del comune (tutti in Base64 per URL corto)
+    // Dati del comune (URL con encodeURIComponent, come Piraino che funziona)
     params.push('cn=' + encodeURIComponent(CONFIG.nomeComune));
-    if (CONFIG.urlScaricaApp) params.push('sa=' + toB64(CONFIG.urlScaricaApp));
-    if (CONFIG.urlHomepage) params.push('hp=' + toB64(CONFIG.urlHomepage));
-    if (CONFIG.urlStemma) params.push('st=' + toB64(CONFIG.urlStemma));
+    if (CONFIG.urlScaricaApp) params.push('sa=' + encodeURIComponent(CONFIG.urlScaricaApp));
+    if (CONFIG.urlHomepage) params.push('hp=' + encodeURIComponent(CONFIG.urlHomepage));
+    if (CONFIG.urlStemma) params.push('st=' + encodeURIComponent(CONFIG.urlStemma));
 
-    // Dati dell'utente (nome mittente + messaggio opzionale)
+    // Dati dell'utente (Base64 per nome e messaggio)
     if (nome) params.push('da=' + toB64(nome));
     if (msg) params.push('msg=' + toB64(msg));
 
