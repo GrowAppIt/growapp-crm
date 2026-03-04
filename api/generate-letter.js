@@ -229,7 +229,7 @@ IMPORTANTE: Rispondi ESCLUSIVAMENTE con il JSON, nessun testo prima o dopo, ness
       system: systemPrompt,
       messages: [{ role: 'user', content: userMessage }]
     });
-    requestBody = removeLoneSurrogates(requestBody);
+    requestBody = requestBody.replace(/\\u[dD][89a-fA-F][0-9a-fA-F]{2}/g, '');
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',

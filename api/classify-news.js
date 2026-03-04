@@ -164,8 +164,11 @@ Esempio: [{"idx":0,"cat":"eventi","score":8,"reason":"Evento con data e luogo sp
         { role: 'user', content: userMessage }
       ]
     });
-    // Pulizia definitiva: rimuovi lone surrogates dal JSON serializzato
-    requestBody = removeLoneSurrogates(requestBody);
+    // Pulizia definitiva: rimuovi TUTTE le sequenze surrogate escape (\uD800-\uDFFF)
+    // dal JSON serializzato. JSON.stringify converte i surrogates in escape testuali
+    // tipo \uD83D\uDE00 — rimuoviamo tutte le \uDXXX (sia lone che paired = emoji)
+    // perché non servono per la classificazione e causano errori API.
+    requestBody = requestBody.replace(/\\u[dD][89a-fA-F][0-9a-fA-F]{2}/g, '');
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
