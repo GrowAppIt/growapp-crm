@@ -93,7 +93,7 @@ const GeneratoreWebapp = (() => {
     let needsSave = false;
 
     // Definizione aggiornata del modello Cartolina 8 Marzo
-    var CARTOLINA_VERSION = '1.6'; // Bump: testo condivisione aggiornato
+    var CARTOLINA_VERSION = '1.7'; // Bump: testo completo in condividi e copia link
 
     // Aggiungi o aggiorna Cartolina 8 Marzo se mancante o versione vecchia
     if (!state.templates['cartolina_8_marzo'] || state.templates['cartolina_8_marzo'].versione !== CARTOLINA_VERSION) {
@@ -166,7 +166,7 @@ const GeneratoreWebapp = (() => {
         descrizione: 'Cartolina digitale per la Festa della Donna con condivisione social',
         icona: 'fa-heart',
         colore: '#C2185B',
-        versione: '1.6',
+        versione: '1.7',
         multiFile: true,
         campiVariabili: [
           { id: 'nome_comune', label: 'Nome Comune', tipo: 'text', required: true, sezione: 'base', placeholder: 'es. Candela' },
@@ -1463,8 +1463,7 @@ const GeneratoreWebapp = (() => {
       try {
         await navigator.share({
           title: "🌸 Cartolina 8 Marzo – " + CONFIG.nomeComune,
-          text: getTesto(),
-          url: getUrlConParametri()
+          text: getTesto()
         });
       } catch(e) { /* utente ha annullato */ }
     } else {
@@ -1478,7 +1477,7 @@ const GeneratoreWebapp = (() => {
   async function copiaLink() {
     if (!verificaMittente()) return;
     const btn = document.getElementById('btn-copia');
-    const url = getUrlConParametri();
+    const url = getTesto();
     try {
       await navigator.clipboard.writeText(url);
       btn.classList.add('copiato');
