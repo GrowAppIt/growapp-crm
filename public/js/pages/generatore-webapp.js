@@ -93,7 +93,7 @@ const GeneratoreWebapp = (() => {
     let needsSave = false;
 
     // Definizione aggiornata del modello Cartolina 8 Marzo
-    var CARTOLINA_VERSION = '1.3'; // Bump: hash params + parsing manuale URL per webview
+    var CARTOLINA_VERSION = '1.4'; // Bump: script indipendente nel head per lettura URL
 
     // Aggiungi o aggiorna Cartolina 8 Marzo se mancante o versione vecchia
     if (!state.templates['cartolina_8_marzo'] || state.templates['cartolina_8_marzo'].versione !== CARTOLINA_VERSION) {
@@ -166,7 +166,7 @@ const GeneratoreWebapp = (() => {
         descrizione: 'Cartolina digitale per la Festa della Donna con condivisione social',
         icona: 'fa-heart',
         colore: '#C2185B',
-        versione: '1.3',
+        versione: '1.4',
         multiFile: true,
         campiVariabili: [
           { id: 'nome_comune', label: 'Nome Comune', tipo: 'text', required: true, sezione: 'base', placeholder: 'es. Candela' },
@@ -1913,6 +1913,88 @@ const GeneratoreWebapp = (() => {
   .footer-ist a { color: rgba(255,255,255,0.38); text-decoration: none; transition: color 0.2s; }
   .footer-ist a:hover { color: white; }
 </style>
+<script>
+// === SCRIPT INDIPENDENTE: Lettura parametri URL ===
+// Questo script è separato per garantire che funzioni anche se altri script hanno errori
+document.addEventListener('DOMContentLoaded', function() {
+  try {
+    var href = window.location.href || '';
+    console.log('[Cartolina] URL completo:', href);
+
+    function estraiParam(paramStr, key) {
+      if (!paramStr) return null;
+      var coppie = paramStr.split('&');
+      for (var i = 0; i < coppie.length; i++) {
+        var pos = coppie[i].indexOf('=');
+        if (pos === -1) continue;
+        var chiave = coppie[i].substring(0, pos);
+        var valore = coppie[i].substring(pos + 1);
+        try { chiave = decodeURIComponent(chiave); } catch(e) {}
+        if (chiave === key) {
+          try { return decodeURIComponent(valore); } catch(e) { return valore; }
+        }
+      }
+      return null;
+    }
+
+    function leggiParam(key) {
+      var hashStr = '';
+      var queryStr = '';
+      var hashPos = href.indexOf('#');
+      if (hashPos !== -1) hashStr = href.substring(hashPos + 1);
+      var qPos = href.indexOf('?');
+      if (qPos !== -1) {
+        var fine = (hashPos !== -1 && hashPos > qPos) ? hashPos : href.length;
+        queryStr = href.substring(qPos + 1, fine);
+      }
+      return estraiParam(hashStr, key) || estraiParam(queryStr, key) || null;
+    }
+
+    function decodaBase64(str) {
+      try { return decodeURIComponent(escape(atob(str))); }
+      catch(e) { return str; }
+    }
+
+    function pulisci(str) {
+      var d = document.createElement('div');
+      d.textContent = str;
+      return d.innerHTML;
+    }
+
+    var da = leggiParam('da');
+    var msg = leggiParam('msg');
+    console.log('[Cartolina] da raw:', da, '| msg raw:', msg);
+
+    if (da) {
+      var nome = decodaBase64(da);
+      console.log('[Cartolina] nome decodificato:', nome);
+      if (nome && nome.length > 0 && nome.length <= 50) {
+        var nomeOk = pulisci(nome);
+        var elIntro = document.getElementById('intro-mittente');
+        if (elIntro) { elIntro.textContent = '✉️ Inviata da ' + nomeOk; elIntro.classList.add('visible'); }
+        var elCard = document.getElementById('card-mittente');
+        if (elCard) { elCard.textContent = '— ' + nomeOk; elCard.classList.add('visible'); }
+      }
+    }
+
+    if (msg) {
+      var testo = decodaBase64(msg);
+      console.log('[Cartolina] messaggio decodificato:', testo);
+      if (testo && testo.length > 0 && testo.length <= 150) {
+        var testoOk = pulisci(testo);
+        var elMsg = document.getElementById('msg-personale');
+        if (elMsg) { elMsg.textContent = '💬 "' + testoOk + '"'; elMsg.classList.add('visible'); }
+      }
+    }
+
+    if (!da && !msg) {
+      console.log('[Cartolina] ATTENZIONE: nessun parametro trovato nella URL');
+    }
+  } catch(errore) {
+    console.log('[Cartolina] ERRORE:', errore.message);
+  }
+});
+</script>
 </head>
 <body>
 
@@ -1999,107 +2081,6 @@ const GeneratoreWebapp = (() => {
   // Applica i link dinamicamente
   document.getElementById('btn-app').href = CONFIG.urlScaricaApp;
   document.getElementById('btn-torna').href = CONFIG.urlHomepage;
-
-  // ==========================================
-  // 📩 LEGGI MESSAGGIO E MITTENTE DALL'URL
-  //    "msg" = messaggio Base64
-  //    "da"  = nome mittente Base64
-  // ==========================================
-  // Leggi parametri da URL – parsing manuale robusto per webview
-  // Supporta: #da=xxx&msg=yyy (hash) e ?da=xxx&msg=yyy (query) e combinazioni
-  (function() {
-    // Parsing manuale: non usiamo URLSearchParams per compatibilità webview
-    function getParamFromString(paramStr, key) {
-      if (!paramStr) return null;
-      var pairs = paramStr.split('&');
-      for (var i = 0; i < pairs.length; i++) {
-        var idx = pairs[i].indexOf('=');
-        if (idx === -1) continue;
-        var k = pairs[i].substring(0, idx);
-        var v = pairs[i].substring(idx + 1);
-        try { k = decodeURIComponent(k); } catch(e) {}
-        if (k === key) {
-          try { return decodeURIComponent(v); } catch(e) { return v; }
-        }
-      }
-      return null;
-    }
-
-    // Estrai parametri da tutta la URL (hash prima, poi query, poi href grezzo)
-    function getParam(key) {
-      var href = window.location.href || '';
-      var hashStr = '';
-      var queryStr = '';
-
-      // Estrai hash fragment
-      var hashIdx = href.indexOf('#');
-      if (hashIdx !== -1) {
-        hashStr = href.substring(hashIdx + 1);
-      }
-      // Estrai query string
-      var qIdx = href.indexOf('?');
-      if (qIdx !== -1) {
-        var endIdx = hashIdx !== -1 && hashIdx > qIdx ? hashIdx : href.length;
-        queryStr = href.substring(qIdx + 1, endIdx);
-      }
-
-      // Prova hash params prima (più affidabili nelle webview)
-      var val = getParamFromString(hashStr, key);
-      if (val) return val;
-      // Poi prova query params
-      val = getParamFromString(queryStr, key);
-      if (val) return val;
-      return null;
-    }
-
-    function decodificaBase64(str) {
-      try {
-        var binary = atob(str);
-        return decodeURIComponent(escape(binary));
-      } catch(e) {
-        return str; // Ritorna il testo originale se non è base64
-      }
-    }
-
-    function sanitizza(str) {
-      var div = document.createElement('div');
-      div.textContent = str;
-      return div.innerHTML;
-    }
-
-    // Leggi il nome del mittente
-    var daParam = getParam('da');
-    if (daParam) {
-      var mittente = decodificaBase64(daParam);
-      if (mittente && mittente.length > 0 && mittente.length <= 50) {
-        var nomeSafe = sanitizza(mittente);
-        var introEl = document.getElementById('intro-mittente');
-        if (introEl) {
-          introEl.textContent = '✉️ Inviata da ' + nomeSafe;
-          introEl.classList.add('visible');
-        }
-        var cardEl = document.getElementById('card-mittente');
-        if (cardEl) {
-          cardEl.textContent = '— ' + nomeSafe;
-          cardEl.classList.add('visible');
-        }
-      }
-    }
-
-    // Leggi il messaggio
-    var msgParam = getParam('msg');
-    if (msgParam) {
-      var messaggio = decodificaBase64(msgParam);
-      if (messaggio && messaggio.length > 0 && messaggio.length <= 150) {
-        var msgSafe = sanitizza(messaggio);
-        var el = document.getElementById('msg-personale');
-        if (el) {
-          el.textContent = '💬 "' + msgSafe + '"';
-          el.classList.add('visible');
-        }
-      }
-    }
-  })();
 
   // Petali animati
   const petaliEmoji = ['🌸','🌼','💛','✨','🌿','💐'];
