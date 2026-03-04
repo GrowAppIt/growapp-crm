@@ -45,7 +45,10 @@ function sanitizeText(raw, maxLen) {
     .replace(/&\w+;/g, ' ')
     // Rimuovi caratteri di controllo (tranne newline e tab)
     .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
-    // Rimuovi caratteri Unicode problematici (surrogate pairs rotti, etc.)
+    // Rimuovi surrogate pairs rotti (emoji/unicode spaiati che rompono il JSON)
+    .replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/g, '')
+    .replace(/(^|[^\uD800-\uDBFF])[\uDC00-\uDFFF]/g, '$1')
+    // Rimuovi caratteri Unicode problematici
     .replace(/[\uFFFD\uFFFE\uFFFF]/g, '')
     // Normalizza spazi e newline
     .replace(/\s+/g, ' ')
@@ -144,10 +147,16 @@ Esempio: [{"idx":0,"cat":"eventi","score":8,"reason":"Evento con data e luogo sp
     if (!response.ok) {
       const errBody = await response.text();
       console.error('[classify-news] Errore API Anthropic:', response.status, errBody);
+      // Prova a parsare l'errore JSON di Anthropic per estrarre il messaggio
+      let errorMessage = errBody.substring(0, 1000);
+      try {
+        const errJson = JSON.parse(errBody);
+        errorMessage = (errJson.error && errJson.error.message) || (errJson.error && errJson.error.type) || errorMessage;
+      } catch(e) { /* non JSON, usa il testo raw */ }
       return res.status(502).json({
         error: 'Errore dalla API Anthropic',
         status: response.status,
-        detail: errBody.substring(0, 1000)
+        detail: errorMessage
       });
     }
 

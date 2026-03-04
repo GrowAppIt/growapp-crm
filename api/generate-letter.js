@@ -24,6 +24,8 @@ function sanitizeText(raw, maxLen) {
     .replace(/&quot;/g, '"').replace(/&#039;/g, "'").replace(/&nbsp;/g, ' ')
     .replace(/&#\d+;/g, ' ').replace(/&\w+;/g, ' ')
     .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
+    .replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/g, '')
+    .replace(/(^|[^\uD800-\uDBFF])[\uDC00-\uDFFF]/g, '$1')
     .replace(/[\uFFFD\uFFFE\uFFFF]/g, '')
     .replace(/\s+/g, ' ')
     .trim();
