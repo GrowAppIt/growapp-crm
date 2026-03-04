@@ -92,15 +92,18 @@ const GeneratoreWebapp = (() => {
   function _migrateNewDefaults() {
     let needsSave = false;
 
-    // Migrazione v2.9.18: aggiungi Cartolina 8 Marzo se mancante
-    if (!state.templates['cartolina_8_marzo']) {
+    // Definizione aggiornata del modello Cartolina 8 Marzo
+    var CARTOLINA_VERSION = '1.1'; // Bump per forzare aggiornamento template
+
+    // Aggiungi o aggiorna Cartolina 8 Marzo se mancante o versione vecchia
+    if (!state.templates['cartolina_8_marzo'] || state.templates['cartolina_8_marzo'].versione !== CARTOLINA_VERSION) {
       state.templates['cartolina_8_marzo'] = {
         id: 'cartolina_8_marzo',
         nome: 'Cartolina 8 Marzo',
         descrizione: 'Cartolina digitale per la Festa della Donna con condivisione social',
         icona: 'fa-heart',
         colore: '#C2185B',
-        versione: '1.0',
+        versione: CARTOLINA_VERSION,
         multiFile: true,
         campiVariabili: [
           { id: 'nome_comune', label: 'Nome Comune', tipo: 'text', required: true, sezione: 'base', placeholder: 'es. Candela' },
@@ -119,7 +122,7 @@ const GeneratoreWebapp = (() => {
         createdBy: 'Sistema'
       };
       needsSave = true;
-      console.log('[GeneratoreWebapp] Migrazione: aggiunto modello Cartolina 8 Marzo');
+      console.log('[GeneratoreWebapp] Migrazione: aggiornato modello Cartolina 8 Marzo a v' + CARTOLINA_VERSION);
     }
 
     if (needsSave) {
@@ -163,7 +166,7 @@ const GeneratoreWebapp = (() => {
         descrizione: 'Cartolina digitale per la Festa della Donna con condivisione social',
         icona: 'fa-heart',
         colore: '#C2185B',
-        versione: '1.0',
+        versione: '1.1',
         multiFile: true,
         campiVariabili: [
           { id: 'nome_comune', label: 'Nome Comune', tipo: 'text', required: true, sezione: 'base', placeholder: 'es. Candela' },
@@ -543,7 +546,10 @@ const GeneratoreWebapp = (() => {
         html = html.replace(new RegExp('\\{\\{' + campo.id + '_list\\}\\}', 'g'), testiHtml);
 
       } else if (campo.tipo === 'text' || campo.tipo === 'tel' || campo.tipo === 'number') {
-        const safeValue = escapeHtml(value || '');
+        // Per campi URL (usati dentro <script>), non fare HTML-escape
+        // perché &amp; dentro <script> non viene decodificato dal browser
+        const isUrl = campo.id.indexOf('url_') === 0;
+        const safeValue = isUrl ? (value || '') : escapeHtml(value || '');
         html = html.replace(new RegExp('\\{\\{' + campo.id + '\\}\\}', 'g'), safeValue);
 
       } else if (campo.tipo === 'select') {
@@ -1948,11 +1954,11 @@ const GeneratoreWebapp = (() => {
   <h2>Non hai ancora l'app del Comune?</h2>
   <p>Resta aggiornato su eventi, servizi e notizie del tuo Comune direttamente sul tuo smartphone</p>
   <div class="azioni">
-    <a class="btn btn-app" href="https://TUO-DOMINIO.it/scarica-app" target="_blank" id="btn-app">
+    <a class="btn btn-app" href="{{url_scarica_app}}" target="_blank" id="btn-app">
       <i class="fas fa-download"></i> Scarica l'app del Comune
     </a>
     <div class="divider-testo">— oppure —</div>
-    <a class="btn btn-home" href="https://TUO-DOMINIO.it" id="btn-torna">
+    <a class="btn btn-home" href="{{url_homepage}}" id="btn-torna">
       <i class="fas fa-home"></i> Vai all'homepage dell'app
     </a>
   </div>
@@ -2385,6 +2391,9 @@ const GeneratoreWebapp = (() => {
       const iframe = document.createElement('iframe');
       iframe.className = 'preview-iframe';
       iframe.sandbox.add('allow-same-origin');
+      iframe.sandbox.add('allow-scripts');
+      iframe.sandbox.add('allow-popups');
+      iframe.sandbox.add('allow-forms');
       iframeContainer.appendChild(iframe);
       previewSection.appendChild(iframeContainer);
 
@@ -2429,6 +2438,9 @@ const GeneratoreWebapp = (() => {
     const iframe = document.createElement('iframe');
     iframe.className = 'preview-iframe';
     iframe.sandbox.add('allow-same-origin');
+    iframe.sandbox.add('allow-scripts');
+    iframe.sandbox.add('allow-popups');
+    iframe.sandbox.add('allow-forms');
     iframeContainer.appendChild(iframe);
     content.appendChild(iframeContainer);
 
