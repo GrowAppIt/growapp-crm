@@ -2372,6 +2372,9 @@ const GeneratoreWebapp = (() => {
       tabContent.id = 'preview-tab-content';
       previewSection.appendChild(tabContent);
 
+      // Aggiungi al DOM PRIMA di switchPreviewTab (che cerca #preview-tab-content)
+      container.appendChild(previewSection);
+
       // Show first tab
       _switchPreviewTab(0, htmlData);
     } else {
@@ -2405,7 +2408,10 @@ const GeneratoreWebapp = (() => {
       state.generatedHTML = htmlData;
     }
 
-    container.appendChild(previewSection);
+    // Per single-file, aggiungi al DOM qui (per multi-file è già stato aggiunto sopra)
+    if (!isMultiFile) {
+      container.appendChild(previewSection);
+    }
 
     // Store the generated data
     state.generatedHTML = htmlData;
