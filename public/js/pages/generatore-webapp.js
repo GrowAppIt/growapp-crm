@@ -1438,11 +1438,10 @@ const GeneratoreWebapp = (() => {
   function getTesto() {
     const msg  = textarea.value.trim();
     const nome = nomeMittente.value.trim();
-    let testo = "🌸 Guarda la cartolina che ti ho inviato per la Festa della Donna!\\n";
-    testo += "Tramite l'app del Comune di " + CONFIG.nomeComune + "\\n";
-    if (nome) testo += "\\n✉️ Da: " + nome + "\\n";
-    if (msg)  testo += "💬 \\"" + msg + "\\"\\n";
-    testo += "\\n👇 Aprila qui:\\n" + getUrlConParametri();
+    let testo = "🌸 Ti ho inviato una cartolina per la Festa della Donna!\\n";
+    testo += "dall'App del Comune di " + CONFIG.nomeComune + "\\n";
+    if (msg) testo += "💬 \\"" + msg + "\\"\\n";
+    testo += "\\n👇 Clicca qui per aprirla:\\n" + getUrlConParametri();
     return testo;
   }
 
