@@ -93,7 +93,7 @@ const GeneratoreWebapp = (() => {
     let needsSave = false;
 
     // Definizione aggiornata del modello Cartolina 8 Marzo
-    var CARTOLINA_VERSION = '1.5'; // Bump: API serverless Vercel per view, tutti i dati in query params
+    var CARTOLINA_VERSION = '1.6'; // Bump: testo condivisione aggiornato
 
     // Aggiungi o aggiorna Cartolina 8 Marzo se mancante o versione vecchia
     if (!state.templates['cartolina_8_marzo'] || state.templates['cartolina_8_marzo'].versione !== CARTOLINA_VERSION) {
@@ -166,7 +166,7 @@ const GeneratoreWebapp = (() => {
         descrizione: 'Cartolina digitale per la Festa della Donna con condivisione social',
         icona: 'fa-heart',
         colore: '#C2185B',
-        versione: '1.5',
+        versione: '1.6',
         multiFile: true,
         campiVariabili: [
           { id: 'nome_comune', label: 'Nome Comune', tipo: 'text', required: true, sezione: 'base', placeholder: 'es. Candela' },
