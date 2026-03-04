@@ -93,7 +93,7 @@ const GeneratoreWebapp = (() => {
     let needsSave = false;
 
     // Definizione aggiornata del modello Cartolina 8 Marzo
-    var CARTOLINA_VERSION = '1.1'; // Bump per forzare aggiornamento template
+    var CARTOLINA_VERSION = '1.2'; // Bump: fix zoom mobile, WhatsApp, URL params view
 
     // Aggiungi o aggiorna Cartolina 8 Marzo se mancante o versione vecchia
     if (!state.templates['cartolina_8_marzo'] || state.templates['cartolina_8_marzo'].versione !== CARTOLINA_VERSION) {
@@ -166,7 +166,7 @@ const GeneratoreWebapp = (() => {
         descrizione: 'Cartolina digitale per la Festa della Donna con condivisione social',
         icona: 'fa-heart',
         colore: '#C2185B',
-        versione: '1.1',
+        versione: '1.2',
         multiFile: true,
         campiVariabili: [
           { id: 'nome_comune', label: 'Nome Comune', tipo: 'text', required: true, sezione: 'base', placeholder: 'es. Candela' },
@@ -655,7 +655,7 @@ const GeneratoreWebapp = (() => {
 <html lang="it">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>8 Marzo – Invia la tua cartolina</title>
 <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@500;700&family=Titillium+Web:wght@300;400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -683,6 +683,7 @@ const GeneratoreWebapp = (() => {
     --rosa-bg: #FDE8EF;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { overflow-x: hidden; max-width: 100vw; }
 
   body {
     font-family: 'Titillium Web', sans-serif;
@@ -1053,7 +1054,7 @@ const GeneratoreWebapp = (() => {
     padding: 12px 14px;
     color: white;
     font-family: 'Titillium Web', sans-serif;
-    font-size: 0.85rem;
+    font-size: 16px;
     outline: none;
     transition: border-color 0.3s, background 0.3s, box-shadow 0.3s;
     line-height: 1.5;
@@ -1337,7 +1338,7 @@ const GeneratoreWebapp = (() => {
       const size = 0.7 + Math.random() * 1;
       const dur = 8 + Math.random() * 8;
       const delay = Math.random() * 12;
-      p.style.cssText = \`left:\${Math.random()*100}vw;font-size:\${size}rem;animation-duration:\${dur}s;animation-delay:\${delay}s\`;
+      p.style.cssText = 'left:' + (Math.random()*100) + 'vw;font-size:' + size + 'rem;animation-duration:' + dur + 's;animation-delay:' + delay + 's';
       document.body.prepend(p);
     }
   });
@@ -1435,7 +1436,13 @@ const GeneratoreWebapp = (() => {
 
   function condividiWhatsApp() {
     if (!verificaMittente()) return;
-    window.open("https://wa.me/?text=" + encodeURIComponent(getTesto()), '_blank');
+    var testo = getTesto();
+    var waUrl = "https://api.whatsapp.com/send?text=" + encodeURIComponent(testo);
+    // Prova window.open, fallback a location.href per webview
+    var w = window.open(waUrl, '_blank');
+    if (!w || w.closed || typeof w.closed === 'undefined') {
+      window.location.href = waUrl;
+    }
     mostraToast("Apertura WhatsApp… 💚");
   }
 
@@ -1498,7 +1505,7 @@ const GeneratoreWebapp = (() => {
 <html lang="it">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>8 Marzo – La tua cartolina</title>
 <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@500;700&family=Titillium+Web:wght@300;400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -1520,6 +1527,7 @@ const GeneratoreWebapp = (() => {
     --rosa-bg: #FDE8EF;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { overflow-x: hidden; max-width: 100vw; }
 
   body {
     font-family: 'Titillium Web', sans-serif;
@@ -1997,53 +2005,63 @@ const GeneratoreWebapp = (() => {
   //    "msg" = messaggio Base64
   //    "da"  = nome mittente Base64
   // ==========================================
+  // Leggi parametri da URL (supporta sia query ?da=...&msg=... sia hash #da=...&msg=...)
   (function() {
-    const params = new URLSearchParams(window.location.search);
+    var search = window.location.search || '';
+    var hash = window.location.hash || '';
+    var params;
+    // Prova prima i query params, poi i hash params come fallback
+    var qp = new URLSearchParams(search);
+    var hp = new URLSearchParams(hash.substring(1));
+    params = (qp.has('da') || qp.has('msg')) ? qp : hp;
 
-    // Funzione di decodifica sicura Base64 → UTF-8
     function decodifica(str) {
       try {
-        return decodeURIComponent(escape(atob(decodeURIComponent(str))));
+        var decoded = decodeURIComponent(str);
+        var binary = atob(decoded);
+        return decodeURIComponent(escape(binary));
       } catch(e) {
-        return null;
+        // Fallback: prova come testo semplice
+        try { return decodeURIComponent(str); } catch(e2) { return str; }
       }
     }
 
-    // Sanitizza il testo (rimuove tag HTML per sicurezza)
     function sanitizza(str) {
-      const div = document.createElement('div');
+      var div = document.createElement('div');
       div.textContent = str;
       return div.innerHTML;
     }
 
     // Leggi il nome del mittente
-    const daParam = params.get('da');
+    var daParam = params.get('da');
     if (daParam) {
-      const mittente = decodifica(daParam);
+      var mittente = decodifica(daParam);
       if (mittente && mittente.length > 0 && mittente.length <= 50) {
-        const nomeSafe = sanitizza(mittente);
-
-        // Mostra nell'intro
-        const introEl = document.getElementById('intro-mittente');
-        introEl.textContent = '✉️ Inviata da ' + nomeSafe;
-        introEl.classList.add('visible');
-
-        // Mostra nella cartolina
-        const cardEl = document.getElementById('card-mittente');
-        cardEl.textContent = '— ' + nomeSafe;
-        cardEl.classList.add('visible');
+        var nomeSafe = sanitizza(mittente);
+        var introEl = document.getElementById('intro-mittente');
+        if (introEl) {
+          introEl.textContent = '✉️ Inviata da ' + nomeSafe;
+          introEl.classList.add('visible');
+        }
+        var cardEl = document.getElementById('card-mittente');
+        if (cardEl) {
+          cardEl.textContent = '— ' + nomeSafe;
+          cardEl.classList.add('visible');
+        }
       }
     }
 
     // Leggi il messaggio
-    const msgParam = params.get('msg');
+    var msgParam = params.get('msg');
     if (msgParam) {
-      const messaggio = decodifica(msgParam);
+      var messaggio = decodifica(msgParam);
       if (messaggio && messaggio.length > 0 && messaggio.length <= 150) {
-        const msgSafe = sanitizza(messaggio);
-        const el = document.getElementById('msg-personale');
-        el.textContent = '💬 "' + msgSafe + '"';
-        el.classList.add('visible');
+        var msgSafe = sanitizza(messaggio);
+        var el = document.getElementById('msg-personale');
+        if (el) {
+          el.textContent = '💬 "' + msgSafe + '"';
+          el.classList.add('visible');
+        }
       }
     }
   })();
@@ -2058,7 +2076,7 @@ const GeneratoreWebapp = (() => {
       const size = 0.7 + Math.random() * 1;
       const dur = 8 + Math.random() * 8;
       const delay = Math.random() * 12;
-      p.style.cssText = \`left:\${Math.random()*100}vw;font-size:\${size}rem;animation-duration:\${dur}s;animation-delay:\${delay}s\`;
+      p.style.cssText = 'left:' + (Math.random()*100) + 'vw;font-size:' + size + 'rem;animation-duration:' + dur + 's;animation-delay:' + delay + 's';
       document.body.prepend(p);
     }
   });
