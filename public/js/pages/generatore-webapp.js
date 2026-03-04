@@ -93,7 +93,7 @@ const GeneratoreWebapp = (() => {
     let needsSave = false;
 
     // Definizione aggiornata del modello Cartolina 8 Marzo
-    var CARTOLINA_VERSION = '1.8'; // Bump: Base64 per tutti i params, URL corto per WhatsApp
+    var CARTOLINA_VERSION = '1.9'; // Bump: rimuove padding = da Base64 (WhatsApp lo troncava)
 
     // Aggiungi o aggiorna Cartolina 8 Marzo se mancante o versione vecchia
     if (!state.templates['cartolina_8_marzo'] || state.templates['cartolina_8_marzo'].versione !== CARTOLINA_VERSION) {
@@ -166,7 +166,7 @@ const GeneratoreWebapp = (() => {
         descrizione: 'Cartolina digitale per la Festa della Donna con condivisione social',
         icona: 'fa-heart',
         colore: '#C2185B',
-        versione: '1.8',
+        versione: '1.9',
         multiFile: true,
         campiVariabili: [
           { id: 'nome_comune', label: 'Nome Comune', tipo: 'text', required: true, sezione: 'base', placeholder: 'es. Candela' },
@@ -1396,9 +1396,10 @@ const GeneratoreWebapp = (() => {
     var params = [];
 
     // Funzione helper per codifica Base64 sicura per URL
+    // Rimuove il padding = che WhatsApp interpreta come fine URL
     function toB64(str) {
       if (!str) return '';
-      return btoa(unescape(encodeURIComponent(str)));
+      return btoa(unescape(encodeURIComponent(str))).replace(/=+$/, '');
     }
 
     // Dati del comune (tutti in Base64 per URL corto)
