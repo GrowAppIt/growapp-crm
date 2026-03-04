@@ -93,7 +93,7 @@ const GeneratoreWebapp = (() => {
     let needsSave = false;
 
     // Definizione aggiornata del modello Cartolina 8 Marzo
-    var CARTOLINA_VERSION = '1.2'; // Bump: fix zoom mobile, WhatsApp, URL params view
+    var CARTOLINA_VERSION = '1.3'; // Bump: hash params + parsing manuale URL per webview
 
     // Aggiungi o aggiorna Cartolina 8 Marzo se mancante o versione vecchia
     if (!state.templates['cartolina_8_marzo'] || state.templates['cartolina_8_marzo'].versione !== CARTOLINA_VERSION) {
@@ -166,7 +166,7 @@ const GeneratoreWebapp = (() => {
         descrizione: 'Cartolina digitale per la Festa della Donna con condivisione social',
         icona: 'fa-heart',
         colore: '#C2185B',
-        versione: '1.2',
+        versione: '1.3',
         multiFile: true,
         campiVariabili: [
           { id: 'nome_comune', label: 'Nome Comune', tipo: 'text', required: true, sezione: 'base', placeholder: 'es. Candela' },
@@ -1401,7 +1401,7 @@ const GeneratoreWebapp = (() => {
     }
 
     if (params.length > 0) {
-      url += '?' + params.join('&');
+      url += '#' + params.join('&');
     }
     return url;
   }
@@ -2005,24 +2005,59 @@ const GeneratoreWebapp = (() => {
   //    "msg" = messaggio Base64
   //    "da"  = nome mittente Base64
   // ==========================================
-  // Leggi parametri da URL (supporta sia query ?da=...&msg=... sia hash #da=...&msg=...)
+  // Leggi parametri da URL – parsing manuale robusto per webview
+  // Supporta: #da=xxx&msg=yyy (hash) e ?da=xxx&msg=yyy (query) e combinazioni
   (function() {
-    var search = window.location.search || '';
-    var hash = window.location.hash || '';
-    var params;
-    // Prova prima i query params, poi i hash params come fallback
-    var qp = new URLSearchParams(search);
-    var hp = new URLSearchParams(hash.substring(1));
-    params = (qp.has('da') || qp.has('msg')) ? qp : hp;
+    // Parsing manuale: non usiamo URLSearchParams per compatibilità webview
+    function getParamFromString(paramStr, key) {
+      if (!paramStr) return null;
+      var pairs = paramStr.split('&');
+      for (var i = 0; i < pairs.length; i++) {
+        var idx = pairs[i].indexOf('=');
+        if (idx === -1) continue;
+        var k = pairs[i].substring(0, idx);
+        var v = pairs[i].substring(idx + 1);
+        try { k = decodeURIComponent(k); } catch(e) {}
+        if (k === key) {
+          try { return decodeURIComponent(v); } catch(e) { return v; }
+        }
+      }
+      return null;
+    }
 
-    function decodifica(str) {
+    // Estrai parametri da tutta la URL (hash prima, poi query, poi href grezzo)
+    function getParam(key) {
+      var href = window.location.href || '';
+      var hashStr = '';
+      var queryStr = '';
+
+      // Estrai hash fragment
+      var hashIdx = href.indexOf('#');
+      if (hashIdx !== -1) {
+        hashStr = href.substring(hashIdx + 1);
+      }
+      // Estrai query string
+      var qIdx = href.indexOf('?');
+      if (qIdx !== -1) {
+        var endIdx = hashIdx !== -1 && hashIdx > qIdx ? hashIdx : href.length;
+        queryStr = href.substring(qIdx + 1, endIdx);
+      }
+
+      // Prova hash params prima (più affidabili nelle webview)
+      var val = getParamFromString(hashStr, key);
+      if (val) return val;
+      // Poi prova query params
+      val = getParamFromString(queryStr, key);
+      if (val) return val;
+      return null;
+    }
+
+    function decodificaBase64(str) {
       try {
-        var decoded = decodeURIComponent(str);
-        var binary = atob(decoded);
+        var binary = atob(str);
         return decodeURIComponent(escape(binary));
       } catch(e) {
-        // Fallback: prova come testo semplice
-        try { return decodeURIComponent(str); } catch(e2) { return str; }
+        return str; // Ritorna il testo originale se non è base64
       }
     }
 
@@ -2033,9 +2068,9 @@ const GeneratoreWebapp = (() => {
     }
 
     // Leggi il nome del mittente
-    var daParam = params.get('da');
+    var daParam = getParam('da');
     if (daParam) {
-      var mittente = decodifica(daParam);
+      var mittente = decodificaBase64(daParam);
       if (mittente && mittente.length > 0 && mittente.length <= 50) {
         var nomeSafe = sanitizza(mittente);
         var introEl = document.getElementById('intro-mittente');
@@ -2052,9 +2087,9 @@ const GeneratoreWebapp = (() => {
     }
 
     // Leggi il messaggio
-    var msgParam = params.get('msg');
+    var msgParam = getParam('msg');
     if (msgParam) {
-      var messaggio = decodifica(msgParam);
+      var messaggio = decodificaBase64(msgParam);
       if (messaggio && messaggio.length > 0 && messaggio.length <= 150) {
         var msgSafe = sanitizza(messaggio);
         var el = document.getElementById('msg-personale');
