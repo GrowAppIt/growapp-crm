@@ -93,7 +93,7 @@ const GeneratoreWebapp = (() => {
     let needsSave = false;
 
     // Definizione aggiornata del modello Cartolina 8 Marzo
-    var CARTOLINA_VERSION = '1.4'; // Bump: script indipendente nel head per lettura URL
+    var CARTOLINA_VERSION = '1.5'; // Bump: API serverless Vercel per view, tutti i dati in query params
 
     // Aggiungi o aggiorna Cartolina 8 Marzo se mancante o versione vecchia
     if (!state.templates['cartolina_8_marzo'] || state.templates['cartolina_8_marzo'].versione !== CARTOLINA_VERSION) {
@@ -108,7 +108,7 @@ const GeneratoreWebapp = (() => {
         campiVariabili: [
           { id: 'nome_comune', label: 'Nome Comune', tipo: 'text', required: true, sezione: 'base', placeholder: 'es. Candela' },
           { id: 'url_stemma', label: 'URL Logo/Stemma Comune (opzionale)', tipo: 'text', required: false, sezione: 'base', placeholder: 'https://...' },
-          { id: 'url_cartolina_view', label: 'URL pagina visualizzazione cartolina', tipo: 'text', required: true, sezione: 'link', placeholder: 'https://example.com/cartolina-view.html' },
+          { id: 'url_cartolina_view', label: 'URL API cartolina (endpoint Vercel)', tipo: 'text', required: true, sezione: 'link', placeholder: 'https://tuodominio.vercel.app/api/cartolina-view', default: 'https://growapp-crm.vercel.app/api/cartolina-view' },
           { id: 'url_scarica_app', label: 'URL scarica app', tipo: 'text', required: true, sezione: 'link', placeholder: 'https://example.com/scarica-app' },
           { id: 'url_homepage', label: 'URL homepage app', tipo: 'text', required: true, sezione: 'link', placeholder: 'https://example.com' }
         ],
@@ -166,18 +166,18 @@ const GeneratoreWebapp = (() => {
         descrizione: 'Cartolina digitale per la Festa della Donna con condivisione social',
         icona: 'fa-heart',
         colore: '#C2185B',
-        versione: '1.4',
+        versione: '1.5',
         multiFile: true,
         campiVariabili: [
           { id: 'nome_comune', label: 'Nome Comune', tipo: 'text', required: true, sezione: 'base', placeholder: 'es. Candela' },
           { id: 'url_stemma', label: 'URL Logo/Stemma Comune (opzionale)', tipo: 'text', required: false, sezione: 'base', placeholder: 'https://...' },
-          { id: 'url_cartolina_view', label: 'URL pagina visualizzazione cartolina', tipo: 'text', required: true, sezione: 'link', placeholder: 'https://example.com/cartolina-view.html' },
+          { id: 'url_cartolina_view', label: 'URL API cartolina (endpoint Vercel)', tipo: 'text', required: true, sezione: 'link', placeholder: 'https://tuodominio.vercel.app/api/cartolina-view', default: 'https://growapp-crm.vercel.app/api/cartolina-view' },
           { id: 'url_scarica_app', label: 'URL scarica app', tipo: 'text', required: true, sezione: 'link', placeholder: 'https://example.com/scarica-app' },
           { id: 'url_homepage', label: 'URL homepage app', tipo: 'text', required: true, sezione: 'link', placeholder: 'https://example.com' }
         ],
         files: [
           { id: 'crea', nome: 'cartolina-crea.html', label: 'Pagina Creazione Cartolina', codiceHTML: _getDefaultTemplateCartolina8MarzoCrea() },
-          { id: 'view', nome: 'cartolina-view.html', label: 'Pagina Visualizzazione Cartolina', codiceHTML: _getDefaultTemplateCartolina8MarzoView() }
+          { id: 'view', nome: 'cartolina-view.html', label: 'Pagina Visualizzazione Cartolina (anteprima CRM)', codiceHTML: _getDefaultTemplateCartolina8MarzoView() }
         ],
         isDefault: true,
         ordine: 2,
@@ -1319,12 +1319,14 @@ const GeneratoreWebapp = (() => {
 
 <script>
   // ============================================================
-  // ⚙️ CONFIGURAZIONE – modifica questi 3 valori per ogni comune
+  // ⚙️ CONFIGURAZIONE – modifica questi valori per ogni comune
   // ============================================================
   const CONFIG = {
     nomeComune:    "{{nome_comune}}",
     urlCartolina:  "{{url_cartolina_view}}",
-    urlScaricaApp: "{{url_scarica_app}}"
+    urlScaricaApp: "{{url_scarica_app}}",
+    urlHomepage:   "{{url_homepage}}",
+    urlStemma:     "{{url_stemma}}"
   };
   // ============================================================
 
@@ -1388,22 +1390,32 @@ const GeneratoreWebapp = (() => {
   function getUrlConParametri() {
     const msg  = textarea.value.trim();
     const nome = nomeMittente.value.trim();
-    let url = CONFIG.urlCartolina;
-    const params = [];
+    // Usa l'API serverless: tutti i dati vanno come query params
+    // così funziona anche dentro webview GoodBarber
+    var base = CONFIG.urlCartolina;
+    var params = [];
 
+    // Dati del comune (sempre presenti)
+    params.push('cn=' + encodeURIComponent(CONFIG.nomeComune));
+    if (CONFIG.urlScaricaApp) params.push('sa=' + encodeURIComponent(CONFIG.urlScaricaApp));
+    if (CONFIG.urlHomepage) params.push('hp=' + encodeURIComponent(CONFIG.urlHomepage));
+    if (CONFIG.urlStemma) params.push('st=' + encodeURIComponent(CONFIG.urlStemma));
+
+    // Dati dell'utente (nome mittente + messaggio opzionale)
     if (nome) {
-      const encodedNome = btoa(unescape(encodeURIComponent(nome)));
+      var encodedNome = btoa(unescape(encodeURIComponent(nome)));
       params.push('da=' + encodeURIComponent(encodedNome));
     }
     if (msg) {
-      const encodedMsg = btoa(unescape(encodeURIComponent(msg)));
+      var encodedMsg = btoa(unescape(encodeURIComponent(msg)));
       params.push('msg=' + encodeURIComponent(encodedMsg));
     }
 
+    // Costruisci URL con query params (? non #)
     if (params.length > 0) {
-      url += '#' + params.join('&');
+      base += '?' + params.join('&');
     }
-    return url;
+    return base;
   }
 
   // Verifica che il nome mittente sia compilato
