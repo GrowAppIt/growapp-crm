@@ -93,7 +93,7 @@ const GeneratoreWebapp = (() => {
     let needsSave = false;
 
     // Definizione aggiornata del modello Cartolina 8 Marzo
-    var CARTOLINA_VERSION = '2.2'; // Bump: quote più larga, testi leggibili, URL comunedigital.it
+    var CARTOLINA_VERSION = '2.3'; // Bump: pannello condivisione fallback per Android
 
     // Aggiungi o aggiorna Cartolina 8 Marzo se mancante o versione vecchia
     if (!state.templates['cartolina_8_marzo'] || state.templates['cartolina_8_marzo'].versione !== CARTOLINA_VERSION) {
@@ -166,7 +166,7 @@ const GeneratoreWebapp = (() => {
         descrizione: 'Cartolina digitale per la Festa della Donna con condivisione social',
         icona: 'fa-heart',
         colore: '#C2185B',
-        versione: '2.2',
+        versione: '2.3',
         multiFile: true,
         campiVariabili: [
           { id: 'nome_comune', label: 'Nome Comune', tipo: 'text', required: true, sezione: 'base', placeholder: 'es. Candela' },
@@ -1152,6 +1152,73 @@ const GeneratoreWebapp = (() => {
   .btn-copia.copiato {
     background: var(--verde-700);
     border-color: var(--verde-700);
+  }
+
+  /* PANNELLO CONDIVISIONE FALLBACK (Android) */
+  .share-overlay {
+    display: none;
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.6);
+    z-index: 9999;
+    align-items: flex-end;
+    justify-content: center;
+    animation: fadeIn 0.2s ease;
+  }
+  .share-overlay.active { display: flex; }
+  .share-panel {
+    background: #fff;
+    border-radius: 18px 18px 0 0;
+    width: 100%; max-width: 500px;
+    padding: 18px 16px 24px;
+    animation: slideUp 0.3s ease;
+  }
+  @keyframes slideUp {
+    from { transform: translateY(100%); }
+    to   { transform: translateY(0); }
+  }
+  .share-panel-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 16px; padding-bottom: 10px;
+    border-bottom: 1px solid #eee;
+  }
+  .share-panel-header h3 {
+    font-size: 0.95rem; font-weight: 700;
+    color: #1E1E1E; margin: 0;
+  }
+  .share-panel-close {
+    background: none; border: none;
+    font-size: 1.4rem; color: #9B9B9B;
+    cursor: pointer; padding: 0 4px;
+  }
+  .share-apps {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px 8px;
+    text-align: center;
+  }
+  .share-app {
+    display: flex; flex-direction: column;
+    align-items: center; gap: 6px;
+    text-decoration: none;
+    cursor: pointer;
+  }
+  .share-app-icon {
+    width: 50px; height: 50px;
+    border-radius: 14px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.4rem; color: #fff;
+  }
+  .share-app-label {
+    font-size: 0.7rem; color: #4A4A4A;
+    font-weight: 500;
+  }
+  .sa-whatsapp  { background: #25D366; }
+  .sa-telegram  { background: #0088cc; }
+  .sa-messenger { background: #0084FF; }
+  .sa-email     { background: #D44638; }
+  .sa-sms       { background: #34C759; }
+  .sa-altro     { background: #145284; }
+  .sa-copy      { background: #9B9B9B; }
     box-shadow: 0 3px 12px rgba(60,164,52,0.3);
   }
 
@@ -1294,6 +1361,46 @@ const GeneratoreWebapp = (() => {
     <button class="btn btn-copia" id="btn-copia" onclick="copiaLink()">
       <i class="fas fa-link"></i> Copia link di condivisione
     </button>
+  </div>
+</div>
+
+<!-- PANNELLO CONDIVISIONE FALLBACK -->
+<div class="share-overlay" id="share-overlay" onclick="chiudiPannello(event)">
+  <div class="share-panel">
+    <div class="share-panel-header">
+      <h3>Condividi tramite…</h3>
+      <button class="share-panel-close" onclick="chiudiPannello()">&times;</button>
+    </div>
+    <div class="share-apps">
+      <a class="share-app" onclick="condividiVia('whatsapp')">
+        <div class="share-app-icon sa-whatsapp"><i class="fab fa-whatsapp"></i></div>
+        <span class="share-app-label">WhatsApp</span>
+      </a>
+      <a class="share-app" onclick="condividiVia('telegram')">
+        <div class="share-app-icon sa-telegram"><i class="fab fa-telegram-plane"></i></div>
+        <span class="share-app-label">Telegram</span>
+      </a>
+      <a class="share-app" onclick="condividiVia('messenger')">
+        <div class="share-app-icon sa-messenger"><i class="fab fa-facebook-messenger"></i></div>
+        <span class="share-app-label">Messenger</span>
+      </a>
+      <a class="share-app" onclick="condividiVia('email')">
+        <div class="share-app-icon sa-email"><i class="fas fa-envelope"></i></div>
+        <span class="share-app-label">Email</span>
+      </a>
+      <a class="share-app" onclick="condividiVia('sms')">
+        <div class="share-app-icon sa-sms"><i class="fas fa-sms"></i></div>
+        <span class="share-app-label">SMS</span>
+      </a>
+      <a class="share-app" id="share-app-nativo" onclick="condividiVia('nativo')">
+        <div class="share-app-icon sa-altro"><i class="fas fa-ellipsis-h"></i></div>
+        <span class="share-app-label">Altro…</span>
+      </a>
+      <a class="share-app" onclick="condividiVia('copia')">
+        <div class="share-app-icon sa-copy"><i class="fas fa-copy"></i></div>
+        <span class="share-app-label">Copia testo</span>
+      </a>
+    </div>
   </div>
 </div>
 
@@ -1440,21 +1547,65 @@ const GeneratoreWebapp = (() => {
     return testo;
   }
 
-  async function condividiNativo() {
+  function condividiNativo() {
     if (!verificaMittente()) return;
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title: "🌸 Cartolina 8 Marzo – " + CONFIG.nomeComune,
-          text: getTesto()
+    // Mostra/nascondi opzione "Altro..." in base al supporto navigator.share
+    var btnAltro = document.getElementById('share-app-nativo');
+    if (btnAltro) btnAltro.style.display = navigator.share ? 'flex' : 'none';
+    document.getElementById('share-overlay').classList.add('active');
+  }
+
+  function chiudiPannello(e) {
+    if (e && e.target !== e.currentTarget) return;
+    document.getElementById('share-overlay').classList.remove('active');
+  }
+
+  function condividiVia(app) {
+    const testo = encodeURIComponent(getTesto());
+    const url   = encodeURIComponent(getUrlConParametri());
+    let link = '';
+    switch(app) {
+      case 'whatsapp':
+        link = 'https://api.whatsapp.com/send?text=' + testo;
+        break;
+      case 'telegram':
+        link = 'https://t.me/share/url?url=' + url + '&text=' + testo;
+        break;
+      case 'messenger':
+        link = 'https://www.facebook.com/dialog/send?link=' + url + '&app_id=966242223397117&redirect_uri=' + url;
+        break;
+      case 'email':
+        link = 'mailto:?subject=' + encodeURIComponent('🌸 Cartolina 8 Marzo – ' + CONFIG.nomeComune) + '&body=' + testo;
+        break;
+      case 'sms':
+        link = 'sms:?body=' + testo;
+        break;
+      case 'nativo':
+        chiudiPannello();
+        if (navigator.share) {
+          navigator.share({
+            title: '🌸 Cartolina 8 Marzo – ' + CONFIG.nomeComune,
+            text: getTesto()
+          }).catch(function() {});
+        }
+        return;
+      case 'copia':
+        navigator.clipboard.writeText(getTesto()).then(function() {
+          mostraToast("Testo copiato! 📋");
+        }).catch(function() {
+          var el = document.createElement('textarea');
+          el.value = getTesto();
+          document.body.appendChild(el);
+          el.select();
+          document.execCommand('copy');
+          document.body.removeChild(el);
+          mostraToast("Testo copiato! 📋");
         });
-      } catch(e) { /* utente ha annullato */ }
-    } else {
-      try {
-        await navigator.clipboard.writeText(getTesto());
-        mostraToast("Testo copiato! 📋");
-      } catch(e) { mostraToast("Condivisione non supportata"); }
+        chiudiPannello();
+        return;
     }
+    window.open(link, '_blank');
+    chiudiPannello();
   }
 
   async function copiaLink() {
