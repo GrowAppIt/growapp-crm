@@ -116,22 +116,22 @@ module.exports = (req, res) => {
 '    background: linear-gradient(160deg, #0D3A5C 0%, #145284 35%, #1B6A6E 65%, #1A7C5A 100%);\n' +
 '    min-height: 100vh; display: flex; flex-direction: column;\n' +
 '    align-items: center; justify-content: center;\n' +
-'    padding: 24px 16px 40px; position: relative; overflow-x: hidden;\n' +
+'    padding: 16px 16px 32px; position: relative; overflow-x: hidden;\n' +
 '  }\n' +
 '  body::before { content:""; position:fixed; top:-50%; right:-30%; width:80vw; height:80vw; border-radius:50%; background:radial-gradient(circle,rgba(245,200,66,0.08) 0%,transparent 70%); z-index:0; pointer-events:none; }\n' +
 '  body::after { content:""; position:fixed; bottom:-40%; left:-20%; width:70vw; height:70vw; border-radius:50%; background:radial-gradient(circle,rgba(194,24,91,0.08) 0%,transparent 70%); z-index:0; pointer-events:none; }\n' +
 '  .petalo { position:fixed; opacity:0; pointer-events:none; animation:caduta linear infinite; z-index:0; }\n' +
 '  @keyframes caduta { 0%{transform:translateY(-60px) rotate(0deg) scale(0.8);opacity:0} 10%{opacity:0.7} 90%{opacity:0.3} 100%{transform:translateY(110vh) rotate(720deg) scale(0.4);opacity:0} }\n' +
-'  .intro { text-align:center; position:relative; z-index:10; margin-bottom:22px; animation:fadeDown 0.7s ease both; }\n' +
+'  .intro { text-align:center; position:relative; z-index:10; margin-bottom:12px; animation:fadeDown 0.7s ease both; }\n' +
 '  @keyframes fadeDown { from{opacity:0;transform:translateY(-16px)} to{opacity:1;transform:translateY(0)} }\n' +
-'  .intro-emoji { display:block; margin-bottom:10px; }\n' +
-'  .intro-emoji img { height:80px; object-fit:contain; filter:drop-shadow(0 3px 8px rgba(0,0,0,0.2)); animation:pulse 3s ease-in-out infinite; }\n' +
+'  .intro-emoji { display:block; margin-bottom:4px; }\n' +
+'  .intro-emoji img { height:50px; object-fit:contain; filter:drop-shadow(0 3px 8px rgba(0,0,0,0.2)); animation:pulse 3s ease-in-out infinite; }\n' +
 '  @keyframes pulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.1)} }\n' +
-'  .intro h1 { color:white; font-size:1.5rem; font-weight:700; letter-spacing:0.5px; margin-bottom:5px; }\n' +
+'  .intro h1 { color:white; font-size:1.3rem; font-weight:700; letter-spacing:0.5px; margin-bottom:3px; }\n' +
 '  .intro p { color:rgba(255,255,255,0.55); font-size:0.82rem; font-weight:300; }\n' +
 '  .intro-mittente { display:none; color:var(--mimosa); font-size:0.85rem; font-weight:700; margin-top:4px; }\n' +
 '  .intro-mittente.visible { display:block; }\n' +
-'  .card-wrapper { width:100%; max-width:460px; position:relative; z-index:10; margin-bottom:28px; animation:popIn 0.55s cubic-bezier(.22,1.4,.36,1) 0.2s both; }\n' +
+'  .card-wrapper { width:100%; max-width:460px; position:relative; z-index:10; margin-bottom:18px; animation:popIn 0.55s cubic-bezier(.22,1.4,.36,1) 0.2s both; }\n' +
 '  @keyframes popIn { from{opacity:0;transform:scale(0.88)} to{opacity:1;transform:scale(1)} }\n' +
 '  .cartolina { width:100%; border-radius:20px; overflow:hidden; box-shadow:0 4px 15px rgba(0,0,0,0.15),0 22px 60px rgba(0,0,0,0.4); background:white; position:relative; min-height:280px; display:flex; flex-direction:column; }\n' +
 '  .card-bg { position:absolute; inset:0; background:linear-gradient(155deg,#FDE8EF 0%,#FFF8E1 35%,#FFF0F5 65%,#E3F0FF 100%); }\n' +

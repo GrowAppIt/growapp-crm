@@ -93,7 +93,7 @@ const GeneratoreWebapp = (() => {
     let needsSave = false;
 
     // Definizione aggiornata del modello Cartolina 8 Marzo
-    var CARTOLINA_VERSION = '2.0'; // Bump: WhatsApp usa navigator.share per compatibilità webview
+    var CARTOLINA_VERSION = '2.1'; // Bump: header compatto, pulsante unico condivisione
 
     // Aggiungi o aggiorna Cartolina 8 Marzo se mancante o versione vecchia
     if (!state.templates['cartolina_8_marzo'] || state.templates['cartolina_8_marzo'].versione !== CARTOLINA_VERSION) {
@@ -166,7 +166,7 @@ const GeneratoreWebapp = (() => {
         descrizione: 'Cartolina digitale per la Festa della Donna con condivisione social',
         icona: 'fa-heart',
         colore: '#C2185B',
-        versione: '2.0',
+        versione: '2.1',
         multiFile: true,
         campiVariabili: [
           { id: 'nome_comune', label: 'Nome Comune', tipo: 'text', required: true, sezione: 'base', placeholder: 'es. Candela' },
@@ -692,7 +692,7 @@ const GeneratoreWebapp = (() => {
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding: 20px 16px 60px;
+    padding: 12px 16px 40px;
     position: relative;
     overflow-x: hidden;
   }
@@ -745,7 +745,7 @@ const GeneratoreWebapp = (() => {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 8px 0 20px;
+    padding: 6px 0 10px;
     position: relative;
     z-index: 10;
   }
@@ -782,7 +782,7 @@ const GeneratoreWebapp = (() => {
     text-align: center;
     position: relative;
     z-index: 10;
-    margin-bottom: 20px;
+    margin-bottom: 10px;
     animation: fadeDown 0.6s ease both;
   }
   @keyframes fadeDown {
@@ -791,10 +791,10 @@ const GeneratoreWebapp = (() => {
   }
   .header-emoji {
     display: block;
-    margin-bottom: 8px;
+    margin-bottom: 4px;
   }
   .header-emoji img {
-    height: 70px;
+    height: 50px;
     object-fit: contain;
     filter: drop-shadow(0 3px 8px rgba(0,0,0,0.2));
     animation: pulse 3s ease-in-out infinite;
@@ -805,14 +805,14 @@ const GeneratoreWebapp = (() => {
   }
   h1 {
     color: white;
-    font-size: 1.55rem;
+    font-size: 1.3rem;
     font-weight: 700;
     letter-spacing: 0.5px;
-    margin-bottom: 4px;
+    margin-bottom: 2px;
   }
   .subtitle {
     color: rgba(255,255,255,0.75);
-    font-size: 0.92rem;
+    font-size: 0.82rem;
     font-weight: 400;
     letter-spacing: 0.2px;
   }
@@ -823,7 +823,7 @@ const GeneratoreWebapp = (() => {
     max-width: 460px;
     position: relative;
     z-index: 10;
-    margin-bottom: 20px;
+    margin-bottom: 14px;
     animation: popIn 0.5s cubic-bezier(.22,1.4,.36,1) 0.15s both;
   }
   @keyframes popIn {
@@ -1097,8 +1097,8 @@ const GeneratoreWebapp = (() => {
   .condividi-section h2 i { color: var(--mimosa); font-size: 0.9rem; }
 
   .btn-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
+    display: flex;
+    flex-direction: column;
     gap: 10px;
   }
   .btn {
@@ -1117,35 +1117,33 @@ const GeneratoreWebapp = (() => {
     letter-spacing: 0.3px;
     position: relative;
     overflow: hidden;
+    width: 100%;
   }
   .btn:active { transform: scale(0.96); }
   .btn i { font-size: 1rem; }
-
-  .btn-whatsapp {
-    background: linear-gradient(135deg, #25D366 0%, #1EB954 100%);
-    color: white;
-    box-shadow: 0 3px 12px rgba(37,211,102,0.3);
-  }
-  .btn-whatsapp:hover {
-    box-shadow: 0 5px 18px rgba(37,211,102,0.4);
-    transform: translateY(-1px);
-  }
 
   .btn-condividi {
     background: linear-gradient(135deg, var(--rosa) 0%, var(--rosa-chiaro) 100%);
     color: white;
     box-shadow: 0 3px 12px rgba(194,24,91,0.3);
+    padding: 16px 14px;
+    font-size: 0.9rem;
   }
   .btn-condividi:hover {
     box-shadow: 0 5px 18px rgba(194,24,91,0.4);
     transform: translateY(-1px);
+  }
+  .btn-condividi .btn-sub {
+    font-size: 0.68rem;
+    font-weight: 400;
+    opacity: 0.8;
+    margin-left: 4px;
   }
 
   .btn-copia {
     background: rgba(255,255,255,0.08);
     color: white;
     border: 1px solid rgba(255,255,255,0.18);
-    grid-column: span 2;
   }
   .btn-copia:hover {
     background: rgba(255,255,255,0.15);
@@ -1290,14 +1288,11 @@ const GeneratoreWebapp = (() => {
 <div class="condividi-section">
   <h2><i class="fas fa-share-alt"></i> Condividi la cartolina</h2>
   <div class="btn-grid">
-    <button class="btn btn-whatsapp" onclick="condividiWhatsApp()">
-      <i class="fab fa-whatsapp"></i> WhatsApp
-    </button>
     <button class="btn btn-condividi" onclick="condividiNativo()">
-      <i class="fas fa-share-alt"></i> Condividi
+      <i class="fas fa-share-alt"></i> Condividi la cartolina <span class="btn-sub">(WhatsApp, Telegram, Messenger…)</span>
     </button>
     <button class="btn btn-copia" id="btn-copia" onclick="copiaLink()">
-      <i class="fas fa-link"></i> Copia link condivisione
+      <i class="fas fa-link"></i> Copia link di condivisione
     </button>
   </div>
 </div>
@@ -1443,25 +1438,6 @@ const GeneratoreWebapp = (() => {
     if (msg) testo += "💬 \\"" + msg + "\\"\\n";
     testo += "\\n👇 Clicca qui per aprirla:\\n" + getUrlConParametri();
     return testo;
-  }
-
-  function condividiWhatsApp() {
-    if (!verificaMittente()) return;
-    var testo = getTesto();
-    // Usa navigator.share (funziona in tutte le webview)
-    // L'utente sceglie WhatsApp dal foglio di condivisione iOS/Android
-    if (navigator.share) {
-      navigator.share({
-        title: "🌸 Cartolina 8 Marzo – " + CONFIG.nomeComune,
-        text: testo
-      }).catch(function() {});
-      mostraToast("Scegli WhatsApp per condividere 💚");
-    } else {
-      // Fallback per browser desktop
-      var waUrl = "https://api.whatsapp.com/send?text=" + encodeURIComponent(testo);
-      window.open(waUrl, '_blank');
-      mostraToast("Apertura WhatsApp… 💚");
-    }
   }
 
   async function condividiNativo() {
