@@ -93,7 +93,7 @@ const GeneratoreWebapp = (() => {
     let needsSave = false;
 
     // Definizione aggiornata del modello Cartolina 8 Marzo
-    var CARTOLINA_VERSION = '1.9'; // Bump: rimuove padding = da Base64 (WhatsApp lo troncava)
+    var CARTOLINA_VERSION = '2.0'; // Bump: WhatsApp usa navigator.share per compatibilità webview
 
     // Aggiungi o aggiorna Cartolina 8 Marzo se mancante o versione vecchia
     if (!state.templates['cartolina_8_marzo'] || state.templates['cartolina_8_marzo'].versione !== CARTOLINA_VERSION) {
@@ -166,7 +166,7 @@ const GeneratoreWebapp = (() => {
         descrizione: 'Cartolina digitale per la Festa della Donna con condivisione social',
         icona: 'fa-heart',
         colore: '#C2185B',
-        versione: '1.9',
+        versione: '2.0',
         multiFile: true,
         campiVariabili: [
           { id: 'nome_comune', label: 'Nome Comune', tipo: 'text', required: true, sezione: 'base', placeholder: 'es. Candela' },
@@ -1448,13 +1448,20 @@ const GeneratoreWebapp = (() => {
   function condividiWhatsApp() {
     if (!verificaMittente()) return;
     var testo = getTesto();
-    var waUrl = "https://api.whatsapp.com/send?text=" + encodeURIComponent(testo);
-    // Prova window.open, fallback a location.href per webview
-    var w = window.open(waUrl, '_blank');
-    if (!w || w.closed || typeof w.closed === 'undefined') {
-      window.location.href = waUrl;
+    // Usa navigator.share (funziona in tutte le webview)
+    // L'utente sceglie WhatsApp dal foglio di condivisione iOS/Android
+    if (navigator.share) {
+      navigator.share({
+        title: "🌸 Cartolina 8 Marzo – " + CONFIG.nomeComune,
+        text: testo
+      }).catch(function() {});
+      mostraToast("Scegli WhatsApp per condividere 💚");
+    } else {
+      // Fallback per browser desktop
+      var waUrl = "https://api.whatsapp.com/send?text=" + encodeURIComponent(testo);
+      window.open(waUrl, '_blank');
+      mostraToast("Apertura WhatsApp… 💚");
     }
-    mostraToast("Apertura WhatsApp… 💚");
   }
 
   async function condividiNativo() {
