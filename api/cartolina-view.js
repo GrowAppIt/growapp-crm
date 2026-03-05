@@ -143,7 +143,7 @@ module.exports = (req, res) => {
 '  .card-data-label { font-size:0.6rem; font-weight:700; letter-spacing:3px; color:var(--rosa); text-transform:uppercase; margin-bottom:2px; opacity:0.7; }\n' +
 '  .card-titolo { font-family:"Dancing Script",cursive; font-size:2rem; font-weight:700; color:var(--rosa); line-height:1.1; text-shadow:1px 1px 0 rgba(255,255,255,0.6); }\n' +
 '  .card-titolo span { color:var(--mimosa-scuro); }\n' +
-'  .card-quote { font-size:0.92rem; font-style:italic; color:var(--grigio-700); line-height:1.65; max-width:82%; padding:10px 14px; background:rgba(255,255,255,0.65); border-radius:10px; border-left:3px solid var(--mimosa); backdrop-filter:blur(4px); }\n' +
+'  .card-quote { font-size:0.88rem; font-style:italic; color:var(--grigio-700); line-height:1.55; max-width:100%; padding:10px 14px; background:rgba(255,255,255,0.65); border-radius:10px; border-left:3px solid var(--mimosa); backdrop-filter:blur(4px); }\n' +
 '  .card-msg-personale { font-size:0.85rem; font-weight:600; color:var(--rosa); line-height:1.55; max-width:78%; padding:8px 12px; background:linear-gradient(135deg,rgba(253,232,239,0.8),rgba(255,240,245,0.7)); border-radius:10px; border-left:3px solid var(--rosa-chiaro); display:none; animation:fadeInMsg 0.6s ease 0.6s both; }\n' +
 '  @keyframes fadeInMsg { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }\n' +
 '  .card-msg-personale.visible { display:block; }\n' +
@@ -171,9 +171,9 @@ module.exports = (req, res) => {
 '  .divider-testo { text-align:center; color:rgba(255,255,255,0.35); font-size:0.72rem; font-weight:300; padding:2px 0; }\n' +
 '  .privacy-notice { width:100%; max-width:460px; margin-top:18px; padding:12px 16px; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.1); border-radius:12px; display:flex; align-items:flex-start; gap:10px; position:relative; z-index:10; animation:fadeUp 0.5s ease 0.7s both; }\n' +
 '  .privacy-notice i { color:var(--verde-300); font-size:0.85rem; margin-top:1px; flex-shrink:0; }\n' +
-'  .privacy-notice p { color:rgba(255,255,255,0.45); font-size:0.68rem; font-weight:400; line-height:1.6; }\n' +
-'  .footer-ist { margin-top:16px; text-align:center; color:rgba(255,255,255,0.22); font-size:0.65rem; font-weight:300; position:relative; z-index:10; line-height:1.9; }\n' +
-'  .footer-ist a { color:rgba(255,255,255,0.38); text-decoration:none; transition:color 0.2s; }\n' +
+'  .privacy-notice p { color:rgba(255,255,255,0.85); font-size:0.68rem; font-weight:400; line-height:1.6; }\n' +
+'  .footer-ist { margin-top:16px; text-align:center; color:rgba(255,255,255,0.75); font-size:0.65rem; font-weight:300; position:relative; z-index:10; line-height:1.9; }\n' +
+'  .footer-ist a { color:rgba(255,255,255,0.9); text-decoration:none; transition:color 0.2s; }\n' +
 '  .footer-ist a:hover { color:white; }\n' +
 '</style>\n' +
 '</head>\n' +
@@ -239,7 +239,7 @@ module.exports = (req, res) => {
 '</div>\n' +
 '\n' +
 '<div class="footer-ist">\n' +
-'  Un\'iniziativa del Comune · Powered by <a href="https://comune.digital" target="_blank">Comune.Digital</a>\n' +
+'  Un\'iniziativa del Comune · Powered by <a href="https://www.comunedigital.it" target="_blank">Comune.Digital</a>\n' +
 '</div>\n' +
 '\n' +
 '<script>\n' +

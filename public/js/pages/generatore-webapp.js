@@ -93,7 +93,7 @@ const GeneratoreWebapp = (() => {
     let needsSave = false;
 
     // Definizione aggiornata del modello Cartolina 8 Marzo
-    var CARTOLINA_VERSION = '2.1'; // Bump: header compatto, pulsante unico condivisione
+    var CARTOLINA_VERSION = '2.2'; // Bump: quote più larga, testi leggibili, URL comunedigital.it
 
     // Aggiungi o aggiorna Cartolina 8 Marzo se mancante o versione vecchia
     if (!state.templates['cartolina_8_marzo'] || state.templates['cartolina_8_marzo'].versione !== CARTOLINA_VERSION) {
@@ -166,7 +166,7 @@ const GeneratoreWebapp = (() => {
         descrizione: 'Cartolina digitale per la Festa della Donna con condivisione social',
         icona: 'fa-heart',
         colore: '#C2185B',
-        versione: '2.1',
+        versione: '2.2',
         multiFile: true,
         campiVariabili: [
           { id: 'nome_comune', label: 'Nome Comune', tipo: 'text', required: true, sezione: 'base', placeholder: 'es. Candela' },
@@ -936,11 +936,11 @@ const GeneratoreWebapp = (() => {
   .card-titolo span { color: var(--mimosa-scuro); }
 
   .card-quote {
-    font-size: 0.92rem;
+    font-size: 0.88rem;
     font-style: italic;
     color: var(--grigio-700);
-    line-height: 1.65;
-    max-width: 82%;
+    line-height: 1.55;
+    max-width: 100%;
     padding: 10px 14px;
     background: rgba(255,255,255,0.65);
     border-radius: 10px;
@@ -953,7 +953,7 @@ const GeneratoreWebapp = (() => {
     font-weight: 600;
     color: var(--rosa);
     line-height: 1.55;
-    max-width: 75%;
+    max-width: 100%;
     padding: 7px 12px;
     background: linear-gradient(135deg, rgba(253,232,239,0.8), rgba(255,240,245,0.7));
     border-radius: 10px;
@@ -1178,7 +1178,7 @@ const GeneratoreWebapp = (() => {
     flex-shrink: 0;
   }
   .privacy-notice p {
-    color: rgba(255,255,255,0.45);
+    color: rgba(255,255,255,0.85);
     font-size: 0.68rem;
     font-weight: 400;
     line-height: 1.6;
@@ -1209,14 +1209,14 @@ const GeneratoreWebapp = (() => {
   .footer-ist {
     margin-top: 20px;
     text-align: center;
-    color: rgba(255,255,255,0.25);
+    color: rgba(255,255,255,0.75);
     font-size: 0.66rem;
     font-weight: 300;
     position: relative;
     z-index: 10;
     line-height: 1.9;
   }
-  .footer-ist a { color: rgba(255,255,255,0.4); text-decoration: none; transition: color 0.2s; }
+  .footer-ist a { color: rgba(255,255,255,0.9); text-decoration: none; transition: color 0.2s; }
   .footer-ist a:hover { color: white; }
 </style>
 </head>
@@ -1307,7 +1307,7 @@ const GeneratoreWebapp = (() => {
 </div>
 
 <div class="footer-ist">
-  Un'iniziativa del Comune · Powered by <a href="https://comune.digital" target="_blank">Comune.Digital</a>
+  Un'iniziativa del Comune · Powered by <a href="https://www.comunedigital.it" target="_blank">Comune.Digital</a>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -1887,7 +1887,7 @@ const GeneratoreWebapp = (() => {
     flex-shrink: 0;
   }
   .privacy-notice p {
-    color: rgba(255,255,255,0.45);
+    color: rgba(255,255,255,0.85);
     font-size: 0.68rem;
     font-weight: 400;
     line-height: 1.6;
@@ -1897,13 +1897,13 @@ const GeneratoreWebapp = (() => {
   .footer-ist {
     margin-top: 16px;
     text-align: center;
-    color: rgba(255,255,255,0.22);
+    color: rgba(255,255,255,0.75);
     font-size: 0.65rem;
     font-weight: 300;
     position: relative; z-index: 10;
     line-height: 1.9;
   }
-  .footer-ist a { color: rgba(255,255,255,0.38); text-decoration: none; transition: color 0.2s; }
+  .footer-ist a { color: rgba(255,255,255,0.9); text-decoration: none; transition: color 0.2s; }
   .footer-ist a:hover { color: white; }
 </style>
 <script>
@@ -2057,7 +2057,7 @@ document.addEventListener('DOMContentLoaded', function() {
 </div>
 
 <div class="footer-ist">
-  Un'iniziativa del Comune · Powered by <a href="https://comune.digital" target="_blank">Comune.Digital</a>
+  Un'iniziativa del Comune · Powered by <a href="https://www.comunedigital.it" target="_blank">Comune.Digital</a>
 </div>
 
 <script>
