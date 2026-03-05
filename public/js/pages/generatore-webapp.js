@@ -93,7 +93,7 @@ const GeneratoreWebapp = (() => {
     let needsSave = false;
 
     // Definizione aggiornata del modello Cartolina 8 Marzo
-    var CARTOLINA_VERSION = '2.5'; // Bump: URL migrato a growapp-cartolina.vercel.app
+    var CARTOLINA_VERSION = '2.6'; // Bump: grafica ingrandita, testo aggiornato, B grande
 
     // Aggiungi o aggiorna Cartolina 8 Marzo se mancante o versione vecchia
     if (!state.templates['cartolina_8_marzo'] || state.templates['cartolina_8_marzo'].versione !== CARTOLINA_VERSION) {
@@ -166,7 +166,7 @@ const GeneratoreWebapp = (() => {
         descrizione: 'Cartolina digitale per la Festa della Donna con condivisione social',
         icona: 'fa-heart',
         colore: '#C2185B',
-        versione: '2.5',
+        versione: '2.6',
         multiFile: true,
         campiVariabili: [
           { id: 'nome_comune', label: 'Nome Comune', tipo: 'text', required: true, sezione: 'base', placeholder: 'es. Candela' },
@@ -692,7 +692,7 @@ const GeneratoreWebapp = (() => {
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding: 12px 16px 40px;
+    padding: 8px 16px 40px;
     position: relative;
     overflow-x: hidden;
   }
@@ -782,7 +782,7 @@ const GeneratoreWebapp = (() => {
     text-align: center;
     position: relative;
     z-index: 10;
-    margin-bottom: 10px;
+    margin-bottom: 6px;
     animation: fadeDown 0.6s ease both;
   }
   @keyframes fadeDown {
@@ -794,7 +794,7 @@ const GeneratoreWebapp = (() => {
     margin-bottom: 4px;
   }
   .header-emoji img {
-    height: 50px;
+    height: 70px;
     object-fit: contain;
     filter: drop-shadow(0 3px 8px rgba(0,0,0,0.2));
     animation: pulse 3s ease-in-out infinite;
@@ -805,14 +805,14 @@ const GeneratoreWebapp = (() => {
   }
   h1 {
     color: white;
-    font-size: 1.3rem;
+    font-size: 1.5rem;
     font-weight: 700;
     letter-spacing: 0.5px;
     margin-bottom: 2px;
   }
   .subtitle {
     color: rgba(255,255,255,0.75);
-    font-size: 0.82rem;
+    font-size: 0.92rem;
     font-weight: 400;
     letter-spacing: 0.2px;
   }
@@ -917,7 +917,7 @@ const GeneratoreWebapp = (() => {
     gap: 12px;
   }
   .card-data-label {
-    font-size: 0.6rem;
+    font-size: 0.72rem;
     font-weight: 700;
     letter-spacing: 3px;
     color: var(--rosa);
@@ -927,16 +927,17 @@ const GeneratoreWebapp = (() => {
   }
   .card-titolo {
     font-family: 'Dancing Script', cursive;
-    font-size: 2rem;
+    font-size: 2.5rem;
     font-weight: 700;
     color: var(--rosa);
     line-height: 1.1;
     text-shadow: 1px 1px 0 rgba(255,255,255,0.6);
   }
+  .card-titolo .iniziale-b { font-size: 3.2rem; }
   .card-titolo span { color: var(--mimosa-scuro); }
 
   .card-quote {
-    font-size: 0.88rem;
+    font-size: 1rem;
     font-style: italic;
     color: var(--grigio-700);
     line-height: 1.55;
@@ -949,7 +950,7 @@ const GeneratoreWebapp = (() => {
   }
 
   .card-msg-utente {
-    font-size: 0.85rem;
+    font-size: 0.95rem;
     font-weight: 600;
     color: var(--rosa);
     line-height: 1.55;
@@ -968,7 +969,7 @@ const GeneratoreWebapp = (() => {
   .card-msg-utente.visible { display: block; }
 
   .card-mittente {
-    font-size: 0.78rem;
+    font-size: 0.88rem;
     font-weight: 600;
     color: var(--grigio-500);
     font-style: italic;
@@ -984,7 +985,7 @@ const GeneratoreWebapp = (() => {
     align-items: flex-end;
   }
   .card-footer-comune {
-    font-size: 0.56rem;
+    font-size: 0.65rem;
     font-weight: 700;
     letter-spacing: 1.5px;
     text-transform: uppercase;
@@ -993,7 +994,7 @@ const GeneratoreWebapp = (() => {
   }
   .card-footer-comune span {
     display: block;
-    font-size: 0.7rem;
+    font-size: 0.8rem;
     color: var(--blu-700);
     font-weight: 700;
   }
@@ -1288,12 +1289,11 @@ const GeneratoreWebapp = (() => {
     <div class="card-content">
       <div>
         <div class="card-data-label">8 Marzo · Festa della Donna</div>
-        <div class="card-titolo">Buon 8<span> Marzo</span></div>
+        <div class="card-titolo"><span class="iniziale-b">B</span>uon 8<span> Marzo</span></div>
       </div>
       <div class="card-quote">
-        "Il rispetto non è un simbolo da esibire per un giorno.
-        <br>È una responsabilità quotidiana che passa dai gesti,
-        dalle scelte e dai diritti di tutte le donne."
+        "Un giorno per ricordare.<br>
+        Tutto l'anno per dimostrare rispetto a ogni donna."
       </div>
       <div class="card-msg-utente" id="msg-preview"></div>
       <div class="card-mittente" id="mittente-preview"></div>
@@ -2076,12 +2076,11 @@ document.addEventListener('DOMContentLoaded', function() {
     <div class="card-content">
       <div>
         <div class="card-data-label">8 Marzo · Festa della Donna</div>
-        <div class="card-titolo">Buon 8<span> Marzo</span></div>
+        <div class="card-titolo"><span class="iniziale-b">B</span>uon 8<span> Marzo</span></div>
       </div>
       <div class="card-quote">
-        "Il rispetto non è un simbolo da esibire per un giorno.
-        <br>È una responsabilità quotidiana che passa dai gesti,
-        dalle scelte e dai diritti di tutte le donne."
+        "Un giorno per ricordare.<br>
+        Tutto l'anno per dimostrare rispetto a ogni donna."
       </div>
       <!-- Messaggio personale (dall'URL) -->
       <div class="card-msg-personale" id="msg-personale"></div>
