@@ -108,7 +108,7 @@ const GeneratoreWebapp = (() => {
         campiVariabili: [
           { id: 'nome_comune', label: 'Nome Comune', tipo: 'text', required: true, sezione: 'base', placeholder: 'es. Candela' },
           { id: 'url_stemma', label: 'URL Logo/Stemma Comune (opzionale)', tipo: 'text', required: false, sezione: 'base', placeholder: 'https://...' },
-          { id: 'url_cartolina_view', label: 'URL API cartolina (endpoint Vercel)', tipo: 'text', required: true, sezione: 'link', placeholder: 'https://tuodominio.vercel.app/api/cartolina-view', default: 'https://growapp-crm.vercel.app/api/cartolina-view' },
+          { id: 'url_cartolina_view', label: 'URL API cartolina (endpoint Vercel)', tipo: 'text', required: true, sezione: 'link', placeholder: 'https://tuodominio.vercel.app/api/cartolina-view', default: 'https://growapp-cartolina.vercel.app/api/cartolina-view' },
           { id: 'url_scarica_app', label: 'URL scarica app', tipo: 'text', required: true, sezione: 'link', placeholder: 'https://example.com/scarica-app' },
           { id: 'url_homepage', label: 'URL homepage app', tipo: 'text', required: true, sezione: 'link', placeholder: 'https://example.com' }
         ],
@@ -171,7 +171,7 @@ const GeneratoreWebapp = (() => {
         campiVariabili: [
           { id: 'nome_comune', label: 'Nome Comune', tipo: 'text', required: true, sezione: 'base', placeholder: 'es. Candela' },
           { id: 'url_stemma', label: 'URL Logo/Stemma Comune (opzionale)', tipo: 'text', required: false, sezione: 'base', placeholder: 'https://...' },
-          { id: 'url_cartolina_view', label: 'URL API cartolina (endpoint Vercel)', tipo: 'text', required: true, sezione: 'link', placeholder: 'https://tuodominio.vercel.app/api/cartolina-view', default: 'https://growapp-crm.vercel.app/api/cartolina-view' },
+          { id: 'url_cartolina_view', label: 'URL API cartolina (endpoint Vercel)', tipo: 'text', required: true, sezione: 'link', placeholder: 'https://tuodominio.vercel.app/api/cartolina-view', default: 'https://growapp-cartolina.vercel.app/api/cartolina-view' },
           { id: 'url_scarica_app', label: 'URL scarica app', tipo: 'text', required: true, sezione: 'link', placeholder: 'https://example.com/scarica-app' },
           { id: 'url_homepage', label: 'URL homepage app', tipo: 'text', required: true, sezione: 'link', placeholder: 'https://example.com' }
         ],
