@@ -93,7 +93,7 @@ const GeneratoreWebapp = (() => {
     let needsSave = false;
 
     // Definizione aggiornata del modello Cartolina 8 Marzo
-    var CARTOLINA_VERSION = '2.6'; // Bump: grafica ingrandita, testo aggiornato, B grande
+    var CARTOLINA_VERSION = '2.7'; // Bump: nuovo testo, sfondo uniforme, titolo rosa, clamp
 
     // Aggiungi o aggiorna Cartolina 8 Marzo se mancante o versione vecchia
     if (!state.templates['cartolina_8_marzo'] || state.templates['cartolina_8_marzo'].versione !== CARTOLINA_VERSION) {
@@ -166,7 +166,7 @@ const GeneratoreWebapp = (() => {
         descrizione: 'Cartolina digitale per la Festa della Donna con condivisione social',
         icona: 'fa-heart',
         colore: '#C2185B',
-        versione: '2.6',
+        versione: '2.7',
         multiFile: true,
         campiVariabili: [
           { id: 'nome_comune', label: 'Nome Comune', tipo: 'text', required: true, sezione: 'base', placeholder: 'es. Candela' },
@@ -862,24 +862,7 @@ const GeneratoreWebapp = (() => {
   .card-bg {
     position: absolute;
     inset: 0;
-    background: linear-gradient(155deg, #FDE8EF 0%, #FFF8E1 35%, #FFF0F5 65%, #E3F0FF 100%);
-  }
-  .card-bg::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background:
-      radial-gradient(circle at 10% 15%, rgba(245,200,66,0.25) 0%, transparent 40%),
-      radial-gradient(circle at 90% 80%, rgba(194,24,91,0.12) 0%, transparent 40%),
-      radial-gradient(circle at 75% 10%, rgba(92,196,220,0.12) 0%, transparent 30%);
-  }
-  .card-bg::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    opacity: 0.04;
-    background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='30' cy='30' r='4' fill='%23F5C842'/%3E%3Ccircle cx='10' cy='10' r='3' fill='%23C2185B'/%3E%3Ccircle cx='50' cy='50' r='3' fill='%23C2185B'/%3E%3C/svg%3E");
-    background-size: 60px 60px;
+    background: #FFF8E1;
   }
 
   .card-nastro {
@@ -892,7 +875,7 @@ const GeneratoreWebapp = (() => {
   .card-deco-tr {
     position: absolute;
     top: 10px; right: 12px;
-    font-size: 2rem;
+    font-size: clamp(1.4rem, 5vw, 2rem);
     line-height: 1;
     z-index: 2;
     filter: drop-shadow(1px 2px 3px rgba(0,0,0,0.12));
@@ -901,7 +884,7 @@ const GeneratoreWebapp = (() => {
   .card-deco-bl {
     position: absolute;
     bottom: 60px; left: 12px;
-    font-size: 1.5rem;
+    font-size: clamp(1rem, 4vw, 1.5rem);
     line-height: 1;
     z-index: 2;
     animation: dondola 5s ease-in-out infinite reverse;
@@ -917,9 +900,9 @@ const GeneratoreWebapp = (() => {
     gap: 12px;
   }
   .card-data-label {
-    font-size: 0.72rem;
+    font-size: clamp(0.6rem, 2vw, 0.75rem);
     font-weight: 700;
-    letter-spacing: 3px;
+    letter-spacing: 2px;
     color: var(--rosa);
     text-transform: uppercase;
     margin-bottom: 2px;
@@ -927,17 +910,17 @@ const GeneratoreWebapp = (() => {
   }
   .card-titolo {
     font-family: 'Dancing Script', cursive;
-    font-size: 2.5rem;
+    font-size: clamp(1.8rem, 7vw, 2.5rem);
     font-weight: 700;
     color: var(--rosa);
     line-height: 1.1;
     text-shadow: 1px 1px 0 rgba(255,255,255,0.6);
   }
-  .card-titolo .iniziale-b { font-size: 3.2rem; }
-  .card-titolo span { color: var(--mimosa-scuro); }
+  .card-titolo .iniziale-b { font-size: clamp(2.2rem, 9vw, 3.2rem); }
+  .card-titolo span { color: var(--rosa); }
 
   .card-quote {
-    font-size: 1rem;
+    font-size: clamp(0.85rem, 3.2vw, 1rem);
     font-style: italic;
     color: var(--grigio-700);
     line-height: 1.55;
@@ -950,7 +933,7 @@ const GeneratoreWebapp = (() => {
   }
 
   .card-msg-utente {
-    font-size: 0.95rem;
+    font-size: clamp(0.8rem, 3vw, 0.95rem);
     font-weight: 600;
     color: var(--rosa);
     line-height: 1.55;
@@ -1288,18 +1271,17 @@ const GeneratoreWebapp = (() => {
     <div class="card-deco-bl">🌸</div>
     <div class="card-content">
       <div>
-        <div class="card-data-label">8 Marzo · Festa della Donna</div>
+        <div class="card-data-label">Giornata Internazionale della Donna</div>
         <div class="card-titolo"><span class="iniziale-b">B</span>uon 8<span> Marzo</span></div>
       </div>
       <div class="card-quote">
-        "Un giorno per ricordare.<br>
-        Tutto l'anno per dimostrare rispetto a ogni donna."
+        "Oggi celebriamo il coraggio, la determinazione e la bellezza di ogni donna."
       </div>
       <div class="card-msg-utente" id="msg-preview"></div>
       <div class="card-mittente" id="mittente-preview"></div>
       <div class="card-footer">
         <div class="card-footer-comune">
-          Un pensiero a cura del
+          A cura del
           <span>Comune di {{nome_comune}}</span>
         </div>
         <div class="card-mimosa">🌼</div>
@@ -1718,22 +1700,7 @@ const GeneratoreWebapp = (() => {
 
   .card-bg {
     position: absolute; inset: 0;
-    background: linear-gradient(155deg, #FDE8EF 0%, #FFF8E1 35%, #FFF0F5 65%, #E3F0FF 100%);
-  }
-  .card-bg::before {
-    content: ''; position: absolute; inset: 0;
-    background:
-      radial-gradient(circle at 10% 15%, rgba(245,200,66,0.25) 0%, transparent 40%),
-      radial-gradient(circle at 90% 80%, rgba(194,24,91,0.12) 0%, transparent 40%),
-      radial-gradient(circle at 75% 10%, rgba(92,196,220,0.12) 0%, transparent 30%);
-  }
-  .card-bg::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    opacity: 0.04;
-    background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='30' cy='30' r='4' fill='%23F5C842'/%3E%3Ccircle cx='10' cy='10' r='3' fill='%23C2185B'/%3E%3Ccircle cx='50' cy='50' r='3' fill='%23C2185B'/%3E%3C/svg%3E");
-    background-size: 60px 60px;
+    background: #FFF8E1;
   }
 
   .card-nastro {
@@ -1744,13 +1711,13 @@ const GeneratoreWebapp = (() => {
   }
   .card-deco-tr {
     position: absolute; top: 10px; right: 12px;
-    font-size: 2rem; line-height: 1; z-index: 2;
+    font-size: clamp(1.4rem, 5vw, 2rem); line-height: 1; z-index: 2;
     filter: drop-shadow(1px 2px 3px rgba(0,0,0,0.12));
     animation: dondola 4s ease-in-out infinite;
   }
   .card-deco-bl {
     position: absolute; bottom: 60px; left: 12px;
-    font-size: 1.5rem; line-height: 1; z-index: 2;
+    font-size: clamp(1rem, 4vw, 1.5rem); line-height: 1; z-index: 2;
     animation: dondola 5s ease-in-out infinite reverse;
   }
 
@@ -1762,23 +1729,24 @@ const GeneratoreWebapp = (() => {
     gap: 12px;
   }
   .card-data-label {
-    font-size: 0.6rem; font-weight: 700;
-    letter-spacing: 3px; color: var(--rosa);
+    font-size: clamp(0.6rem, 2vw, 0.75rem); font-weight: 700;
+    letter-spacing: 2px; color: var(--rosa);
     text-transform: uppercase; margin-bottom: 2px;
     opacity: 0.7;
   }
   .card-titolo {
     font-family: 'Dancing Script', cursive;
-    font-size: 2rem; font-weight: 700;
+    font-size: clamp(1.8rem, 7vw, 2.5rem); font-weight: 700;
     color: var(--rosa); line-height: 1.1;
     text-shadow: 1px 1px 0 rgba(255,255,255,0.6);
   }
-  .card-titolo span { color: var(--mimosa-scuro); }
+  .card-titolo .iniziale-b { font-size: clamp(2.2rem, 9vw, 3.2rem); }
+  .card-titolo span { color: var(--rosa); }
 
   .card-quote {
-    font-size: 0.92rem; font-style: italic;
+    font-size: clamp(0.85rem, 3.2vw, 1rem); font-style: italic;
     color: var(--grigio-700); line-height: 1.65;
-    max-width: 82%; padding: 10px 14px;
+    max-width: 100%; padding: 10px 14px;
     background: rgba(255,255,255,0.65);
     border-radius: 10px; border-left: 3px solid var(--mimosa);
     backdrop-filter: blur(4px);
@@ -2075,12 +2043,11 @@ document.addEventListener('DOMContentLoaded', function() {
     <div class="card-deco-bl">🌸</div>
     <div class="card-content">
       <div>
-        <div class="card-data-label">8 Marzo · Festa della Donna</div>
+        <div class="card-data-label">Giornata Internazionale della Donna</div>
         <div class="card-titolo"><span class="iniziale-b">B</span>uon 8<span> Marzo</span></div>
       </div>
       <div class="card-quote">
-        "Un giorno per ricordare.<br>
-        Tutto l'anno per dimostrare rispetto a ogni donna."
+        "Oggi celebriamo il coraggio, la determinazione e la bellezza di ogni donna."
       </div>
       <!-- Messaggio personale (dall'URL) -->
       <div class="card-msg-personale" id="msg-personale"></div>
@@ -2088,7 +2055,7 @@ document.addEventListener('DOMContentLoaded', function() {
       <div class="card-mittente" id="card-mittente"></div>
       <div class="card-footer">
         <div class="card-footer-comune">
-          Un pensiero a cura del
+          A cura del
           <span>Comune di {{nome_comune}}</span>
         </div>
         <div class="card-mimosa">🌼</div>
