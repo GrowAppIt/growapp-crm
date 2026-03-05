@@ -93,7 +93,7 @@ const GeneratoreWebapp = (() => {
     let needsSave = false;
 
     // Definizione aggiornata del modello Cartolina 8 Marzo
-    var CARTOLINA_VERSION = '2.3'; // Bump: pannello condivisione fallback per Android
+    var CARTOLINA_VERSION = '2.4'; // Bump: pulsante unico Invia + pannello istruzioni
 
     // Aggiungi o aggiorna Cartolina 8 Marzo se mancante o versione vecchia
     if (!state.templates['cartolina_8_marzo'] || state.templates['cartolina_8_marzo'].versione !== CARTOLINA_VERSION) {
@@ -166,7 +166,7 @@ const GeneratoreWebapp = (() => {
         descrizione: 'Cartolina digitale per la Festa della Donna con condivisione social',
         icona: 'fa-heart',
         colore: '#C2185B',
-        versione: '2.3',
+        versione: '2.4',
         multiFile: true,
         campiVariabili: [
           { id: 'nome_comune', label: 'Nome Comune', tipo: 'text', required: true, sezione: 'base', placeholder: 'es. Candela' },
@@ -1077,7 +1077,7 @@ const GeneratoreWebapp = (() => {
   }
   .char-count.warning { color: var(--mimosa); }
 
-  /* BOTTONI CONDIVISIONE */
+  /* PULSANTE INVIA */
   .condividi-section {
     width: 100%;
     max-width: 460px;
@@ -1085,91 +1085,47 @@ const GeneratoreWebapp = (() => {
     z-index: 10;
     animation: fadeUp 0.5s ease 0.45s both;
   }
-  .condividi-section h2 {
-    color: white;
-    font-size: 0.85rem;
-    font-weight: 700;
-    margin-bottom: 12px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  .condividi-section h2 i { color: var(--mimosa); font-size: 0.9rem; }
-
-  .btn-grid {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-  }
-  .btn {
+  .btn-invia {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
-    padding: 14px 14px;
-    border-radius: 14px;
+    gap: 10px;
+    width: 100%;
+    padding: 18px 14px;
+    border-radius: 16px;
     border: none;
     font-family: 'Titillium Web', sans-serif;
-    font-size: 0.84rem;
+    font-size: 1.05rem;
     font-weight: 700;
     cursor: pointer;
     transition: all 0.25s ease;
     letter-spacing: 0.3px;
-    position: relative;
-    overflow: hidden;
-    width: 100%;
-  }
-  .btn:active { transform: scale(0.96); }
-  .btn i { font-size: 1rem; }
-
-  .btn-condividi {
     background: linear-gradient(135deg, var(--rosa) 0%, var(--rosa-chiaro) 100%);
     color: white;
-    box-shadow: 0 3px 12px rgba(194,24,91,0.3);
-    padding: 16px 14px;
-    font-size: 0.9rem;
+    box-shadow: 0 4px 16px rgba(194,24,91,0.35);
   }
-  .btn-condividi:hover {
-    box-shadow: 0 5px 18px rgba(194,24,91,0.4);
+  .btn-invia:hover {
+    box-shadow: 0 6px 22px rgba(194,24,91,0.45);
     transform: translateY(-1px);
   }
-  .btn-condividi .btn-sub {
-    font-size: 0.68rem;
-    font-weight: 400;
-    opacity: 0.8;
-    margin-left: 4px;
-  }
+  .btn-invia:active { transform: scale(0.96); }
+  .btn-invia i { font-size: 1.2rem; }
 
-  .btn-copia {
-    background: rgba(255,255,255,0.08);
-    color: white;
-    border: 1px solid rgba(255,255,255,0.18);
-  }
-  .btn-copia:hover {
-    background: rgba(255,255,255,0.15);
-    transform: translateY(-1px);
-  }
-  .btn-copia.copiato {
-    background: var(--verde-700);
-    border-color: var(--verde-700);
-  }
-
-  /* PANNELLO CONDIVISIONE FALLBACK (Android) */
+  /* PANNELLO ISTRUZIONI */
   .share-overlay {
     display: none;
     position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-    background: rgba(0,0,0,0.6);
+    background: rgba(0,0,0,0.55);
     z-index: 9999;
     align-items: flex-end;
     justify-content: center;
-    animation: fadeIn 0.2s ease;
   }
   .share-overlay.active { display: flex; }
   .share-panel {
     background: #fff;
-    border-radius: 18px 18px 0 0;
+    border-radius: 22px 22px 0 0;
     width: 100%; max-width: 500px;
-    padding: 18px 16px 24px;
+    padding: 22px 20px 30px;
     animation: slideUp 0.3s ease;
   }
   @keyframes slideUp {
@@ -1178,47 +1134,66 @@ const GeneratoreWebapp = (() => {
   }
   .share-panel-header {
     display: flex; justify-content: space-between; align-items: center;
-    margin-bottom: 16px; padding-bottom: 10px;
-    border-bottom: 1px solid #eee;
+    margin-bottom: 18px; padding-bottom: 12px;
+    border-bottom: 2px solid #f0f0f0;
   }
   .share-panel-header h3 {
-    font-size: 0.95rem; font-weight: 700;
+    font-size: 1.1rem; font-weight: 700;
     color: #1E1E1E; margin: 0;
   }
   .share-panel-close {
     background: none; border: none;
-    font-size: 1.4rem; color: #9B9B9B;
-    cursor: pointer; padding: 0 4px;
+    font-size: 1.6rem; color: #9B9B9B;
+    cursor: pointer; padding: 0 6px;
   }
-  .share-apps {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 14px 8px;
-    text-align: center;
+  .istruzioni-step {
+    display: flex; align-items: flex-start; gap: 14px;
+    margin-bottom: 16px;
   }
-  .share-app {
-    display: flex; flex-direction: column;
-    align-items: center; gap: 6px;
-    text-decoration: none;
-    cursor: pointer;
-  }
-  .share-app-icon {
-    width: 50px; height: 50px;
-    border-radius: 14px;
+  .step-num {
+    flex-shrink: 0;
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    background: var(--rosa);
+    color: #fff;
     display: flex; align-items: center; justify-content: center;
-    font-size: 1.4rem; color: #fff;
+    font-size: 0.95rem; font-weight: 800;
+    font-family: 'Titillium Web', sans-serif;
   }
-  .share-app-label {
-    font-size: 0.7rem; color: #4A4A4A;
-    font-weight: 500;
+  .step-text {
+    font-size: 1rem;
+    line-height: 1.5;
+    color: #1E1E1E;
+    font-family: 'Titillium Web', sans-serif;
+    padding-top: 4px;
   }
-  .sa-whatsapp  { background: #25D366; }
-  .sa-telegram  { background: #0088cc; }
-  .sa-messenger { background: #0084FF; }
-  .sa-email     { background: #D44638; }
-  .sa-sms       { background: #34C759; }
-  .sa-altro     { background: #145284; }
-  .sa-copy      { background: #9B9B9B; }
+  .step-text strong { color: var(--rosa); }
+  .step-text .app-icons {
+    display: inline;
+    font-size: 1rem;
+  }
+  .btn-copia-panel {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    width: 100%;
+    padding: 16px 14px;
+    margin-top: 20px;
+    border-radius: 14px;
+    border: none;
+    font-family: 'Titillium Web', sans-serif;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.25s ease;
+    background: linear-gradient(135deg, var(--rosa) 0%, var(--rosa-chiaro) 100%);
+    color: white;
+    box-shadow: 0 3px 12px rgba(194,24,91,0.3);
+  }
+  .btn-copia-panel:active { transform: scale(0.96); }
+  .btn-copia-panel.copiato {
+    background: linear-gradient(135deg, #3CA434 0%, #59C64D 100%);
     box-shadow: 0 3px 12px rgba(60,164,52,0.3);
   }
 
@@ -1353,54 +1328,37 @@ const GeneratoreWebapp = (() => {
 
 <!-- CONDIVISIONE -->
 <div class="condividi-section">
-  <h2><i class="fas fa-share-alt"></i> Condividi la cartolina</h2>
-  <div class="btn-grid">
-    <button class="btn btn-condividi" onclick="condividiNativo()">
-      <i class="fas fa-share-alt"></i> Condividi la cartolina <span class="btn-sub">(WhatsApp, Telegram, Messenger…)</span>
-    </button>
-    <button class="btn btn-copia" id="btn-copia" onclick="copiaLink()">
-      <i class="fas fa-link"></i> Copia link di condivisione
-    </button>
-  </div>
+  <button class="btn-invia" onclick="apriIstruzioni()">
+    <i class="fas fa-paper-plane"></i> Invia la cartolina
+  </button>
 </div>
 
-<!-- PANNELLO CONDIVISIONE FALLBACK -->
+<!-- PANNELLO ISTRUZIONI -->
 <div class="share-overlay" id="share-overlay" onclick="chiudiPannello(event)">
   <div class="share-panel">
     <div class="share-panel-header">
-      <h3>Condividi tramite…</h3>
+      <h3>Come inviare la cartolina</h3>
       <button class="share-panel-close" onclick="chiudiPannello()">&times;</button>
     </div>
-    <div class="share-apps">
-      <a class="share-app" onclick="condividiVia('whatsapp')">
-        <div class="share-app-icon sa-whatsapp"><i class="fab fa-whatsapp"></i></div>
-        <span class="share-app-label">WhatsApp</span>
-      </a>
-      <a class="share-app" onclick="condividiVia('telegram')">
-        <div class="share-app-icon sa-telegram"><i class="fab fa-telegram-plane"></i></div>
-        <span class="share-app-label">Telegram</span>
-      </a>
-      <a class="share-app" onclick="condividiVia('messenger')">
-        <div class="share-app-icon sa-messenger"><i class="fab fa-facebook-messenger"></i></div>
-        <span class="share-app-label">Messenger</span>
-      </a>
-      <a class="share-app" onclick="condividiVia('email')">
-        <div class="share-app-icon sa-email"><i class="fas fa-envelope"></i></div>
-        <span class="share-app-label">Email</span>
-      </a>
-      <a class="share-app" onclick="condividiVia('sms')">
-        <div class="share-app-icon sa-sms"><i class="fas fa-sms"></i></div>
-        <span class="share-app-label">SMS</span>
-      </a>
-      <a class="share-app" id="share-app-nativo" onclick="condividiVia('nativo')">
-        <div class="share-app-icon sa-altro"><i class="fas fa-ellipsis-h"></i></div>
-        <span class="share-app-label">Altro…</span>
-      </a>
-      <a class="share-app" onclick="condividiVia('copia')">
-        <div class="share-app-icon sa-copy"><i class="fas fa-copy"></i></div>
-        <span class="share-app-label">Copia testo</span>
-      </a>
+
+    <div class="istruzioni-step">
+      <div class="step-num">1</div>
+      <div class="step-text">Clicca il pulsante qui sotto per <strong>copiare il messaggio</strong> con il link della tua cartolina.</div>
     </div>
+
+    <div class="istruzioni-step">
+      <div class="step-num">2</div>
+      <div class="step-text">Apri l'app che preferisci: <strong>WhatsApp</strong>, <strong>Telegram</strong>, <strong>Messenger</strong>, <strong>SMS</strong> o qualsiasi altra app di messaggistica.</div>
+    </div>
+
+    <div class="istruzioni-step">
+      <div class="step-num">3</div>
+      <div class="step-text">Scegli la persona a cui vuoi inviare la cartolina e <strong>incolla il messaggio</strong> (tieni premuto nel campo di testo e seleziona "Incolla").</div>
+    </div>
+
+    <button class="btn-copia-panel" id="btn-copia-panel" onclick="copiaMessaggio()">
+      <i class="fas fa-copy"></i> Copia il messaggio
+    </button>
   </div>
 </div>
 
@@ -1547,11 +1505,8 @@ const GeneratoreWebapp = (() => {
     return testo;
   }
 
-  function condividiNativo() {
+  function apriIstruzioni() {
     if (!verificaMittente()) return;
-    // Mostra/nascondi opzione "Altro..." in base al supporto navigator.share
-    var btnAltro = document.getElementById('share-app-nativo');
-    if (btnAltro) btnAltro.style.display = navigator.share ? 'flex' : 'none';
     document.getElementById('share-overlay').classList.add('active');
   }
 
@@ -1560,76 +1515,37 @@ const GeneratoreWebapp = (() => {
     document.getElementById('share-overlay').classList.remove('active');
   }
 
-  function condividiVia(app) {
-    const testo = encodeURIComponent(getTesto());
-    const url   = encodeURIComponent(getUrlConParametri());
-    let link = '';
-    switch(app) {
-      case 'whatsapp':
-        link = 'https://api.whatsapp.com/send?text=' + testo;
-        break;
-      case 'telegram':
-        link = 'https://t.me/share/url?url=' + url + '&text=' + testo;
-        break;
-      case 'messenger':
-        link = 'https://www.facebook.com/dialog/send?link=' + url + '&app_id=966242223397117&redirect_uri=' + url;
-        break;
-      case 'email':
-        link = 'mailto:?subject=' + encodeURIComponent('🌸 Cartolina 8 Marzo – ' + CONFIG.nomeComune) + '&body=' + testo;
-        break;
-      case 'sms':
-        link = 'sms:?body=' + testo;
-        break;
-      case 'nativo':
-        chiudiPannello();
-        if (navigator.share) {
-          navigator.share({
-            title: '🌸 Cartolina 8 Marzo – ' + CONFIG.nomeComune,
-            text: getTesto()
-          }).catch(function() {});
-        }
-        return;
-      case 'copia':
-        navigator.clipboard.writeText(getTesto()).then(function() {
-          mostraToast("Testo copiato! 📋");
-        }).catch(function() {
-          var el = document.createElement('textarea');
-          el.value = getTesto();
-          document.body.appendChild(el);
-          el.select();
-          document.execCommand('copy');
-          document.body.removeChild(el);
-          mostraToast("Testo copiato! 📋");
-        });
-        chiudiPannello();
-        return;
-    }
-    window.open(link, '_blank');
-    chiudiPannello();
+  function copiaMessaggio() {
+    var btn = document.getElementById('btn-copia-panel');
+    var testo = getTesto();
+    try {
+      navigator.clipboard.writeText(testo).then(function() {
+        btn.classList.add('copiato');
+        btn.innerHTML = '<i class="fas fa-check"></i> Messaggio copiato!';
+        mostraToast("Messaggio copiato! Ora incollalo nella chat ✅");
+        setTimeout(function() {
+          btn.classList.remove('copiato');
+          btn.innerHTML = '<i class="fas fa-copy"></i> Copia il messaggio';
+        }, 4000);
+      }).catch(function() { copiaFallback(testo, btn); });
+    } catch(e) { copiaFallback(testo, btn); }
   }
 
-  async function copiaLink() {
-    if (!verificaMittente()) return;
-    const btn = document.getElementById('btn-copia');
-    const url = getTesto();
-    try {
-      await navigator.clipboard.writeText(url);
-      btn.classList.add('copiato');
-      btn.innerHTML = '<i class="fas fa-check"></i> Link copiato!';
-      mostraToast("Link copiato negli appunti ✅");
-      setTimeout(() => {
-        btn.classList.remove('copiato');
-        btn.innerHTML = '<i class="fas fa-link"></i> Copia link condivisione';
-      }, 3000);
-    } catch(e) {
-      const el = document.createElement('textarea');
-      el.value = url;
-      document.body.appendChild(el);
-      el.select();
-      document.execCommand('copy');
-      document.body.removeChild(el);
-      mostraToast("Link copiato! ✅");
-    }
+  function copiaFallback(testo, btn) {
+    var el = document.createElement('textarea');
+    el.value = testo;
+    el.style.cssText = 'position:fixed;top:-9999px';
+    document.body.appendChild(el);
+    el.select();
+    document.execCommand('copy');
+    document.body.removeChild(el);
+    btn.classList.add('copiato');
+    btn.innerHTML = '<i class="fas fa-check"></i> Messaggio copiato!';
+    mostraToast("Messaggio copiato! Ora incollalo nella chat ✅");
+    setTimeout(function() {
+      btn.classList.remove('copiato');
+      btn.innerHTML = '<i class="fas fa-copy"></i> Copia il messaggio';
+    }, 4000);
   }
 
   function mostraToast(msg) {
