@@ -5,6 +5,16 @@ const UI = {
     currentPage: null,
     currentPageId: null,
 
+    // Stack di navigazione — tiene traccia delle pagine visitate per il "torna indietro"
+    _navStack: [],
+    _NAV_STACK_MAX: 30,
+    // Flag per evitare di pushare nello stack durante goBack() o popstate
+    _isGoingBack: false,
+
+    /**
+     * Naviga a una pagina. Se non si sta tornando indietro,
+     * salva la pagina corrente nello stack di navigazione.
+     */
     showPage(pageName, id = null) {
         // Verifica accesso alla pagina
         if (!AuthService.isAuthenticated()) {
@@ -24,14 +34,29 @@ const UI = {
             MonitorRSS.cleanup();
         }
 
+        // Salva la pagina CORRENTE nello stack prima di navigare (solo se non è un goBack)
+        if (!this._isGoingBack && this.currentPage) {
+            this._navStack.push({ page: this.currentPage, id: this.currentPageId });
+            // Limita la dimensione dello stack
+            if (this._navStack.length > this._NAV_STACK_MAX) {
+                this._navStack.shift();
+            }
+        }
+
         // Salva pagina corrente
         this.currentPage = pageName;
         this.currentPageId = id;
 
-        // Aggiorna hash URL per persistenza al refresh (senza triggerare hashchange)
+        // Aggiorna hash URL per persistenza al refresh
         const hashValue = id ? `#/${pageName}/${id}` : `#/${pageName}`;
         if (window.location.hash !== hashValue) {
-            history.replaceState(null, '', window.location.pathname + window.location.search + hashValue);
+            if (this._isGoingBack) {
+                // Durante goBack: replaceState per non inquinare la history del browser
+                history.replaceState({ page: pageName, id: id }, '', window.location.pathname + window.location.search + hashValue);
+            } else {
+                // Navigazione normale: pushState per creare un punto nella history del browser
+                history.pushState({ page: pageName, id: id }, '', window.location.pathname + window.location.search + hashValue);
+            }
         }
 
         // Aggiorna menu attivo (solo per pagine principali, non dettagli)
@@ -147,6 +172,74 @@ const UI = {
         const overlay = document.getElementById('sidebarOverlay');
         sidebar.classList.remove('active');
         overlay.classList.remove('active');
+    },
+
+    // === NAVIGAZIONE INDIETRO ===
+
+    /**
+     * Torna alla pagina precedente nello stack di navigazione.
+     * Se lo stack è vuoto, usa la pagina di fallback.
+     * @param {string} fallbackPage - Pagina a cui tornare se lo stack è vuoto (default sicuro)
+     */
+    goBack(fallbackPage) {
+        if (this._navStack.length > 0) {
+            const prev = this._navStack.pop();
+            this._isGoingBack = true;
+            this.showPage(prev.page, prev.id);
+            this._isGoingBack = false;
+        } else if (fallbackPage) {
+            // Stack vuoto (es. arrivo da deep link): usa il fallback
+            this._isGoingBack = true;
+            this.showPage(fallbackPage);
+            this._isGoingBack = false;
+        }
+    },
+
+    /**
+     * Restituisce il nome della pagina precedente nello stack (senza rimuoverla).
+     * Utile per mostrare testo dinamico nel pulsante "torna".
+     * @param {string} fallbackPage - Valore di ritorno se lo stack è vuoto
+     * @returns {string} Nome della pagina precedente
+     */
+    getBackPageName(fallbackPage) {
+        if (this._navStack.length > 0) {
+            return this._navStack[this._navStack.length - 1].page;
+        }
+        return fallbackPage || null;
+    },
+
+    /**
+     * Restituisce un'etichetta leggibile per il pulsante "torna indietro"
+     * in base alla pagina precedente nello stack.
+     * @param {string} fallbackPage - Pagina di fallback
+     * @returns {string} Etichetta del tipo "Torna ai clienti"
+     */
+    getBackLabel(fallbackPage) {
+        const pageLabels = {
+            'dashboard': 'Torna alla Dashboard',
+            'clienti': 'Torna ai clienti',
+            'app': 'Torna alle app',
+            'contratti': 'Torna ai contratti',
+            'fatture': 'Torna alle fatture',
+            'scadenzario': 'Torna allo scadenzario',
+            'task': 'Torna ai task',
+            'report': 'Torna al report',
+            'report-app': 'Torna al Report App',
+            'promemoria': 'Torna ai promemoria',
+            'mappa': 'Torna alla mappa',
+            'push-broadcast': 'Torna a Push Broadcast',
+            'aggiorna-push': 'Torna ad Aggiorna Push',
+            'impostazioni': 'Torna alle impostazioni',
+            'monitor-rss': 'Torna al Monitor RSS',
+            'generatore-webapp': 'Torna al Generatore',
+            'dettaglio-cliente': 'Torna al dettaglio cliente',
+            'dettaglio-app': 'Torna al dettaglio app',
+            'dettaglio-contratto': 'Torna al dettaglio contratto',
+            'dettaglio-fattura': 'Torna al dettaglio fattura',
+            'dettaglio-scadenza': 'Torna al dettaglio scadenza'
+        };
+        const pageName = this.getBackPageName(fallbackPage);
+        return pageLabels[pageName] || 'Torna indietro';
     },
 
     toggleUserMenu() {

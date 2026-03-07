@@ -26,8 +26,8 @@ const DettaglioFattura = {
             mainContent.innerHTML = `
                 <div class="page-header mb-3">
                     <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem; margin-bottom: 1rem;">
-                        <button class="btn btn-secondary btn-sm" onclick="UI.showPage('fatture')">
-                            <i class="fas fa-arrow-left"></i> Torna alle fatture
+                        <button class="btn btn-secondary btn-sm" onclick="UI.goBack('fatture')">
+                            <i class="fas fa-arrow-left"></i> ${UI.getBackLabel('fatture')}
                         </button>
                         ${!AuthService.canViewOnlyOwnData() ? `
                         <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">

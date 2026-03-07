@@ -74,8 +74,8 @@ const DettaglioContratto = {
 
         return `
             <div class="page-header mb-3">
-                <button class="btn btn-secondary mb-2" onclick="UI.showPage('contratti')">
-                    <i class="fas fa-arrow-left"></i> Torna ai Contratti
+                <button class="btn btn-secondary mb-2" onclick="UI.goBack('contratti')">
+                    <i class="fas fa-arrow-left"></i> ${UI.getBackLabel('contratti')}
                 </button>
 
                 <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem; margin-top: 1rem;">

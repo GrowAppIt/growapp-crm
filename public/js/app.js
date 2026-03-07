@@ -38,6 +38,19 @@ const App = {
         // 🔗 URL Hash Routing (per deep links da Telegram)
         window.addEventListener('hashchange', () => this.handleHashChange());
 
+        // Tasto "Indietro" del browser — usa lo stack di navigazione interno
+        window.addEventListener('popstate', (e) => {
+            if (e.state && e.state.page) {
+                // Il browser ha una entry con la pagina: naviga senza pushare nello stack
+                UI._isGoingBack = true;
+                UI.showPage(e.state.page, e.state.id || null);
+                UI._isGoingBack = false;
+            } else {
+                // Fallback: leggi dall'hash corrente
+                this.handleHashChange();
+            }
+        });
+
         // Login form
         const loginForm = document.getElementById('loginForm');
         if (loginForm) {
@@ -180,6 +193,12 @@ const App = {
             const firstPage = AuthService.getFirstAccessiblePage();
             UI.showPage(firstPage);
         }
+
+        // Salva lo state iniziale nella history entry corrente,
+        // così il primo popstate (tasto Indietro) avrà sempre un state valido
+        if (UI.currentPage) {
+            history.replaceState({ page: UI.currentPage, id: UI.currentPageId }, '');
+        }
     },
 
     onUserLoggedOut() {
@@ -216,6 +235,7 @@ const App = {
         const validPages = [
             'dashboard', 'scadenzario', 'clienti', 'mappa', 'app', 'task',
             'contratti', 'fatture', 'report', 'promemoria', 'impostazioni',
+            'report-app', 'push-broadcast', 'aggiorna-push', 'monitor-rss', 'generatore-webapp',
             'dettaglio-cliente', 'dettaglio-contratto', 'dettaglio-app',
             'dettaglio-fattura', 'dettaglio-scadenza'
         ];

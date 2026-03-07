@@ -32,8 +32,8 @@ const DettaglioCliente = {
             mainContent.innerHTML = `
                 <div class="page-header mb-3">
                     <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem; margin-bottom: 1rem;">
-                        <button class="btn btn-secondary btn-sm" onclick="UI.showPage('clienti')">
-                            <i class="fas fa-arrow-left"></i> Torna ai clienti
+                        <button class="btn btn-secondary btn-sm" onclick="UI.goBack('clienti')">
+                            <i class="fas fa-arrow-left"></i> ${UI.getBackLabel('clienti')}
                         </button>
                         ${!AuthService.canViewOnlyOwnData() ? `
                         <button class="btn btn-primary btn-sm" onclick="DettaglioCliente.editCliente()">

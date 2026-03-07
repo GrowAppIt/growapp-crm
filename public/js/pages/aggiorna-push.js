@@ -223,7 +223,7 @@ const AggiornaPush = {
             <h1><i class="fas fa-bell"></i> Aggiorna Consensi Push</h1>
           </div>
           <button class="ap-back-btn" id="apBackBtn">
-            <i class="fas fa-arrow-left"></i> Torna al Report
+            <i class="fas fa-arrow-left"></i> ${UI.getBackLabel('report-app')}
           </button>
         </div>
 
@@ -447,9 +447,9 @@ const AggiornaPush = {
 
   // ── EVENT LISTENERS ───────────────────────────────────────────
   attachEventListeners() {
-    // Torna al report
+    // Torna alla pagina precedente (fallback: report-app)
     document.getElementById('apBackBtn')?.addEventListener('click', () => {
-      UI.showPage('report-app');
+      UI.goBack('report-app');
     });
 
     // Ricerca con debounce

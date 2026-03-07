@@ -140,8 +140,8 @@ const DettaglioApp = {
             mainContent.innerHTML = `
                 <div class="page-header mb-3">
                     <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem; margin-bottom: 1rem;">
-                        <button class="btn btn-secondary btn-sm" onclick="UI.showPage('app')">
-                            <i class="fas fa-arrow-left"></i> Torna alle app
+                        <button class="btn btn-secondary btn-sm" onclick="UI.goBack('app')">
+                            <i class="fas fa-arrow-left"></i> ${UI.getBackLabel('app')}
                         </button>
                         ${!AuthService.canViewOnlyOwnData() ? `
                         <div style="display: flex; gap: 0.5rem;">

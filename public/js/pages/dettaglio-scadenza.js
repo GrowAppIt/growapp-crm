@@ -33,8 +33,8 @@ const DettaglioScadenza = {
             mainContent.innerHTML = `
                 <div class="page-header mb-3">
                     <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem; margin-bottom: 1rem;">
-                        <button class="btn btn-secondary btn-sm" onclick="UI.showPage('scadenzario')">
-                            <i class="fas fa-arrow-left"></i> Torna allo scadenzario
+                        <button class="btn btn-secondary btn-sm" onclick="UI.goBack('scadenzario')">
+                            <i class="fas fa-arrow-left"></i> ${UI.getBackLabel('scadenzario')}
                         </button>
                         ${!AuthService.canViewOnlyOwnData() ? `
                         <div style="display: flex; gap: 0.5rem;">
