@@ -181,10 +181,10 @@ const Dashboard = {
             // FASE 2: Sostituisce l'intera area skeleton con i widget reali
             const dashboardBody = document.getElementById('dashboardBody');
 
-            // === WIDGET SCADENZE FUTURE APP (per SUPER_ADMIN e CONTENT_MANAGER) ===
+            // === WIDGET SCADENZE FUTURE APP (per SUPER_ADMIN, CONTENT_MANAGER, CTO e SVILUPPATORE) ===
             let widgetScadenzeFutureHtml = '';
             const _ruoloWidget = AuthService.getUserRole();
-            if (_ruoloWidget === 'SUPER_ADMIN' || _ruoloWidget === 'CONTENT_MANAGER') {
+            if (_ruoloWidget === 'SUPER_ADMIN' || _ruoloWidget === 'CONTENT_MANAGER' || _ruoloWidget === 'CTO' || _ruoloWidget === 'SVILUPPATORE') {
                 const scadenzeFutureApp = this._collectAllFutureAppDeadlines(app);
                 if (scadenzeFutureApp.length > 0) {
                     // Salva in cache per il drill-down
