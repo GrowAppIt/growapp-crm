@@ -253,6 +253,24 @@ const DettaglioApp = {
                     onclick="DettaglioApp.switchTab('info')" style="${tabStyle('info')}">
                     <i class="fas fa-info-circle"></i> Informazioni
                 </button>
+                ${AuthService.canViewPubblicazioneStore() ? `
+                <button class="tab-button ${this.currentTab === 'store' ? 'active' : ''}"
+                    onclick="DettaglioApp.switchTab('store')" style="${tabStyle('store')}">
+                    <i class="fas fa-store"></i> Pubblicazione Store
+                    ${(() => {
+                        const app = this.app;
+                        if (!app || !app.scadenzaCertificatoApple) return '';
+                        const oggi = new Date(); oggi.setHours(0,0,0,0);
+                        const _sys = SettingsService.getSystemSettingsSync();
+                        const soglia = _sys.sogliaImminente || 3;
+                        const traXgiorni = new Date(oggi); traXgiorni.setDate(oggi.getDate() + soglia);
+                        const dataCert = new Date(app.scadenzaCertificatoApple); dataCert.setHours(0,0,0,0);
+                        if (dataCert < oggi) return '<span class="badge" style="background: var(--rosso-errore); color: white; font-size: 0.65rem; padding: 0.15rem 0.4rem; border-radius: 10px; margin-left: 0.4rem;"><i class="fas fa-exclamation-circle"></i></span>';
+                        if (dataCert <= traXgiorni) return '<span class="badge" style="background: var(--giallo-avviso); color: #856404; font-size: 0.65rem; padding: 0.15rem 0.4rem; border-radius: 10px; margin-left: 0.4rem;"><i class="fas fa-clock"></i></span>';
+                        return '';
+                    })()}
+                </button>
+                ` : ''}
                 <button class="tab-button ${this.currentTab === 'task' ? 'active' : ''}"
                     onclick="DettaglioApp.switchTab('task')" style="${tabStyle('task')} position: relative;">
                     <i class="fas fa-tasks"></i> Task
@@ -286,13 +304,14 @@ const DettaglioApp = {
                     ${AuthService.isSuperAdmin() ? this.renderConfigurazioneApp(app) : ''}
                     ${this.renderDatiComune(app)}
                     ${this.renderGestioneCommerciale(app, clientePagante)}
-                    ${this.renderPubblicazioneStore(app)}
                     ${this.renderFunzionalita(app)}
                     <div id="metricheContainer">${this.renderMetriche(app)}</div>
                     ${this.renderControlloQualita(app)}
                     ${this.renderNote(app)}
                 </div>
             `;
+        } else if (this.currentTab === 'store') {
+            return this.renderPubblicazioneStoreTab(app);
         } else if (this.currentTab === 'task') {
             return this.renderTaskTab();
         } else if (this.currentTab === 'documenti') {
@@ -629,6 +648,127 @@ const DettaglioApp = {
         `;
     },
 
+    // === TAB PUBBLICAZIONE STORE (autonoma, visibile solo a CTO/Admin/SuperAdmin) ===
+    renderPubblicazioneStoreTab(app) {
+        const hasCredenzialiApple = app.appleUsername || app.applePassword || app.appleEmailAggiuntiva || app.appleTelefonoOtp;
+
+        // Calcolo alert scadenza Certificato Apple
+        const oggi = new Date();
+        oggi.setHours(0, 0, 0, 0);
+        const _sys = SettingsService.getSystemSettingsSync();
+        const soglia = _sys.sogliaImminente || 3;
+        const traXgiorni = new Date(oggi);
+        traXgiorni.setDate(oggi.getDate() + soglia);
+
+        let certAlertHtml = '';
+        let certStatusHtml = '';
+        if (app.scadenzaCertificatoApple) {
+            const dataCert = new Date(app.scadenzaCertificatoApple);
+            dataCert.setHours(0, 0, 0, 0);
+            const isScaduta = dataCert < oggi;
+            const isImminente = dataCert >= oggi && dataCert <= traXgiorni;
+
+            if (isScaduta) {
+                certAlertHtml = `
+                    <div style="background: linear-gradient(135deg, #FFEBEE 0%, #FFCDD2 100%); border-left: 4px solid var(--rosso-errore); padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem;">
+                        <div style="font-weight: 700; color: #C62828; margin-bottom: 0.5rem;">
+                            <i class="fas fa-exclamation-circle"></i> Certificato Apple Scaduto
+                        </div>
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <span style="font-weight: 600; color: #C62828;">🍎 Certificato Apple</span>
+                            <span style="font-weight: 700; color: var(--rosso-errore);">${DataService.formatDate(app.scadenzaCertificatoApple)} — SCADUTO</span>
+                        </div>
+                    </div>`;
+                certStatusHtml = '<div style="font-size: 0.8rem; color: var(--rosso-errore); margin-top: 4px; font-weight: 600;"><i class="fas fa-exclamation-circle"></i> Scaduto</div>';
+            } else if (isImminente) {
+                certAlertHtml = `
+                    <div style="background: linear-gradient(135deg, #FFF3CD 0%, #FFEBCC 100%); border-left: 4px solid var(--giallo-avviso); padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem;">
+                        <div style="font-weight: 700; color: #856404; margin-bottom: 0.5rem;">
+                            <i class="fas fa-exclamation-triangle"></i> Certificato Apple in Scadenza (prossimi ${soglia} giorni)
+                        </div>
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <span style="font-weight: 600; color: #856404;">🍎 Certificato Apple</span>
+                            <span style="font-weight: 700; color: #E6A800;">${DataService.formatDate(app.scadenzaCertificatoApple)}</span>
+                        </div>
+                    </div>`;
+                certStatusHtml = '<div style="font-size: 0.8rem; color: #E6A800; margin-top: 4px; font-weight: 600;"><i class="fas fa-clock"></i> In scadenza</div>';
+            }
+        }
+
+        return `
+            <div style="display: grid; gap: 1.5rem;">
+                <!-- Alert Certificato Apple (se scaduto/imminente) -->
+                ${certAlertHtml}
+
+                <!-- Date di Pubblicazione -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">
+                            <i class="fas fa-rocket"></i> Date di Pubblicazione
+                        </h2>
+                    </div>
+                    <div class="card-body">
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(250px, 100%), 1fr)); gap: 1.5rem;">
+                            ${this.renderInfoItem('Pubblicazione Apple', app.dataPubblicazioneApple ? DataService.formatDate(app.dataPubblicazioneApple) : null, 'apple')}
+                            ${this.renderInfoItem('Pubblicazione Android', app.dataPubblicazioneAndroid ? DataService.formatDate(app.dataPubblicazioneAndroid) : null, 'android')}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Certificato Apple -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">
+                            <i class="fab fa-apple"></i> Certificato Apple
+                            ${app.scadenzaCertificatoApple ? (() => {
+                                const d = new Date(app.scadenzaCertificatoApple); d.setHours(0,0,0,0);
+                                if (d < oggi) return '<span class="badge" style="background: var(--rosso-errore); color: white; font-size: 0.75rem; padding: 0.25rem 0.5rem; border-radius: 12px; margin-left: 0.5rem;"><i class="fas fa-exclamation-circle"></i> Scaduto</span>';
+                                if (d <= traXgiorni) return '<span class="badge" style="background: var(--giallo-avviso); color: #856404; font-size: 0.75rem; padding: 0.25rem 0.5rem; border-radius: 12px; margin-left: 0.5rem;"><i class="fas fa-clock"></i> In scadenza</span>';
+                                return '<span class="badge" style="background: var(--verde-700); color: white; font-size: 0.75rem; padding: 0.25rem 0.5rem; border-radius: 12px; margin-left: 0.5rem;"><i class="fas fa-check-circle"></i> Valido</span>';
+                            })() : ''}
+                        </h2>
+                    </div>
+                    <div class="card-body">
+                        ${app.scadenzaCertificatoApple ? `
+                            <div class="stat-box" style="background: var(--grigio-100); padding: 1rem; border-radius: 8px; display: inline-block;">
+                                <div style="font-size: 0.75rem; color: var(--grigio-500); margin-bottom: 0.25rem; font-weight: 600; text-transform: uppercase;">🍎 Scadenza Certificato</div>
+                                <div style="font-size: 1.125rem; font-weight: 700; color: var(--blu-700);">${DataService.formatDate(app.scadenzaCertificatoApple)}</div>
+                                ${certStatusHtml}
+                            </div>
+                        ` : `
+                            <div style="text-align: center; padding: 1rem; color: var(--grigio-400); font-size: 0.9rem;">
+                                <i class="fab fa-apple" style="font-size: 1.5rem; margin-bottom: 0.5rem;"></i>
+                                <p style="margin: 0;">Nessuna scadenza certificato configurata</p>
+                            </div>
+                        `}
+                    </div>
+                </div>
+
+                <!-- Credenziali Apple Developer -->
+                ${hasCredenzialiApple ? `
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">
+                            <i class="fas fa-key"></i> Credenziali Apple Developer
+                            <span style="font-size: 0.7rem; background: var(--rosso-errore); color: white; padding: 0.15rem 0.5rem; border-radius: 4px; margin-left: 0.5rem; vertical-align: middle;">
+                                <i class="fas fa-lock"></i> RISERVATO
+                            </span>
+                        </h2>
+                    </div>
+                    <div class="card-body">
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(250px, 100%), 1fr)); gap: 1.5rem;">
+                            ${this.renderInfoItem('Username', app.appleUsername, 'user')}
+                            ${this.renderInfoItem('Password', app.applePassword, 'lock')}
+                            ${this.renderInfoItem('Email Aggiuntiva', app.appleEmailAggiuntiva, 'envelope')}
+                            ${this.renderInfoItem('Telefono OTP', app.appleTelefonoOtp, 'mobile-alt')}
+                        </div>
+                    </div>
+                </div>
+                ` : ''}
+            </div>
+        `;
+    },
+
     renderFunzionalita(app) {
         // Calcola scadenze con alert: scadute (passate) + imminenti (prossimi N giorni da settings)
         const oggi = new Date();
@@ -670,15 +810,7 @@ const DettaglioApp = {
             }
         }
 
-        if (app.scadenzaCertificatoApple) {
-            const data = new Date(app.scadenzaCertificatoApple);
-            data.setHours(0, 0, 0, 0);
-            const isScaduta = data < oggi;
-            const isImminente = data >= oggi && data <= traXgiorni;
-            if (isScaduta || isImminente) {
-                scadenze.push({ tipo: '🍎 Certificato Apple', data: app.scadenzaCertificatoApple, isScaduta });
-            }
-        }
+        // Certificato Apple è stato spostato nella tab "Pubblicazione Store"
 
         if (app.altraScadenzaData) {
             const data = new Date(app.altraScadenzaData);
@@ -698,7 +830,7 @@ const DettaglioApp = {
         const hasTelegram = app.hasGruppoTelegram === true || app.hasGruppoTelegram === 'true';
         const hasFlash = app.hasAvvisiFlash === true || app.hasAvvisiFlash === 'true';
 
-        const haDateScadenze = app.ultimaDataRaccoltaDifferenziata || app.ultimaDataFarmacieTurno || app.ultimaDataNotificheFarmacie || app.scadenzaCertificatoApple || app.altraScadenzaData;
+        const haDateScadenze = app.ultimaDataRaccoltaDifferenziata || app.ultimaDataFarmacieTurno || app.ultimaDataNotificheFarmacie || app.altraScadenzaData;
 
         return `
             <div class="card">
@@ -805,13 +937,6 @@ const DettaglioApp = {
                                 <div style="font-size: 0.75rem; color: var(--grigio-500); margin-bottom: 0.25rem; font-weight: 600; text-transform: uppercase;">🔔 Notifiche Farmacie</div>
                                 <div style="font-size: 1.125rem; font-weight: 700; color: var(--blu-700);">${DataService.formatDate(app.ultimaDataNotificheFarmacie)}</div>
                                 ${(() => { const d = new Date(app.ultimaDataNotificheFarmacie); d.setHours(0,0,0,0); return d < oggi ? '<div style="font-size: 0.8rem; color: var(--rosso-errore); margin-top: 4px; font-weight: 600;"><i class="fas fa-exclamation-circle"></i> Scaduta</div>' : ''; })()}
-                            </div>
-                            ` : ''}
-                            ${app.scadenzaCertificatoApple ? `
-                            <div class="stat-box" style="background: var(--grigio-100); padding: 1rem; border-radius: 8px;">
-                                <div style="font-size: 0.75rem; color: var(--grigio-500); margin-bottom: 0.25rem; font-weight: 600; text-transform: uppercase;">🍎 Certificato Apple</div>
-                                <div style="font-size: 1.125rem; font-weight: 700; color: var(--blu-700);">${DataService.formatDate(app.scadenzaCertificatoApple)}</div>
-                                ${(() => { const d = new Date(app.scadenzaCertificatoApple); d.setHours(0,0,0,0); return d < oggi ? '<div style="font-size: 0.8rem; color: var(--rosso-errore); margin-top: 4px; font-weight: 600;"><i class="fas fa-exclamation-circle"></i> Scaduta</div>' : ''; })()}
                             </div>
                             ` : ''}
                             ${app.altraScadenzaData ? `

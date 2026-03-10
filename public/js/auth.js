@@ -247,6 +247,11 @@ const AuthService = {
         return !this.isAgente();
     },
 
+    // Pubblicazione Store: visibile solo a CTO, Amministratori e Super Admin
+    canViewPubblicazioneStore() {
+        return [this.ROLES.SUPER_ADMIN, this.ROLES.ADMIN, this.ROLES.CTO].includes(this.getUserRole());
+    },
+
     // Ritorna il nome dell'agente per filtrare i dati (campo 'agente' nei clienti)
     getAgenteFilterName() {
         if (!this.currentUserData) return null;
