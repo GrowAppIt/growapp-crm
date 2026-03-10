@@ -159,13 +159,69 @@ function buildTutteLeAppContext(apps) {
 }
 
 /**
- * Costruisce contesto aggiuntivo (task, contratti, fatture)
+ * Costruisce contesto aggiuntivo (clienti, contratti, fatture, scadenze, task)
  */
 function buildContestoExtra(contesto) {
   if (!contesto) return '';
   let ctx = '';
 
-  // Task dell'app corrente
+  // === CLIENTI ===
+  if (contesto.clienti && Array.isArray(contesto.clienti) && contesto.clienti.length > 0) {
+    ctx += `\n## TUTTI I CLIENTI (${contesto.clienti.length} totali)\n`;
+    ctx += `Formato: [RagioneSociale] | Tipo | Comune (Prov) | Agente | Stato | Residenti\n\n`;
+    for (const c of contesto.clienti) {
+      ctx += `- ${sanitizeText(c.ragioneSociale, 80)} | ${c.tipo || '?'} | ${sanitizeText(c.comune, 50)} (${c.provincia || '?'})`;
+      if (c.agente) ctx += ` | Agente: ${sanitizeText(c.agente, 40)}`;
+      if (c.statoContratto) ctx += ` | Stato: ${c.statoContratto}`;
+      if (c.numResidenti) ctx += ` | Residenti: ${c.numResidenti}`;
+      if (c.email) ctx += ` | Email: ${sanitizeText(c.email, 60)}`;
+      ctx += '\n';
+    }
+  }
+
+  // === CONTRATTI ===
+  if (contesto.contratti && Array.isArray(contesto.contratti) && contesto.contratti.length > 0) {
+    ctx += `\n## TUTTI I CONTRATTI (${contesto.contratti.length} totali)\n`;
+    ctx += `Formato: [NumContratto] | Oggetto | Cliente | Stato | Importo annuale | Inizio | Scadenza | Tipologia | Pagamento\n\n`;
+    for (const c of contesto.contratti) {
+      ctx += `- ${sanitizeText(c.numeroContratto, 30)} | ${sanitizeText(c.oggetto, 60)} | ${sanitizeText(c.clienteRagioneSociale, 50)} | ${c.stato || '?'} | ${formatCurrency(c.importoAnnuale)}`;
+      ctx += ` | Inizio: ${formatDate(c.dataInizio)} | Scadenza: ${formatDate(c.dataScadenza)}`;
+      if (c.tipologia) ctx += ` | Tipo: ${c.tipologia}`;
+      if (c.modalitaPagamento) ctx += ` | Pag: ${c.modalitaPagamento}`;
+      if (c.periodicita) ctx += ` | ${c.periodicita}`;
+      ctx += '\n';
+    }
+  }
+
+  // === FATTURE ===
+  if (contesto.fatture && Array.isArray(contesto.fatture) && contesto.fatture.length > 0) {
+    ctx += `\n## TUTTE LE FATTURE (${contesto.fatture.length} totali)\n`;
+    ctx += `Formato: [NumFattura] | Cliente | Importo | Stato | Emessa | Scadenza | Anno\n\n`;
+    for (const f of contesto.fatture) {
+      ctx += `- ${sanitizeText(f.numeroFatturaCompleto, 30)} | ${sanitizeText(f.clienteRagioneSociale, 50)} | ${formatCurrency(f.importoTotale)} | ${f.statoPagamento || '?'}`;
+      ctx += ` | Emessa: ${formatDate(f.dataEmissione)}`;
+      if (f.dataScadenza) ctx += ` | Scad: ${formatDate(f.dataScadenza)}`;
+      if (f.anno) ctx += ` | Anno: ${f.anno}`;
+      if (f.statoPagamento === 'PARZIALMENTE_PAGATA' && f.saldoResiduo) ctx += ` | Residuo: ${formatCurrency(f.saldoResiduo)}`;
+      if (f.dataPagamento) ctx += ` | Pagata il: ${formatDate(f.dataPagamento)}`;
+      ctx += '\n';
+    }
+  }
+
+  // === SCADENZARIO ===
+  if (contesto.scadenze && Array.isArray(contesto.scadenze) && contesto.scadenze.length > 0) {
+    ctx += `\n## SCADENZARIO (${contesto.scadenze.length} scadenze non completate)\n`;
+    ctx += `Formato: [Tipo] | Data | Cliente | Agente | Importo | Descrizione\n\n`;
+    for (const s of contesto.scadenze) {
+      ctx += `- [${s.tipo || '?'}] ${formatDate(s.dataScadenza)} | ${sanitizeText(s.clienteRagioneSociale, 50)}`;
+      if (s.agente) ctx += ` | Agente: ${sanitizeText(s.agente, 30)}`;
+      if (s.importo) ctx += ` | ${formatCurrency(s.importo)}`;
+      if (s.descrizione) ctx += ` | ${sanitizeText(s.descrizione, 100)}`;
+      ctx += '\n';
+    }
+  }
+
+  // === TASK (per app corrente, se presente) ===
   if (contesto.tasks && Array.isArray(contesto.tasks) && contesto.tasks.length > 0) {
     ctx += `\n## TASK DELL'APP CORRENTE (${contesto.tasks.length} totali)\n`;
     for (const t of contesto.tasks.slice(0, 30)) {
@@ -173,22 +229,6 @@ function buildContestoExtra(contesto) {
       if (t.scadenza) ctx += ` | Scadenza: ${formatDate(t.scadenza)}`;
       if (t.assegnatoA) ctx += ` | Assegnato: ${sanitizeText(t.assegnatoA, 50)}`;
       ctx += '\n';
-    }
-  }
-
-  // Contratti
-  if (contesto.contratti && Array.isArray(contesto.contratti) && contesto.contratti.length > 0) {
-    ctx += `\n## CONTRATTI ASSOCIATI (${contesto.contratti.length})\n`;
-    for (const c of contesto.contratti.slice(0, 10)) {
-      ctx += `- ${sanitizeText(c.numeroContratto || c.oggetto, 100)} | ${c.stato || '?'} | ${formatCurrency(c.importoAnnuale)} | Inizio: ${formatDate(c.dataInizio)} | Scadenza: ${formatDate(c.dataScadenza)}\n`;
-    }
-  }
-
-  // Fatture
-  if (contesto.fatture && Array.isArray(contesto.fatture) && contesto.fatture.length > 0) {
-    ctx += `\n## FATTURE ASSOCIATE (${contesto.fatture.length})\n`;
-    for (const f of contesto.fatture.slice(0, 15)) {
-      ctx += `- ${f.numeroFatturaCompleto || 'N/D'} | ${formatCurrency(f.importoTotale)} | ${f.statoPagamento || '?'} | Emessa: ${formatDate(f.dataEmissione)} | Scadenza: ${formatDate(f.dataScadenza)}\n`;
     }
   }
 
@@ -238,7 +278,7 @@ module.exports = async function handler(req, res) {
   const oggiStr = `${String(oggi.getDate()).padStart(2, '0')}/${String(oggi.getMonth() + 1).padStart(2, '0')}/${oggi.getFullYear()}`;
 
   const systemPrompt = `Sei l'assistente AI del CRM Comune.Digital di Growapp S.r.l.
-Il tuo ruolo e' aiutare CTO e amministratori ad analizzare i dati delle app comunali gestite nel CRM.
+Il tuo ruolo e' aiutare CTO e amministratori ad analizzare TUTTI i dati del CRM: app comunali, clienti, contratti, fatture e scadenze.
 
 DATA DI OGGI: ${oggiStr}
 
@@ -257,7 +297,10 @@ ISTRUZIONI:
 9. Sii conciso ma completo — le risposte devono essere operative e utili
 10. Se ti chiedono classifiche o ordinamenti, mostrali chiaramente numerati
 11. Puoi fare calcoli, confronti, medie, tendenze e suggerimenti strategici
-12. Rispondi in testo semplice formattato, senza markdown con ### o **bold** — usa solo testo piano con trattini per le liste`;
+12. Rispondi in testo semplice formattato, senza markdown con ### o **bold** — usa solo testo piano con trattini per le liste
+13. Per domande su fatturato, incassi, pagamenti: usa i dati delle fatture e contratti disponibili
+14. Per domande su clienti: puoi incrociare dati clienti con contratti e fatture per analisi complete
+15. Per lo scadenzario: evidenzia le scadenze gia' passate (scadute) rispetto a oggi`;
 
   // Costruisci i messaggi (supporta storico conversazione)
   const messages = [];

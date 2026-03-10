@@ -2947,7 +2947,7 @@ const Dashboard = {
     // AI CHAT ASSISTANT (solo CTO / Admin / Super Admin)
     // =====================================================================
     _aiChatHistory: [],
-    _aiChatAllAppsCache: null,
+    _aiChatDataCache: null, // Cache per TUTTI i dati CRM (app, clienti, contratti, fatture, scadenze)
     _aiChatVisible: false,
 
     toggleAIChat() {
@@ -2969,14 +2969,14 @@ const Dashboard = {
 
     _buildAIChatPanel() {
         const suggerimenti = [
-            'Fammi la lista delle pubblicazioni sugli store piu vecchie con nome app e data',
-            'Elenca tutte le scadenze certificato Apple in ordine cronologico',
-            'Quali app hanno il controllo qualita negativo o scaduto?',
-            'Quali app hanno la penetrazione piu bassa rispetto alla popolazione?',
-            'Dammi un riepilogo delle app attive con i download totali',
-            'Quali app non hanno ancora il gruppo Telegram attivo?',
-            'Elenca le app senza feed RSS configurati',
-            'Quali sono le app con piu download?'
+            'Fammi un riepilogo generale del CRM: clienti, contratti, fatture e app',
+            'Quali fatture sono ancora non pagate? Elenca importi e clienti',
+            'Elenca i contratti in scadenza nei prossimi 60 giorni',
+            'Quali sono le scadenze piu urgenti nello scadenzario?',
+            'Fammi la lista delle pubblicazioni sugli store piu vecchie',
+            'Qual e\' il fatturato totale e quante fatture sono state emesse?',
+            'Quali clienti hanno contratti attivi? Elenca con importi',
+            'Quali app hanno la penetrazione piu bassa rispetto alla popolazione?'
         ];
 
         return `
@@ -3014,7 +3014,7 @@ const Dashboard = {
                     <div style="background: white; padding: 0.85rem; border-radius: 0 10px 10px 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); max-width: 85%;">
                         <div style="font-weight: 600; color: var(--blu-700); margin-bottom: 0.4rem; font-size: 0.9rem;">Ciao! Sono l'assistente AI del CRM.</div>
                         <div style="color: var(--grigio-700); font-size: 0.85rem; line-height: 1.4;">
-                            Ho accesso ai dati di tutte le app nel CRM. Chiedimi analisi, elenchi, confronti e suggerimenti.
+                            Ho accesso a tutti i dati del CRM: app, clienti, contratti, fatture e scadenze. Chiedimi analisi, elenchi, confronti e suggerimenti.
                         </div>
                     </div>
                 </div>
@@ -3063,7 +3063,7 @@ const Dashboard = {
 
     clearAIChat() {
         this._aiChatHistory = [];
-        this._aiChatAllAppsCache = null;
+        this._aiChatDataCache = null;
         const messagesContainer = document.getElementById('aiChatMessages');
         if (messagesContainer) {
             // Rimuovi il pannello e ricrealo
@@ -3135,6 +3135,94 @@ const Dashboard = {
         }));
     },
 
+    /**
+     * Crea un riepilogo LEGGERO dei clienti per il contesto AI
+     */
+    _buildLightClientiSummary(clienti) {
+        if (!clienti || !Array.isArray(clienti)) return [];
+        return clienti.map(c => ({
+            id: c.id,
+            ragioneSociale: c.ragioneSociale || '',
+            tipo: c.tipo || '',
+            comune: c.comune || '',
+            provincia: c.provincia || '',
+            regione: c.regione || '',
+            email: c.email || '',
+            pec: c.pec || '',
+            telefono: c.telefono || '',
+            agente: c.agente || '',
+            statoContratto: c.statoContratto || '',
+            numResidenti: c.numResidenti || 0,
+            note: (c.note || '').substring(0, 100)
+        }));
+    },
+
+    /**
+     * Crea un riepilogo LEGGERO dei contratti per il contesto AI
+     */
+    _buildLightContrattiSummary(contratti) {
+        if (!contratti || !Array.isArray(contratti)) return [];
+        return contratti.map(c => ({
+            id: c.id,
+            numeroContratto: c.numeroContratto || '',
+            oggetto: c.oggetto || '',
+            clienteId: c.clienteId || '',
+            clienteRagioneSociale: c.clienteRagioneSociale || '',
+            tipologia: c.tipologia || '',
+            stato: c.stato || '',
+            importoAnnuale: c.importoAnnuale || 0,
+            importoMensile: c.importoMensile || 0,
+            dataInizio: c.dataInizio || null,
+            dataScadenza: c.dataScadenza || null,
+            durataContratto: c.durataContratto || 0,
+            periodicita: c.periodicita || '',
+            modalitaPagamento: c.modalitaPagamento || ''
+        }));
+    },
+
+    /**
+     * Crea un riepilogo LEGGERO delle fatture per il contesto AI
+     */
+    _buildLightFattureSummary(fatture) {
+        if (!fatture || !Array.isArray(fatture)) return [];
+        return fatture.map(f => ({
+            id: f.id,
+            numeroFatturaCompleto: f.numeroFatturaCompleto || f.numeroFattura || '',
+            clienteId: f.clienteId || '',
+            clienteRagioneSociale: f.clienteRagioneSociale || '',
+            contrattoId: f.contrattoId || '',
+            dataEmissione: f.dataEmissione || null,
+            dataScadenza: f.dataScadenza || null,
+            importoTotale: f.importoTotale || 0,
+            imponibile: f.imponibile || 0,
+            importoIva: f.importoIva || 0,
+            statoPagamento: f.statoPagamento || '',
+            dataPagamento: f.dataPagamento || null,
+            importoAcconto: f.importoAcconto || 0,
+            saldoResiduo: f.saldoResiduo || 0,
+            anno: f.anno || ''
+        }));
+    },
+
+    /**
+     * Crea un riepilogo LEGGERO delle scadenze per il contesto AI
+     */
+    _buildLightScadenzeSummary(scadenze) {
+        if (!scadenze || !Array.isArray(scadenze)) return [];
+        return scadenze.map(s => ({
+            id: s.id,
+            tipo: s.tipo || '',
+            dataScadenza: s.dataScadenza || null,
+            clienteId: s.clienteId || '',
+            clienteRagioneSociale: s.clienteRagioneSociale || '',
+            agente: s.agente || '',
+            importo: s.importo || 0,
+            descrizione: (s.descrizione || '').substring(0, 150),
+            completata: s.completata || false,
+            fatturaId: s.fatturaId || ''
+        }));
+    },
+
     async sendAIMessage() {
         const input = document.getElementById('aiChatInput');
         const sendBtn = document.getElementById('aiChatSendBtn');
@@ -3174,17 +3262,52 @@ const Dashboard = {
         sendBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
 
         try {
-            // Carica le app (leggere) se non in cache
-            if (!this._aiChatAllAppsCache) {
-                try {
-                    const snapshot = await db.collection('app').get();
-                    const rawApps = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                    // IMPORTANTE: usa solo il riepilogo leggero per evitare il 413
-                    this._aiChatAllAppsCache = this._buildLightAppSummary(rawApps);
-                } catch (e) {
-                    console.warn('Errore caricamento app per AI:', e);
-                    this._aiChatAllAppsCache = [];
-                }
+            // Carica TUTTI i dati CRM (leggeri) se non in cache
+            if (!this._aiChatDataCache) {
+                this._aiChatDataCache = { app: [], clienti: [], contratti: [], fatture: [], scadenze: [] };
+                const loadPromises = [];
+
+                // App
+                loadPromises.push(
+                    db.collection('app').get().then(snap => {
+                        const raw = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                        this._aiChatDataCache.app = this._buildLightAppSummary(raw);
+                    }).catch(e => { console.warn('AI: errore caricamento app:', e); })
+                );
+
+                // Clienti
+                loadPromises.push(
+                    db.collection('clienti').get().then(snap => {
+                        const raw = snap.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+                        this._aiChatDataCache.clienti = this._buildLightClientiSummary(raw);
+                    }).catch(e => { console.warn('AI: errore caricamento clienti:', e); })
+                );
+
+                // Contratti
+                loadPromises.push(
+                    db.collection('contratti').get().then(snap => {
+                        const raw = snap.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+                        this._aiChatDataCache.contratti = this._buildLightContrattiSummary(raw);
+                    }).catch(e => { console.warn('AI: errore caricamento contratti:', e); })
+                );
+
+                // Fatture (ultime 500 per non esagerare)
+                loadPromises.push(
+                    db.collection('fatture').orderBy('dataEmissione', 'desc').limit(500).get().then(snap => {
+                        const raw = snap.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+                        this._aiChatDataCache.fatture = this._buildLightFattureSummary(raw);
+                    }).catch(e => { console.warn('AI: errore caricamento fatture:', e); })
+                );
+
+                // Scadenzario (solo non completate)
+                loadPromises.push(
+                    db.collection('scadenzario').where('completata', '==', false).get().then(snap => {
+                        const raw = snap.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+                        this._aiChatDataCache.scadenze = this._buildLightScadenzeSummary(raw);
+                    }).catch(e => { console.warn('AI: errore caricamento scadenze:', e); })
+                );
+
+                await Promise.all(loadPromises);
             }
 
             // Storico conversazione (ultimi 10)
@@ -3193,15 +3316,20 @@ const Dashboard = {
                 content: m.content
             }));
 
-            // Chiamata API
+            // Chiamata API con TUTTI i dati CRM
             const response = await fetch('/api/ai-chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     question: question,
                     appCorrente: null,
-                    tutteLeApp: this._aiChatAllAppsCache,
-                    contesto: {},
+                    tutteLeApp: this._aiChatDataCache.app,
+                    contesto: {
+                        clienti: this._aiChatDataCache.clienti,
+                        contratti: this._aiChatDataCache.contratti,
+                        fatture: this._aiChatDataCache.fatture,
+                        scadenze: this._aiChatDataCache.scadenze
+                    },
                     conversationHistory: conversationHistory
                 })
             });
