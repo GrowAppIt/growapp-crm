@@ -3316,22 +3316,42 @@ const Dashboard = {
                 content: m.content
             }));
 
+            // Prepara il payload — limita i record per evitare errore 413/502
+            const MAX_ITEMS = { app: 300, clienti: 200, contratti: 200, fatture: 300, scadenze: 150 };
+            const payload = {
+                question: question,
+                appCorrente: null,
+                tutteLeApp: (this._aiChatDataCache.app || []).slice(0, MAX_ITEMS.app),
+                contesto: {
+                    clienti: (this._aiChatDataCache.clienti || []).slice(0, MAX_ITEMS.clienti),
+                    contratti: (this._aiChatDataCache.contratti || []).slice(0, MAX_ITEMS.contratti),
+                    fatture: (this._aiChatDataCache.fatture || []).slice(0, MAX_ITEMS.fatture),
+                    scadenze: (this._aiChatDataCache.scadenze || []).slice(0, MAX_ITEMS.scadenze)
+                },
+                conversationHistory: conversationHistory
+            };
+
+            // Verifica dimensione payload e riduci se necessario
+            let bodyStr = JSON.stringify(payload);
+            const MAX_BODY_SIZE = 3 * 1024 * 1024; // 3MB safety limit
+            if (bodyStr.length > MAX_BODY_SIZE) {
+                console.warn('AI Chat: payload troppo grande (' + (bodyStr.length / 1024 / 1024).toFixed(1) + 'MB), riduco i dati...');
+                // Riduci progressivamente
+                payload.contesto.fatture = payload.contesto.fatture.slice(0, 100);
+                payload.contesto.clienti = payload.contesto.clienti.slice(0, 100);
+                payload.contesto.contratti = payload.contesto.contratti.slice(0, 100);
+                payload.contesto.scadenze = payload.contesto.scadenze.slice(0, 80);
+                payload.tutteLeApp = payload.tutteLeApp.slice(0, 150);
+                bodyStr = JSON.stringify(payload);
+            }
+
+            console.log('AI Chat: payload size = ' + (bodyStr.length / 1024).toFixed(0) + 'KB');
+
             // Chiamata API con TUTTI i dati CRM
             const response = await fetch('/api/ai-chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    question: question,
-                    appCorrente: null,
-                    tutteLeApp: this._aiChatDataCache.app,
-                    contesto: {
-                        clienti: this._aiChatDataCache.clienti,
-                        contratti: this._aiChatDataCache.contratti,
-                        fatture: this._aiChatDataCache.fatture,
-                        scadenze: this._aiChatDataCache.scadenze
-                    },
-                    conversationHistory: conversationHistory
-                })
+                body: bodyStr
             });
 
             const data = await response.json();
