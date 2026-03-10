@@ -3131,7 +3131,17 @@ const Dashboard = {
             referenteComune: a.referenteComune || null,
             dataUltimoControlloQualita: a.dataUltimoControlloQualita || null,
             controlloQualitaNegativo: a.controlloQualitaNegativo || false,
-            tipoPagamento: a.tipoPagamento || null
+            tipoPagamento: a.tipoPagamento || null,
+            // Credenziali Apple Developer
+            appleUsername: a.appleUsername || null,
+            applePassword: a.applePassword || null,
+            appleEmailAggiuntiva: a.appleEmailAggiuntiva || null,
+            appleTelefonoOtp: a.appleTelefonoOtp || null,
+            // Contatti e note
+            telefonoReferente: a.telefonoReferente || null,
+            emailReferente: a.emailReferente || null,
+            note1: a.note1 ? a.note1.substring(0, 150) : null,
+            note2: a.note2 ? a.note2.substring(0, 150) : null
         }));
     },
 

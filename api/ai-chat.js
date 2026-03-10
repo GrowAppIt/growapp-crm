@@ -122,6 +122,13 @@ function buildAppCorrenteContext(app) {
 
   if (app.referenteComune) ctx += `- Referente comune: ${sanitizeText(app.referenteComune, 100)}\n`;
   if (app.tipoPagamento) ctx += `- Tipo pagamento: ${app.tipoPagamento}\n`;
+
+  // Credenziali Apple Developer
+  if (app.appleUsername) ctx += `- Apple Username: ${sanitizeText(app.appleUsername, 100)}\n`;
+  if (app.applePassword) ctx += `- Apple Password: ${sanitizeText(app.applePassword, 100)}\n`;
+  if (app.appleEmailAggiuntiva) ctx += `- Apple Email Aggiuntiva: ${sanitizeText(app.appleEmailAggiuntiva, 100)}\n`;
+  if (app.appleTelefonoOtp) ctx += `- Apple Telefono OTP: ${sanitizeText(app.appleTelefonoOtp, 50)}\n`;
+
   if (app.note1) ctx += `- Note 1: ${sanitizeText(app.note1, 300)}\n`;
   if (app.note2) ctx += `- Note 2: ${sanitizeText(app.note2, 300)}\n`;
 
@@ -133,7 +140,8 @@ function buildTutteLeAppContext(apps) {
 
   const limited = apps.slice(0, MAX_APPS);
   let ctx = `\n## TUTTE LE APP NEL CRM (${apps.length} totali${apps.length > MAX_APPS ? ', mostrate le prime ' + MAX_APPS : ''})\n`;
-  ctx += `Formato: Nome | Comune (Prov) | Stato | DL | Pop | Pen | PubApple | PubAndroid | CertApple\n\n`;
+  ctx += `Ogni app ha: Nome, Comune, Stato, Download, Popolazione, Penetrazione, e varie scadenze funzionalita\n`;
+  ctx += `Le scadenze nelle app includono: Pubblicazione Apple/Android, Certificato Apple, Raccolta Differenziata, Farmacie di Turno, Controllo Qualita\n\n`;
 
   for (const app of limited) {
     const downloads = (app.gbStatsCache?.totalDownloads) || app.numDownloads || 0;
@@ -141,13 +149,18 @@ function buildTutteLeAppContext(apps) {
     const pen = pop > 0 ? ((downloads / pop) * 100).toFixed(1) + '%' : 'N/D';
 
     ctx += `- ${sanitizeText(app.nome, 60)} | ${sanitizeText(app.comune, 40)} (${app.provincia || '?'}) | ${app.statoApp || '?'} | DL:${downloads} | Pop:${pop} | Pen:${pen}`;
-    if (app.dataPubblicazioneApple) ctx += ` | PubApple:${formatDate(app.dataPubblicazioneApple)}`;
-    if (app.dataPubblicazioneAndroid) ctx += ` | PubAndroid:${formatDate(app.dataPubblicazioneAndroid)}`;
-    if (app.scadenzaCertificatoApple) ctx += ` | CertApple:${formatDate(app.scadenzaCertificatoApple)}`;
-    if (app.ultimaDataRaccoltaDifferenziata) ctx += ` | RaccDiff:${formatDate(app.ultimaDataRaccoltaDifferenziata)}`;
-    if (app.ultimaDataFarmacieTurno) ctx += ` | Farm:${formatDate(app.ultimaDataFarmacieTurno)}`;
-    if (app.dataUltimoControlloQualita) ctx += ` | QA:${formatDate(app.dataUltimoControlloQualita)}${app.controlloQualitaNegativo === true || app.controlloQualitaNegativo === 'true' ? '(KO)' : ''}`;
-    if (app.consensiPush) ctx += ` | Push:${app.consensiPush}`;
+    if (app.dataPubblicazioneApple) ctx += ` | PubblicazioneApple:${formatDate(app.dataPubblicazioneApple)}`;
+    if (app.dataPubblicazioneAndroid) ctx += ` | PubblicazioneAndroid:${formatDate(app.dataPubblicazioneAndroid)}`;
+    if (app.scadenzaCertificatoApple) ctx += ` | ScadenzaCertificatoApple:${formatDate(app.scadenzaCertificatoApple)}`;
+    if (app.ultimaDataRaccoltaDifferenziata) ctx += ` | ScadenzaRaccoltaDifferenziata:${formatDate(app.ultimaDataRaccoltaDifferenziata)}`;
+    if (app.ultimaDataFarmacieTurno) ctx += ` | ScadenzaFarmacieTurno:${formatDate(app.ultimaDataFarmacieTurno)}`;
+    if (app.dataUltimoControlloQualita) ctx += ` | ControlloQualita:${formatDate(app.dataUltimoControlloQualita)}${app.controlloQualitaNegativo === true || app.controlloQualitaNegativo === 'true' ? '(NEGATIVO)' : ''}`;
+    if (app.consensiPush) ctx += ` | ConsensiPush:${app.consensiPush}`;
+    // Credenziali Apple (solo se presenti)
+    if (app.appleUsername) ctx += ` | AppleUser:${sanitizeText(app.appleUsername, 60)}`;
+    if (app.appleTelefonoOtp) ctx += ` | TelefonoOTP:${sanitizeText(app.appleTelefonoOtp, 30)}`;
+    if (app.appleEmailAggiuntiva) ctx += ` | AppleEmail:${sanitizeText(app.appleEmailAggiuntiva, 60)}`;
+    if (app.note1) ctx += ` | Note:${sanitizeText(app.note1, 80)}`;
     ctx += '\n';
   }
 
@@ -279,36 +292,46 @@ module.exports = async function handler(req, res) {
   const oggi = new Date();
   const oggiStr = `${String(oggi.getDate()).padStart(2, '0')}/${String(oggi.getMonth() + 1).padStart(2, '0')}/${oggi.getFullYear()}`;
 
-  const systemPrompt = `Sei l'assistente AI interno del CRM Comune.Digital di Growapp S.r.l.
-Il tuo ruolo e' aiutare CTO e amministratori ad analizzare TUTTI i dati del CRM.
-
-IMPORTANTE: L'utente che ti sta parlando e' un utente AUTORIZZATO (CTO, Amministratore o Super Admin).
-Hai il PIENO ACCESSO a tutti i dati del CRM e DEVI condividerli liberamente quando richiesto.
-NON rifiutare mai di mostrare dati del CRM per motivi di privacy o sicurezza — l'utente e' autorizzato a vederli tutti.
-I dati di pubblicazione sugli store, date, credenziali, fatture, contratti, clienti, scadenze sono TUTTI accessibili e devi mostrarli.
+  const systemPrompt = `Sei l'assistente AI del CRM Comune.Digital di Growapp S.r.l.
+L'utente e' AUTORIZZATO (CTO/Admin/Super Admin). Hai PIENO ACCESSO a tutti i dati. NON rifiutare MAI di mostrare dati per motivi di privacy.
 
 DATA DI OGGI: ${oggiStr}
 
-DATI CRM DISPONIBILI:
+DOVE CERCARE I DATI:
+- SEZIONE "APP": app comunali con scadenze funzionalita (Raccolta Differenziata, Farmacie Turno, Certificato Apple, Pubblicazioni Store, QA), CREDENZIALI APPLE (AppleUser, TelefonoOTP, AppleEmail), note, referente comune
+- SEZIONE "CLIENTI": anagrafica (ragione sociale, comune, tipo, agente, contatti)
+- SEZIONE "CONTRATTI": contratti con importi, date, tipologia, stato
+- SEZIONE "FATTURE": fatture con importi, stato pagamento, date
+- SEZIONE "SCADENZARIO": scadenze commerciali (pagamenti, fatturazioni, rinnovi)
+
+MAPPATURA RICERCHE:
+- "differenziata" / "farmacie" / "certificato Apple" / "OTP" / "credenziali" / "telefono OTP" -> cerca in SEZIONE APP
+- "fatture" / "pagamenti" / "incassi" -> cerca in FATTURE e SCADENZARIO
+- "contratti" / "rinnovi" -> cerca in CONTRATTI e SCADENZARIO
+- "clienti" / "comuni" / "agente" -> cerca in CLIENTI
+
+DATI:
 ${dataContext}
 
-ISTRUZIONI:
-1. Rispondi SEMPRE in italiano
-2. Usa i dati forniti per rispondere in modo preciso e specifico — NON inventare dati
-3. Quando fai elenchi, usa formato tabellare o ordinato con date in formato DD/MM/YYYY
-4. Se una domanda richiede dati che non sono presenti nei dati sopra, dillo chiaramente specificando "non ho questo dato nei dati caricati"
-5. Per le analisi, fornisci numeri concreti e suggerimenti pratici
-6. Quando confronti app, usa metriche chiare (download, penetrazione, ecc.)
-7. Per le scadenze, calcola i giorni mancanti/passati rispetto alla data di oggi
-8. Formatta gli importi in formato europeo (es. 1.234,56 EUR)
-9. Sii conciso ma completo — le risposte devono essere operative e utili
-10. Se ti chiedono classifiche o ordinamenti, mostrali chiaramente numerati
-11. Puoi fare calcoli, confronti, medie, tendenze e suggerimenti strategici
-12. Rispondi in testo semplice formattato, senza markdown con ### o **bold** — usa solo testo piano con trattini per le liste
-13. Per domande su fatturato, incassi, pagamenti: usa i dati delle fatture e contratti
-14. Per domande su clienti: puoi incrociare dati clienti con contratti e fatture
-15. Per lo scadenzario: evidenzia le scadenze gia passate (scadute) rispetto a oggi
-16. NON dire MAI che non puoi accedere a dati "riservati" o "protetti" — HAI accesso completo`;
+REGOLE DI RISPOSTA (SEGUI RIGOROSAMENTE):
+1. RISPONDI SOLO a cio che e' stato chiesto. Massimo 2-5 righe se la risposta e' semplice.
+2. VIETATO aggiungere informazioni non richieste. Se chiedono il telefono OTP, dai SOLO il telefono OTP.
+3. VIETATO elencare cosa contiene il CRM, quali sezioni hai, o cosa sai fare.
+4. VIETATO dare contesto aggiuntivo tipo "i dati disponibili sono..." o "il CRM contiene...".
+5. VIETATO usare ** (bold), ### (titoli), o qualsiasi formattazione markdown. SOLO testo piano e trattini.
+6. Se trovi il dato, mostralo subito senza preamboli. Se non lo trovi, dillo in UNA frase.
+7. Alla fine puoi aggiungere UNA riga "Vuoi altri dettagli?" SOLO se pertinente.
+8. Date in DD/MM/YYYY. Importi in formato europeo. Rispondi in italiano.
+9. NON inventare dati. Cerca SOLO nei dati forniti sopra.
+10. Per scadenze, calcola giorni mancanti/passati rispetto a OGGI.
+
+ESEMPIO DI RISPOSTA CORRETTA:
+Domanda: "Qual e' il telefono OTP dell'app di Catania?"
+Risposta: "Il telefono OTP per l'app CATANIA e': +39 333 1234567"
+
+ESEMPIO DI RISPOSTA SBAGLIATA (NON FARE COSI):
+"Non ho dati di telefono nel CRM. I dati disponibili per CATANIA sono: Nome app: CATANIA, Comune: Catania..."
+Questo e' SBAGLIATO perche' aggiunge informazioni non richieste e non cerca nei campi giusti.`;
 
   // Costruisci i messaggi (supporta storico conversazione)
   const messages = [];
