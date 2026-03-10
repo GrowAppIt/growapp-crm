@@ -306,6 +306,11 @@ const Dashboard = {
                         <button class="btn btn-secondary" onclick="UI.showPage('impostazioni')">
                             <i class="fas fa-cog"></i> Personalizza
                         </button>
+                        ${AuthService.canViewPubblicazioneStore() ? `
+                        <button class="btn btn-primary" onclick="Dashboard.toggleAIChat()" title="AI Assistant" style="background: linear-gradient(135deg, var(--blu-700), var(--blu-900, #0D3A5C)); position: relative;">
+                            <i class="fas fa-robot"></i> AI Assistant
+                        </button>
+                        ` : ''}
                     </div>
                 </div>
             </div>
@@ -2936,5 +2941,302 @@ const Dashboard = {
             </h3>
             ${righe}
         </div>`;
+    },
+
+    // =====================================================================
+    // AI CHAT ASSISTANT (solo CTO / Admin / Super Admin)
+    // =====================================================================
+    _aiChatHistory: [],
+    _aiChatAllAppsCache: null,
+    _aiChatVisible: false,
+
+    toggleAIChat() {
+        this._aiChatVisible = !this._aiChatVisible;
+        let panel = document.getElementById('aiChatPanel');
+        if (!panel) {
+            // Crea il pannello la prima volta
+            const wrapper = document.createElement('div');
+            wrapper.innerHTML = this._buildAIChatPanel();
+            document.body.appendChild(wrapper.firstElementChild);
+            panel = document.getElementById('aiChatPanel');
+        }
+        panel.style.display = this._aiChatVisible ? 'flex' : 'none';
+        if (this._aiChatVisible) {
+            const input = document.getElementById('aiChatInput');
+            if (input) setTimeout(() => input.focus(), 100);
+        }
+    },
+
+    _buildAIChatPanel() {
+        const suggerimenti = [
+            'Fammi la lista delle pubblicazioni sugli store piu vecchie con nome app e data',
+            'Elenca tutte le scadenze certificato Apple in ordine cronologico',
+            'Quali app hanno il controllo qualita negativo o scaduto?',
+            'Quali app hanno la penetrazione piu bassa rispetto alla popolazione?',
+            'Dammi un riepilogo delle app attive con i download totali',
+            'Quali app non hanno ancora il gruppo Telegram attivo?',
+            'Elenca le app senza feed RSS configurati',
+            'Quali sono le app con piu download?'
+        ];
+
+        return `
+        <div id="aiChatPanel" style="
+            display: none; position: fixed; bottom: 0; right: 0;
+            width: 480px; max-width: 100vw; height: 85vh; max-height: 700px;
+            flex-direction: column; z-index: 9999;
+            box-shadow: -4px 0 30px rgba(0,0,0,0.2); border-radius: 16px 0 0 0;
+            overflow: hidden; background: white;
+        ">
+            <!-- Header -->
+            <div style="padding: 1rem 1.25rem; background: linear-gradient(135deg, var(--blu-700) 0%, var(--blu-900, #0D3A5C) 100%); display: flex; align-items: center; gap: 0.75rem; flex-shrink: 0;">
+                <div style="width: 36px; height: 36px; border-radius: 50%; background: rgba(255,255,255,0.15); display: flex; align-items: center; justify-content: center;">
+                    <i class="fas fa-robot" style="color: white; font-size: 1.1rem;"></i>
+                </div>
+                <div style="flex: 1;">
+                    <div style="color: white; font-weight: 700; font-size: 0.95rem;">AI Assistant</div>
+                    <div style="color: rgba(255,255,255,0.7); font-size: 0.7rem;">Analisi dati CRM • Claude Haiku</div>
+                </div>
+                <button onclick="Dashboard.clearAIChat()" style="background: rgba(255,255,255,0.15); color: white; border: none; padding: 0.3rem 0.6rem; border-radius: 6px; font-size: 0.7rem; cursor: pointer;" title="Nuova conversazione">
+                    <i class="fas fa-trash-alt"></i>
+                </button>
+                <button onclick="Dashboard.toggleAIChat()" style="background: rgba(255,255,255,0.15); color: white; border: none; padding: 0.3rem 0.6rem; border-radius: 6px; font-size: 0.9rem; cursor: pointer;" title="Chiudi">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <!-- Messages -->
+            <div id="aiChatMessages" style="flex: 1; overflow-y: auto; padding: 1rem; background: var(--grigio-100); display: flex; flex-direction: column; gap: 0.75rem;">
+                <!-- Welcome -->
+                <div style="display: flex; gap: 0.6rem; align-items: flex-start;">
+                    <div style="width: 28px; height: 28px; border-radius: 50%; background: var(--blu-700); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                        <i class="fas fa-robot" style="color: white; font-size: 0.7rem;"></i>
+                    </div>
+                    <div style="background: white; padding: 0.85rem; border-radius: 0 10px 10px 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); max-width: 85%;">
+                        <div style="font-weight: 600; color: var(--blu-700); margin-bottom: 0.4rem; font-size: 0.9rem;">Ciao! Sono l'assistente AI del CRM.</div>
+                        <div style="color: var(--grigio-700); font-size: 0.85rem; line-height: 1.4;">
+                            Ho accesso ai dati di tutte le app nel CRM. Chiedimi analisi, elenchi, confronti e suggerimenti.
+                        </div>
+                    </div>
+                </div>
+                <div style="display: flex; flex-wrap: wrap; gap: 0.4rem; padding: 0.25rem 0 0 2.25rem;">
+                    ${suggerimenti.map(s => `
+                        <button onclick="Dashboard.askAI(this.textContent.trim())" style="
+                            background: white; border: 1.5px solid var(--blu-300); color: var(--blu-700);
+                            padding: 0.4rem 0.7rem; border-radius: 18px; font-size: 0.75rem; cursor: pointer;
+                            transition: all 0.2s; line-height: 1.3; text-align: left;
+                        " onmouseover="this.style.background='var(--blu-100)';this.style.borderColor='var(--blu-700)'"
+                           onmouseout="this.style.background='white';this.style.borderColor='var(--blu-300)'">
+                            ${s}
+                        </button>
+                    `).join('')}
+                </div>
+            </div>
+
+            <!-- Input -->
+            <div style="padding: 0.75rem; background: white; border-top: 2px solid var(--grigio-300); flex-shrink: 0;">
+                <div style="display: flex; gap: 0.5rem;">
+                    <input type="text" id="aiChatInput"
+                        placeholder="Chiedi qualcosa sui dati..."
+                        style="flex: 1; padding: 0.65rem 0.85rem; border: 2px solid var(--grigio-300); border-radius: 10px; font-size: 0.85rem; font-family: 'Titillium Web', sans-serif; outline: none; transition: border-color 0.2s;"
+                        onfocus="this.style.borderColor='var(--blu-500)'"
+                        onblur="this.style.borderColor='var(--grigio-300)'"
+                        onkeydown="if(event.key==='Enter' && !event.shiftKey) { event.preventDefault(); Dashboard.sendAIMessage(); }"
+                    />
+                    <button id="aiChatSendBtn" onclick="Dashboard.sendAIMessage()" class="btn btn-primary" style="padding: 0.65rem 1rem; border-radius: 10px; font-size: 0.95rem;">
+                        <i class="fas fa-paper-plane"></i>
+                    </button>
+                </div>
+                <div style="margin-top: 0.35rem; font-size: 0.65rem; color: var(--grigio-500); text-align: center;">
+                    <i class="fas fa-lock" style="margin-right: 0.2rem;"></i> I dati non vengono salvati esternamente
+                </div>
+            </div>
+        </div>`;
+    },
+
+    askAI(question) {
+        const input = document.getElementById('aiChatInput');
+        if (input) {
+            input.value = question;
+            this.sendAIMessage();
+        }
+    },
+
+    clearAIChat() {
+        this._aiChatHistory = [];
+        this._aiChatAllAppsCache = null;
+        const messagesContainer = document.getElementById('aiChatMessages');
+        if (messagesContainer) {
+            // Rimuovi il pannello e ricrealo
+            const panel = document.getElementById('aiChatPanel');
+            if (panel) panel.remove();
+            this._aiChatVisible = false;
+            this.toggleAIChat();
+        }
+    },
+
+    _renderChatMessage(msg) {
+        if (msg.role === 'user') {
+            return `
+                <div style="display: flex; gap: 0.6rem; align-items: flex-start; justify-content: flex-end;">
+                    <div style="background: var(--blu-700); color: white; padding: 0.7rem 0.85rem; border-radius: 10px 0 10px 10px; max-width: 80%; font-size: 0.85rem; line-height: 1.4;">
+                        ${msg.content.replace(/</g, '&lt;').replace(/>/g, '&gt;')}
+                    </div>
+                    <div style="width: 28px; height: 28px; border-radius: 50%; background: var(--grigio-300); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                        <i class="fas fa-user" style="color: var(--grigio-700); font-size: 0.7rem;"></i>
+                    </div>
+                </div>`;
+        } else {
+            return `
+                <div style="display: flex; gap: 0.6rem; align-items: flex-start;">
+                    <div style="width: 28px; height: 28px; border-radius: 50%; background: var(--blu-700); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                        <i class="fas fa-robot" style="color: white; font-size: 0.7rem;"></i>
+                    </div>
+                    <div style="background: white; padding: 0.85rem; border-radius: 0 10px 10px 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); max-width: 85%; font-size: 0.85rem; line-height: 1.5; color: var(--grigio-900); white-space: pre-wrap;">
+                        ${msg.content}
+                        ${msg.usage ? `<div style="margin-top: 0.5rem; padding-top: 0.4rem; border-top: 1px solid var(--grigio-300); font-size: 0.65rem; color: var(--grigio-500);"><i class="fas fa-microchip"></i> Token: ${msg.usage.input_tokens} in / ${msg.usage.output_tokens} out</div>` : ''}
+                    </div>
+                </div>`;
+        }
+    },
+
+    /**
+     * Crea un riepilogo LEGGERO di tutte le app per il contesto AI
+     * (solo campi essenziali, niente gbStatsCache pesante)
+     */
+    _buildLightAppSummary(apps) {
+        if (!apps || !Array.isArray(apps)) return [];
+        return apps.map(a => ({
+            id: a.id,
+            nome: a.nome,
+            comune: a.comune,
+            provincia: a.provincia,
+            regione: a.regione,
+            statoApp: a.statoApp,
+            popolazione: a.popolazione || 0,
+            numDownloads: (a.gbStatsCache?.totalDownloads) || a.numDownloads || 0,
+            launchesMonth: a.gbStatsCache?.launchesMonth || 0,
+            pageViewsMonth: a.gbStatsCache?.pageViewsMonth || 0,
+            consensiPush: a.consensiPush || 0,
+            dataPubblicazioneApple: a.dataPubblicazioneApple || null,
+            dataPubblicazioneAndroid: a.dataPubblicazioneAndroid || null,
+            scadenzaCertificatoApple: a.scadenzaCertificatoApple || null,
+            ultimaDataRaccoltaDifferenziata: a.ultimaDataRaccoltaDifferenziata || null,
+            ultimaDataFarmacieTurno: a.ultimaDataFarmacieTurno || null,
+            ultimaDataNotificheFarmacie: a.ultimaDataNotificheFarmacie || null,
+            altraScadenzaData: a.altraScadenzaData || null,
+            altraScadenzaNote: a.altraScadenzaNote || null,
+            hasGruppoTelegram: a.hasGruppoTelegram,
+            hasAvvisiFlash: a.hasAvvisiFlash,
+            feedRssCount: Array.isArray(a.feedRss) ? a.feedRss.length : 0,
+            referenteComune: a.referenteComune || null,
+            dataUltimoControlloQualita: a.dataUltimoControlloQualita || null,
+            controlloQualitaNegativo: a.controlloQualitaNegativo || false,
+            tipoPagamento: a.tipoPagamento || null
+        }));
+    },
+
+    async sendAIMessage() {
+        const input = document.getElementById('aiChatInput');
+        const sendBtn = document.getElementById('aiChatSendBtn');
+        if (!input || !input.value.trim()) return;
+
+        const question = input.value.trim();
+        input.value = '';
+
+        // Aggiungi messaggio utente allo storico
+        this._aiChatHistory.push({ role: 'user', content: question });
+
+        // Aggiorna UI
+        const messagesContainer = document.getElementById('aiChatMessages');
+        if (messagesContainer) {
+            messagesContainer.innerHTML = this._aiChatHistory.map(m => this._renderChatMessage(m)).join('');
+            // Indicatore "sta scrivendo"
+            messagesContainer.innerHTML += `
+                <div id="aiTypingIndicator" style="display: flex; gap: 0.6rem; align-items: flex-start;">
+                    <div style="width: 28px; height: 28px; border-radius: 50%; background: var(--blu-700); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                        <i class="fas fa-robot" style="color: white; font-size: 0.7rem;"></i>
+                    </div>
+                    <div style="background: white; padding: 0.85rem; border-radius: 0 10px 10px 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.06);">
+                        <div style="display: flex; gap: 0.35rem; align-items: center;">
+                            <div style="width: 7px; height: 7px; border-radius: 50%; background: var(--blu-500); animation: aiBounce 1.4s infinite ease-in-out both;"></div>
+                            <div style="width: 7px; height: 7px; border-radius: 50%; background: var(--blu-500); animation: aiBounce 1.4s infinite ease-in-out both; animation-delay: 0.16s;"></div>
+                            <div style="width: 7px; height: 7px; border-radius: 50%; background: var(--blu-500); animation: aiBounce 1.4s infinite ease-in-out both; animation-delay: 0.32s;"></div>
+                            <span style="margin-left: 0.4rem; font-size: 0.75rem; color: var(--grigio-500);">Sto analizzando...</span>
+                        </div>
+                    </div>
+                </div>`;
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        // Disabilita input
+        input.disabled = true;
+        sendBtn.disabled = true;
+        sendBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+
+        try {
+            // Carica le app (leggere) se non in cache
+            if (!this._aiChatAllAppsCache) {
+                try {
+                    const snapshot = await db.collection('app').get();
+                    const rawApps = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    // IMPORTANTE: usa solo il riepilogo leggero per evitare il 413
+                    this._aiChatAllAppsCache = this._buildLightAppSummary(rawApps);
+                } catch (e) {
+                    console.warn('Errore caricamento app per AI:', e);
+                    this._aiChatAllAppsCache = [];
+                }
+            }
+
+            // Storico conversazione (ultimi 10)
+            const conversationHistory = this._aiChatHistory.slice(0, -1).map(m => ({
+                role: m.role,
+                content: m.content
+            }));
+
+            // Chiamata API
+            const response = await fetch('/api/ai-chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    question: question,
+                    appCorrente: null,
+                    tutteLeApp: this._aiChatAllAppsCache,
+                    contesto: {},
+                    conversationHistory: conversationHistory
+                })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || data.detail || 'Errore dalla API');
+            }
+
+            this._aiChatHistory.push({
+                role: 'assistant',
+                content: data.answer,
+                usage: data.usage
+            });
+
+        } catch (error) {
+            console.error('Errore AI Chat:', error);
+            this._aiChatHistory.push({
+                role: 'assistant',
+                content: 'Si e\' verificato un errore: ' + (error.message || 'Errore sconosciuto') + '\n\nRiprova tra qualche secondo.',
+                usage: null
+            });
+        }
+
+        // Re-render messaggi
+        if (messagesContainer) {
+            messagesContainer.innerHTML = this._aiChatHistory.map(m => this._renderChatMessage(m)).join('');
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        // Riabilita input
+        input.disabled = false;
+        sendBtn.disabled = false;
+        sendBtn.innerHTML = '<i class="fas fa-paper-plane"></i>';
+        input.focus();
     }
 };
