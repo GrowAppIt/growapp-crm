@@ -602,16 +602,20 @@ const NotificationUI = {
                         // Toast in-app
                         this.showToast(title, body, extra);
 
-                        // Notifica nativa Chrome
-                        if (Notification.permission === 'granted') {
-                            try {
-                                new Notification(title, {
+                        // Notifica nativa Chrome (via Service Worker per banner affidabile)
+                        if (Notification.permission === 'granted' && navigator.serviceWorker) {
+                            navigator.serviceWorker.ready.then(reg => {
+                                reg.showNotification(title, {
                                     body: body,
                                     icon: '/img/icon-192.png',
+                                    badge: '/img/icon-72.png',
                                     tag: 'crm-' + change.doc.id,
-                                    data: extra
+                                    renotify: true,
+                                    data: extra,
+                                    vibrate: [200, 100, 200],
+                                    requireInteraction: false
                                 });
-                            } catch (e) { /* ignora */ }
+                            }).catch(e => { /* ignora */ });
                         }
                     }
                 });
