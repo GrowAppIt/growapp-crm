@@ -78,6 +78,9 @@ const MessagingUI = {
         panel.id = 'chatPanel';
         panel.className = 'chat-panel';
         panel.innerHTML = '<div id="chatPanelContent"></div>';
+        // Blocca propagazione click dentro il pannello per evitare che il
+        // listener "chiudi se clicchi fuori" lo chiuda durante i re-render
+        panel.addEventListener('click', (e) => e.stopPropagation());
         document.body.appendChild(panel);
 
         // Overlay per mobile
@@ -189,7 +192,7 @@ const MessagingUI = {
                         <i class="fas fa-users"></i>
                     </button>
                     <button onclick="MessagingUI._showNewMessage()" style="background:rgba(255,255,255,0.15);border:none;color:white;width:32px;height:32px;border-radius:50%;cursor:pointer;font-size:0.875rem;" title="Nuovo messaggio">
-                        <i class="fas fa-pen"></i>
+                        <i class="fas fa-user-plus"></i>
                     </button>
                     <button onclick="MessagingUI.closePanel()" style="background:none;border:none;color:white;width:32px;height:32px;cursor:pointer;font-size:1rem;" title="Chiudi">
                         <i class="fas fa-times"></i>
