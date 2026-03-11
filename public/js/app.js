@@ -568,9 +568,43 @@ const NotificationUI = {
         if (this.unreadListener) {
             this.unreadListener();
         }
-        this.unreadListener = NotificationService.startUnreadListener((count) => {
-            this.updateBadgeCount(count);
-        });
+
+        // Listener diretto su Firestore per rilevare nuove notifiche e mostrare toast
+        const userId = AuthService.getUserId();
+        if (!userId) return;
+
+        let isFirstSnapshot = true;
+
+        this.unreadListener = db.collection('notifications')
+            .where('userId', '==', userId)
+            .where('read', '==', false)
+            .onSnapshot(snapshot => {
+                // Aggiorna badge
+                this.updateBadgeCount(snapshot.size);
+
+                // Mostra toast solo per notifiche NUOVE (non al primo caricamento)
+                if (isFirstSnapshot) {
+                    isFirstSnapshot = false;
+                    return;
+                }
+
+                snapshot.docChanges().forEach(change => {
+                    if (change.type === 'added') {
+                        const data = change.doc.data();
+                        this.showToast(
+                            data.title || 'Nuova notifica',
+                            data.message || '',
+                            {
+                                type: data.type || '',
+                                taskId: data.taskId || '',
+                                appId: data.appId || ''
+                            }
+                        );
+                    }
+                });
+            }, error => {
+                console.error('Errore listener notifiche:', error);
+            });
     },
 
     stopUnreadListener() {
