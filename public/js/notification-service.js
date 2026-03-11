@@ -30,6 +30,7 @@ const NotificationService = {
             await db.collection('notifications').add(notification);
 
             // Invia anche notifica push FCM
+            console.log('[PUSH DEBUG] createNotification - FCMService disponibile:', typeof FCMService !== 'undefined', '| userId:', notificationData.userId);
             if (typeof FCMService !== 'undefined') {
                 FCMService.sendPushToUsers(
                     [notificationData.userId],
@@ -40,7 +41,8 @@ const NotificationService = {
                         taskId: notificationData.taskId || '',
                         appId: notificationData.appId || ''
                     }
-                ).catch(e => console.warn('Push FCM fallita:', e));
+                ).then(r => console.log('[PUSH DEBUG] Risultato push singola:', r))
+                .catch(e => console.warn('Push FCM fallita:', e));
             }
 
             return { success: true };
@@ -74,6 +76,7 @@ const NotificationService = {
             await batch.commit();
 
             // Invia push FCM a tutti i destinatari
+            console.log('[PUSH DEBUG] createNotificationsForUsers - FCMService disponibile:', typeof FCMService !== 'undefined', '| userIds:', userIds);
             if (typeof FCMService !== 'undefined' && userIds.length > 0) {
                 FCMService.sendPushToUsers(
                     userIds,
@@ -84,7 +87,8 @@ const NotificationService = {
                         taskId: notificationData.taskId || '',
                         appId: notificationData.appId || ''
                     }
-                ).catch(e => console.warn('Push FCM batch fallita:', e));
+                ).then(r => console.log('[PUSH DEBUG] Risultato push batch:', r))
+                .catch(e => console.warn('Push FCM batch fallita:', e));
             }
 
             return { success: true };
