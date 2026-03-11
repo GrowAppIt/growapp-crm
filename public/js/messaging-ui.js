@@ -299,6 +299,10 @@ const MessagingUI = {
         const conv = this._conversations.find(c => c.id === convId);
 
         let headerTitle, headerSubtitle;
+        const isGroup = conv && conv.type === 'group';
+        const isCreator = isGroup && conv.createdBy === myId;
+        const isSuperAdmin = AuthService.getUserRole() === 'SUPER_ADMIN';
+
         if (conv && conv.type === 'direct') {
             const otherId = (conv.participantIds || []).find(id => id !== myId);
             const otherInfo = conv.participantInfo && conv.participantInfo[otherId];
@@ -325,9 +329,42 @@ const MessagingUI = {
                         ${headerSubtitle ? `<div style="font-size:0.75rem;color:rgba(255,255,255,0.7);">${headerSubtitle}</div>` : ''}
                     </div>
                 </div>
-                <button onclick="MessagingUI.closePanel()" style="background:none;border:none;color:white;width:32px;height:32px;cursor:pointer;font-size:1rem;">
-                    <i class="fas fa-times"></i>
-                </button>
+                <div style="display:flex;align-items:center;gap:4px;">
+                    <div style="position:relative;" id="chatMenuContainer">
+                        <button onclick="MessagingUI._toggleChatMenu(event)" style="background:none;border:none;color:white;width:32px;height:32px;cursor:pointer;font-size:1rem;border-radius:50%;transition:background 0.15s;"
+                            onmouseover="this.style.background='rgba(255,255,255,0.15)'" onmouseout="this.style.background='none'">
+                            <i class="fas fa-ellipsis-v"></i>
+                        </button>
+                        <div id="chatContextMenu" style="display:none;position:absolute;top:100%;right:0;background:white;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.2);min-width:200px;z-index:10;overflow:hidden;margin-top:4px;">
+                            ${isGroup ? `
+                                ${isGroup ? `
+                                    <div onclick="MessagingUI._showGroupInfo('${convId}')" style="padding:0.75rem 1rem;cursor:pointer;display:flex;align-items:center;gap:10px;font-size:0.875rem;color:var(--grigio-900);transition:background 0.15s;"
+                                        onmouseover="this.style.background='var(--grigio-100)'" onmouseout="this.style.background='white'">
+                                        <i class="fas fa-info-circle" style="color:var(--blu-700);width:16px;text-align:center;"></i> Info gruppo
+                                    </div>
+                                ` : ''}
+                                <div onclick="MessagingUI._confirmLeaveGroup('${convId}')" style="padding:0.75rem 1rem;cursor:pointer;display:flex;align-items:center;gap:10px;font-size:0.875rem;color:var(--grigio-900);transition:background 0.15s;"
+                                    onmouseover="this.style.background='var(--grigio-100)'" onmouseout="this.style.background='white'">
+                                    <i class="fas fa-sign-out-alt" style="color:var(--giallo-avviso);width:16px;text-align:center;"></i> Abbandona gruppo
+                                </div>
+                                ${isCreator || isSuperAdmin ? `
+                                    <div onclick="MessagingUI._confirmDeleteConversation('${convId}', 'group')" style="padding:0.75rem 1rem;cursor:pointer;display:flex;align-items:center;gap:10px;font-size:0.875rem;color:var(--rosso-errore);border-top:1px solid var(--grigio-200);transition:background 0.15s;"
+                                        onmouseover="this.style.background='#FFF0F0'" onmouseout="this.style.background='white'">
+                                        <i class="fas fa-trash-alt" style="width:16px;text-align:center;"></i> Elimina gruppo
+                                    </div>
+                                ` : ''}
+                            ` : `
+                                <div onclick="MessagingUI._confirmDeleteConversation('${convId}', 'direct')" style="padding:0.75rem 1rem;cursor:pointer;display:flex;align-items:center;gap:10px;font-size:0.875rem;color:var(--rosso-errore);transition:background 0.15s;"
+                                    onmouseover="this.style.background='#FFF0F0'" onmouseout="this.style.background='white'">
+                                    <i class="fas fa-trash-alt" style="width:16px;text-align:center;"></i> Elimina conversazione
+                                </div>
+                            `}
+                        </div>
+                    </div>
+                    <button onclick="MessagingUI.closePanel()" style="background:none;border:none;color:white;width:32px;height:32px;cursor:pointer;font-size:1rem;">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
             </div>
 
             <!-- Area messaggi -->
@@ -779,6 +816,123 @@ const MessagingUI = {
             case 'in_ferie': return 'Assente';
             default: return 'Offline';
         }
+    },
+
+    // ══════════════════════════════════════════
+    // MENU CONTESTUALE + GESTIONE CONVERSAZIONI
+    // ══════════════════════════════════════════
+
+    _toggleChatMenu(e) {
+        e.stopPropagation();
+        const menu = document.getElementById('chatContextMenu');
+        if (!menu) return;
+
+        const isVisible = menu.style.display !== 'none';
+        menu.style.display = isVisible ? 'none' : 'block';
+
+        // Chiudi cliccando fuori
+        if (!isVisible) {
+            const closeHandler = (ev) => {
+                if (!menu.contains(ev.target)) {
+                    menu.style.display = 'none';
+                    document.removeEventListener('click', closeHandler);
+                }
+            };
+            setTimeout(() => document.addEventListener('click', closeHandler), 10);
+        }
+    },
+
+    _showGroupInfo(convId) {
+        document.getElementById('chatContextMenu').style.display = 'none';
+        const conv = this._conversations.find(c => c.id === convId);
+        if (!conv) return;
+
+        const participants = Object.entries(conv.participantInfo || {}).map(([uid, info]) => {
+            const pres = this._presenceCache[uid] || {};
+            const presColor = MessagingService.getPresenceColor(pres.presenceState || 'offline');
+            const isCreator = uid === conv.createdBy;
+            return `
+                <div style="display:flex;align-items:center;gap:10px;padding:0.5rem 0;">
+                    ${MessagingService.renderAvatar(info.nome, info.photoURL, 36, pres.presenceState)}
+                    <div style="flex:1;">
+                        <div style="font-weight:600;font-size:0.875rem;color:var(--grigio-900);">
+                            ${info.nome} ${isCreator ? '<span style="background:var(--blu-100);color:var(--blu-700);padding:1px 6px;border-radius:3px;font-size:0.6875rem;font-weight:700;margin-left:4px;">Admin</span>' : ''}
+                        </div>
+                        <div style="font-size:0.75rem;color:var(--grigio-500);">${info.ruolo ? (AuthService.ROLE_LABELS[info.ruolo] || info.ruolo) : ''}</div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        FormsManager.showModal(
+            `<i class="fas fa-users" style="color:var(--blu-700);"></i> ${conv.title || 'Gruppo'}`,
+            `<div style="padding:0.5rem 0;">
+                <div style="font-size:0.8125rem;font-weight:600;color:var(--grigio-500);margin-bottom:0.5rem;">
+                    ${Object.keys(conv.participantInfo || {}).length} partecipanti
+                </div>
+                ${participants}
+            </div>`
+        );
+    },
+
+    _confirmLeaveGroup(convId) {
+        document.getElementById('chatContextMenu').style.display = 'none';
+        const conv = this._conversations.find(c => c.id === convId);
+        const groupName = conv ? (conv.title || 'questo gruppo') : 'questo gruppo';
+
+        FormsManager.showModal(
+            '<i class="fas fa-sign-out-alt" style="color:var(--giallo-avviso);"></i> Abbandona gruppo',
+            `<div style="padding:1rem 0;">
+                <p style="color:var(--grigio-900);font-size:0.9375rem;margin:0 0 0.5rem;">Vuoi abbandonare <strong>${groupName}</strong>?</p>
+                <p style="color:var(--grigio-500);font-size:0.8125rem;margin:0;">Non riceverai più i messaggi di questo gruppo.</p>
+            </div>`,
+            async () => {
+                const result = await MessagingService.leaveGroup(convId);
+                if (result.success) {
+                    UI.showSuccess('Hai abbandonato il gruppo');
+                    this._backToList();
+                } else {
+                    UI.showError(result.error || 'Errore');
+                }
+                FormsManager.closeModal();
+            }
+        );
+    },
+
+    _confirmDeleteConversation(convId, type) {
+        document.getElementById('chatContextMenu').style.display = 'none';
+        const conv = this._conversations.find(c => c.id === convId);
+
+        const title = type === 'group'
+            ? '<i class="fas fa-trash-alt" style="color:var(--rosso-errore);"></i> Elimina gruppo'
+            : '<i class="fas fa-trash-alt" style="color:var(--rosso-errore);"></i> Elimina conversazione';
+
+        const displayName = type === 'group'
+            ? (conv ? conv.title : 'questo gruppo')
+            : 'questa conversazione';
+
+        FormsManager.showModal(
+            title,
+            `<div style="padding:1rem 0;">
+                <p style="color:var(--grigio-900);font-size:0.9375rem;margin:0 0 0.5rem;">Vuoi eliminare definitivamente <strong>${displayName}</strong>?</p>
+                <p style="color:var(--rosso-errore);font-size:0.8125rem;margin:0;"><i class="fas fa-exclamation-triangle"></i> Tutti i messaggi verranno cancellati per sempre. Questa azione non è reversibile.</p>
+            </div>`,
+            async () => {
+                let result;
+                if (type === 'group') {
+                    result = await MessagingService.deleteGroup(convId);
+                } else {
+                    result = await MessagingService.deleteDirectChat(convId);
+                }
+                if (result.success) {
+                    UI.showSuccess(type === 'group' ? 'Gruppo eliminato' : 'Conversazione eliminata');
+                    this._backToList();
+                } else {
+                    UI.showError(result.error || 'Errore');
+                }
+                FormsManager.closeModal();
+            }
+        );
     },
 
     // ══════════════════════════════════════════

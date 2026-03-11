@@ -458,6 +458,132 @@ const MessagingService = {
     },
 
     // ══════════════════════════════════════════
+    // GESTIONE CONVERSAZIONI (elimina, abbandona)
+    // ══════════════════════════════════════════
+
+    /**
+     * Elimina un gruppo (solo il creatore può farlo).
+     * Cancella tutti i messaggi nella subcollection e poi il documento conversazione.
+     */
+    async deleteGroup(conversationId) {
+        const userId = AuthService.getUserId();
+        if (!userId) return { success: false, error: 'Non autenticato' };
+
+        try {
+            const convRef = db.collection('chat_conversations').doc(conversationId);
+            const convDoc = await convRef.get();
+            if (!convDoc.exists) return { success: false, error: 'Conversazione non trovata' };
+
+            const convData = convDoc.data();
+
+            // Solo il creatore o SUPER_ADMIN può eliminare
+            if (convData.createdBy !== userId && AuthService.getUserRole() !== 'SUPER_ADMIN') {
+                return { success: false, error: 'Solo chi ha creato il gruppo può eliminarlo' };
+            }
+
+            // Elimina tutti i messaggi nella subcollection (batch da 500)
+            const messagesRef = convRef.collection('messages');
+            let snap = await messagesRef.limit(500).get();
+            while (!snap.empty) {
+                const batch = db.batch();
+                snap.forEach(doc => batch.delete(doc.ref));
+                await batch.commit();
+                snap = await messagesRef.limit(500).get();
+            }
+
+            // Elimina il documento conversazione
+            await convRef.delete();
+
+            return { success: true };
+        } catch (e) {
+            console.error('Errore deleteGroup:', e);
+            return { success: false, error: e.message };
+        }
+    },
+
+    /**
+     * Abbandona un gruppo (rimuovi te stesso dai partecipanti).
+     * Se rimane un solo partecipante, il gruppo viene eliminato.
+     */
+    async leaveGroup(conversationId) {
+        const userId = AuthService.getUserId();
+        if (!userId) return { success: false, error: 'Non autenticato' };
+
+        try {
+            const convRef = db.collection('chat_conversations').doc(conversationId);
+            const convDoc = await convRef.get();
+            if (!convDoc.exists) return { success: false, error: 'Conversazione non trovata' };
+
+            const convData = convDoc.data();
+            const participants = convData.participantIds || [];
+
+            if (!participants.includes(userId)) {
+                return { success: false, error: 'Non fai parte di questo gruppo' };
+            }
+
+            const remaining = participants.filter(id => id !== userId);
+
+            if (remaining.length <= 1) {
+                // Ultimo o penultimo — elimina tutto il gruppo
+                return await this.deleteGroup(conversationId);
+            }
+
+            // Rimuovi dai partecipanti
+            const newParticipantInfo = { ...(convData.participantInfo || {}) };
+            const myName = newParticipantInfo[userId] ? newParticipantInfo[userId].nome : 'Qualcuno';
+            delete newParticipantInfo[userId];
+
+            const newUnreadCounts = { ...(convData.unreadCounts || {}) };
+            delete newUnreadCounts[userId];
+
+            await convRef.update({
+                participantIds: remaining,
+                participantInfo: newParticipantInfo,
+                unreadCounts: newUnreadCounts,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+
+            // Messaggio di sistema
+            await this.sendMessage(conversationId, `${myName} ha abbandonato il gruppo`, 'system');
+
+            return { success: true };
+        } catch (e) {
+            console.error('Errore leaveGroup:', e);
+            return { success: false, error: e.message };
+        }
+    },
+
+    /**
+     * Elimina una chat diretta (per entrambi i partecipanti).
+     */
+    async deleteDirectChat(conversationId) {
+        const userId = AuthService.getUserId();
+        if (!userId) return { success: false, error: 'Non autenticato' };
+
+        try {
+            const convRef = db.collection('chat_conversations').doc(conversationId);
+            const convDoc = await convRef.get();
+            if (!convDoc.exists) return { success: false, error: 'Conversazione non trovata' };
+
+            // Elimina messaggi
+            const messagesRef = convRef.collection('messages');
+            let snap = await messagesRef.limit(500).get();
+            while (!snap.empty) {
+                const batch = db.batch();
+                snap.forEach(doc => batch.delete(doc.ref));
+                await batch.commit();
+                snap = await messagesRef.limit(500).get();
+            }
+
+            await convRef.delete();
+            return { success: true };
+        } catch (e) {
+            console.error('Errore deleteDirectChat:', e);
+            return { success: false, error: e.message };
+        }
+    },
+
+    // ══════════════════════════════════════════
     // LISTENER REAL-TIME
     // ══════════════════════════════════════════
 
