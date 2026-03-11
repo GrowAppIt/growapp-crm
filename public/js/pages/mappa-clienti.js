@@ -355,7 +355,9 @@ const MappaClienti = {
         if (contatore) {
             contatore.innerHTML = `<i class="fas fa-mobile-alt"></i> ${posizionati} su mappa`;
             if (nonPosizionati > 0) {
-                contatore.innerHTML += ` <span style="opacity: 0.7; cursor: help;" title="App non geolocalizzate:\n${nonTrovate.join('\n')}">(${nonPosizionati} senza posizione)</span>`;
+                // Salva lista app non trovate per il popup
+                this._appSenzaPosizione = nonTrovate;
+                contatore.innerHTML += ` <span onclick="MappaClienti.mostraAppSenzaPosizione()" style="opacity: 0.85; cursor: pointer; text-decoration: underline; text-decoration-style: dotted;">(${nonPosizionati} senza posizione <i class="fas fa-info-circle"></i>)</span>`;
             }
         }
 
@@ -533,6 +535,38 @@ const MappaClienti = {
         `;
         statsBar.classList.remove('hidden');
         statsBar.style.display = 'flex';
+    },
+
+    /**
+     * Mostra popup con la lista delle app senza posizione sulla mappa
+     */
+    _appSenzaPosizione: [],
+
+    mostraAppSenzaPosizione() {
+        const lista = this._appSenzaPosizione || [];
+        if (lista.length === 0) return;
+
+        const content = `
+            <div style="padding: 0.5rem 0;">
+                <p style="color: var(--grigio-700); font-size: 0.875rem; margin: 0 0 0.75rem;">
+                    Queste app non hanno un comune associato o non è stato possibile geolocalizzarle.
+                    Verifica che il campo <strong>Comune</strong> sia compilato nella scheda dell'app.
+                </p>
+                <div style="max-height: 300px; overflow-y: auto;">
+                    ${lista.map((nome, i) => `
+                        <div style="display: flex; align-items: center; gap: 10px; padding: 0.625rem 0.75rem; border-radius: 8px; ${i % 2 === 0 ? 'background: var(--grigio-100);' : ''}">
+                            <i class="fas fa-map-marker-alt" style="color: var(--rosso-errore); width: 16px; text-align: center;"></i>
+                            <span style="font-size: 0.9375rem; color: var(--grigio-900);">${nome}</span>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+
+        FormsManager.showModal(
+            `<i class="fas fa-exclamation-triangle" style="color: var(--giallo-avviso);"></i> ${lista.length} app senza posizione`,
+            content
+        );
     },
 
     /**
