@@ -350,9 +350,9 @@ const App = {
 // ===== NOTIFICATION UI =====
 const NotificationUI = {
     unreadListener: null,
+    _toastTimer: null,
 
     init() {
-        // Setup toggle dropdown
         const notifToggle = document.getElementById('notificationToggle');
         const notifDropdown = document.getElementById('notificationDropdown');
 
@@ -365,81 +365,170 @@ const NotificationUI = {
         }
 
         // Chiudi dropdown cliccando fuori
-        // Usa .closest() per gestire il click sia sul button che sull'icona <i> interna
         document.addEventListener('click', (e) => {
-            if (!notifDropdown.contains(e.target) && !e.target.closest('#notificationToggle')) {
+            if (notifDropdown && !notifDropdown.contains(e.target) && !e.target.closest('#notificationToggle')) {
                 notifDropdown.classList.add('hidden');
             }
         });
+
+        // Crea il container del toast se non esiste
+        if (!document.getElementById('notif-toast-container')) {
+            const toastContainer = document.createElement('div');
+            toastContainer.id = 'notif-toast-container';
+            toastContainer.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:100000;pointer-events:none;display:flex;flex-direction:column;align-items:center;padding-top:8px;gap:8px;';
+            document.body.appendChild(toastContainer);
+        }
 
         // Avvia listener real-time
         this.startUnreadListener();
     },
 
+    // ==========================================
+    // TOAST POPUP (10 secondi nell'header)
+    // ==========================================
+    showToast(title, body, data = {}) {
+        const container = document.getElementById('notif-toast-container');
+        if (!container) return;
+
+        const icon = NotificationService.getNotificationIcon(data.type);
+        const color = NotificationService.getNotificationColor(data.type);
+
+        const toast = document.createElement('div');
+        toast.style.cssText = 'pointer-events:auto;width:min(92vw,420px);background:#fff;border-radius:12px;box-shadow:0 4px 24px rgba(0,0,0,.18);overflow:hidden;transform:translateY(-100%);opacity:0;transition:all .4s cubic-bezier(.22,1,.36,1);cursor:pointer;border-left:4px solid ' + color + ';';
+        toast.innerHTML = `
+            <div style="padding:12px 16px;display:flex;gap:12px;align-items:start;">
+                <div style="width:36px;height:36px;border-radius:50%;background:${color};display:flex;align-items:center;justify-content:center;color:#fff;flex-shrink:0;font-size:0.875rem;">
+                    <i class="fas ${icon}"></i>
+                </div>
+                <div style="flex:1;min-width:0;">
+                    <div style="font-weight:700;font-size:0.9375rem;color:var(--grigio-900);font-family:Titillium Web,sans-serif;margin-bottom:2px;">${this._escapeHtml(title)}</div>
+                    <div style="font-size:0.875rem;color:var(--grigio-700);font-family:Titillium Web,sans-serif;line-height:1.4;">${this._escapeHtml(body)}</div>
+                </div>
+                <button onclick="event.stopPropagation();this.closest('div[data-toast]').remove();" style="background:none;border:none;color:var(--grigio-500);cursor:pointer;font-size:1.1rem;padding:4px;flex-shrink:0;line-height:1;">&times;</button>
+            </div>
+            <div style="height:3px;background:var(--grigio-200);">
+                <div class="toast-progress" style="height:100%;background:${color};width:100%;transition:width 10s linear;"></div>
+            </div>
+        `;
+        toast.setAttribute('data-toast', '1');
+
+        // Click sul toast → naviga al task
+        toast.addEventListener('click', () => {
+            toast.remove();
+            if (data.taskId && data.taskId !== 'null' && data.taskId !== '') {
+                UI.showPage('task');
+                setTimeout(() => {
+                    if (window.GestioneTask && typeof GestioneTask.viewTaskDetails === 'function') {
+                        GestioneTask.viewTaskDetails(data.taskId);
+                    }
+                }, 500);
+            } else {
+                // Apri centro notifiche
+                UI.showPage('centro-notifiche');
+            }
+        });
+
+        container.appendChild(toast);
+
+        // Animazione entrata
+        requestAnimationFrame(() => {
+            toast.style.transform = 'translateY(0)';
+            toast.style.opacity = '1';
+            // Avvia progress bar
+            const progress = toast.querySelector('.toast-progress');
+            if (progress) {
+                requestAnimationFrame(() => { progress.style.width = '0%'; });
+            }
+        });
+
+        // Rimuovi dopo 10 secondi
+        setTimeout(() => {
+            if (toast.parentNode) {
+                toast.style.transform = 'translateY(-100%)';
+                toast.style.opacity = '0';
+                setTimeout(() => toast.remove(), 400);
+            }
+        }, 10000);
+    },
+
+    _escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text || '';
+        return div.innerHTML;
+    },
+
+    // ==========================================
+    // DROPDOWN RAPIDO (ultime 5 non lette + Vedi tutte)
+    // ==========================================
     async toggleDropdown() {
         const dropdown = document.getElementById('notificationDropdown');
         const isHidden = dropdown.classList.contains('hidden');
 
         if (isHidden) {
-            // Posiziona dropdown subito sotto l'header
             const header = document.querySelector('.app-header');
             if (header) {
                 dropdown.style.top = (header.offsetHeight + 8) + 'px';
             }
             dropdown.classList.remove('hidden');
-            await this.loadNotifications();
+            await this.loadDropdownNotifications();
         } else {
             dropdown.classList.add('hidden');
         }
     },
 
-    async loadNotifications() {
+    async loadDropdownNotifications() {
         const listContainer = document.getElementById('notificationList');
-        listContainer.innerHTML = '<div style="padding: 2rem; text-align: center; color: var(--grigio-500);"><i class="fas fa-spinner fa-spin"></i> Caricamento...</div>';
+        listContainer.innerHTML = '<div style="padding:2rem;text-align:center;color:var(--grigio-500);"><i class="fas fa-spinner fa-spin"></i></div>';
 
-        const result = await NotificationService.getNotifications(10);
-
-        // 🔍 DEBUG: Log per vedere cosa viene restituito
-        console.log('📬 Notifiche caricate:', result);
+        const result = await NotificationService.getNotifications(5);
 
         if (result.success && result.notifications.length > 0) {
-            listContainer.innerHTML = result.notifications.map(notif => this.renderNotification(notif)).join('');
+            let html = result.notifications.map(notif => this._renderDropdownItem(notif)).join('');
+            // Link "Vedi tutte"
+            html += `
+                <div onclick="document.getElementById('notificationDropdown').classList.add('hidden'); UI.showPage('centro-notifiche');"
+                     style="padding:12px 16px;text-align:center;cursor:pointer;background:var(--grigio-100);border-top:1px solid var(--grigio-300);font-size:0.875rem;font-weight:600;color:var(--blu-700);font-family:Titillium Web,sans-serif;transition:background .2s;"
+                     onmouseover="this.style.background='var(--blu-100)'" onmouseout="this.style.background='var(--grigio-100)'">
+                    <i class="fas fa-archive"></i> Vedi tutte le notifiche
+                </div>
+            `;
+            listContainer.innerHTML = html;
         } else {
-            // 🔍 DEBUG: Log se non ci sono notifiche
-            console.log('⚠️ Nessuna notifica trovata. Success:', result.success, 'Count:', result.notifications?.length);
             listContainer.innerHTML = `
-                <div style="padding: 3rem 2rem; text-align: center; color: var(--grigio-500);">
-                    <i class="fas fa-bell-slash" style="font-size: 3rem; margin-bottom: 1rem; opacity: 0.3;"></i>
-                    <p>Nessuna notifica</p>
+                <div style="padding:3rem 2rem;text-align:center;color:var(--grigio-500);">
+                    <i class="fas fa-bell-slash" style="font-size:2.5rem;margin-bottom:1rem;opacity:0.3;"></i>
+                    <p style="margin:0;">Nessuna notifica</p>
+                </div>
+                <div onclick="document.getElementById('notificationDropdown').classList.add('hidden'); UI.showPage('centro-notifiche');"
+                     style="padding:12px 16px;text-align:center;cursor:pointer;background:var(--grigio-100);border-top:1px solid var(--grigio-300);font-size:0.875rem;font-weight:600;color:var(--blu-700);font-family:Titillium Web,sans-serif;"
+                     onmouseover="this.style.background='var(--blu-100)'" onmouseout="this.style.background='var(--grigio-100)'">
+                    <i class="fas fa-archive"></i> Archivio notifiche
                 </div>
             `;
         }
     },
 
-    renderNotification(notif) {
+    _renderDropdownItem(notif) {
         const icon = NotificationService.getNotificationIcon(notif.type);
         const color = NotificationService.getNotificationColor(notif.type);
         const timeAgo = NotificationService.formatTimeAgo(notif.createdAt);
+        const bg = notif.read ? '#fff' : 'var(--blu-100)';
 
         return `
-            <div class="notification-item" onclick="NotificationUI.handleNotificationClick('${notif.id}', '${notif.taskId}')"
-                 style="padding: 1rem; border-bottom: 1px solid var(--grigio-200); cursor: pointer; background: ${notif.read ? 'white' : 'var(--blu-100)'}; transition: background 0.2s;"
-                 onmouseover="this.style.background='var(--grigio-100)'" onmouseout="this.style.background='${notif.read ? 'white' : 'var(--blu-100)'}'">
-                <div style="display: flex; gap: 1rem; align-items: start;">
-                    <div style="width: 40px; height: 40px; border-radius: 50%; background: ${color}; display: flex; align-items: center; justify-content: center; color: white; flex-shrink: 0;">
+            <div onclick="NotificationUI.handleNotificationClick('${notif.id}', '${notif.taskId}')"
+                 style="padding:10px 14px;border-bottom:1px solid var(--grigio-200);cursor:pointer;background:${bg};transition:background .2s;"
+                 onmouseover="this.style.background='var(--grigio-100)'" onmouseout="this.style.background='${bg}'">
+                <div style="display:flex;gap:10px;align-items:start;">
+                    <div style="width:34px;height:34px;border-radius:50%;background:${color};display:flex;align-items:center;justify-content:center;color:#fff;flex-shrink:0;font-size:0.8rem;">
                         <i class="fas ${icon}"></i>
                     </div>
-                    <div style="flex: 1; min-width: 0;">
-                        <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.25rem;">
-                            <strong style="font-size: 0.9375rem; color: var(--grigio-900);">${notif.title}</strong>
-                            ${!notif.read ? '<span style="width: 8px; height: 8px; background: var(--blu-700); border-radius: 50%; flex-shrink: 0;"></span>' : ''}
+                    <div style="flex:1;min-width:0;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+                            <strong style="font-size:0.875rem;color:var(--grigio-900);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${notif.title}</strong>
+                            ${!notif.read ? '<span style="width:8px;height:8px;background:var(--blu-700);border-radius:50%;flex-shrink:0;"></span>' : ''}
                         </div>
-                        <p style="font-size: 0.875rem; color: var(--grigio-700); margin: 0 0 0.5rem 0; line-height: 1.4;">
-                            ${notif.message}
-                        </p>
-                        <span style="font-size: 0.75rem; color: var(--grigio-500);">
-                            <i class="fas fa-clock"></i> ${timeAgo}
-                        </span>
+                        <p style="font-size:0.8125rem;color:var(--grigio-700);margin:2px 0 4px;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">${notif.message}</p>
+                        <span style="font-size:0.6875rem;color:var(--grigio-500);"><i class="fas fa-clock"></i> ${timeAgo}</span>
                     </div>
                 </div>
             </div>
@@ -447,17 +536,11 @@ const NotificationUI = {
     },
 
     async handleNotificationClick(notificationId, taskId) {
-        // Segna come letta
         await NotificationService.markAsRead(notificationId);
-
-        // Chiudi dropdown
         document.getElementById('notificationDropdown').classList.add('hidden');
 
-        // Naviga al task e aprilo
-        if (taskId && taskId !== 'null') {
+        if (taskId && taskId !== 'null' && taskId !== 'undefined') {
             UI.showPage('task');
-
-            // Attendi che la pagina sia caricata, poi apri il dettaglio
             setTimeout(() => {
                 if (window.GestioneTask && typeof GestioneTask.viewTaskDetails === 'function') {
                     GestioneTask.viewTaskDetails(taskId);
@@ -465,7 +548,6 @@ const NotificationUI = {
             }, 500);
         }
 
-        // Ricarica badge
         this.updateBadge();
     },
 
@@ -473,16 +555,19 @@ const NotificationUI = {
         const result = await NotificationService.markAllAsRead();
         if (result.success) {
             UI.showSuccess(`${result.count} notifiche segnate come lette`);
-            await this.loadNotifications();
+            // Ricarica dropdown se aperto
+            const dropdown = document.getElementById('notificationDropdown');
+            if (dropdown && !dropdown.classList.contains('hidden')) {
+                await this.loadDropdownNotifications();
+            }
             this.updateBadge();
         }
     },
 
     startUnreadListener() {
         if (this.unreadListener) {
-            this.unreadListener(); // Stoppa listener precedente
+            this.unreadListener();
         }
-
         this.unreadListener = NotificationService.startUnreadListener((count) => {
             this.updateBadgeCount(count);
         });

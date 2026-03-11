@@ -302,7 +302,8 @@ const AuthService = {
             'report-app': ['*', 'view_all_data', 'view_apps', 'manage_apps', 'manage_app_content'],
             'push-broadcast': ['*', 'view_all_data', 'manage_apps'],
             'aggiorna-push': ['*', 'view_all_data', 'manage_apps'],
-            'generatore-webapp': ['*', 'manage_webapp_templates']
+            'generatore-webapp': ['*', 'manage_webapp_templates'],
+            'centro-notifiche': ['*', 'view_all_data', 'view_own_data', 'manage_dev_tasks', 'view_dev_tasks', 'view_clients', 'manage_clients', 'view_apps', 'manage_apps']
         };
 
         const requiredPermissions = pagePermissions[pageName] || [];

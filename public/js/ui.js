@@ -110,6 +110,9 @@ const UI = {
             case 'promemoria':
                 Promemoria.render();
                 break;
+            case 'centro-notifiche':
+                CentroNotifiche.render();
+                break;
             case 'impostazioni':
                 Settings.render();
                 break;

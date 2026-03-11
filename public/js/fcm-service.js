@@ -155,12 +155,12 @@ const FCMService = {
         const body = payload.notification?.body || payload.data?.body || '';
         const data = payload.data || {};
 
-        // 1. Mostra toast in-app (usa il sistema UI esistente)
-        if (typeof UI !== 'undefined' && UI.showSuccess) {
-            UI.showSuccess(title + (body ? ': ' + body : ''));
+        // 1. Mostra toast popup nell'header (10 secondi)
+        if (typeof NotificationUI !== 'undefined' && NotificationUI.showToast) {
+            NotificationUI.showToast(title, body, data);
         }
 
-        // 2. Mostra anche notifica browser nativa (se la tab è visibile ma non focalizzata)
+        // 2. Mostra anche notifica browser nativa (se la tab non è focalizzata)
         if (document.visibilityState !== 'visible' || !document.hasFocus()) {
             try {
                 new Notification(title, {
@@ -174,9 +174,9 @@ const FCMService = {
             }
         }
 
-        // 3. Aggiorna il badge campanella
-        if (typeof UI !== 'undefined' && UI.loadSidebarBadges) {
-            UI.loadSidebarBadges();
+        // 3. Aggiorna il badge campanella e ricarica dropdown se aperto
+        if (typeof NotificationUI !== 'undefined') {
+            NotificationUI.updateBadge();
         }
     },
 
