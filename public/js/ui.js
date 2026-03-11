@@ -113,6 +113,18 @@ const UI = {
             case 'centro-notifiche':
                 CentroNotifiche.render();
                 break;
+            case 'messaggi':
+                // Apri il pannello chat invece di renderizzare una pagina
+                if (typeof MessagingUI !== 'undefined') {
+                    MessagingUI.openPanel();
+                }
+                // Torna alla pagina precedente nella navigazione
+                if (this._navStack.length > 0) {
+                    const prev = this._navStack.pop();
+                    this.currentPage = prev.page;
+                    this.currentPageId = prev.id;
+                }
+                break;
             case 'impostazioni':
                 Settings.render();
                 break;

@@ -177,6 +177,14 @@ const App = {
         // Inizializza sistema notifiche
         NotificationUI.init();
 
+        // Inizializza chat e presenza online
+        if (typeof MessagingService !== 'undefined') {
+            MessagingService.startPresence();
+        }
+        if (typeof MessagingUI !== 'undefined') {
+            MessagingUI.init();
+        }
+
         // Inizializza FCM (notifiche push)
         if (typeof FCMService !== 'undefined') {
             FCMService.init().then(() => {
@@ -260,6 +268,10 @@ const App = {
     },
 
     onUserLoggedOut() {
+        // Ferma presenza e chat
+        if (typeof MessagingService !== 'undefined') MessagingService.stopPresence();
+        if (typeof MessagingUI !== 'undefined') MessagingUI.cleanup();
+
         // Svuota cache dati
         if (typeof DataService !== 'undefined') DataService._cacheClear();
 
@@ -292,7 +304,7 @@ const App = {
         // Lista pagine valide (tutte le pagine del CRM)
         const validPages = [
             'dashboard', 'scadenzario', 'clienti', 'mappa', 'app', 'task',
-            'contratti', 'fatture', 'report', 'promemoria', 'impostazioni',
+            'contratti', 'fatture', 'report', 'promemoria', 'impostazioni', 'messaggi',
             'report-app', 'push-broadcast', 'aggiorna-push', 'monitor-rss', 'generatore-webapp',
             'dettaglio-cliente', 'dettaglio-contratto', 'dettaglio-app',
             'dettaglio-fattura', 'dettaglio-scadenza'
