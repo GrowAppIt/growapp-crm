@@ -180,12 +180,13 @@ const App = {
         // Inizializza FCM (notifiche push)
         if (typeof FCMService !== 'undefined') {
             FCMService.init().then(() => {
-                // Se il permesso non è ancora stato chiesto, lo chiediamo
+                // Se il permesso non è ancora stato chiesto, mostra banner
                 if (FCMService.getPermissionStatus() === 'default') {
-                    // Aspetta 3 secondi dopo il login per non essere invasivo
-                    setTimeout(() => {
-                        FCMService.requestPermission();
-                    }, 3000);
+                    // Non mostrare se dismissato meno di 7 giorni fa
+                    const dismissed = localStorage.getItem('fcm_banner_dismissed');
+                    if (!dismissed || (Date.now() - parseInt(dismissed)) > 7 * 24 * 60 * 60 * 1000) {
+                        this._showPushBanner();
+                    }
                 }
             }).catch(e => console.warn('FCM init error:', e));
         }
@@ -212,6 +213,50 @@ const App = {
         if (UI.currentPage) {
             history.replaceState({ page: UI.currentPage, id: UI.currentPageId }, '');
         }
+    },
+
+    /**
+     * Mostra un banner in alto per chiedere all'utente di attivare le notifiche push.
+     * Il permesso DEVE partire da un click dell'utente (requisito browser).
+     */
+    _showPushBanner() {
+        // Non mostrare se esiste già
+        if (document.getElementById('fcm-push-banner')) return;
+
+        const banner = document.createElement('div');
+        banner.id = 'fcm-push-banner';
+        banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:linear-gradient(135deg,#145284,#2E6DA8);color:#fff;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;font-family:Titillium Web,sans-serif;font-size:14px;box-shadow:0 2px 8px rgba(0,0,0,.25);';
+        banner.innerHTML = `
+            <div style="display:flex;align-items:center;gap:10px;flex:1">
+                <i class="fas fa-bell" style="font-size:20px"></i>
+                <span>Vuoi ricevere notifiche push per task e avvisi?</span>
+            </div>
+            <div style="display:flex;gap:8px">
+                <button id="fcm-btn-yes" style="background:#3CA434;color:#fff;border:none;padding:8px 18px;border-radius:6px;cursor:pointer;font-family:inherit;font-weight:600;font-size:13px;">Attiva</button>
+                <button id="fcm-btn-no" style="background:transparent;color:#fff;border:1px solid rgba(255,255,255,.4);padding:8px 14px;border-radius:6px;cursor:pointer;font-family:inherit;font-size:13px;">No grazie</button>
+            </div>
+        `;
+
+        document.body.appendChild(banner);
+
+        document.getElementById('fcm-btn-yes').addEventListener('click', async () => {
+            banner.innerHTML = '<div style="display:flex;align-items:center;gap:10px;padding:4px 0"><i class="fas fa-spinner fa-spin"></i> <span>Attivazione in corso...</span></div>';
+            const granted = await FCMService.requestPermission();
+            if (granted) {
+                banner.style.background = 'linear-gradient(135deg,#2A752F,#3CA434)';
+                banner.innerHTML = '<div style="display:flex;align-items:center;gap:10px;padding:4px 0"><i class="fas fa-check-circle"></i> <span>Notifiche push attivate!</span></div>';
+            } else {
+                banner.style.background = '#D32F2F';
+                banner.innerHTML = '<div style="display:flex;align-items:center;gap:10px;padding:4px 0"><i class="fas fa-times-circle"></i> <span>Permesso negato. Puoi attivarlo dalle impostazioni del browser.</span></div>';
+            }
+            setTimeout(() => banner.remove(), 3000);
+        });
+
+        document.getElementById('fcm-btn-no').addEventListener('click', () => {
+            banner.remove();
+            // Salva in localStorage per non chiedere di nuovo per 7 giorni
+            localStorage.setItem('fcm_banner_dismissed', Date.now().toString());
+        });
     },
 
     onUserLoggedOut() {
