@@ -29,8 +29,8 @@ const NotificationService = {
 
             await db.collection('notifications').add(notification);
 
-            // Invia anche notifica push FCM (se il destinatario non è l'utente corrente)
-            if (typeof FCMService !== 'undefined' && notificationData.userId !== AuthService.getUserId()) {
+            // Invia anche notifica push FCM
+            if (typeof FCMService !== 'undefined') {
                 FCMService.sendPushToUsers(
                     [notificationData.userId],
                     notificationData.title,
@@ -73,21 +73,18 @@ const NotificationService = {
 
             await batch.commit();
 
-            // Invia push FCM a tutti i destinatari (escluso utente corrente)
-            if (typeof FCMService !== 'undefined') {
-                const pushTargets = userIds.filter(id => id !== AuthService.getUserId());
-                if (pushTargets.length > 0) {
-                    FCMService.sendPushToUsers(
-                        pushTargets,
-                        notificationData.title,
-                        notificationData.message,
-                        {
-                            type: notificationData.type,
-                            taskId: notificationData.taskId || '',
-                            appId: notificationData.appId || ''
-                        }
-                    ).catch(e => console.warn('Push FCM batch fallita:', e));
-                }
+            // Invia push FCM a tutti i destinatari
+            if (typeof FCMService !== 'undefined' && userIds.length > 0) {
+                FCMService.sendPushToUsers(
+                    userIds,
+                    notificationData.title,
+                    notificationData.message,
+                    {
+                        type: notificationData.type,
+                        taskId: notificationData.taskId || '',
+                        appId: notificationData.appId || ''
+                    }
+                ).catch(e => console.warn('Push FCM batch fallita:', e));
             }
 
             return { success: true };
