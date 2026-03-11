@@ -590,16 +590,29 @@ const NotificationUI = {
 
                 snapshot.docChanges().forEach(change => {
                     if (change.type === 'added') {
-                        const data = change.doc.data();
-                        this.showToast(
-                            data.title || 'Nuova notifica',
-                            data.message || '',
-                            {
-                                type: data.type || '',
-                                taskId: data.taskId || '',
-                                appId: data.appId || ''
-                            }
-                        );
+                        const notifData = change.doc.data();
+                        const title = notifData.title || 'Nuova notifica';
+                        const body = notifData.message || '';
+                        const extra = {
+                            type: notifData.type || '',
+                            taskId: notifData.taskId || '',
+                            appId: notifData.appId || ''
+                        };
+
+                        // Toast in-app
+                        this.showToast(title, body, extra);
+
+                        // Notifica nativa Chrome
+                        if (Notification.permission === 'granted') {
+                            try {
+                                new Notification(title, {
+                                    body: body,
+                                    icon: '/img/icon-192.png',
+                                    tag: 'crm-' + change.doc.id,
+                                    data: extra
+                                });
+                            } catch (e) { /* ignora */ }
+                        }
                     }
                 });
             }, error => {
