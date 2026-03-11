@@ -177,6 +177,19 @@ const App = {
         // Inizializza sistema notifiche
         NotificationUI.init();
 
+        // Inizializza FCM (notifiche push)
+        if (typeof FCMService !== 'undefined') {
+            FCMService.init().then(() => {
+                // Se il permesso non è ancora stato chiesto, lo chiediamo
+                if (FCMService.getPermissionStatus() === 'default') {
+                    // Aspetta 3 secondi dopo il login per non essere invasivo
+                    setTimeout(() => {
+                        FCMService.requestPermission();
+                    }, 3000);
+                }
+            }).catch(e => console.warn('FCM init error:', e));
+        }
+
         // Verifica task in scadenza (notifiche automatiche)
         TaskService.checkAndNotifyDueTasks();
 

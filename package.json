@@ -1,6 +1,6 @@
 {
   "name": "crm-comune-digital",
-  "version": "3.0.4",
+  "version": "3.1.0",
   "description": "Sistema di gestione completo per amministrare clienti, contratti, app e fatture dei Comuni",
   "main": "index.html",
   "scripts": {
@@ -29,5 +29,7 @@
     "node": ">=14.0.0"
   },
   "devDependencies": {},
-  "dependencies": {}
+  "dependencies": {
+    "firebase-admin": "^12.0.0"
+  }
 }

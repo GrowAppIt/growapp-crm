@@ -28,6 +28,21 @@ const NotificationService = {
             };
 
             await db.collection('notifications').add(notification);
+
+            // Invia anche notifica push FCM (se il destinatario non è l'utente corrente)
+            if (typeof FCMService !== 'undefined' && notificationData.userId !== AuthService.getUserId()) {
+                FCMService.sendPushToUsers(
+                    [notificationData.userId],
+                    notificationData.title,
+                    notificationData.message,
+                    {
+                        type: notificationData.type,
+                        taskId: notificationData.taskId || '',
+                        appId: notificationData.appId || ''
+                    }
+                ).catch(e => console.warn('Push FCM fallita:', e));
+            }
+
             return { success: true };
         } catch (error) {
             console.error('Errore creazione notifica:', error);
@@ -57,6 +72,24 @@ const NotificationService = {
             });
 
             await batch.commit();
+
+            // Invia push FCM a tutti i destinatari (escluso utente corrente)
+            if (typeof FCMService !== 'undefined') {
+                const pushTargets = userIds.filter(id => id !== AuthService.getUserId());
+                if (pushTargets.length > 0) {
+                    FCMService.sendPushToUsers(
+                        pushTargets,
+                        notificationData.title,
+                        notificationData.message,
+                        {
+                            type: notificationData.type,
+                            taskId: notificationData.taskId || '',
+                            appId: notificationData.appId || ''
+                        }
+                    ).catch(e => console.warn('Push FCM batch fallita:', e));
+                }
+            }
+
             return { success: true };
         } catch (error) {
             console.error('Errore creazione notifiche batch:', error);
