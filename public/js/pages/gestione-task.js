@@ -285,118 +285,90 @@ const GestioneTask = {
             })
             : ['Task generico'];
 
+        // Nomi assegnati
+        const assegnati = task.assegnatiANomi || (task.assegnatoANome ? [task.assegnatoANome] : []);
+        const commentsCount = this.commentsCounts[task.id] || 0;
+
         return `
-            <div class="task-card" style="background: white; border-radius: 8px; padding: 1rem; margin-bottom: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border-left: 4px solid ${priorityConfig.bg}; cursor: pointer;"
-                 onclick="GestioneTask.viewTaskDetails('${task.id}')">
+            <div class="task-card" style="background: white; border-radius: 10px; padding: 0; margin-bottom: 0.75rem; box-shadow: 0 1px 4px rgba(0,0,0,0.08); border-left: 4px solid ${priorityConfig.bg}; cursor: pointer; overflow: hidden; transition: box-shadow 0.2s;"
+                 onclick="GestioneTask.viewTaskDetails('${task.id}')"
+                 onmouseover="this.style.boxShadow='0 3px 12px rgba(0,0,0,0.14)'"
+                 onmouseout="this.style.boxShadow='0 1px 4px rgba(0,0,0,0.08)'">
 
-                <!-- Titolo e Priorità -->
-                <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.75rem;">
-                    <h4 style="font-size: 1rem; font-weight: 700; color: var(--grigio-900); flex: 1; margin-right: 0.5rem;">
-                        ${task.titolo}
-                    </h4>
-                    <span style="background: ${priorityConfig.bg}; color: ${priorityConfig.text}; padding: 0.125rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600; white-space: nowrap;">
-                        ${task.priorita}
-                    </span>
-                </div>
-
-                <!-- App collegate -->
-                <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.75rem;">
-                    ${appNames.map(nome => `
-                        <span style="
-                            background: var(--blu-700);
-                            color: white;
-                            padding: 0.375rem 0.75rem;
-                            border-radius: 6px;
-                            font-size: 0.875rem;
-                            font-weight: 600;
-                            box-shadow: 0 2px 4px rgba(20, 82, 132, 0.2);
-                        ">
-                            <i class="fas fa-mobile-alt"></i> ${nome}
+                <!-- Contenuto principale -->
+                <div style="padding: 0.875rem 1rem 0.75rem;">
+                    <!-- Riga 1: Titolo + Priorità -->
+                    <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.5rem;">
+                        <h4 style="font-size: 0.9375rem; font-weight: 700; color: var(--grigio-900); flex: 1; margin-right: 0.5rem; line-height: 1.3;">
+                            ${task.titolo}
+                        </h4>
+                        <span style="background: ${priorityConfig.bg}; color: ${priorityConfig.text}; padding: 2px 8px; border-radius: 4px; font-size: 0.6875rem; font-weight: 700; white-space: nowrap; text-transform: uppercase; letter-spacing: 0.3px;">
+                            ${task.priorita}
                         </span>
-                    `).join('')}
-                </div>
+                    </div>
 
-                <!-- Descrizione -->
-                ${task.descrizione ? `
-                    <p style="color: var(--grigio-600); font-size: 0.875rem; margin-bottom: 0.75rem; line-height: 1.4;">
-                        ${task.descrizione.substring(0, 100)}${task.descrizione.length > 100 ? '...' : ''}
-                    </p>
-                ` : ''}
+                    <!-- Riga 2: App -->
+                    <div style="display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 0.625rem;">
+                        ${appNames.map(nome => `
+                            <span style="background: var(--blu-100); color: var(--blu-700); padding: 3px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">
+                                <i class="fas fa-mobile-alt" style="font-size: 0.625rem;"></i> ${nome}
+                            </span>
+                        `).join('')}
+                    </div>
 
-                <!-- Info -->
-                <div style="display: flex; flex-direction: column; gap: 0.5rem; font-size: 0.875rem; color: var(--grigio-600); margin-bottom: 0.75rem;">
-                    ${(() => {
-                        // Gestione assegnazione multipla (retrocompatibile)
-                        const assegnati = task.assegnatiANomi || (task.assegnatoANome ? [task.assegnatoANome] : []);
-                        if (assegnati.length > 0) {
-                            return `
-                                <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+                    <!-- Riga 3: Descrizione -->
+                    ${task.descrizione ? `
+                        <p style="color: var(--grigio-600); font-size: 0.8125rem; margin-bottom: 0.625rem; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
+                            ${task.descrizione}
+                        </p>
+                    ` : ''}
+
+                    <!-- Riga 4: Aperto da / Assegnato a -->
+                    <div style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 0.625rem;">
+                        <!-- Aperto da -->
+                        <div style="display: flex; align-items: center; gap: 6px; font-size: 0.8125rem;">
+                            <span style="color: var(--grigio-500); min-width: 70px; font-weight: 600;">
+                                <i class="fas fa-user-edit" style="width: 14px;"></i> Aperto da
+                            </span>
+                            <span style="color: var(--grigio-800); font-weight: 600;">${task.creatoDaNome || 'Sconosciuto'}</span>
+                        </div>
+                        <!-- Assegnato a -->
+                        <div style="display: flex; align-items: center; gap: 6px; font-size: 0.8125rem;">
+                            <span style="color: var(--grigio-500); min-width: 70px; font-weight: 600;">
+                                <i class="fas fa-user-check" style="width: 14px;"></i> Assegnato
+                            </span>
+                            ${assegnati.length > 0 ? `
+                                <div style="display: flex; flex-wrap: wrap; gap: 4px;">
                                     ${assegnati.map(nome => `
-                                        <span style="
-                                            background: var(--verde-700);
-                                            color: white;
-                                            padding: 0.375rem 0.75rem;
-                                            border-radius: 6px;
-                                            font-size: 0.875rem;
-                                            font-weight: 600;
-                                            box-shadow: 0 2px 4px rgba(60, 164, 52, 0.2);
-                                        ">
-                                            <i class="fas fa-user"></i> ${nome}
+                                        <span style="background: var(--verde-100); color: var(--verde-900); padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">
+                                            ${nome}
                                         </span>
                                     `).join('')}
                                 </div>
-                            `;
-                        } else {
-                            return `
-                                <div style="display: flex; align-items: center; gap: 0.5rem;">
-                                    <span style="
-                                        background: var(--giallo-avviso);
-                                        color: var(--grigio-900);
-                                        padding: 0.375rem 0.75rem;
-                                        border-radius: 6px;
-                                        font-size: 0.875rem;
-                                        font-weight: 600;
-                                        box-shadow: 0 2px 4px rgba(255, 204, 0, 0.2);
-                                    ">
-                                        <i class="fas fa-user-slash"></i> Non assegnato (pool)
-                                    </span>
-                                </div>
-                            `;
-                        }
-                    })()}
-                    ${task.scadenza ? `
-                        <div style="display: flex; align-items: center; gap: 0.5rem; ${isOverdue ? 'color: var(--rosso-errore);' : isDueSoon ? 'color: var(--giallo-avviso);' : ''}">
-                            <i class="fas fa-calendar" style="width: 14px;"></i>
-                            <span>${TaskService.formatDate(task.scadenza)}</span>
-                            ${isOverdue ? '<i class="fas fa-exclamation-triangle"></i>' : ''}
+                            ` : `
+                                <span style="background: var(--giallo-avviso); color: var(--grigio-900); padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">
+                                    <i class="fas fa-user-slash" style="font-size: 0.625rem;"></i> Pool
+                                </span>
+                            `}
                         </div>
-                    ` : ''}
-                    <div style="display: flex; align-items: center; gap: 0.5rem;">
-                        <i class="fas fa-clock" style="width: 14px;"></i>
-                        <span>Creato ${TaskService.formatDate(task.creatoIl)}</span>
                     </div>
 
-                    <!-- Badge Commenti -->
-                    ${(() => {
-                        const count = this.commentsCounts[task.id] || 0;
-                        return `
-                            <div style="display: flex; align-items: center; gap: 0.5rem;">
-                                <span style="
-                                    background: var(--verde-700);
-                                    color: white;
-                                    padding: 0.25rem 0.5rem;
-                                    border-radius: 4px;
-                                    font-size: 0.8125rem;
-                                    font-weight: 600;
-                                    display: inline-flex;
-                                    align-items: center;
-                                    gap: 0.375rem;
-                                ">
-                                    <i class="fas fa-comments"></i> ${count} ${count === 1 ? 'commento' : 'commenti'}
+                    <!-- Riga 5: Date + Commenti -->
+                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px; font-size: 0.75rem; color: var(--grigio-500);">
+                        <div style="display: flex; gap: 10px; align-items: center;">
+                            ${task.scadenza ? `
+                                <span style="${isOverdue ? 'color:var(--rosso-errore);font-weight:700;' : isDueSoon ? 'color:var(--giallo-avviso);font-weight:700;' : ''}">
+                                    <i class="fas fa-calendar-alt"></i> ${TaskService.formatDate(task.scadenza)}
+                                    ${isOverdue ? ' <i class="fas fa-exclamation-triangle"></i>' : ''}
                                 </span>
-                            </div>
-                        `;
-                    })()}
+                            ` : ''}
+                            <span><i class="fas fa-clock"></i> ${TaskService.formatDate(task.creatoIl)}</span>
+                        </div>
+                        <span style="display: inline-flex; align-items: center; gap: 4px; background: ${commentsCount > 0 ? 'var(--blu-100)' : 'var(--grigio-100)'}; color: ${commentsCount > 0 ? 'var(--blu-700)' : 'var(--grigio-500)'}; padding: 3px 8px; border-radius: 4px; font-weight: 600; cursor: pointer;"
+                              onclick="event.stopPropagation(); GestioneTask.viewTaskDetails('${task.id}'); setTimeout(() => GestioneTask.scrollToCommenti('${task.id}'), 600);">
+                            <i class="fas fa-comments"></i> ${commentsCount}${commentsCount > 0 ? ' — Rispondi' : ' — Discuti'}
+                        </span>
+                    </div>
                 </div>
 
                 <!-- Azioni -->
@@ -408,20 +380,6 @@ const GestioneTask = {
     renderTaskActions(task, currentStato) {
         const canManage = AuthService.hasPermission('manage_dev_tasks');
         const canView = AuthService.hasPermission('view_dev_tasks');
-
-        // 🔍 DEBUG: Log permessi per diagnosi
-        if (!this._permDebugLogged) {
-            const ruolo = AuthService.getUserRole();
-            console.log('🔑 DEBUG PERMESSI TASK:', {
-                ruolo: ruolo,
-                canManage: canManage,
-                canView: canView,
-                userId: AuthService.getUserId(),
-                userName: AuthService.getUserName(),
-                currentUserData: AuthService.getCurrentUserData()
-            });
-            this._permDebugLogged = true;
-        }
 
         // Tutti gli utenti autenticati possono almeno vedere i pulsanti base
         let actions = [];
@@ -523,9 +481,9 @@ const GestioneTask = {
                 display: grid;
                 grid-template-columns: repeat(auto-fit, minmax(min(140px, 100%), 1fr));
                 gap: 0.5rem;
-                padding-top: 0.75rem;
-                border-top: 2px solid var(--grigio-200);
-                margin-top: 0.75rem;
+                padding: 0.75rem 1rem;
+                border-top: 1px solid var(--grigio-300);
+                background: var(--grigio-100);
             ">
                 ${actions.join('')}
             </div>
@@ -1066,36 +1024,38 @@ const GestioneTask = {
                             </div>
                         ` : ''}
 
-                        <!-- 💬 SEZIONE COMMENTI/DISCUSSIONI -->
-                        <div id="commentiSection" style="margin-top: 1.5rem; border-top: 2px solid var(--grigio-300); padding-top: 1rem;">
-                            <!-- Header espandibile -->
+                        <!-- 💬 SEZIONE DISCUSSIONE -->
+                        <div id="commentiSection" style="margin-top: 1.5rem; border-top: 2px solid var(--blu-300); padding-top: 1.25rem;">
+                            <!-- Header con toggle -->
                             <div onclick="GestioneTask.toggleCommenti('${task.id}')"
-                                 style="display: flex; justify-content: space-between; align-items: center; cursor: pointer; padding: 0.75rem; background: var(--grigio-100); border-radius: 8px; margin-bottom: 1rem;">
-                                <h3 style="font-size: 1.125rem; font-weight: 700; color: var(--blu-700); margin: 0;">
+                                 style="display: flex; justify-content: space-between; align-items: center; cursor: pointer; padding: 0.75rem 1rem; background: var(--blu-700); border-radius: 8px; margin-bottom: 1rem;">
+                                <h3 style="font-size: 1rem; font-weight: 700; color: #fff; margin: 0; display: flex; align-items: center; gap: 8px;">
                                     <i class="fas fa-comments"></i> Discussione
-                                    <span id="commentiCount" style="background: var(--blu-700); color: white; padding: 0.125rem 0.5rem; border-radius: 12px; font-size: 0.875rem; margin-left: 0.5rem;">
+                                    <span id="commentiCount" style="background: rgba(255,255,255,0.25); color: #fff; padding: 2px 10px; border-radius: 12px; font-size: 0.8125rem;">
                                         ...
                                     </span>
                                 </h3>
-                                <i id="commentiToggleIcon" class="fas fa-chevron-down" style="color: var(--blu-700); transition: transform 0.3s;"></i>
+                                <i id="commentiToggleIcon" class="fas fa-chevron-up" style="color: #fff; transition: transform 0.3s;"></i>
                             </div>
 
-                            <!-- Contenuto commenti (inizialmente nascosto) -->
-                            <div id="commentiContent" style="display: none;">
+                            <!-- Contenuto commenti (visibile di default) -->
+                            <div id="commentiContent" style="display: block;">
                                 <!-- Lista commenti -->
-                                <div id="commentiList" style="margin-bottom: 1rem;">
+                                <div id="commentiList" style="margin-bottom: 1rem; max-height: 400px; overflow-y: auto;">
                                     <div style="text-align: center; padding: 2rem; color: var(--grigio-500);">
-                                        <i class="fas fa-spinner fa-spin" style="font-size: 2rem;"></i>
-                                        <p style="margin-top: 0.5rem;">Caricamento commenti...</p>
+                                        <i class="fas fa-spinner fa-spin" style="font-size: 1.5rem;"></i>
+                                        <p style="margin-top: 0.5rem; font-size: 0.875rem;">Caricamento...</p>
                                     </div>
                                 </div>
 
-                                <!-- Form nuovo commento -->
-                                <div style="background: var(--grigio-100); padding: 1rem; border-radius: 8px;">
+                                <!-- Form nuovo commento — stile chat -->
+                                <div style="background: var(--grigio-100); padding: 0.875rem; border-radius: 10px; border: 1px solid var(--grigio-300);">
                                     <textarea
                                         id="nuovoCommentoText"
-                                        placeholder="Scrivi un commento..."
-                                        style="width: 100%; min-height: 80px; padding: 0.75rem; border: 2px solid var(--grigio-300); border-radius: 6px; font-family: inherit; resize: vertical; margin-bottom: 0.75rem;"
+                                        placeholder="Scrivi un messaggio nella discussione..."
+                                        style="width: 100%; min-height: 60px; padding: 0.625rem 0.75rem; border: 2px solid var(--grigio-300); border-radius: 8px; font-family: 'Titillium Web', sans-serif; font-size: 0.875rem; resize: vertical; margin-bottom: 0.5rem; transition: border-color 0.2s;"
+                                        onfocus="this.style.borderColor='var(--blu-500)'"
+                                        onblur="this.style.borderColor='var(--grigio-300)'"
                                     ></textarea>
 
                                     <!-- Anteprima allegati selezionati -->
@@ -1147,8 +1107,11 @@ const GestioneTask = {
 
         document.body.insertAdjacentHTML('beforeend', modalHtml);
 
-        // Carica conteggio commenti per il badge
+        // Carica conteggio commenti per il badge e i commenti stessi (sezione aperta di default)
         this.loadCommentiCount(taskId);
+        this.commentiAperti = true;
+        this.commentiCaricati = false;
+        this.loadCommenti(taskId);
 
         // Chiudi cliccando fuori
         document.getElementById('taskDetailModal').addEventListener('click', (e) => {
@@ -1458,20 +1421,25 @@ const GestioneTask = {
         this.commentiAperti = !this.commentiAperti;
 
         if (this.commentiAperti) {
-            // Espandi
             content.style.display = 'block';
-            icon.style.transform = 'rotate(180deg)';
+            icon.style.transform = 'rotate(0deg)';
 
-            // Carica commenti se non già caricati
             if (!this.commentiCaricati) {
-                await this.caricaCommenti(taskId);
-                this.commentiCaricati = true;
+                await this.loadCommenti(taskId);
             }
         } else {
-            // Comprimi
             content.style.display = 'none';
-            icon.style.transform = 'rotate(0deg)';
+            icon.style.transform = 'rotate(180deg)';
         }
+    },
+
+    /**
+     * Carica commenti — wrapper per garantire caricamento unico
+     */
+    async loadCommenti(taskId) {
+        if (this.commentiCaricati) return;
+        this.commentiCaricati = true;
+        await this.caricaCommenti(taskId);
     },
 
     /**
@@ -1526,12 +1494,19 @@ const GestioneTask = {
             return;
         }
 
-        // Renderizza commenti
+        // Renderizza commenti — stile chat con avatar iniziali
         const utenteCorrente = AuthService.getUtenteCorrente();
 
         commentiList.innerHTML = commenti.map(commento => {
             const isAutore = utenteCorrente && commento.autoreId === utenteCorrente.uid;
             const allegati = commento.allegati || [];
+
+            // Avatar con iniziali
+            const nomeParti = (commento.autoreNome || '?').split(' ');
+            const iniziali = nomeParti.length >= 2
+                ? (nomeParti[0][0] + nomeParti[nomeParti.length - 1][0]).toUpperCase()
+                : (nomeParti[0][0] || '?').toUpperCase();
+            const avatarColor = isAutore ? 'var(--verde-700)' : 'var(--blu-700)';
 
             // Renderizza allegati
             let allegatiHtml = '';
@@ -1539,9 +1514,8 @@ const GestioneTask = {
                 const immagini = allegati.filter(a => CommentService.isImmagine(a.tipo));
                 const documenti = allegati.filter(a => !CommentService.isImmagine(a.tipo));
 
-                allegatiHtml = '<div style="margin-top: 0.75rem;">';
+                allegatiHtml = '<div style="margin-top: 0.5rem;">';
 
-                // Griglia anteprime immagini
                 if (immagini.length > 0) {
                     allegatiHtml += `
                         <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.5rem;">
@@ -1557,18 +1531,16 @@ const GestioneTask = {
                     `;
                 }
 
-                // Link documenti non-immagine
                 if (documenti.length > 0) {
                     allegatiHtml += documenti.map(doc => {
                         const icon = doc.tipo === 'application/pdf' ? 'fa-file-pdf' : 'fa-file-word';
                         const color = doc.tipo === 'application/pdf' ? '#D32F2F' : 'var(--blu-700)';
                         return `
-                            <a href="${doc.url}" target="_blank" style="display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.75rem; background: white; border: 1px solid var(--grigio-300); border-radius: 6px; font-size: 0.8125rem; color: var(--grigio-900); text-decoration: none; margin-right: 0.5rem; margin-bottom: 0.25rem; transition: border-color 0.2s;"
+                            <a href="${doc.url}" target="_blank" style="display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.375rem 0.625rem; background: white; border: 1px solid var(--grigio-300); border-radius: 6px; font-size: 0.8125rem; color: var(--grigio-900); text-decoration: none; margin-right: 0.5rem; margin-bottom: 0.25rem; transition: border-color 0.2s;"
                                onmouseover="this.style.borderColor='var(--blu-500)'" onmouseout="this.style.borderColor='var(--grigio-300)'">
-                                <i class="fas ${icon}" style="color: ${color}; font-size: 1.25rem;"></i>
-                                <span style="max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${doc.nome}</span>
+                                <i class="fas ${icon}" style="color: ${color}; font-size: 1.125rem;"></i>
+                                <span style="max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${doc.nome}</span>
                                 <span style="color: var(--grigio-500); font-size: 0.75rem;">${CommentService.formatDimensione(doc.dimensione)}</span>
-                                <i class="fas fa-external-link-alt" style="color: var(--grigio-500); font-size: 0.625rem;"></i>
                             </a>
                         `;
                     }).join('');
@@ -1578,42 +1550,43 @@ const GestioneTask = {
             }
 
             return `
-                <div style="
-                    background: ${isAutore ? 'var(--verde-100)' : 'white'};
-                    border-left: 4px solid ${isAutore ? 'var(--verde-700)' : 'var(--blu-700)'};
-                    padding: 1rem;
-                    border-radius: 6px;
-                    margin-bottom: 1rem;
-                    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-                ">
-                    <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.5rem;">
-                        <div>
-                            <strong style="color: var(--grigio-900); font-size: 0.9375rem;">
-                                <i class="fas fa-user-circle" style="color: ${isAutore ? 'var(--verde-700)' : 'var(--blu-700)'};"></i>
-                                ${commento.autoreNome}
-                                ${isAutore ? '<span style="background: var(--verde-700); color: white; padding: 0.125rem 0.5rem; border-radius: 4px; font-size: 0.75rem; margin-left: 0.5rem;">Tu</span>' : ''}
-                            </strong>
-                            <div style="color: var(--grigio-600); font-size: 0.8125rem; margin-top: 0.25rem;">
-                                <i class="fas fa-clock"></i> ${CommentService.formatDataCommento(commento.creatoIl)}
-                                ${commento.modificato ? '<span style="font-style: italic;"> (modificato)</span>' : ''}
-                                ${allegati.length > 0 ? `<span style="margin-left: 0.5rem; color: var(--blu-700);"><i class="fas fa-paperclip"></i> ${allegati.length} allegat${allegati.length === 1 ? 'o' : 'i'}</span>` : ''}
+                <div style="display: flex; gap: 10px; margin-bottom: 1rem; ${isAutore ? 'flex-direction: row-reverse;' : ''}">
+                    <!-- Avatar -->
+                    <div style="width: 36px; height: 36px; border-radius: 50%; background: ${avatarColor}; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 0.8125rem; font-weight: 700; flex-shrink: 0; font-family: Titillium Web, sans-serif;">
+                        ${iniziali}
+                    </div>
+                    <!-- Bolla messaggio -->
+                    <div style="flex: 1; max-width: 85%; background: ${isAutore ? 'var(--verde-100)' : 'var(--blu-100)'}; border-radius: ${isAutore ? '12px 2px 12px 12px' : '2px 12px 12px 12px'}; padding: 0.75rem 1rem; position: relative;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.375rem;">
+                            <div style="display: flex; align-items: center; gap: 6px;">
+                                <strong style="color: ${avatarColor}; font-size: 0.8125rem; font-family: Titillium Web, sans-serif;">
+                                    ${commento.autoreNome}
+                                </strong>
+                                ${isAutore ? '<span style="background: var(--verde-700); color: white; padding: 1px 6px; border-radius: 3px; font-size: 0.6875rem; font-weight: 600;">Tu</span>' : ''}
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 6px;">
+                                <span style="color: var(--grigio-500); font-size: 0.75rem;">
+                                    ${CommentService.formatDataCommento(commento.creatoIl)}
+                                    ${commento.modificato ? ' <i style="font-style: italic;">(mod)</i>' : ''}
+                                </span>
+                                ${isAutore ? `
+                                    <button onclick="GestioneTask.eliminaCommento('${commento.id}', '${taskId}')"
+                                        style="background: none; border: none; color: var(--grigio-400); cursor: pointer; padding: 2px 4px; font-size: 0.75rem; border-radius: 4px; transition: all 0.2s;"
+                                        onmouseover="this.style.color='var(--rosso-errore)'" onmouseout="this.style.color='var(--grigio-400)'"
+                                        title="Elimina">
+                                        <i class="fas fa-trash-alt"></i>
+                                    </button>
+                                ` : ''}
                             </div>
                         </div>
-                        ${isAutore ? `
-                            <button
-                                onclick="GestioneTask.eliminaCommento('${commento.id}', '${taskId}')"
-                                style="background: none; border: none; color: var(--rosso-errore); cursor: pointer; padding: 0.25rem 0.5rem; font-size: 0.875rem;"
-                                title="Elimina commento">
-                                <i class="fas fa-trash"></i>
-                            </button>
+                        ${commento.testo ? `
+                            <p style="color: var(--grigio-900); line-height: 1.5; white-space: pre-wrap; margin: 0; font-size: 0.875rem;">
+                                ${commento.testo}
+                            </p>
                         ` : ''}
+                        ${allegati.length > 0 ? `<div style="margin-top: 4px; font-size: 0.75rem; color: var(--blu-700);"><i class="fas fa-paperclip"></i> ${allegati.length} allegat${allegati.length === 1 ? 'o' : 'i'}</div>` : ''}
+                        ${allegatiHtml}
                     </div>
-                    ${commento.testo ? `
-                        <p style="color: var(--grigio-900); line-height: 1.6; white-space: pre-wrap; margin: 0;">
-                            ${commento.testo}
-                        </p>
-                    ` : ''}
-                    ${allegatiHtml}
                 </div>
             `;
         }).join('');
