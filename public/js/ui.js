@@ -123,13 +123,11 @@ const UI = {
                     const prev = this._navStack.pop();
                     this.currentPage = prev.page;
                     this.currentPageId = prev.id;
-                    // Ri-renderizza la pagina precedente per togliere lo spinner
-                    this.navigateTo(prev.page, prev.id);
+                    this.showPage(prev.page, prev.id);
                 } else {
-                    // Fallback: vai alla dashboard
-                    this.navigateTo('dashboard');
+                    this.showPage('dashboard');
                 }
-                return; // Esce senza proseguire
+                return;
             case 'impostazioni':
                 Settings.render();
                 break;
