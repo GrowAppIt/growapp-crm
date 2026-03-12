@@ -118,13 +118,18 @@ const UI = {
                 if (typeof MessagingUI !== 'undefined') {
                     MessagingUI.openPanel();
                 }
-                // Torna alla pagina precedente nella navigazione
+                // Ripristina la pagina precedente (ri-renderizza il contenuto)
                 if (this._navStack.length > 0) {
                     const prev = this._navStack.pop();
                     this.currentPage = prev.page;
                     this.currentPageId = prev.id;
+                    // Ri-renderizza la pagina precedente per togliere lo spinner
+                    this.navigateTo(prev.page, prev.id);
+                } else {
+                    // Fallback: vai alla dashboard
+                    this.navigateTo('dashboard');
                 }
-                break;
+                return; // Esce senza proseguire
             case 'impostazioni':
                 Settings.render();
                 break;
