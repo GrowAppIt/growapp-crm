@@ -368,7 +368,8 @@ const MessagingService = {
     async sendMessage(conversationId, text, type, attachment) {
         const userId = AuthService.getUserId();
         const userData = AuthService.getCurrentUserData();
-        if (!userId || !text) return null;
+        if (!userId || (!text && !attachment)) return null;
+        if (!text) text = '';
 
         const senderName = `${userData.nome || ''} ${userData.cognome || ''}`.trim();
 
@@ -764,5 +765,211 @@ const MessagingService = {
             return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
         }
         return (parts[0][0] || '?').toUpperCase();
+    },
+
+    // ══════════════════════════════════════════
+    // UPLOAD FILE & AUDIO
+    // ══════════════════════════════════════════
+
+    CHAT_MAX_FILE_SIZE: 15 * 1024 * 1024, // 15MB
+    CHAT_ALLOWED_TYPES: [
+        'application/pdf', 'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp',
+        'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'text/plain', 'text/csv', 'application/zip', 'application/x-zip-compressed',
+        'audio/webm', 'audio/ogg', 'audio/mp4', 'audio/mpeg', 'audio/wav'
+    ],
+
+    /**
+     * Upload un file allegato alla chat su Firebase Storage
+     * Ritorna { url, name, size, type, storagePath }
+     */
+    async uploadChatFile(file, conversationId) {
+        if (!file) return null;
+
+        if (file.size > this.CHAT_MAX_FILE_SIZE) {
+            throw new Error('Il file supera i 15MB');
+        }
+
+        const timestamp = Date.now();
+        const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+        const storagePath = `chat/${conversationId}/${timestamp}_${safeName}`;
+
+        try {
+            const storageRef = storage.ref();
+            const fileRef = storageRef.child(storagePath);
+            await fileRef.put(file, {
+                contentType: file.type,
+                customMetadata: {
+                    originalName: file.name,
+                    uploadedBy: AuthService.getUserId()
+                }
+            });
+
+            const url = await fileRef.getDownloadURL();
+            return {
+                url: url,
+                name: file.name,
+                size: file.size,
+                type: file.type,
+                storagePath: storagePath
+            };
+        } catch (e) {
+            console.error('Errore upload file chat:', e);
+            throw new Error('Upload fallito: ' + e.message);
+        }
+    },
+
+    /**
+     * Invia un messaggio con allegato file
+     */
+    async sendFileMessage(conversationId, file) {
+        const attachment = await this.uploadChatFile(file, conversationId);
+        if (!attachment) return null;
+
+        const isImage = file.type.startsWith('image/');
+        const type = isImage ? 'image' : 'file';
+        const previewText = isImage ? '📷 Immagine' : `📎 ${file.name}`;
+
+        return await this.sendMessage(conversationId, previewText, type, attachment);
+    },
+
+    /**
+     * Invia un messaggio audio
+     */
+    async sendAudioMessage(conversationId, audioBlob) {
+        const file = new File([audioBlob], `audio_${Date.now()}.webm`, { type: audioBlob.type || 'audio/webm' });
+        const attachment = await this.uploadChatFile(file, conversationId);
+        if (!attachment) return null;
+
+        return await this.sendMessage(conversationId, '🎤 Messaggio vocale', 'audio', attachment);
+    },
+
+    // ══════════════════════════════════════════
+    // MODIFICA / CANCELLA MESSAGGI
+    // ══════════════════════════════════════════
+
+    /**
+     * Modifica il testo di un messaggio (solo il mittente, entro 15 minuti)
+     */
+    async editMessage(conversationId, messageId, newText) {
+        const userId = AuthService.getUserId();
+        if (!userId || !newText) return { success: false, error: 'Dati mancanti' };
+
+        try {
+            const msgRef = db.collection('chat_conversations')
+                .doc(conversationId)
+                .collection('messages')
+                .doc(messageId);
+
+            const msgDoc = await msgRef.get();
+            if (!msgDoc.exists) return { success: false, error: 'Messaggio non trovato' };
+
+            const msgData = msgDoc.data();
+
+            // Solo il mittente può modificare
+            if (msgData.senderId !== userId) {
+                return { success: false, error: 'Puoi modificare solo i tuoi messaggi' };
+            }
+
+            // Entro 15 minuti
+            const createdAt = msgData.createdAt ? msgData.createdAt.toMillis() : 0;
+            if (Date.now() - createdAt > 15 * 60 * 1000) {
+                return { success: false, error: 'Puoi modificare solo entro 15 minuti' };
+            }
+
+            await msgRef.update({
+                text: newText,
+                edited: true,
+                editedAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+
+            // Aggiorna lastMessage se era l'ultimo
+            const convRef = db.collection('chat_conversations').doc(conversationId);
+            const convDoc = await convRef.get();
+            if (convDoc.exists) {
+                const convData = convDoc.data();
+                if (convData.lastMessage && convData.lastMessage.senderId === userId) {
+                    await convRef.update({
+                        'lastMessage.text': newText.length > 80 ? newText.substring(0, 80) + '…' : newText
+                    });
+                }
+            }
+
+            return { success: true };
+        } catch (e) {
+            console.error('Errore editMessage:', e);
+            return { success: false, error: e.message };
+        }
+    },
+
+    /**
+     * Cancella un messaggio per tutti (solo il mittente o SUPER_ADMIN)
+     */
+    async deleteMessageForAll(conversationId, messageId) {
+        const userId = AuthService.getUserId();
+        if (!userId) return { success: false, error: 'Non autenticato' };
+
+        try {
+            const msgRef = db.collection('chat_conversations')
+                .doc(conversationId)
+                .collection('messages')
+                .doc(messageId);
+
+            const msgDoc = await msgRef.get();
+            if (!msgDoc.exists) return { success: false, error: 'Messaggio non trovato' };
+
+            const msgData = msgDoc.data();
+
+            // Solo il mittente o SUPER_ADMIN
+            if (msgData.senderId !== userId && AuthService.getUserRole() !== 'SUPER_ADMIN') {
+                return { success: false, error: 'Non hai i permessi' };
+            }
+
+            // Elimina file da Storage se presente
+            if (msgData.attachment && msgData.attachment.storagePath) {
+                try {
+                    await storage.ref().child(msgData.attachment.storagePath).delete();
+                } catch (e) {
+                    console.warn('File storage non trovato:', e);
+                }
+            }
+
+            // Sostituisci con messaggio "eliminato"
+            await msgRef.update({
+                text: 'Messaggio eliminato',
+                type: 'deleted',
+                attachment: null,
+                deleted: true,
+                deletedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                deletedBy: userId
+            });
+
+            // Aggiorna lastMessage se era l'ultimo
+            const convRef = db.collection('chat_conversations').doc(conversationId);
+            const convDoc = await convRef.get();
+            if (convDoc.exists) {
+                const convData = convDoc.data();
+                if (convData.lastMessage && convData.lastMessage.senderId === msgData.senderId) {
+                    await convRef.update({
+                        'lastMessage.text': 'Messaggio eliminato'
+                    });
+                }
+            }
+
+            return { success: true };
+        } catch (e) {
+            console.error('Errore deleteMessageForAll:', e);
+            return { success: false, error: e.message };
+        }
+    },
+
+    /**
+     * Formatta dimensione file leggibile
+     */
+    formatFileSize(bytes) {
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+        return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
     }
 };

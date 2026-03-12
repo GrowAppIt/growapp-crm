@@ -15,6 +15,12 @@ const MessagingUI = {
     _view: 'list', // 'list' | 'chat' | 'newMessage' | 'newGroup'
     _teamUsers: null,
     _presenceCache: {},
+    _isRecording: false,
+    _mediaRecorder: null,
+    _audioChunks: [],
+    _recordingTimer: null,
+    _recordingSeconds: 0,
+    _editingMessageId: null,
 
     // ══════════════════════════════════════════
     // INIZIALIZZAZIONE
@@ -62,6 +68,7 @@ const MessagingUI = {
             this._messagesListener();
             this._messagesListener = null;
         }
+        this._stopRecording(true);
         this._conversations = [];
         this._currentConvId = null;
         this._currentMessages = [];
@@ -127,6 +134,7 @@ const MessagingUI = {
             this._messagesListener();
             this._messagesListener = null;
         }
+        this._stopRecording(true);
     },
 
     // ══════════════════════════════════════════
@@ -143,9 +151,6 @@ const MessagingUI = {
                 if (this._panelOpen && this._view === 'list') {
                     this._renderConversationList();
                 }
-
-                // Toast + push per nuovi messaggi (solo se pannello chiuso o in altra chat)
-                // Gestito dal listener: se totalUnread aumenta e non sto guardando quella chat
             }
         );
     },
@@ -287,6 +292,7 @@ const MessagingUI = {
     async openChat(convId) {
         this._currentConvId = convId;
         this._view = 'chat';
+        this._editingMessageId = null;
 
         // Segna come letta
         MessagingService.markConversationRead(convId);
@@ -377,21 +383,66 @@ const MessagingUI = {
                 </div>
             </div>
 
-            <!-- Input messaggio -->
-            <div class="chat-input-area">
-                <div style="display:flex;align-items:flex-end;gap:8px;">
+            <!-- Barra editing (nascosta di default) -->
+            <div id="chatEditBar" style="display:none;padding:0.5rem 1rem;background:var(--blu-100);border-top:1px solid var(--blu-300);flex-shrink:0;">
+                <div style="display:flex;align-items:center;justify-content:space-between;">
+                    <span style="font-size:0.8125rem;color:var(--blu-700);font-weight:600;"><i class="fas fa-pen"></i> Modifica messaggio</span>
+                    <button onclick="MessagingUI._cancelEdit()" style="background:none;border:none;color:var(--grigio-500);cursor:pointer;font-size:0.875rem;padding:2px 6px;">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Area input messaggio con allegati e audio -->
+            <div class="chat-input-area" id="chatInputArea">
+                <!-- Preview file selezionato -->
+                <div id="chatFilePreview" style="display:none;padding:0.5rem;margin-bottom:0.5rem;background:var(--grigio-100);border-radius:8px;">
+                </div>
+
+                <div style="display:flex;align-items:flex-end;gap:6px;">
+                    <!-- Bottone allegato -->
+                    <button onclick="document.getElementById('chatFileInput').click()" id="chatAttachBtn"
+                        style="width:36px;height:36px;border-radius:50%;background:none;color:var(--grigio-500);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:1.125rem;flex-shrink:0;transition:color 0.2s;"
+                        title="Allega file">
+                        <i class="fas fa-paperclip"></i>
+                    </button>
+                    <input type="file" id="chatFileInput" style="display:none;"
+                        accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv,.zip"
+                        onchange="MessagingUI._onFileSelected(this)">
+
+                    <!-- Input testo -->
                     <textarea id="chatMessageInput" rows="1" placeholder="Scrivi un messaggio..."
-                        style="flex:1;border:2px solid var(--grigio-300);border-radius:20px;padding:0.625rem 1rem;font-family:Titillium Web,sans-serif;font-size:0.875rem;resize:none;outline:none;max-height:100px;line-height:1.4;transition:border-color 0.2s;"
-                        onfocus="this.style.borderColor='var(--blu-500)'"
-                        onblur="this.style.borderColor='var(--grigio-300)'"
+                        style="flex:1;border:2px solid var(--grigio-300);border-radius:20px;padding:0.5rem 0.875rem;font-family:Titillium Web,sans-serif;font-size:0.875rem;resize:none;outline:none;max-height:100px;line-height:1.4;transition:border-color 0.2s;-webkit-appearance:none;"
+                        onfocus="this.style.borderColor='var(--blu-500)'; MessagingUI._onInputFocus();"
+                        onblur="this.style.borderColor='var(--grigio-300)'; MessagingUI._onInputBlur();"
                         onkeydown="MessagingUI._handleInputKey(event)"
                         oninput="MessagingUI._autoResizeInput(this)"></textarea>
+
+                    <!-- Bottone audio / invio -->
+                    <button onclick="MessagingUI._toggleAudioRecord()" id="chatAudioBtn"
+                        style="width:36px;height:36px;border-radius:50%;background:none;color:var(--grigio-500);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:1.125rem;flex-shrink:0;transition:all 0.2s;"
+                        title="Messaggio vocale">
+                        <i class="fas fa-microphone"></i>
+                    </button>
                     <button onclick="MessagingUI._sendCurrentMessage()" id="chatSendBtn"
-                        style="width:40px;height:40px;border-radius:50%;background:var(--blu-700);color:white;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:1rem;transition:background 0.2s;flex-shrink:0;"
-                        onmouseover="this.style.background='var(--blu-500)'"
-                        onmouseout="this.style.background='var(--blu-700)'">
+                        style="display:none;width:36px;height:36px;border-radius:50%;background:var(--blu-700);color:white;border:none;cursor:pointer;align-items:center;justify-content:center;font-size:0.9375rem;transition:background 0.2s;flex-shrink:0;">
                         <i class="fas fa-paper-plane"></i>
                     </button>
+                </div>
+
+                <!-- Registrazione audio UI -->
+                <div id="chatRecordingBar" style="display:none;padding:0.5rem 0;margin-top:0.5rem;">
+                    <div style="display:flex;align-items:center;gap:10px;">
+                        <span style="width:10px;height:10px;border-radius:50%;background:var(--rosso-errore);animation:chatPulse 1s infinite;"></span>
+                        <span id="chatRecordingTime" style="font-size:0.8125rem;font-weight:600;color:var(--rosso-errore);font-family:monospace;">00:00</span>
+                        <span style="flex:1;font-size:0.8125rem;color:var(--grigio-500);">Registrazione in corso...</span>
+                        <button onclick="MessagingUI._stopRecording(false)" style="background:var(--rosso-errore);color:white;border:none;padding:0.375rem 0.75rem;border-radius:16px;font-size:0.8125rem;font-weight:600;cursor:pointer;font-family:Titillium Web,sans-serif;">
+                            <i class="fas fa-stop"></i> Invia
+                        </button>
+                        <button onclick="MessagingUI._stopRecording(true)" style="background:none;border:none;color:var(--grigio-500);cursor:pointer;font-size:1rem;padding:4px;">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
                 </div>
             </div>
         `;
@@ -428,6 +479,7 @@ const MessagingUI = {
 
         messages.forEach((msg, i) => {
             const isSystem = msg.type === 'system';
+            const isDeleted = msg.type === 'deleted' || msg.deleted;
             const isMine = msg.senderId === myId;
 
             // Separatore data
@@ -446,34 +498,66 @@ const MessagingUI = {
                 return;
             }
 
+            // Messaggio eliminato
+            if (isDeleted) {
+                html += `
+                    <div style="display:flex;justify-content:${isMine ? 'flex-end' : 'flex-start'};margin-bottom:4px;padding:0 0.75rem;">
+                        <div style="background:transparent;border:1px dashed var(--grigio-300);border-radius:12px;padding:0.375rem 0.75rem;">
+                            <span style="color:var(--grigio-500);font-size:0.8125rem;font-style:italic;"><i class="fas fa-ban" style="margin-right:4px;font-size:0.6875rem;"></i>Messaggio eliminato</span>
+                        </div>
+                    </div>
+                `;
+                lastSenderId = '';
+                return;
+            }
+
             // Raggruppa messaggi consecutivi dello stesso mittente
             const showAvatar = msg.senderId !== lastSenderId;
             lastSenderId = msg.senderId;
 
             const time = msg.createdAt ? MessagingService.formatMessageTime(msg.createdAt) : '';
+            const editedLabel = msg.edited ? ' <span style="font-size:0.625rem;opacity:0.6;font-style:italic;">modificato</span>' : '';
+
+            // Contenuto messaggio (testo, immagine, file, audio)
+            const contentHtml = this._renderMessageContent(msg);
+
+            // Azioni messaggio (long-press / context su mobile, hover su desktop)
+            const canEdit = isMine && msg.type === 'text' && msg.createdAt;
+            const canDelete = isMine || AuthService.getUserRole() === 'SUPER_ADMIN';
+            const msgActions = (canEdit || canDelete) ? `
+                <div class="chat-msg-actions" data-msgid="${msg.id}" style="display:none;position:absolute;${isMine ? 'left:-34px;' : 'right:-34px;'}top:50%;transform:translateY(-50%);z-index:5;">
+                    <button onclick="MessagingUI._showMsgMenu(event, '${msg.id}', ${isMine}, ${canEdit})" style="background:white;border:1px solid var(--grigio-300);width:28px;height:28px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,0.1);">
+                        <i class="fas fa-chevron-down" style="font-size:0.625rem;color:var(--grigio-500);"></i>
+                    </button>
+                </div>
+            ` : '';
 
             if (isMine) {
                 html += `
-                    <div style="display:flex;justify-content:flex-end;margin-bottom:${showAvatar ? '8px' : '2px'};padding:0 0.75rem;">
-                        <div style="max-width:80%;background:var(--blu-700);color:white;border-radius:16px 4px 16px 16px;padding:0.5rem 0.875rem;">
-                            <p style="margin:0;font-size:0.875rem;line-height:1.45;white-space:pre-wrap;word-break:break-word;">${this._escapeHtml(msg.text)}</p>
-                            <div style="text-align:right;margin-top:2px;"><span style="font-size:0.6875rem;opacity:0.7;">${time}</span></div>
+                    <div class="chat-msg-row" style="display:flex;justify-content:flex-end;margin-bottom:${showAvatar ? '8px' : '2px'};padding:0 0.75rem;position:relative;"
+                         onmouseenter="MessagingUI._showMsgActions('${msg.id}')" onmouseleave="MessagingUI._hideMsgActions('${msg.id}')">
+                        ${msgActions}
+                        <div style="max-width:80%;background:var(--blu-700);color:white;border-radius:16px 4px 16px 16px;padding:0.5rem 0.875rem;position:relative;">
+                            ${contentHtml}
+                            <div style="text-align:right;margin-top:2px;"><span style="font-size:0.6875rem;opacity:0.7;">${time}</span>${editedLabel}</div>
                         </div>
                     </div>
                 `;
             } else {
                 html += `
-                    <div style="display:flex;gap:8px;margin-bottom:${showAvatar ? '8px' : '2px'};padding:0 0.75rem;align-items:flex-end;">
+                    <div class="chat-msg-row" style="display:flex;gap:8px;margin-bottom:${showAvatar ? '8px' : '2px'};padding:0 0.75rem;align-items:flex-end;position:relative;"
+                         onmouseenter="MessagingUI._showMsgActions('${msg.id}')" onmouseleave="MessagingUI._hideMsgActions('${msg.id}')">
                         ${showAvatar
                             ? MessagingService.renderAvatar(msg.senderName, msg.senderPhoto, 30, null)
                             : '<div style="width:30px;flex-shrink:0;"></div>'
                         }
-                        <div style="max-width:75%;">
+                        <div style="max-width:75%;position:relative;">
                             ${showAvatar ? `<div style="font-size:0.75rem;font-weight:700;color:var(--blu-700);margin-bottom:2px;padding-left:4px;">${msg.senderName}</div>` : ''}
-                            <div style="background:var(--grigio-100);color:var(--grigio-900);border-radius:4px 16px 16px 16px;padding:0.5rem 0.875rem;">
-                                <p style="margin:0;font-size:0.875rem;line-height:1.45;white-space:pre-wrap;word-break:break-word;">${this._escapeHtml(msg.text)}</p>
-                                <div style="margin-top:2px;"><span style="font-size:0.6875rem;color:var(--grigio-500);">${time}</span></div>
+                            <div style="background:var(--grigio-100);color:var(--grigio-900);border-radius:4px 16px 16px 16px;padding:0.5rem 0.875rem;position:relative;">
+                                ${contentHtml}
+                                <div style="margin-top:2px;"><span style="font-size:0.6875rem;color:var(--grigio-500);">${time}</span>${editedLabel}</div>
                             </div>
+                            ${msgActions}
                         </div>
                     </div>
                 `;
@@ -484,6 +568,460 @@ const MessagingUI = {
 
         // Scroll in basso
         area.scrollTop = area.scrollHeight;
+    },
+
+    /**
+     * Renderizza il contenuto specifico del messaggio in base al tipo
+     */
+    _renderMessageContent(msg) {
+        const isMine = msg.senderId === AuthService.getUserId();
+
+        // Immagine
+        if (msg.type === 'image' && msg.attachment && msg.attachment.url) {
+            return `
+                <div style="margin:-0.25rem -0.375rem 0.25rem;">
+                    <img src="${msg.attachment.url}" alt="${msg.attachment.name || 'Immagine'}"
+                        style="max-width:100%;border-radius:8px;cursor:pointer;display:block;"
+                        onclick="window.open('${msg.attachment.url}', '_blank')"
+                        loading="lazy">
+                </div>
+            `;
+        }
+
+        // Audio
+        if (msg.type === 'audio' && msg.attachment && msg.attachment.url) {
+            return `
+                <div style="display:flex;align-items:center;gap:8px;min-width:180px;">
+                    <button onclick="MessagingUI._playAudio(this, '${msg.attachment.url}')" style="width:32px;height:32px;border-radius:50%;background:${isMine ? 'rgba(255,255,255,0.2)' : 'var(--blu-100)'};border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                        <i class="fas fa-play" style="color:${isMine ? 'white' : 'var(--blu-700)'};font-size:0.75rem;margin-left:2px;"></i>
+                    </button>
+                    <div style="flex:1;">
+                        <div style="height:4px;background:${isMine ? 'rgba(255,255,255,0.3)' : 'var(--grigio-300)'};border-radius:2px;overflow:hidden;">
+                            <div class="audio-progress" style="height:100%;width:0%;background:${isMine ? 'white' : 'var(--blu-700)'};border-radius:2px;transition:width 0.1s linear;"></div>
+                        </div>
+                        <div style="font-size:0.6875rem;opacity:0.7;margin-top:2px;">${msg.attachment.size ? MessagingService.formatFileSize(msg.attachment.size) : 'Audio'}</div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // File allegato
+        if (msg.type === 'file' && msg.attachment && msg.attachment.url) {
+            const ext = (msg.attachment.name || '').split('.').pop().toLowerCase();
+            const iconMap = { pdf: 'fa-file-pdf', doc: 'fa-file-word', docx: 'fa-file-word', xls: 'fa-file-excel', xlsx: 'fa-file-excel', txt: 'fa-file-alt', csv: 'fa-file-csv', zip: 'fa-file-archive' };
+            const icon = iconMap[ext] || 'fa-file';
+            const sizeLabel = msg.attachment.size ? MessagingService.formatFileSize(msg.attachment.size) : '';
+
+            return `
+                <a href="${msg.attachment.url}" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:10px;text-decoration:none;color:inherit;padding:0.25rem 0;">
+                    <div style="width:36px;height:36px;border-radius:8px;background:${isMine ? 'rgba(255,255,255,0.15)' : 'var(--blu-100)'};display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                        <i class="fas ${icon}" style="font-size:1rem;color:${isMine ? 'white' : 'var(--blu-700)'};"></i>
+                    </div>
+                    <div style="flex:1;min-width:0;">
+                        <div style="font-size:0.8125rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${msg.attachment.name || 'File'}</div>
+                        <div style="font-size:0.6875rem;opacity:0.7;">${sizeLabel}</div>
+                    </div>
+                    <i class="fas fa-download" style="font-size:0.75rem;opacity:0.6;"></i>
+                </a>
+            `;
+        }
+
+        // Testo normale
+        return `<p style="margin:0;font-size:0.875rem;line-height:1.45;white-space:pre-wrap;word-break:break-word;">${this._escapeHtml(msg.text || '')}</p>`;
+    },
+
+    // ══════════════════════════════════════════
+    // AZIONI SUI MESSAGGI (edit / delete)
+    // ══════════════════════════════════════════
+
+    _showMsgActions(msgId) {
+        const el = document.querySelector(`.chat-msg-actions[data-msgid="${msgId}"]`);
+        if (el) el.style.display = 'block';
+    },
+
+    _hideMsgActions(msgId) {
+        const el = document.querySelector(`.chat-msg-actions[data-msgid="${msgId}"]`);
+        if (el) el.style.display = 'none';
+    },
+
+    _showMsgMenu(e, msgId, isMine, canEdit) {
+        e.stopPropagation();
+        // Chiudi eventuali menu precedenti
+        const existing = document.getElementById('chatMsgMenu');
+        if (existing) existing.remove();
+
+        const menu = document.createElement('div');
+        menu.id = 'chatMsgMenu';
+        menu.style.cssText = 'position:fixed;background:white;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.2);min-width:160px;z-index:1200;overflow:hidden;';
+
+        let menuHtml = '';
+        if (canEdit) {
+            menuHtml += `<div onclick="MessagingUI._startEditMessage('${msgId}')" style="padding:0.625rem 1rem;cursor:pointer;display:flex;align-items:center;gap:8px;font-size:0.8125rem;color:var(--grigio-900);transition:background 0.15s;" onmouseover="this.style.background='var(--grigio-100)'" onmouseout="this.style.background='white'"><i class="fas fa-pen" style="color:var(--blu-700);width:14px;text-align:center;"></i>Modifica</div>`;
+        }
+        if (isMine || AuthService.getUserRole() === 'SUPER_ADMIN') {
+            menuHtml += `<div onclick="MessagingUI._confirmDeleteMessage('${msgId}')" style="padding:0.625rem 1rem;cursor:pointer;display:flex;align-items:center;gap:8px;font-size:0.8125rem;color:var(--rosso-errore);transition:background 0.15s;" onmouseover="this.style.background='#FFF0F0'" onmouseout="this.style.background='white'"><i class="fas fa-trash-alt" style="width:14px;text-align:center;"></i>Elimina per tutti</div>`;
+        }
+
+        menu.innerHTML = menuHtml;
+
+        // Posiziona vicino al pulsante
+        const rect = e.currentTarget.getBoundingClientRect();
+        menu.style.top = (rect.bottom + 4) + 'px';
+        menu.style.left = Math.max(8, rect.left - 80) + 'px';
+
+        document.body.appendChild(menu);
+
+        // Chiudi cliccando fuori
+        const closeMenu = (ev) => {
+            if (!menu.contains(ev.target)) {
+                menu.remove();
+                document.removeEventListener('click', closeMenu);
+            }
+        };
+        setTimeout(() => document.addEventListener('click', closeMenu), 10);
+    },
+
+    _startEditMessage(msgId) {
+        // Chiudi menu
+        const menu = document.getElementById('chatMsgMenu');
+        if (menu) menu.remove();
+
+        const msg = this._currentMessages.find(m => m.id === msgId);
+        if (!msg) return;
+
+        // Verifica tempo (15 min)
+        const createdAt = msg.createdAt ? (msg.createdAt.toMillis ? msg.createdAt.toMillis() : msg.createdAt) : 0;
+        if (Date.now() - createdAt > 15 * 60 * 1000) {
+            UI.showError('Puoi modificare solo entro 15 minuti');
+            return;
+        }
+
+        this._editingMessageId = msgId;
+        const input = document.getElementById('chatMessageInput');
+        const editBar = document.getElementById('chatEditBar');
+
+        if (input) {
+            input.value = msg.text || '';
+            input.focus();
+            this._autoResizeInput(input);
+        }
+        if (editBar) editBar.style.display = 'block';
+
+        // Mostra tasto invio, nascondi audio
+        this._showSendButton();
+    },
+
+    _cancelEdit() {
+        this._editingMessageId = null;
+        const input = document.getElementById('chatMessageInput');
+        const editBar = document.getElementById('chatEditBar');
+        if (input) {
+            input.value = '';
+            input.style.height = 'auto';
+        }
+        if (editBar) editBar.style.display = 'none';
+        this._updateSendAudioToggle();
+    },
+
+    async _confirmDeleteMessage(msgId) {
+        // Chiudi menu
+        const menu = document.getElementById('chatMsgMenu');
+        if (menu) menu.remove();
+
+        FormsManager.showModal(
+            '<i class="fas fa-trash-alt" style="color:var(--rosso-errore);"></i> Elimina messaggio',
+            `<div style="padding:1rem 0;">
+                <p style="color:var(--grigio-900);font-size:0.9375rem;margin:0 0 0.5rem;">Vuoi eliminare questo messaggio per tutti?</p>
+                <p style="color:var(--grigio-500);font-size:0.8125rem;margin:0;">Il messaggio verrà rimosso dalla conversazione per tutti i partecipanti.</p>
+            </div>`,
+            async () => {
+                const result = await MessagingService.deleteMessageForAll(this._currentConvId, msgId);
+                if (result.success) {
+                    UI.showSuccess('Messaggio eliminato');
+                } else {
+                    UI.showError(result.error || 'Errore');
+                }
+                FormsManager.closeModal();
+            }
+        );
+    },
+
+    // ══════════════════════════════════════════
+    // ALLEGATI FILE
+    // ══════════════════════════════════════════
+
+    _pendingFile: null,
+
+    _onFileSelected(inputEl) {
+        const file = inputEl.files && inputEl.files[0];
+        if (!file) return;
+
+        // Reset l'input per permettere di riselezionare lo stesso file
+        inputEl.value = '';
+
+        if (file.size > 15 * 1024 * 1024) {
+            UI.showError('Il file supera i 15MB');
+            return;
+        }
+
+        this._pendingFile = file;
+
+        // Mostra preview
+        const preview = document.getElementById('chatFilePreview');
+        if (!preview) return;
+
+        const isImage = file.type.startsWith('image/');
+        const ext = file.name.split('.').pop().toLowerCase();
+        const iconMap = { pdf: 'fa-file-pdf', doc: 'fa-file-word', docx: 'fa-file-word', xls: 'fa-file-excel', xlsx: 'fa-file-excel', txt: 'fa-file-alt', csv: 'fa-file-csv', zip: 'fa-file-archive' };
+        const icon = iconMap[ext] || 'fa-file';
+
+        let previewHtml = '';
+        if (isImage) {
+            const url = URL.createObjectURL(file);
+            previewHtml = `
+                <div style="display:flex;align-items:center;gap:10px;">
+                    <img src="${url}" style="width:48px;height:48px;object-fit:cover;border-radius:6px;">
+                    <div style="flex:1;min-width:0;">
+                        <div style="font-size:0.8125rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${file.name}</div>
+                        <div style="font-size:0.75rem;color:var(--grigio-500);">${MessagingService.formatFileSize(file.size)}</div>
+                    </div>
+                    <button onclick="MessagingUI._clearPendingFile()" style="background:none;border:none;color:var(--grigio-500);cursor:pointer;font-size:1rem;padding:4px;">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            `;
+        } else {
+            previewHtml = `
+                <div style="display:flex;align-items:center;gap:10px;">
+                    <div style="width:40px;height:40px;border-radius:8px;background:var(--blu-100);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                        <i class="fas ${icon}" style="color:var(--blu-700);"></i>
+                    </div>
+                    <div style="flex:1;min-width:0;">
+                        <div style="font-size:0.8125rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${file.name}</div>
+                        <div style="font-size:0.75rem;color:var(--grigio-500);">${MessagingService.formatFileSize(file.size)}</div>
+                    </div>
+                    <button onclick="MessagingUI._clearPendingFile()" style="background:none;border:none;color:var(--grigio-500);cursor:pointer;font-size:1rem;padding:4px;">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            `;
+        }
+
+        preview.innerHTML = previewHtml;
+        preview.style.display = 'block';
+
+        // Mostra tasto invio
+        this._showSendButton();
+    },
+
+    _clearPendingFile() {
+        this._pendingFile = null;
+        const preview = document.getElementById('chatFilePreview');
+        if (preview) {
+            preview.style.display = 'none';
+            preview.innerHTML = '';
+        }
+        this._updateSendAudioToggle();
+    },
+
+    // ══════════════════════════════════════════
+    // REGISTRAZIONE AUDIO
+    // ══════════════════════════════════════════
+
+    async _toggleAudioRecord() {
+        if (this._isRecording) {
+            this._stopRecording(false);
+        } else {
+            await this._startRecording();
+        }
+    },
+
+    async _startRecording() {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            this._audioChunks = [];
+            this._mediaRecorder = new MediaRecorder(stream, { mimeType: this._getAudioMimeType() });
+
+            this._mediaRecorder.ondataavailable = (e) => {
+                if (e.data.size > 0) {
+                    this._audioChunks.push(e.data);
+                }
+            };
+
+            this._mediaRecorder.onstop = () => {
+                stream.getTracks().forEach(track => track.stop());
+            };
+
+            this._mediaRecorder.start();
+            this._isRecording = true;
+            this._recordingSeconds = 0;
+
+            // UI registrazione
+            const recordingBar = document.getElementById('chatRecordingBar');
+            if (recordingBar) recordingBar.style.display = 'block';
+
+            const audioBtn = document.getElementById('chatAudioBtn');
+            if (audioBtn) {
+                audioBtn.style.background = 'var(--rosso-errore)';
+                audioBtn.style.color = 'white';
+            }
+
+            // Timer
+            this._recordingTimer = setInterval(() => {
+                this._recordingSeconds++;
+                const min = Math.floor(this._recordingSeconds / 60).toString().padStart(2, '0');
+                const sec = (this._recordingSeconds % 60).toString().padStart(2, '0');
+                const el = document.getElementById('chatRecordingTime');
+                if (el) el.textContent = `${min}:${sec}`;
+
+                // Max 3 minuti
+                if (this._recordingSeconds >= 180) {
+                    this._stopRecording(false);
+                }
+            }, 1000);
+
+        } catch (e) {
+            console.error('Errore accesso microfono:', e);
+            UI.showError('Impossibile accedere al microfono. Verifica i permessi del browser.');
+        }
+    },
+
+    async _stopRecording(discard) {
+        if (!this._isRecording || !this._mediaRecorder) {
+            this._isRecording = false;
+            return;
+        }
+
+        this._isRecording = false;
+
+        // Ferma timer
+        if (this._recordingTimer) {
+            clearInterval(this._recordingTimer);
+            this._recordingTimer = null;
+        }
+
+        // UI reset
+        const recordingBar = document.getElementById('chatRecordingBar');
+        if (recordingBar) recordingBar.style.display = 'none';
+
+        const audioBtn = document.getElementById('chatAudioBtn');
+        if (audioBtn) {
+            audioBtn.style.background = 'none';
+            audioBtn.style.color = 'var(--grigio-500)';
+        }
+
+        return new Promise((resolve) => {
+            this._mediaRecorder.onstop = async () => {
+                // Ferma tracce
+                if (this._mediaRecorder.stream) {
+                    this._mediaRecorder.stream.getTracks().forEach(t => t.stop());
+                }
+
+                if (discard || this._audioChunks.length === 0) {
+                    this._audioChunks = [];
+                    resolve();
+                    return;
+                }
+
+                // Invia audio
+                try {
+                    const mimeType = this._getAudioMimeType();
+                    const blob = new Blob(this._audioChunks, { type: mimeType });
+                    this._audioChunks = [];
+
+                    if (blob.size < 1000) {
+                        UI.showError('Audio troppo breve');
+                        resolve();
+                        return;
+                    }
+
+                    // Feedback uploading
+                    const sendBtn = document.getElementById('chatSendBtn');
+                    if (sendBtn) {
+                        sendBtn.disabled = true;
+                        sendBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+                    }
+
+                    await MessagingService.sendAudioMessage(this._currentConvId, blob);
+
+                    if (sendBtn) {
+                        sendBtn.disabled = false;
+                        sendBtn.innerHTML = '<i class="fas fa-paper-plane"></i>';
+                    }
+                } catch (e) {
+                    console.error('Errore invio audio:', e);
+                    UI.showError('Errore invio messaggio vocale');
+                }
+                resolve();
+            };
+
+            try {
+                this._mediaRecorder.stop();
+            } catch (e) {
+                resolve();
+            }
+        });
+    },
+
+    _getAudioMimeType() {
+        const types = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/mp4'];
+        for (const type of types) {
+            if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(type)) {
+                return type;
+            }
+        }
+        return 'audio/webm';
+    },
+
+    // ══════════════════════════════════════════
+    // AUDIO PLAYER (inline nei messaggi)
+    // ══════════════════════════════════════════
+
+    _activeAudio: null,
+
+    _playAudio(btn, url) {
+        // Ferma audio precedente
+        if (this._activeAudio) {
+            this._activeAudio.pause();
+            this._activeAudio = null;
+        }
+
+        const icon = btn.querySelector('i');
+        const progressBar = btn.closest('div[style*="min-width"]').querySelector('.audio-progress');
+
+        // Toggle play/pause
+        if (icon.classList.contains('fa-pause')) {
+            icon.classList.replace('fa-pause', 'fa-play');
+            if (progressBar) progressBar.style.width = '0%';
+            return;
+        }
+
+        icon.classList.replace('fa-play', 'fa-pause');
+
+        const audio = new Audio(url);
+        this._activeAudio = audio;
+
+        audio.addEventListener('timeupdate', () => {
+            if (audio.duration && progressBar) {
+                progressBar.style.width = (audio.currentTime / audio.duration * 100) + '%';
+            }
+        });
+
+        audio.addEventListener('ended', () => {
+            icon.classList.replace('fa-pause', 'fa-play');
+            if (progressBar) progressBar.style.width = '0%';
+            this._activeAudio = null;
+        });
+
+        audio.addEventListener('error', () => {
+            icon.classList.replace('fa-pause', 'fa-play');
+            UI.showError('Impossibile riprodurre l\'audio');
+        });
+
+        audio.play().catch(e => {
+            icon.classList.replace('fa-pause', 'fa-play');
+            console.error('Errore riproduzione audio:', e);
+        });
     },
 
     // ══════════════════════════════════════════
@@ -520,7 +1058,7 @@ const MessagingUI = {
             <!-- Ricerca -->
             <div style="padding:0.75rem 1rem;border-bottom:1px solid var(--grigio-300);">
                 <input type="text" id="chatUserSearch" placeholder="Cerca collega..." oninput="MessagingUI._filterUsers()"
-                    style="width:100%;border:2px solid var(--grigio-300);border-radius:20px;padding:0.5rem 1rem;font-family:Titillium Web,sans-serif;font-size:0.875rem;outline:none;"
+                    style="width:100%;border:2px solid var(--grigio-300);border-radius:20px;padding:0.5rem 1rem;font-family:Titillium Web,sans-serif;font-size:0.875rem;outline:none;font-size:16px;"
                     onfocus="this.style.borderColor='var(--blu-500)'" onblur="this.style.borderColor='var(--grigio-300)'">
             </div>
 
@@ -605,7 +1143,7 @@ const MessagingUI = {
 
             <div style="padding:1rem;border-bottom:1px solid var(--grigio-300);">
                 <input type="text" id="chatGroupName" placeholder="Nome del gruppo (es. Progetto Comune di Trani)"
-                    style="width:100%;border:2px solid var(--grigio-300);border-radius:8px;padding:0.625rem 1rem;font-family:Titillium Web,sans-serif;font-size:0.875rem;outline:none;margin-bottom:0.75rem;"
+                    style="width:100%;border:2px solid var(--grigio-300);border-radius:8px;padding:0.625rem 1rem;font-family:Titillium Web,sans-serif;font-size:16px;outline:none;margin-bottom:0.75rem;"
                     onfocus="this.style.borderColor='var(--blu-500)'" onblur="this.style.borderColor='var(--grigio-300)'">
                 <div id="chatGroupSelected" style="display:flex;flex-wrap:wrap;gap:6px;min-height:24px;"></div>
             </div>
@@ -708,6 +1246,34 @@ const MessagingUI = {
     _autoResizeInput(el) {
         el.style.height = 'auto';
         el.style.height = Math.min(el.scrollHeight, 100) + 'px';
+        this._updateSendAudioToggle();
+    },
+
+    _updateSendAudioToggle() {
+        const input = document.getElementById('chatMessageInput');
+        const hasText = input && input.value.trim().length > 0;
+        const hasFile = !!this._pendingFile;
+        const isEditing = !!this._editingMessageId;
+
+        if (hasText || hasFile || isEditing) {
+            this._showSendButton();
+        } else {
+            this._showAudioButton();
+        }
+    },
+
+    _showSendButton() {
+        const sendBtn = document.getElementById('chatSendBtn');
+        const audioBtn = document.getElementById('chatAudioBtn');
+        if (sendBtn) { sendBtn.style.display = 'flex'; }
+        if (audioBtn) { audioBtn.style.display = 'none'; }
+    },
+
+    _showAudioButton() {
+        const sendBtn = document.getElementById('chatSendBtn');
+        const audioBtn = document.getElementById('chatAudioBtn');
+        if (sendBtn) { sendBtn.style.display = 'none'; }
+        if (audioBtn) { audioBtn.style.display = 'flex'; }
     },
 
     async _sendCurrentMessage() {
@@ -715,13 +1281,103 @@ const MessagingUI = {
         if (!input) return;
 
         const text = input.value.trim();
+
+        // MODIFICA messaggio esistente
+        if (this._editingMessageId) {
+            if (!text) return;
+            const result = await MessagingService.editMessage(this._currentConvId, this._editingMessageId, text);
+            if (result.success) {
+                UI.showSuccess('Messaggio modificato');
+            } else {
+                UI.showError(result.error || 'Errore modifica');
+            }
+            this._cancelEdit();
+            return;
+        }
+
+        // INVIO FILE allegato
+        if (this._pendingFile) {
+            const file = this._pendingFile;
+            this._clearPendingFile();
+            input.value = '';
+            input.style.height = 'auto';
+
+            // Feedback uploading
+            const sendBtn = document.getElementById('chatSendBtn');
+            if (sendBtn) {
+                sendBtn.disabled = true;
+                sendBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+            }
+
+            try {
+                await MessagingService.sendFileMessage(this._currentConvId, file);
+                // Se c'era anche testo, invialo come messaggio separato
+                if (text) {
+                    await MessagingService.sendMessage(this._currentConvId, text);
+                }
+            } catch (e) {
+                UI.showError('Errore invio file: ' + e.message);
+            }
+
+            if (sendBtn) {
+                sendBtn.disabled = false;
+                sendBtn.innerHTML = '<i class="fas fa-paper-plane"></i>';
+            }
+            this._updateSendAudioToggle();
+            return;
+        }
+
+        // INVIO testo normale
         if (!text || !this._currentConvId) return;
 
-        // Pulisci input subito (UX reattiva)
         input.value = '';
         input.style.height = 'auto';
+        this._updateSendAudioToggle();
 
         await MessagingService.sendMessage(this._currentConvId, text);
+    },
+
+    // ══════════════════════════════════════════
+    // MOBILE OPTIMIZATION
+    // ══════════════════════════════════════════
+
+    _onInputFocus() {
+        // Su mobile, scrolla l'area messaggi in basso e gestisci la virtual keyboard
+        if (window.innerWidth <= 768) {
+            setTimeout(() => {
+                const area = document.getElementById('chatMessagesArea');
+                if (area) area.scrollTop = area.scrollHeight;
+
+                // Usa visualViewport per adattarsi alla tastiera virtuale
+                if (window.visualViewport) {
+                    this._viewportHandler = () => {
+                        const panel = document.getElementById('chatPanel');
+                        if (panel && this._panelOpen) {
+                            panel.style.height = window.visualViewport.height + 'px';
+                            const area2 = document.getElementById('chatMessagesArea');
+                            if (area2) area2.scrollTop = area2.scrollHeight;
+                        }
+                    };
+                    window.visualViewport.addEventListener('resize', this._viewportHandler);
+                    this._viewportHandler();
+                }
+            }, 300);
+        }
+    },
+
+    _onInputBlur() {
+        if (window.innerWidth <= 768) {
+            // Reset altezza pannello
+            const panel = document.getElementById('chatPanel');
+            if (panel) {
+                panel.style.height = '';
+            }
+            // Rimuovi listener viewport
+            if (this._viewportHandler && window.visualViewport) {
+                window.visualViewport.removeEventListener('resize', this._viewportHandler);
+                this._viewportHandler = null;
+            }
+        }
     },
 
     // ══════════════════════════════════════════
@@ -735,7 +1391,10 @@ const MessagingUI = {
             this._messagesListener = null;
         }
         this._currentConvId = null;
+        this._editingMessageId = null;
+        this._pendingFile = null;
         this._view = 'list';
+        this._stopRecording(true);
         this._renderConversationList();
     },
 
@@ -767,7 +1426,7 @@ const MessagingUI = {
                 `).join('')}
                 <div style="border-top:1px solid var(--grigio-300);margin-top:0.5rem;padding-top:0.75rem;padding-left:1rem;padding-right:1rem;">
                     <input type="text" id="statusTextInput" value="${currentText}" placeholder="Stato personalizzato (opzionale)"
-                        style="width:100%;border:2px solid var(--grigio-300);border-radius:8px;padding:0.5rem 0.75rem;font-family:Titillium Web,sans-serif;font-size:0.8125rem;outline:none;"
+                        style="width:100%;border:2px solid var(--grigio-300);border-radius:8px;padding:0.5rem 0.75rem;font-family:Titillium Web,sans-serif;font-size:16px;outline:none;"
                         onfocus="this.style.borderColor='var(--blu-500)'" onblur="this.style.borderColor='var(--grigio-300)'"
                         onkeydown="if(event.key==='Enter'){MessagingUI._saveStatusText(); FormsManager.closeModal();}">
                     <button onclick="MessagingUI._saveStatusText(); FormsManager.closeModal();"

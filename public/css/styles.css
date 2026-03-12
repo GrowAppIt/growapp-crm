@@ -1665,9 +1665,45 @@ img {
     border-top: 1px solid var(--grigio-300);
 }
 
-/* Mobile: pannello full-width */
+/* Animazione pulse per registrazione audio */
+@keyframes chatPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+}
+
+/* Mobile: pannello full-width + ottimizzazioni tastiera */
 @media (max-width: 768px) {
     .chat-panel {
         width: 100%;
+        height: 100vh;
+        height: 100dvh; /* Dynamic viewport height — si adatta alla tastiera */
+    }
+
+    /* Previeni zoom su input focus (iOS) — font-size ≥ 16px */
+    .chat-input-area textarea,
+    .chat-input-area input {
+        font-size: 16px !important;
+    }
+
+    /* Area messaggi: flexible con tastiera */
+    .chat-messages-area {
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    /* Input area: rimane fissa in basso */
+    .chat-input-area {
+        position: relative;
+        z-index: 2;
+    }
+
+    /* Messaggi hover actions: sempre visibili su tap (no hover) */
+    .chat-msg-row .chat-msg-actions {
+        display: none !important;
+    }
+    .chat-msg-row:active .chat-msg-actions {
+        display: block !important;
     }
 }
