@@ -21,6 +21,8 @@ const MessagingUI = {
     _recordingTimer: null,
     _recordingSeconds: 0,
     _editingMessageId: null,
+    _prevUnreadMap: {},        // Track unread per conversazione per rilevare nuovi messaggi
+    _notificationsReady: false, // Permesso notifiche ottenuto
 
     // ══════════════════════════════════════════
     // INIZIALIZZAZIONE
@@ -52,8 +54,34 @@ const MessagingUI = {
             }
         });
 
+        // Richiedi permesso notifiche browser
+        this._requestNotificationPermission();
+
         // Avvia listener conversazioni (per badge)
         this._startConversationsListener();
+    },
+
+    /**
+     * Chiede il permesso per le notifiche browser (Chrome, Firefox, ecc.)
+     */
+    _requestNotificationPermission() {
+        if (!('Notification' in window)) return;
+
+        if (Notification.permission === 'granted') {
+            this._notificationsReady = true;
+        } else if (Notification.permission !== 'denied') {
+            // Chiedi il permesso al primo click sull'icona chat
+            const chatToggle = document.getElementById('chatToggle');
+            if (chatToggle) {
+                const askOnce = () => {
+                    Notification.requestPermission().then(perm => {
+                        this._notificationsReady = (perm === 'granted');
+                    });
+                    chatToggle.removeEventListener('click', askOnce);
+                };
+                chatToggle.addEventListener('click', askOnce);
+            }
+        }
     },
 
     /**
@@ -74,6 +102,7 @@ const MessagingUI = {
         this._currentMessages = [];
         this._panelOpen = false;
         this._teamUsers = null;
+        this._prevUnreadMap = {};
     },
 
     // ══════════════════════════════════════════
@@ -144,6 +173,9 @@ const MessagingUI = {
     _startConversationsListener() {
         this._conversationsListener = MessagingService.listenToConversations(
             (conversations, totalUnread) => {
+                // Rileva nuovi messaggi confrontando unread precedenti
+                this._checkForNewMessages(conversations);
+
                 this._conversations = conversations;
                 this._updateBadge(totalUnread);
 
@@ -153,6 +185,90 @@ const MessagingUI = {
                 }
             }
         );
+    },
+
+    /**
+     * Confronta unread attuali con precedenti e invia notifica browser
+     * se ci sono nuovi messaggi in arrivo.
+     */
+    _checkForNewMessages(conversations) {
+        const myId = AuthService.getUserId();
+
+        conversations.forEach(conv => {
+            const prevUnread = this._prevUnreadMap[conv.id] || 0;
+            const currUnread = conv.myUnread || 0;
+
+            // Se unread è aumentato → nuovo messaggio in arrivo
+            if (currUnread > prevUnread) {
+                // Non notificare se l'utente ha già aperto quella chat
+                const isViewingThis = this._panelOpen && this._view === 'chat' && this._currentConvId === conv.id;
+                if (!isViewingThis) {
+                    this._showBrowserNotification(conv, myId);
+                }
+            }
+
+            // Aggiorna mappa
+            this._prevUnreadMap[conv.id] = currUnread;
+        });
+    },
+
+    /**
+     * Mostra una notifica browser nativa (popup Chrome)
+     */
+    _showBrowserNotification(conv, myId) {
+        if (!this._notificationsReady || Notification.permission !== 'granted') return;
+
+        // Costruisci titolo
+        let title = 'Nuovo messaggio';
+        if (conv.type === 'group') {
+            title = conv.title || 'Gruppo';
+        } else if (conv.type === 'direct') {
+            const otherId = (conv.participantIds || []).find(id => id !== myId);
+            const otherInfo = conv.participantInfo && conv.participantInfo[otherId];
+            title = otherInfo ? otherInfo.nome : 'Nuovo messaggio';
+        }
+
+        // Corpo della notifica (anteprima ultimo messaggio)
+        let body = '';
+        if (conv.lastMessage) {
+            const lm = conv.lastMessage;
+            if (lm.type === 'image') body = '📷 Immagine';
+            else if (lm.type === 'audio') body = '🎤 Messaggio vocale';
+            else if (lm.type === 'file') body = '📎 File allegato';
+            else body = lm.text || '';
+
+            // Nei gruppi, mostra chi ha scritto
+            if (conv.type === 'group' && lm.senderName && lm.senderId !== myId) {
+                body = lm.senderName + ': ' + body;
+            }
+        }
+
+        // Tronca body se troppo lungo
+        if (body.length > 100) body = body.substring(0, 97) + '...';
+
+        try {
+            const notification = new Notification(title, {
+                body: body,
+                icon: '/img/logo.png',
+                badge: '/img/logo.png',
+                tag: 'chat-' + conv.id,   // Raggruppa per conversazione (sostituisce la precedente)
+                renotify: true,
+                silent: false
+            });
+
+            // Click sulla notifica → apri la chat
+            notification.onclick = () => {
+                window.focus();
+                notification.close();
+                this.openPanel();
+                this.openChat(conv.id);
+            };
+
+            // Auto-chiudi dopo 5 secondi
+            setTimeout(() => notification.close(), 5000);
+        } catch (e) {
+            console.warn('Errore notifica browser:', e);
+        }
     },
 
     _updateBadge(count) {
@@ -294,8 +410,9 @@ const MessagingUI = {
         this._view = 'chat';
         this._editingMessageId = null;
 
-        // Segna come letta
+        // Segna come letta e azzera unread nella mappa notifiche
         MessagingService.markConversationRead(convId);
+        this._prevUnreadMap[convId] = 0;
 
         this._renderChatView(convId);
     },
