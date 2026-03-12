@@ -441,12 +441,38 @@ const DataService = {
             return 'SCADUTO';
         }
 
-        // Tutti CESSATI → cliente CESSATO
-        if (stati.every(s => s === 'CESSATO')) {
-            return 'CESSATO';
+        // Tutti CESSATI o RINNOVATI → cliente CESSATO
+        if (stati.every(s => s === 'CESSATO' || s === 'RINNOVATO')) {
+            // Se ha almeno un RINNOVATO (e nessun CESSATO), è comunque inattivo
+            // ma non è CESSATO volontariamente — probabile errore dati
+            return stati.includes('CESSATO') ? 'CESSATO' : 'SENZA_CONTRATTO';
         }
 
         return 'SENZA_CONTRATTO';
+    },
+
+    /**
+     * Ricalcola lo stato del cliente in base ai suoi contratti e lo salva su Firestore.
+     * Chiamare dopo ogni creazione/modifica/eliminazione di contratto.
+     */
+    async aggiornaStatoCliente(clienteId) {
+        if (!clienteId) return;
+        try {
+            const contratti = await this.getContrattiCliente(clienteId);
+            const nuovoStato = this.calcolaStatoCliente(contratti);
+
+            // Aggiorna il campo statoContratto sul documento cliente
+            await db.collection('clienti').doc(clienteId).update({
+                statoContratto: nuovoStato
+            });
+
+            // Invalida cache clienti
+            this._cacheInvalidate('clienti:');
+
+            console.log(`[DataService] Stato cliente ${clienteId} aggiornato a: ${nuovoStato} (${contratti.length} contratti)`);
+        } catch (e) {
+            console.error('Errore aggiornamento stato cliente:', e);
+        }
     },
 
     // Arricchisce l'array clienti con lo stato calcolato dai contratti
@@ -559,47 +585,125 @@ const DataService = {
         }
     },
 
-    async rinnovaContratto(contrattoId, nuovaDataScadenza, note = '') {
+    async rinnovaContratto(contrattoId, nuovoContrattoDati) {
         try {
-            // Validazione: contratto CESSATO non rinnovabile
-            const contrattoCorrente = await this.getContratto(contrattoId);
-            if (contrattoCorrente && contrattoCorrente.stato === 'CESSATO') {
-                throw new Error('Non è possibile rinnovare un contratto cessato. Cambia prima lo stato del contratto.');
-            }
-            // Validazione: data scadenza deve essere futura
-            if (new Date(nuovaDataScadenza) <= new Date()) {
-                throw new Error('La nuova data di scadenza deve essere una data futura.');
+            // Carica contratto vecchio
+            const vecchio = await this.getContratto(contrattoId);
+            if (!vecchio) throw new Error('Contratto non trovato.');
+            if (vecchio.stato === 'CESSATO') {
+                throw new Error('Non è possibile rinnovare un contratto cessato.');
             }
 
+            // Validazione: data inizio nuovo contratto
+            if (!nuovoContrattoDati.dataInizio) {
+                throw new Error('La data di inizio del nuovo contratto è obbligatoria.');
+            }
+            if (!nuovoContrattoDati.dataScadenza) {
+                throw new Error('La data di scadenza del nuovo contratto è obbligatoria.');
+            }
+            if (new Date(nuovoContrattoDati.dataScadenza) <= new Date(nuovoContrattoDati.dataInizio)) {
+                throw new Error('La data di scadenza deve essere successiva alla data di inizio.');
+            }
+
+            // 1. Marca il vecchio contratto come RINNOVATO (non più attivo)
             await this.updateContratto(contrattoId, {
-                dataScadenza: nuovaDataScadenza,
-                stato: 'ATTIVO',
-                note: note
+                stato: 'RINNOVATO',
+                dataAggiornamento: new Date().toISOString()
             });
-            this._logAudit('STATO_CHANGE', 'contratti', contrattoId, { azione: 'RINNOVO', nuovaScadenza: nuovaDataScadenza });
+            this._logAudit('STATO_CHANGE', 'contratti', contrattoId, { azione: 'RINNOVATO', motivo: 'Sostituito da nuovo contratto' });
 
-            // Crea scadenza automatica per il prossimo rinnovo
-            const contratto = await this.getContratto(contrattoId);
-            if (contratto && contratto.giorniPreavvisoRinnovo) {
-                const dataScadenzaDate = new Date(nuovaDataScadenza);
-                const dataScadenzaPreavviso = new Date(dataScadenzaDate);
-                dataScadenzaPreavviso.setDate(dataScadenzaDate.getDate() - contratto.giorniPreavvisoRinnovo);
+            // 2. Crea il nuovo contratto ereditando i dati base dal vecchio
+            const campiDaEreditare = [
+                'clienteId', 'clienteRagioneSociale', 'oggetto', 'tipo',
+                'gestione', 'periodicita', 'modalitaPagamento', 'agente',
+                'rinnovoAutomatico', 'giorniPreavvisoRinnovo'
+            ];
+            const nuovoContratto = {};
+            campiDaEreditare.forEach(campo => {
+                if (vecchio[campo] !== undefined) nuovoContratto[campo] = vecchio[campo];
+            });
 
+            // Sovrascrivi con i dati specifici del nuovo rinnovo
+            Object.assign(nuovoContratto, {
+                dataInizio: nuovoContrattoDati.dataInizio,
+                dataScadenza: nuovoContrattoDati.dataScadenza,
+                importoAnnuale: nuovoContrattoDati.importoAnnuale,
+                importoMensile: nuovoContrattoDati.importoMensile,
+                durataContratto: nuovoContrattoDati.durataContratto || vecchio.durataContratto || 12,
+                stato: 'ATTIVO',
+                note: nuovoContrattoDati.note || '',
+                // Link allo storico
+                contrattoOrigineId: contrattoId,
+                contrattoOrigineNumero: vecchio.numeroContratto || '',
+                // Numero contratto: stesso base + suffisso rinnovo
+                numeroContratto: this._generaNumeroRinnovo(vecchio.numeroContratto),
+                rinnovoAutomatico: nuovoContrattoDati.rinnovoAutomatico !== undefined
+                    ? nuovoContrattoDati.rinnovoAutomatico
+                    : (vecchio.rinnovoAutomatico || false),
+                giorniPreavvisoRinnovo: nuovoContrattoDati.giorniPreavvisoRinnovo || vecchio.giorniPreavvisoRinnovo || 60
+            });
+
+            const nuovoId = await this.createContratto(nuovoContratto);
+
+            // 3. Aggiorna il vecchio contratto con il link al nuovo
+            await db.collection('contratti').doc(contrattoId).update({
+                contrattoRinnovoId: nuovoId,
+                contrattoRinnovoNumero: nuovoContratto.numeroContratto
+            });
+
+            this._logAudit('CREATE', 'contratti', nuovoId, {
+                azione: 'RINNOVO',
+                contrattoOrigineId: contrattoId,
+                numero: nuovoContratto.numeroContratto
+            });
+
+            // 4. Crea scadenza automatica per il prossimo rinnovo
+            const giorniPreavviso = nuovoContratto.giorniPreavvisoRinnovo || 60;
+            const dataScadenzaDate = new Date(nuovoContratto.dataScadenza);
+            const dataScadenzaPreavviso = new Date(dataScadenzaDate);
+            dataScadenzaPreavviso.setDate(dataScadenzaDate.getDate() - giorniPreavviso);
+
+            if (dataScadenzaPreavviso > new Date()) {
                 await this.createScadenza({
                     tipo: 'RINNOVO_CONTRATTO',
-                    clienteId: contratto.clienteId,
-                    contrattoId: contrattoId,
+                    clienteId: nuovoContratto.clienteId,
+                    contrattoId: nuovoId,
                     dataScadenza: dataScadenzaPreavviso.toISOString(),
-                    descrizione: `Rinnovo contratto ${contratto.numeroContratto}`,
+                    descrizione: `Rinnovo contratto ${nuovoContratto.numeroContratto}`,
                     completata: false
                 });
             }
 
-            return true;
+            // 5. Genera scadenze fatturazione per il nuovo contratto
+            try {
+                const clientePerScadenze = await this.getCliente(nuovoContratto.clienteId);
+                const ragSoc = clientePerScadenze?.ragioneSociale || '';
+                const agente = clientePerScadenze?.agente || nuovoContratto.agente || '';
+                const contrattoConId = { ...nuovoContratto, id: nuovoId };
+                await this.generateScadenzeFromContratto(contrattoConId, ragSoc, agente);
+            } catch (errScad) {
+                console.warn('Scadenze fatturazione non generate per rinnovo:', errScad);
+            }
+
+            this._cacheInvalidate('contratti:');
+            return nuovoId;
         } catch (error) {
             console.error('Errore rinnovo contratto:', error);
             throw error;
         }
+    },
+
+    // Genera numero contratto per rinnovo: aggiunge /R1, /R2, /R3...
+    _generaNumeroRinnovo(numeroOriginale) {
+        if (!numeroOriginale) return 'RINN-' + Date.now();
+        // Se già ha un suffisso /Rn, incrementa
+        const match = numeroOriginale.match(/^(.+)\/R(\d+)$/);
+        if (match) {
+            const base = match[1];
+            const num = parseInt(match[2]) + 1;
+            return `${base}/R${num}`;
+        }
+        return `${numeroOriginale}/R1`;
     },
 
     async searchContratti(searchTerm) {
@@ -1244,6 +1348,7 @@ const DataService = {
             'SENZA_CONTRATTO': 'badge-danger',
             'DA_DEFINIRE': 'badge-warning',
             'IN_RINNOVO': 'badge-info',
+            'RINNOVATO': 'badge-info',
             'PAGATA': 'badge-success',
             'NON_PAGATA': 'badge-danger',
             'PARZIALMENTE_PAGATA': 'badge-warning',

@@ -86,6 +86,7 @@ const Contratti = {
                                 <option value="SCADUTO">Scaduti</option>
                                 <option value="IN_RINNOVO">In Rinnovo</option>
                                 <option value="CESSATO">Cessati</option>
+                                <option value="RINNOVATO">Rinnovati</option>
                                 <option value="SOSPESO">Sospesi</option>
                             </select>
                             <select class="filter-select" id="filtroCliente" onchange="Contratti.applyFilters()">
@@ -287,6 +288,7 @@ const Contratti = {
             'SCADUTO': 'badge-warning',
             'CESSATO': 'badge-secondary',
             'IN_RINNOVO': 'badge-info',
+            'RINNOVATO': 'badge-info',
             'SOSPESO': 'badge-danger'
         };
         return badgeMap[stato] || 'badge-secondary';

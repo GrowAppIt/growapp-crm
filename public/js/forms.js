@@ -2289,6 +2289,9 @@ const FormsManager = {
                     UI.showSuccess('Contratto creato con successo! (Scadenze automatiche non generate)');
                 }
 
+                // Aggiorna stato cliente in base ai contratti
+                DataService.aggiornaStatoCliente(data.clienteId);
+
                 // Vai al dettaglio contratto
                 DettaglioContratto.render(newId);
             }
@@ -2424,6 +2427,11 @@ const FormsManager = {
                 await DataService.updateContratto(contrattoId, data);
                 UI.showSuccess('Contratto aggiornato con successo!');
 
+                // Aggiorna stato cliente in base ai contratti
+                if (data.clienteId) {
+                    DataService.aggiornaStatoCliente(data.clienteId);
+                }
+
                 // Ricarica dettaglio
                 DettaglioContratto.render(contrattoId);
             }
@@ -2442,27 +2450,62 @@ const FormsManager = {
         // Carica cliente
         const cliente = await DataService.getCliente(contratto.clienteId);
 
-        // Calcola nuova data scadenza (1 anno dalla scadenza attuale o da oggi)
-        const dataBase = contratto.dataScadenza ? new Date(contratto.dataScadenza) : new Date();
-        const nuovaScadenza = new Date(dataBase);
+        // Calcola date per il nuovo contratto
+        // Data inizio = giorno dopo scadenza vecchio (o oggi se già scaduto)
+        const vecchiaScadenza = contratto.dataScadenza ? new Date(contratto.dataScadenza) : new Date();
+        const oggi = new Date();
+        const dataInizioNuovo = vecchiaScadenza > oggi ? new Date(vecchiaScadenza) : new Date(oggi);
+        dataInizioNuovo.setDate(dataInizioNuovo.getDate() + 1);
+
+        // Data scadenza = 1 anno dalla data inizio
+        const nuovaScadenza = new Date(dataInizioNuovo);
         nuovaScadenza.setFullYear(nuovaScadenza.getFullYear() + 1);
 
+        // Durata in mesi
+        const durata = contratto.durataContratto || 12;
+
         const content = `
-            <div class="alert alert-info" style="background: var(--azzurro-info); padding: 1rem; margin-bottom: 1.5rem; border-radius: 8px; border-left: 4px solid #0288D1;">
+            <div class="alert alert-info" style="background: #E8F4FD; padding: 1rem; margin-bottom: 1.5rem; border-radius: 8px; border-left: 4px solid #0288D1;">
                 <p style="margin: 0; color: var(--grigio-700);">
                     <strong><i class="fas fa-info-circle"></i> Rinnovo Contratto</strong><br>
-                    Il rinnovo prolungherà il contratto di 1 anno. Puoi modificare gli importi se necessario.
+                    Il contratto attuale <strong>${contratto.numeroContratto}</strong> verrà marcato come <em>Rinnovato</em> e verrà creato un <strong>nuovo contratto</strong> con i dati sottostanti. Puoi modificare importi, date e durata.
                 </p>
             </div>
 
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 1rem;">
                 ${this.createFormField('Cliente', 'clienteDisplay', 'text', cliente?.ragioneSociale || 'Sconosciuto', { disabled: true })}
                 ${this.createFormField('Contratto Originale', 'contrattoOriginale', 'text', contratto.numeroContratto, { disabled: true })}
-                ${this.createFormField('Nuova Data Scadenza', 'nuovaDataScadenza', 'date', nuovaScadenza.toISOString().split('T')[0], { required: true })}
+                ${this.createFormField('Nuovo N. Contratto', 'nuovoNumero', 'text', DataService._generaNumeroRinnovo(contratto.numeroContratto), { disabled: true })}
+                ${this.createFormField('Data Inizio Nuovo', 'dataInizioNuovo', 'date', dataInizioNuovo.toISOString().split('T')[0], { required: true })}
+                ${this.createFormField('Durata (mesi)', 'durataNuovo', 'number', durata, { required: true })}
+                ${this.createFormField('Data Scadenza Nuovo', 'dataScadenzaNuovo', 'date', nuovaScadenza.toISOString().split('T')[0], { required: true })}
                 ${this.createFormField('Importo Contratto €', 'nuovoImportoAnnuale', 'number', contratto.importoAnnuale, { required: true })}
-                ${this.createFormField('Importo Mensile €', 'nuovoImportoMensile', 'number', contratto.importoMensile)}
+                ${this.createFormField('Importo Mensile €', 'nuovoImportoMensile', 'number', contratto.importoMensile, { placeholder: 'Calcolato automaticamente se vuoto' })}
+                ${this.createFormField('Periodicità Fatturazione', 'periodicitaNuovo', 'select', contratto.periodicita || 'ANNUALE', {
+                    options: [
+                        { value: 'UNA_TANTUM', label: 'Una Tantum' },
+                        { value: 'MENSILE', label: 'Mensile' },
+                        { value: 'BIMENSILE', label: 'Bimensile' },
+                        { value: 'TRIMESTRALE', label: 'Trimestrale' },
+                        { value: 'SEMESTRALE', label: 'Semestrale' },
+                        { value: 'ANNUALE', label: 'Annuale' },
+                        { value: 'BIENNALE', label: 'Biennale (2 anni)' },
+                        { value: 'TRIENNALE', label: 'Triennale (3 anni)' },
+                        { value: 'QUADRIENNALE', label: 'Quadriennale (4 anni)' },
+                        { value: 'QUINQUENNALE', label: 'Quinquennale (5 anni)' }
+                    ]
+                })}
             </div>
-            ${this.createFormField('Note Rinnovo', 'noteRinnovo', 'textarea', '', { placeholder: 'Note sul rinnovo...' })}
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem;">
+                <div class="form-group">
+                    <label style="display: block; font-size: 0.875rem; font-weight: 600; color: var(--grigio-700); margin-bottom: 0.5rem;">
+                        <input type="checkbox" name="rinnovoAutomaticoNuovo" id="rinnovoAutomaticoNuovo" ${contratto.rinnovoAutomatico ? 'checked' : ''} />
+                        Rinnovo Automatico
+                    </label>
+                </div>
+                ${this.createFormField('Giorni Preavviso', 'giorniPreavvisoNuovo', 'number', contratto.giorniPreavvisoRinnovo || 60)}
+            </div>
+            ${this.createFormField('Note Nuovo Contratto', 'noteRinnovo', 'textarea', '', { placeholder: 'Note per il nuovo contratto...' })}
         `;
 
         this.showModal(
@@ -2471,38 +2514,44 @@ const FormsManager = {
             async () => {
                 const data = this.getFormData();
 
-                // Prepara dati aggiornamento
-                const updateData = {
-                    dataScadenza: data.nuovaDataScadenza,
-                    importoAnnuale: parseFloat(data.nuovoImportoAnnuale) || contratto.importoAnnuale,
-                    importoMensile: parseFloat(data.nuovoImportoMensile) || contratto.importoMensile,
-                    stato: 'ATTIVO',
-                    dataAggiornamento: new Date()
+                const importoAnnuale = parseFloat(data.nuovoImportoAnnuale) || contratto.importoAnnuale;
+                let importoMensile = parseFloat(data.nuovoImportoMensile);
+                if (!importoMensile && importoAnnuale) {
+                    importoMensile = importoAnnuale / 12;
+                }
+
+                // Validazioni
+                if (!data.dataInizioNuovo) throw new Error('La data di inizio è obbligatoria');
+                if (!data.dataScadenzaNuovo) throw new Error('La data di scadenza è obbligatoria');
+                if (new Date(data.dataScadenzaNuovo) <= new Date(data.dataInizioNuovo)) {
+                    throw new Error('La data di scadenza deve essere successiva alla data di inizio');
+                }
+
+                // Prepara dati per il nuovo contratto
+                const nuovoContrattoDati = {
+                    dataInizio: data.dataInizioNuovo,
+                    dataScadenza: data.dataScadenzaNuovo,
+                    importoAnnuale: importoAnnuale,
+                    importoMensile: importoMensile,
+                    durataContratto: parseInt(data.durataNuovo) || 12,
+                    periodicita: data.periodicitaNuovo || contratto.periodicita,
+                    note: data.noteRinnovo || '',
+                    rinnovoAutomatico: document.getElementById('rinnovoAutomaticoNuovo')?.checked || false,
+                    giorniPreavvisoRinnovo: parseInt(data.giorniPreavvisoNuovo) || 60
                 };
 
-                // Aggiungi note rinnovo alle note esistenti
-                if (data.noteRinnovo) {
-                    const notaRinnovo = `\n\n--- RINNOVO ${new Date().toLocaleDateString()} ---\n${data.noteRinnovo}`;
-                    updateData.note = (contratto.note || '') + notaRinnovo;
+                // Crea nuovo contratto e marca vecchio come RINNOVATO
+                const nuovoId = await DataService.rinnovaContratto(contrattoId, nuovoContrattoDati);
+
+                UI.showSuccess('Contratto rinnovato! Il vecchio contratto è stato archiviato e ne è stato creato uno nuovo.');
+
+                // Aggiorna stato cliente in base ai contratti
+                if (contratto.clienteId) {
+                    await DataService.aggiornaStatoCliente(contratto.clienteId);
                 }
 
-                // Usa il metodo dedicato che crea anche la scadenza
-                await DataService.rinnovaContratto(
-                    contrattoId,
-                    data.nuovaDataScadenza,
-                    data.noteRinnovo
-                );
-
-                // Aggiorna anche importi se cambiati
-                if (updateData.importoAnnuale !== contratto.importoAnnuale ||
-                    updateData.importoMensile !== contratto.importoMensile) {
-                    await DataService.updateContratto(contrattoId, updateData);
-                }
-
-                UI.showSuccess('Contratto rinnovato con successo!');
-
-                // Ricarica dettaglio
-                DettaglioContratto.render(contrattoId);
+                // Vai al dettaglio del NUOVO contratto
+                DettaglioContratto.render(nuovoId);
             }
         );
     },

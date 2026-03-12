@@ -28,6 +28,10 @@ const DettaglioCliente = {
 
             this.cliente = cliente; // Salva per uso successivo
 
+            // Ricalcola stato cliente dai contratti effettivi (non dal campo statico)
+            const statoCalcolato = DataService.calcolaStatoCliente(contratti);
+            cliente.statoContratto = statoCalcolato;
+
             const mainContent = document.getElementById('mainContent');
             mainContent.innerHTML = `
                 <div class="page-header mb-3">
@@ -45,8 +49,8 @@ const DettaglioCliente = {
                         <i class="fas fa-building"></i> ${cliente.ragioneSociale}
                     </h1>
                     <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
-                        <span class="badge ${DataService.getStatoBadgeClass(cliente.statoContratto)}">
-                            ${cliente.statoContratto}
+                        <span class="badge ${DataService.getStatoBadgeClass(statoCalcolato)}">
+                            ${statoCalcolato}
                         </span>
                         ${cliente.provincia ? `<span style="color: var(--grigio-500);"><i class="fas fa-map-marker-alt"></i> ${cliente.provincia}</span>` : ''}
                         ${cliente.agente ? `<span style="color: var(--grigio-500);"><i class="fas fa-user"></i> ${cliente.agente}</span>` : ''}
@@ -1432,6 +1436,7 @@ const DettaglioCliente = {
             'SCADUTO': 'badge-warning',
             'CESSATO': 'badge-secondary',
             'IN_RINNOVO': 'badge-info',
+            'RINNOVATO': 'badge-info',
             'SOSPESO': 'badge-danger'
         };
         return badgeMap[stato] || 'badge-secondary';

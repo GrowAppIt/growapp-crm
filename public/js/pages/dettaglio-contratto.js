@@ -278,8 +278,39 @@ const DettaglioContratto = {
 
         const isAttivo = this.contratto.stato === 'ATTIVO';
         const isScaduto = this.contratto.stato === 'SCADUTO';
+        const isRinnovato = this.contratto.stato === 'RINNOVATO';
+
+        // Link storico rinnovi
+        let storicoHtml = '';
+        if (this.contratto.contrattoOrigineId) {
+            storicoHtml += `
+                <a href="#" onclick="DettaglioContratto.render('${this.contratto.contrattoOrigineId}'); return false;"
+                   style="display: flex; align-items: center; gap: 0.5rem; padding: 0.75rem; background: var(--blu-100); border-radius: 8px; text-decoration: none; color: var(--blu-700); font-size: 0.875rem;">
+                    <i class="fas fa-arrow-left"></i>
+                    <span>Contratto precedente: <strong>${this.contratto.contrattoOrigineNumero || 'Originale'}</strong></span>
+                </a>`;
+        }
+        if (this.contratto.contrattoRinnovoId) {
+            storicoHtml += `
+                <a href="#" onclick="DettaglioContratto.render('${this.contratto.contrattoRinnovoId}'); return false;"
+                   style="display: flex; align-items: center; gap: 0.5rem; padding: 0.75rem; background: var(--verde-100); border-radius: 8px; text-decoration: none; color: var(--verde-700); font-size: 0.875rem; margin-top: 0.5rem;">
+                    <i class="fas fa-arrow-right"></i>
+                    <span>Contratto successivo: <strong>${this.contratto.contrattoRinnovoNumero || 'Rinnovo'}</strong></span>
+                </a>`;
+        }
 
         return `
+            ${storicoHtml ? `
+            <div class="card" style="margin-bottom: 1rem;">
+                <div class="card-header">
+                    <h2 style="font-size: 1.25rem; font-weight: 600; color: var(--grigio-900); margin: 0;">
+                        <i class="fas fa-history"></i> Storico Rinnovi
+                    </h2>
+                </div>
+                <div class="card-body">${storicoHtml}</div>
+            </div>
+            ` : ''}
+
             <div class="card">
                 <div class="card-header">
                     <h2 style="font-size: 1.25rem; font-weight: 600; color: var(--grigio-900); margin: 0;">
@@ -287,9 +318,11 @@ const DettaglioContratto = {
                     </h2>
                 </div>
                 <div class="card-body" style="display: flex; flex-direction: column; gap: 0.75rem;">
+                    ${!isRinnovato ? `
                     <button class="btn btn-primary btn-block" onclick="FormsManager.showModificaContratto('${this.contrattoId}')">
                         <i class="fas fa-edit"></i> Modifica Contratto
                     </button>
+                    ` : ''}
 
                     ${isAttivo || isScaduto ? `
                         <button class="btn btn-secondary btn-block" onclick="DettaglioContratto.rinnovaContratto()">
@@ -303,9 +336,17 @@ const DettaglioContratto = {
                         </button>
                     ` : ''}
 
+                    ${!isRinnovato ? `
                     <button class="btn btn-danger btn-block" onclick="DettaglioContratto.eliminaContratto()">
                         <i class="fas fa-trash"></i> Elimina Contratto
                     </button>
+                    ` : ''}
+
+                    ${isRinnovato ? `
+                    <div style="padding: 0.75rem; background: var(--blu-100); border-radius: 8px; color: var(--blu-700); font-size: 0.85rem; text-align: center;">
+                        <i class="fas fa-info-circle"></i> Questo contratto è stato rinnovato e non è più modificabile.
+                    </div>
+                    ` : ''}
                 </div>
             </div>
         `;
@@ -522,6 +563,12 @@ const DettaglioContratto = {
                 stato: 'CESSATO',
                 dataAggiornamento: new Date()
             });
+
+            // Ricalcola stato cliente
+            if (this.contratto && this.contratto.clienteId) {
+                await DataService.aggiornaStatoCliente(this.contratto.clienteId);
+            }
+
             UI.hideLoading();
             UI.showSuccess('Contratto cessato con successo');
             await this.render(this.contrattoId);
@@ -547,7 +594,14 @@ const DettaglioContratto = {
 
         try {
             UI.showLoading();
+            const clienteIdPrima = this.contratto ? this.contratto.clienteId : null;
             await DataService.deleteContratto(this.contrattoId);
+
+            // Ricalcola stato cliente dopo eliminazione
+            if (clienteIdPrima) {
+                await DataService.aggiornaStatoCliente(clienteIdPrima);
+            }
+
             UI.hideLoading();
             UI.showSuccess(`Contratto "${this.contratto.numeroContratto}" eliminato`);
             UI.showPage('contratti');
@@ -564,6 +618,7 @@ const DettaglioContratto = {
             'ATTIVO': 'badge-success',
             'SCADUTO': 'badge-warning',
             'CESSATO': 'badge-secondary',
+            'RINNOVATO': 'badge-info',
             'IN_RINNOVO': 'badge-info',
             'SOSPESO': 'badge-danger'
         };

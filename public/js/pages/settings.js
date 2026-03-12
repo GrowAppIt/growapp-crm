@@ -1068,6 +1068,33 @@ const Settings = {
                             </button>
                         </div>
 
+                        <!-- Aggiornamento Massivo Stati Clienti -->
+                        <div style="padding-top: 2rem; border-top: 1px solid var(--grigio-300);">
+                            <h4 style="color: var(--blu-700); margin-bottom: 0.5rem;">
+                                <i class="fas fa-users-cog"></i> Aggiornamento Massivo Stati Clienti
+                            </h4>
+                            <p style="color: var(--grigio-500); margin-bottom: 1rem;">
+                                <strong>Ricalcola lo stato</strong> di tutti i clienti in base ai loro contratti effettivi.<br>
+                                Se un cliente ha almeno un contratto ATTIVO, il suo stato diventa ATTIVO. Utile dopo importazioni o correzioni manuali.
+                            </p>
+                            <div id="aggStatiProgress" style="display: none; margin-bottom: 1rem;">
+                                <div style="background: var(--grigio-200); border-radius: 8px; overflow: hidden; height: 24px; margin-bottom: 0.5rem;">
+                                    <div id="aggStatiBar" style="background: var(--blu-700); height: 100%; width: 0%; transition: width 0.3s; display: flex; align-items: center; justify-content: center; color: white; font-weight: 700; font-size: 0.875rem;">
+                                        0%
+                                    </div>
+                                </div>
+                                <p id="aggStatiStatus" style="color: var(--grigio-700); font-size: 0.875rem;"></p>
+                            </div>
+                            <div id="aggStatiResult" style="margin-bottom: 1rem;"></div>
+                            <button
+                                class="btn btn-primary"
+                                id="btnAggStati"
+                                onclick="Settings.aggiornaStatiClientiMassivo()"
+                            >
+                                <i class="fas fa-sync-alt"></i> Aggiorna Tutti gli Stati
+                            </button>
+                        </div>
+
                         <!-- Statistiche Database -->
                         <div style="padding-top: 2rem; border-top: 1px solid var(--grigio-300);">
                             <h4 style="color: var(--blu-700); margin-bottom: 1rem;">
@@ -3082,6 +3109,97 @@ const Settings = {
 
     screenshotAzienda() {
         UI.showSuccess('Usa la funzione screenshot del tuo sistema operativo o browser per catturare la card!');
+    },
+
+    // === AGGIORNAMENTO MASSIVO STATI CLIENTI ===
+    async aggiornaStatiClientiMassivo() {
+        if (!confirm('Vuoi aggiornare lo stato di tutti i clienti?\n\nQuesta operazione ricalcola lo stato di ogni cliente in base ai contratti effettivi.\n\nProcedere?')) {
+            return;
+        }
+
+        const progressDiv = document.getElementById('aggStatiProgress');
+        const barDiv = document.getElementById('aggStatiBar');
+        const statusP = document.getElementById('aggStatiStatus');
+        const resultDiv = document.getElementById('aggStatiResult');
+        const btn = document.getElementById('btnAggStati');
+
+        if (progressDiv) progressDiv.style.display = 'block';
+        if (btn) btn.disabled = true;
+        if (resultDiv) resultDiv.innerHTML = '';
+
+        try {
+            // Carica tutti i clienti
+            statusP.textContent = 'Caricamento clienti...';
+            const clientiSnapshot = await db.collection('clienti').get();
+            const totale = clientiSnapshot.size;
+            let aggiornati = 0;
+            let invariati = 0;
+            let errori = 0;
+            let dettagli = [];
+
+            for (let i = 0; i < clientiSnapshot.docs.length; i++) {
+                const doc = clientiSnapshot.docs[i];
+                const cliente = doc.data();
+                const clienteId = doc.id;
+
+                try {
+                    // Carica contratti del cliente
+                    const contrattiSnap = await db.collection('contratti')
+                        .where('clienteId', '==', clienteId)
+                        .get();
+
+                    const contratti = contrattiSnap.docs.map(d => ({ ...d.data(), id: d.id }));
+                    const nuovoStato = DataService.calcolaStatoCliente(contratti);
+                    const statoAttuale = cliente.statoContratto || 'SENZA_CONTRATTO';
+
+                    if (nuovoStato !== statoAttuale) {
+                        await db.collection('clienti').doc(clienteId).update({
+                            statoContratto: nuovoStato
+                        });
+                        aggiornati++;
+                        dettagli.push(`${cliente.ragioneSociale}: ${statoAttuale} → ${nuovoStato}`);
+                    } else {
+                        invariati++;
+                    }
+                } catch (e) {
+                    errori++;
+                    console.error(`Errore aggiornamento stato per ${clienteId}:`, e);
+                }
+
+                // Aggiorna progress
+                const pct = Math.round(((i + 1) / totale) * 100);
+                if (barDiv) { barDiv.style.width = pct + '%'; barDiv.textContent = pct + '%'; }
+                if (statusP) statusP.textContent = `Elaborazione ${i + 1}/${totale}...`;
+            }
+
+            // Mostra risultato
+            DataService._cacheInvalidate('clienti:');
+            if (resultDiv) {
+                resultDiv.innerHTML = `
+                    <div style="background: var(--verde-100); padding: 1rem; border-radius: 8px; border-left: 4px solid var(--verde-700);">
+                        <strong><i class="fas fa-check-circle" style="color: var(--verde-700);"></i> Completato!</strong><br>
+                        Totale clienti: <strong>${totale}</strong><br>
+                        Aggiornati: <strong style="color: var(--verde-700);">${aggiornati}</strong><br>
+                        Invariati: <strong>${invariati}</strong><br>
+                        ${errori > 0 ? `Errori: <strong style="color: var(--rosso-errore);">${errori}</strong><br>` : ''}
+                        ${dettagli.length > 0 ? `
+                            <details style="margin-top: 0.5rem;">
+                                <summary style="cursor: pointer; color: var(--blu-700);">Mostra dettagli (${dettagli.length} modifiche)</summary>
+                                <ul style="margin-top: 0.5rem; font-size: 0.85rem; max-height: 200px; overflow-y: auto;">
+                                    ${dettagli.map(d => `<li>${d}</li>`).join('')}
+                                </ul>
+                            </details>
+                        ` : ''}
+                    </div>
+                `;
+            }
+            if (statusP) statusP.textContent = 'Completato!';
+        } catch (error) {
+            console.error('Errore aggiornamento massivo:', error);
+            UI.showError('Errore durante l\'aggiornamento: ' + error.message);
+        } finally {
+            if (btn) btn.disabled = false;
+        }
     },
 
     // 🏛️ ARRICCHIMENTO MASSIVO DATI COMUNI
