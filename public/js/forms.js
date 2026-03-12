@@ -2378,6 +2378,7 @@ const FormsManager = {
                     options: [
                         { value: 'ATTIVO', label: 'Attivo' },
                         { value: 'SCADUTO', label: 'Scaduto' },
+                        { value: 'RINNOVATO', label: 'Rinnovato' },
                         { value: 'CESSATO', label: 'Cessato' },
                         { value: 'IN_RINNOVO', label: 'In Rinnovo' },
                         { value: 'SOSPESO', label: 'Sospeso' }
