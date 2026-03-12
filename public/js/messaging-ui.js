@@ -639,7 +639,9 @@ const MessagingUI = {
             const contentHtml = this._renderMessageContent(msg);
 
             // Azioni messaggio — hover su desktop, long-press su mobile
-            const canEdit = isMine && msg.type === 'text' && msg.createdAt;
+            // msg.type può essere 'text', undefined (vecchi messaggi) o altro
+            const msgType = msg.type || 'text';
+            const canEdit = isMine && msgType === 'text' && msg.createdAt;
             const canDelete = isMine || AuthService.getUserRole() === 'SUPER_ADMIN';
             const hasActions = canEdit || canDelete;
 
@@ -805,14 +807,14 @@ const MessagingUI = {
     },
 
     _showMsgMenu(e, msgId, isMine, canEdit) {
-        e.stopPropagation();
+        if (e && e.stopPropagation) e.stopPropagation();
         // Chiudi eventuali menu precedenti
         const existing = document.getElementById('chatMsgMenu');
         if (existing) existing.remove();
 
         const menu = document.createElement('div');
         menu.id = 'chatMsgMenu';
-        menu.style.cssText = 'position:fixed;background:white;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.2);min-width:160px;z-index:1200;overflow:hidden;';
+        menu.style.cssText = 'position:fixed;background:white;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.2);min-width:160px;z-index:9999;overflow:hidden;';
 
         let menuHtml = '';
         if (canEdit) {
@@ -822,23 +824,46 @@ const MessagingUI = {
             menuHtml += `<div onclick="MessagingUI._confirmDeleteMessage('${msgId}')" style="padding:0.625rem 1rem;cursor:pointer;display:flex;align-items:center;gap:8px;font-size:0.8125rem;color:var(--rosso-errore);transition:background 0.15s;" onmouseover="this.style.background='#FFF0F0'" onmouseout="this.style.background='white'"><i class="fas fa-trash-alt" style="width:14px;text-align:center;"></i>Elimina per tutti</div>`;
         }
 
+        if (!menuHtml) return; // Nessuna azione disponibile
+
         menu.innerHTML = menuHtml;
 
-        // Posiziona vicino al pulsante
-        const rect = e.currentTarget.getBoundingClientRect();
-        menu.style.top = (rect.bottom + 4) + 'px';
-        menu.style.left = Math.max(8, rect.left - 80) + 'px';
+        // Posiziona usando le coordinate del mouse (più robusto di e.currentTarget)
+        let posY = 300, posX = 100;
+        if (e) {
+            // Coordinate dal click/touch
+            posY = e.clientY || (e.touches && e.touches[0] && e.touches[0].clientY) || 300;
+            posX = e.clientX || (e.touches && e.touches[0] && e.touches[0].clientX) || 100;
+        }
 
+        menu.style.top = (posY + 4) + 'px';
+        menu.style.left = Math.max(8, posX - 80) + 'px';
+
+        // Verifica che il menu non esca dal viewport
         document.body.appendChild(menu);
+        const menuRect = menu.getBoundingClientRect();
+        if (menuRect.bottom > window.innerHeight) {
+            menu.style.top = Math.max(8, posY - menuRect.height - 4) + 'px';
+        }
+        if (menuRect.right > window.innerWidth) {
+            menu.style.left = Math.max(8, window.innerWidth - menuRect.width - 8) + 'px';
+        }
 
-        // Chiudi cliccando fuori
+        // Chiudi cliccando fuori — listener su document E sul pannello chat
+        // (il pannello ha stopPropagation, quindi i click al suo interno non raggiungono document)
         const closeMenu = (ev) => {
             if (!menu.contains(ev.target)) {
                 menu.remove();
-                document.removeEventListener('click', closeMenu);
+                document.removeEventListener('mousedown', closeMenu, true);
+                const panel = document.getElementById('chatPanel');
+                if (panel) panel.removeEventListener('mousedown', closeMenu);
             }
         };
-        setTimeout(() => document.addEventListener('click', closeMenu), 10);
+        setTimeout(() => {
+            document.addEventListener('mousedown', closeMenu, true);
+            const panel = document.getElementById('chatPanel');
+            if (panel) panel.addEventListener('mousedown', closeMenu);
+        }, 50);
     },
 
     _startEditMessage(msgId) {
