@@ -521,23 +521,35 @@ const MessagingUI = {
             // Contenuto messaggio (testo, immagine, file, audio)
             const contentHtml = this._renderMessageContent(msg);
 
-            // Azioni messaggio (long-press / context su mobile, hover su desktop)
+            // Azioni messaggio — hover su desktop, long-press su mobile
             const canEdit = isMine && msg.type === 'text' && msg.createdAt;
             const canDelete = isMine || AuthService.getUserRole() === 'SUPER_ADMIN';
-            const msgActions = (canEdit || canDelete) ? `
-                <div class="chat-msg-actions" data-msgid="${msg.id}" style="display:none;position:absolute;${isMine ? 'left:-34px;' : 'right:-34px;'}top:50%;transform:translateY(-50%);z-index:5;">
-                    <button onclick="MessagingUI._showMsgMenu(event, '${msg.id}', ${isMine}, ${canEdit})" style="background:white;border:1px solid var(--grigio-300);width:28px;height:28px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,0.1);">
-                        <i class="fas fa-chevron-down" style="font-size:0.625rem;color:var(--grigio-500);"></i>
+            const hasActions = canEdit || canDelete;
+
+            // Attributi touch per long-press su mobile
+            const touchAttrs = hasActions ? `
+                ontouchstart="MessagingUI._touchStart(event, '${msg.id}', ${isMine}, ${canEdit})"
+                ontouchend="MessagingUI._touchEnd()"
+                ontouchmove="MessagingUI._touchEnd()"
+            ` : '';
+
+            // Pulsante ▼ dentro la bolla (visibile al hover o long-press)
+            const msgActionBtn = hasActions ? `
+                <div class="chat-msg-actions" data-msgid="${msg.id}" style="display:none;position:absolute;top:4px;${isMine ? 'left:6px;' : 'right:6px;'}z-index:5;">
+                    <button onclick="event.stopPropagation(); MessagingUI._showMsgMenu(event, '${msg.id}', ${isMine}, ${canEdit})"
+                        style="background:rgba(255,255,255,0.9);border:1px solid var(--grigio-300);width:24px;height:24px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,0.15);backdrop-filter:blur(4px);">
+                        <i class="fas fa-chevron-down" style="font-size:0.5625rem;color:var(--grigio-600);"></i>
                     </button>
                 </div>
             ` : '';
 
             if (isMine) {
                 html += `
-                    <div class="chat-msg-row" style="display:flex;justify-content:flex-end;margin-bottom:${showAvatar ? '8px' : '2px'};padding:0 0.75rem;position:relative;"
-                         onmouseenter="MessagingUI._showMsgActions('${msg.id}')" onmouseleave="MessagingUI._hideMsgActions('${msg.id}')">
-                        ${msgActions}
-                        <div style="max-width:80%;background:var(--blu-700);color:white;border-radius:16px 4px 16px 16px;padding:0.5rem 0.875rem;position:relative;">
+                    <div class="chat-msg-row" style="display:flex;justify-content:flex-end;margin-bottom:${showAvatar ? '8px' : '2px'};padding:0 0.75rem;"
+                         ${touchAttrs}>
+                        <div class="chat-msg-bubble" style="max-width:80%;background:var(--blu-700);color:white;border-radius:16px 4px 16px 16px;padding:0.5rem 0.875rem;position:relative;"
+                             onmouseenter="MessagingUI._showMsgActions('${msg.id}')" onmouseleave="MessagingUI._hideMsgActions('${msg.id}')">
+                            ${msgActionBtn}
                             ${contentHtml}
                             <div style="text-align:right;margin-top:2px;"><span style="font-size:0.6875rem;opacity:0.7;">${time}</span>${editedLabel}</div>
                         </div>
@@ -545,19 +557,20 @@ const MessagingUI = {
                 `;
             } else {
                 html += `
-                    <div class="chat-msg-row" style="display:flex;gap:8px;margin-bottom:${showAvatar ? '8px' : '2px'};padding:0 0.75rem;align-items:flex-end;position:relative;"
-                         onmouseenter="MessagingUI._showMsgActions('${msg.id}')" onmouseleave="MessagingUI._hideMsgActions('${msg.id}')">
+                    <div class="chat-msg-row" style="display:flex;gap:8px;margin-bottom:${showAvatar ? '8px' : '2px'};padding:0 0.75rem;align-items:flex-end;"
+                         ${touchAttrs}>
                         ${showAvatar
                             ? MessagingService.renderAvatar(msg.senderName, msg.senderPhoto, 30, null)
                             : '<div style="width:30px;flex-shrink:0;"></div>'
                         }
-                        <div style="max-width:75%;position:relative;">
+                        <div style="max-width:75%;">
                             ${showAvatar ? `<div style="font-size:0.75rem;font-weight:700;color:var(--blu-700);margin-bottom:2px;padding-left:4px;">${msg.senderName}</div>` : ''}
-                            <div style="background:var(--grigio-100);color:var(--grigio-900);border-radius:4px 16px 16px 16px;padding:0.5rem 0.875rem;position:relative;">
+                            <div class="chat-msg-bubble" style="background:var(--grigio-100);color:var(--grigio-900);border-radius:4px 16px 16px 16px;padding:0.5rem 0.875rem;position:relative;"
+                                 onmouseenter="MessagingUI._showMsgActions('${msg.id}')" onmouseleave="MessagingUI._hideMsgActions('${msg.id}')">
+                                ${msgActionBtn}
                                 ${contentHtml}
                                 <div style="margin-top:2px;"><span style="font-size:0.6875rem;color:var(--grigio-500);">${time}</span>${editedLabel}</div>
                             </div>
-                            ${msgActions}
                         </div>
                     </div>
                 `;
@@ -634,6 +647,8 @@ const MessagingUI = {
     // AZIONI SUI MESSAGGI (edit / delete)
     // ══════════════════════════════════════════
 
+    _longPressTimer: null,
+
     _showMsgActions(msgId) {
         const el = document.querySelector(`.chat-msg-actions[data-msgid="${msgId}"]`);
         if (el) el.style.display = 'block';
@@ -642,6 +657,34 @@ const MessagingUI = {
     _hideMsgActions(msgId) {
         const el = document.querySelector(`.chat-msg-actions[data-msgid="${msgId}"]`);
         if (el) el.style.display = 'none';
+    },
+
+    /**
+     * Long-press su mobile (touchstart → 500ms → apri menu)
+     */
+    _touchStart(e, msgId, isMine, canEdit) {
+        this._touchEnd(); // Pulisci timer precedente
+        this._longPressTimer = setTimeout(() => {
+            // Vibra per feedback tattile (se supportato)
+            if (navigator.vibrate) navigator.vibrate(30);
+            // Simula un evento per posizionare il menu
+            const touch = e.touches && e.touches[0];
+            const fakeEvent = {
+                stopPropagation: () => {},
+                currentTarget: { getBoundingClientRect: () => ({
+                    bottom: touch ? touch.clientY : 300,
+                    left: touch ? touch.clientX - 80 : 100
+                })}
+            };
+            this._showMsgMenu(fakeEvent, msgId, isMine, canEdit);
+        }, 500);
+    },
+
+    _touchEnd() {
+        if (this._longPressTimer) {
+            clearTimeout(this._longPressTimer);
+            this._longPressTimer = null;
+        }
     },
 
     _showMsgMenu(e, msgId, isMine, canEdit) {

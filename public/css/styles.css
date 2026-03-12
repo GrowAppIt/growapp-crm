@@ -1699,11 +1699,8 @@ img {
         z-index: 2;
     }
 
-    /* Messaggi hover actions: sempre visibili su tap (no hover) */
+    /* Su mobile: nascondi pulsantini hover, si usa long-press (500ms) */
     .chat-msg-row .chat-msg-actions {
         display: none !important;
-    }
-    .chat-msg-row:active .chat-msg-actions {
-        display: block !important;
     }
 }
