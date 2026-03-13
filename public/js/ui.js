@@ -113,21 +113,6 @@ const UI = {
             case 'centro-notifiche':
                 CentroNotifiche.render();
                 break;
-            case 'messaggi':
-                // Apri il pannello chat invece di renderizzare una pagina
-                if (typeof MessagingUI !== 'undefined') {
-                    MessagingUI.openPanel();
-                }
-                // Ripristina la pagina precedente (ri-renderizza il contenuto)
-                if (this._navStack.length > 0) {
-                    const prev = this._navStack.pop();
-                    this.currentPage = prev.page;
-                    this.currentPageId = prev.id;
-                    this.showPage(prev.page, prev.id);
-                } else {
-                    this.showPage('dashboard');
-                }
-                return;
             case 'impostazioni':
                 Settings.render();
                 break;
