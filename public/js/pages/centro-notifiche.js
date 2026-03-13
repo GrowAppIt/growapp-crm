@@ -208,7 +208,7 @@ const CentroNotifiche = {
         const unreadClass = notif.read ? '' : 'cn-notif-unread';
 
         return `
-            <div class="cn-notif-row ${unreadClass}" onclick="CentroNotifiche._clickNotif('${notif.id}', '${notif.taskId || ''}')">
+            <div class="cn-notif-row ${unreadClass}" onclick="CentroNotifiche._clickNotif('${notif.id}', '${notif.taskId || ''}', '${notif.appId || ''}', '${notif.type || ''}')">
                 <div style="width:40px;height:40px;border-radius:50%;background:${color};display:flex;align-items:center;justify-content:center;color:#fff;flex-shrink:0;">
                     <i class="fas ${icon}"></i>
                 </div>
@@ -262,15 +262,21 @@ const CentroNotifiche = {
         window.scrollTo({ top: 0, behavior: 'smooth' });
     },
 
-    async _clickNotif(notifId, taskId) {
+    async _clickNotif(notifId, taskId, appId, type) {
         // Segna come letta
         await NotificationService.markAsRead(notifId);
         // Aggiorna localmente
         const notif = this._notifications.find(n => n.id === notifId);
         if (notif) notif.read = true;
 
-        // Naviga al task
-        if (taskId && taskId !== 'null' && taskId !== 'undefined' && taskId !== '') {
+        // Naviga in base al tipo di notifica
+        if (type === 'app_discussion' && appId && appId !== 'null' && appId !== 'undefined' && appId !== '') {
+            // Vai al dettaglio app → tab discussione
+            DettaglioApp.render(appId);
+            setTimeout(() => {
+                DettaglioApp.switchTab('discussione');
+            }, 800);
+        } else if (taskId && taskId !== 'null' && taskId !== 'undefined' && taskId !== '') {
             UI.showPage('task');
             setTimeout(() => {
                 if (window.GestioneTask && typeof GestioneTask.viewTaskDetails === 'function') {

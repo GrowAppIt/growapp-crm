@@ -783,17 +783,20 @@ const MessagingUI = {
      */
     _touchStart(e, msgId, isMine, canEdit) {
         this._touchEnd(); // Pulisci timer precedente
+        // Salva coordinate del touch iniziale
+        const touch = e.touches && e.touches[0];
+        const touchX = touch ? touch.clientX : 150;
+        const touchY = touch ? touch.clientY : 300;
+
         this._longPressTimer = setTimeout(() => {
             // Vibra per feedback tattile (se supportato)
             if (navigator.vibrate) navigator.vibrate(30);
-            // Simula un evento per posizionare il menu
-            const touch = e.touches && e.touches[0];
+            // Crea evento fittizio con le coordinate salvate
             const fakeEvent = {
                 stopPropagation: () => {},
-                currentTarget: { getBoundingClientRect: () => ({
-                    bottom: touch ? touch.clientY : 300,
-                    left: touch ? touch.clientX - 80 : 100
-                })}
+                preventDefault: () => {},
+                clientX: touchX,
+                clientY: touchY
             };
             this._showMsgMenu(fakeEvent, msgId, isMine, canEdit);
         }, 500);
@@ -808,30 +811,49 @@ const MessagingUI = {
 
     _showMsgMenu(e, msgId, isMine, canEdit) {
         if (e && e.stopPropagation) e.stopPropagation();
+        if (e && e.preventDefault) e.preventDefault();
+
         // Chiudi eventuali menu precedenti
-        const existing = document.getElementById('chatMsgMenu');
-        if (existing) existing.remove();
+        this._closeMsgMenu();
 
         const menu = document.createElement('div');
         menu.id = 'chatMsgMenu';
-        menu.style.cssText = 'position:fixed;background:white;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.2);min-width:160px;z-index:9999;overflow:hidden;';
+        menu.style.cssText = 'position:fixed;background:white;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.2);min-width:160px;z-index:100000;overflow:hidden;';
 
-        let menuHtml = '';
+        // Costruisci le voci del menu con addEventListener (più robusto di onclick inline)
         if (canEdit) {
-            menuHtml += `<div onclick="MessagingUI._startEditMessage('${msgId}')" style="padding:0.625rem 1rem;cursor:pointer;display:flex;align-items:center;gap:8px;font-size:0.8125rem;color:var(--grigio-900);transition:background 0.15s;" onmouseover="this.style.background='var(--grigio-100)'" onmouseout="this.style.background='white'"><i class="fas fa-pen" style="color:var(--blu-700);width:14px;text-align:center;"></i>Modifica</div>`;
+            const editItem = document.createElement('div');
+            editItem.style.cssText = 'padding:0.625rem 1rem;cursor:pointer;display:flex;align-items:center;gap:8px;font-size:0.8125rem;color:var(--grigio-900);';
+            editItem.innerHTML = '<i class="fas fa-pen" style="color:var(--blu-700);width:14px;text-align:center;"></i>Modifica';
+            editItem.addEventListener('mouseenter', () => editItem.style.background = 'var(--grigio-100)');
+            editItem.addEventListener('mouseleave', () => editItem.style.background = 'white');
+            editItem.addEventListener('click', (ev) => {
+                ev.stopPropagation();
+                this._closeMsgMenu();
+                this._startEditMessage(msgId);
+            });
+            menu.appendChild(editItem);
         }
+
         if (isMine || AuthService.getUserRole() === 'SUPER_ADMIN') {
-            menuHtml += `<div onclick="MessagingUI._confirmDeleteMessage('${msgId}')" style="padding:0.625rem 1rem;cursor:pointer;display:flex;align-items:center;gap:8px;font-size:0.8125rem;color:var(--rosso-errore);transition:background 0.15s;" onmouseover="this.style.background='#FFF0F0'" onmouseout="this.style.background='white'"><i class="fas fa-trash-alt" style="width:14px;text-align:center;"></i>Elimina per tutti</div>`;
+            const deleteItem = document.createElement('div');
+            deleteItem.style.cssText = 'padding:0.625rem 1rem;cursor:pointer;display:flex;align-items:center;gap:8px;font-size:0.8125rem;color:var(--rosso-errore);';
+            deleteItem.innerHTML = '<i class="fas fa-trash-alt" style="width:14px;text-align:center;"></i>Elimina per tutti';
+            deleteItem.addEventListener('mouseenter', () => deleteItem.style.background = '#FFF0F0');
+            deleteItem.addEventListener('mouseleave', () => deleteItem.style.background = 'white');
+            deleteItem.addEventListener('click', (ev) => {
+                ev.stopPropagation();
+                this._closeMsgMenu();
+                this._confirmDeleteMessage(msgId);
+            });
+            menu.appendChild(deleteItem);
         }
 
-        if (!menuHtml) return; // Nessuna azione disponibile
+        if (menu.children.length === 0) return;
 
-        menu.innerHTML = menuHtml;
-
-        // Posiziona usando le coordinate del mouse (più robusto di e.currentTarget)
+        // Posiziona usando le coordinate del click/touch
         let posY = 300, posX = 100;
         if (e) {
-            // Coordinate dal click/touch
             posY = e.clientY || (e.touches && e.touches[0] && e.touches[0].clientY) || 300;
             posX = e.clientX || (e.touches && e.touches[0] && e.touches[0].clientX) || 100;
         }
@@ -839,8 +861,9 @@ const MessagingUI = {
         menu.style.top = (posY + 4) + 'px';
         menu.style.left = Math.max(8, posX - 80) + 'px';
 
-        // Verifica che il menu non esca dal viewport
         document.body.appendChild(menu);
+
+        // Aggiusta posizione se esce dal viewport
         const menuRect = menu.getBoundingClientRect();
         if (menuRect.bottom > window.innerHeight) {
             menu.style.top = Math.max(8, posY - menuRect.height - 4) + 'px';
@@ -849,27 +872,31 @@ const MessagingUI = {
             menu.style.left = Math.max(8, window.innerWidth - menuRect.width - 8) + 'px';
         }
 
-        // Chiudi cliccando fuori — listener su document E sul pannello chat
-        // (il pannello ha stopPropagation, quindi i click al suo interno non raggiungono document)
-        const closeMenu = (ev) => {
-            if (!menu.contains(ev.target)) {
-                menu.remove();
-                document.removeEventListener('mousedown', closeMenu, true);
-                const panel = document.getElementById('chatPanel');
-                if (panel) panel.removeEventListener('mousedown', closeMenu);
-            }
-        };
-        setTimeout(() => {
-            document.addEventListener('mousedown', closeMenu, true);
-            const panel = document.getElementById('chatPanel');
-            if (panel) panel.addEventListener('mousedown', closeMenu);
-        }, 50);
+        // Chiudi cliccando ovunque fuori dal menu (dopo un frame per evitare auto-chiusura)
+        requestAnimationFrame(() => {
+            this._closeMsgMenuHandler = (ev) => {
+                if (menu.parentNode && !menu.contains(ev.target)) {
+                    this._closeMsgMenu();
+                }
+            };
+            // Capture phase su document intercetta tutto, anche con stopPropagation nel panel
+            document.addEventListener('mousedown', this._closeMsgMenuHandler, true);
+            document.addEventListener('touchstart', this._closeMsgMenuHandler, true);
+        });
+    },
+
+    _closeMsgMenu() {
+        const menu = document.getElementById('chatMsgMenu');
+        if (menu) menu.remove();
+        if (this._closeMsgMenuHandler) {
+            document.removeEventListener('mousedown', this._closeMsgMenuHandler, true);
+            document.removeEventListener('touchstart', this._closeMsgMenuHandler, true);
+            this._closeMsgMenuHandler = null;
+        }
     },
 
     _startEditMessage(msgId) {
-        // Chiudi menu
-        const menu = document.getElementById('chatMsgMenu');
-        if (menu) menu.remove();
+        this._closeMsgMenu();
 
         const msg = this._currentMessages.find(m => m.id === msgId);
         if (!msg) return;
@@ -909,9 +936,7 @@ const MessagingUI = {
     },
 
     async _confirmDeleteMessage(msgId) {
-        // Chiudi menu
-        const menu = document.getElementById('chatMsgMenu');
-        if (menu) menu.remove();
+        this._closeMsgMenu();
 
         FormsManager.showModal(
             '<i class="fas fa-trash-alt" style="color:var(--rosso-errore);"></i> Elimina messaggio',

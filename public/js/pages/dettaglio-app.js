@@ -7,6 +7,10 @@ const DettaglioApp = {
     documenti: [],
     contratti: [],
     fatture: [],
+    _discussioni: [],
+    _discussioneCount: 0,
+    _isFollowing: false,
+    _followersCount: 0,
 
     // === CARTA D'IDENTITÀ — DEFINIZIONE SEZIONI CHECKLIST ===
     CHECKLIST_SECTIONS: [
@@ -135,6 +139,10 @@ const DettaglioApp = {
             if (AuthService.canViewCartaIdentita()) {
                 await this.runAutoChecks(app, clientePagante, contratti, fatture);
             }
+
+            // Carica count discussioni e stato follow (in background, non bloccante)
+            this._loadDiscussioneCount();
+            this._loadFollowState();
 
             const mainContent = document.getElementById('mainContent');
             mainContent.innerHTML = `
@@ -287,6 +295,11 @@ const DettaglioApp = {
                     <span style="background: ${progressColor}; color: ${progressPercent >= 30 && progressPercent < 70 ? '#1E1E1E' : 'white'}; border-radius: 12px; padding: 0.125rem 0.5rem; font-size: 0.7rem; margin-left: 0.4rem; font-weight: 700;">${progressPercent}%</span>
                 </button>
                 ` : ''}
+                <button class="tab-button ${this.currentTab === 'discussione' ? 'active' : ''}"
+                    onclick="DettaglioApp.switchTab('discussione')" style="${tabStyle('discussione')} position: relative;">
+                    <i class="fas fa-comments"></i> Discussione
+                    ${this._discussioneCount > 0 ? `<span style="background: var(--blu-700); color: white; border-radius: 12px; padding: 0.125rem 0.5rem; font-size: 0.7rem; margin-left: 0.4rem; font-weight: 700;">${this._discussioneCount}</span>` : ''}
+                </button>
                 ${this.app && this.app.goodbarberWebzineId ? `
                 <button class="tab-button ${this.currentTab === 'statistiche' ? 'active' : ''}"
                     onclick="DettaglioApp.switchTab('statistiche')" style="${tabStyle('statistiche')}">
@@ -318,6 +331,8 @@ const DettaglioApp = {
             return this.renderDocumenti();
         } else if (this.currentTab === 'sviluppo') {
             return this.renderCartaIdentita(app);
+        } else if (this.currentTab === 'discussione') {
+            return this.renderDiscussioneTab();
         } else if (this.currentTab === 'statistiche') {
             return this.renderStatisticheGB(app);
         }
@@ -2360,6 +2375,489 @@ const DettaglioApp = {
             } catch (e) {
                 console.warn('Errore auto-check Carta d\'Identità:', e);
             }
+        }
+    },
+
+    // ══════════════════════════════════════════════════════════════
+    // DISCUSSIONE APP — Thread commenti con sistema "Segui"
+    // ══════════════════════════════════════════════════════════════
+
+    async _loadDiscussioneCount() {
+        try {
+            const snap = await db.collection('discussioni_app')
+                .where('appId', '==', this.appId)
+                .get();
+            this._discussioneCount = snap.size;
+            // Aggiorna badge nella tab se visibile
+            const tabBtn = document.querySelector('[onclick*="discussione"]');
+            if (tabBtn) {
+                const badge = tabBtn.querySelector('span[style*="border-radius: 12px"]');
+                if (badge && this._discussioneCount > 0) {
+                    badge.textContent = this._discussioneCount;
+                } else if (!badge && this._discussioneCount > 0) {
+                    tabBtn.insertAdjacentHTML('beforeend',
+                        `<span style="background: var(--blu-700); color: white; border-radius: 12px; padding: 0.125rem 0.5rem; font-size: 0.7rem; margin-left: 0.4rem; font-weight: 700;">${this._discussioneCount}</span>`
+                    );
+                }
+            }
+        } catch (e) {
+            console.warn('Errore count discussioni:', e);
+        }
+    },
+
+    async _loadFollowState() {
+        try {
+            const userId = AuthService.getUserId();
+            if (!userId) return;
+            const doc = await db.collection('app_followers')
+                .doc(`${this.appId}_${userId}`)
+                .get();
+            this._isFollowing = doc.exists && doc.data().active === true;
+        } catch (e) {
+            console.warn('Errore caricamento stato follow:', e);
+        }
+    },
+
+    renderDiscussioneTab() {
+        // Avvia caricamento commenti in background
+        setTimeout(() => this._loadDiscussioni(), 50);
+
+        return `
+            <div>
+                <!-- Header discussione con pulsante Segui -->
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 0.75rem;">
+                    <div>
+                        <h2 style="font-size: 1.5rem; font-weight: 700; color: var(--grigio-900); margin-bottom: 0.25rem;">
+                            Discussione
+                        </h2>
+                        <p style="color: var(--grigio-500); font-size: 0.875rem;">
+                            Thread di discussione interno per questa app
+                        </p>
+                    </div>
+                    <div style="display: flex; gap: 0.5rem; align-items: center;">
+                        ${AuthService.isAdmin() ? `
+                        <button class="btn btn-sm" onclick="DettaglioApp._showGestisciFollower()"
+                            style="background: var(--blu-100); color: var(--blu-700); border: 1px solid var(--blu-300); border-radius: 20px; padding: 0.375rem 1rem; font-size: 0.8125rem; cursor: pointer;">
+                            <i class="fas fa-users-cog"></i> Gestisci follower
+                        </button>
+                        ` : ''}
+                        <button id="btnFollowApp" class="btn btn-sm" onclick="DettaglioApp._toggleFollow()"
+                            style="background: ${this._isFollowing ? 'var(--verde-100)' : 'var(--grigio-100)'}; color: ${this._isFollowing ? 'var(--verde-700)' : 'var(--grigio-600)'}; border: 1px solid ${this._isFollowing ? 'var(--verde-700)' : 'var(--grigio-300)'}; border-radius: 20px; padding: 0.375rem 1rem; font-size: 0.8125rem; cursor: pointer;">
+                            <i class="fas ${this._isFollowing ? 'fa-bell' : 'fa-bell-slash'}"></i>
+                            ${this._isFollowing ? 'Segui' : 'Non segui'}
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Form nuovo commento -->
+                <div style="background: var(--grigio-100); border-radius: 12px; padding: 1rem; margin-bottom: 1.5rem;">
+                    <div style="display: flex; gap: 0.75rem; align-items: flex-start;">
+                        ${MessagingService.renderAvatar(AuthService.getUserName(), AuthService.currentUserData?.photoURL, 36, null)}
+                        <div style="flex: 1;">
+                            <textarea id="discussioneInput" rows="2" placeholder="Scrivi un commento..."
+                                style="width: 100%; padding: 0.625rem 0.875rem; border: 2px solid var(--grigio-300); border-radius: 8px; font-family: 'Titillium Web', sans-serif; font-size: 0.9375rem; resize: vertical; line-height: 1.5; background: white;"
+                                onkeydown="if(event.key==='Enter' && event.ctrlKey) DettaglioApp._inviaCommento()"></textarea>
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.5rem;">
+                                <span style="font-size: 0.75rem; color: var(--grigio-500);">Ctrl+Invio per inviare</span>
+                                <button class="btn btn-primary btn-sm" onclick="DettaglioApp._inviaCommento()">
+                                    <i class="fas fa-paper-plane"></i> Invia
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Lista commenti -->
+                <div id="discussioneList">
+                    <div style="text-align: center; padding: 2rem; color: var(--grigio-500);">
+                        <i class="fas fa-spinner fa-spin"></i> Caricamento commenti...
+                    </div>
+                </div>
+            </div>
+        `;
+    },
+
+    async _loadDiscussioni() {
+        try {
+            const snapshot = await db.collection('discussioni_app')
+                .where('appId', '==', this.appId)
+                .orderBy('creatoIl', 'desc')
+                .get();
+
+            this._discussioni = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+            this._discussioneCount = this._discussioni.length;
+            this._renderDiscussioni();
+        } catch (e) {
+            console.error('Errore caricamento discussioni:', e);
+            const list = document.getElementById('discussioneList');
+            if (list) {
+                list.innerHTML = `<div style="text-align:center;padding:2rem;color:var(--rosso-errore);"><i class="fas fa-exclamation-triangle"></i> Errore caricamento. Verifica che l'indice Firestore sia stato creato.</div>`;
+            }
+        }
+    },
+
+    _renderDiscussioni() {
+        const list = document.getElementById('discussioneList');
+        if (!list) return;
+
+        if (this._discussioni.length === 0) {
+            list.innerHTML = `
+                <div style="text-align: center; padding: 3rem; color: var(--grigio-500);">
+                    <i class="fas fa-comments" style="font-size: 2.5rem; opacity: 0.3; margin-bottom: 1rem; display: block;"></i>
+                    <p style="font-size: 1rem; margin-bottom: 0.25rem;">Nessun commento ancora</p>
+                    <p style="font-size: 0.8125rem;">Inizia la discussione scrivendo il primo commento.</p>
+                </div>
+            `;
+            return;
+        }
+
+        const myId = AuthService.getUserId();
+        let html = '';
+
+        this._discussioni.forEach(commento => {
+            const isMine = commento.autoreId === myId;
+            const data = commento.creatoIl ? (commento.creatoIl.toDate ? commento.creatoIl.toDate() : new Date(commento.creatoIl)) : null;
+            const dataStr = data ? data.toLocaleDateString('it-IT', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+            const isModificato = commento.modificato === true;
+
+            html += `
+                <div style="display: flex; gap: 0.75rem; padding: 1rem 0; border-bottom: 1px solid var(--grigio-200); align-items: flex-start;" id="commento_${commento.id}">
+                    ${MessagingService.renderAvatar(commento.autoreNome, commento.autorePhoto || null, 36, null)}
+                    <div style="flex: 1; min-width: 0;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem; flex-wrap: wrap; gap: 0.25rem;">
+                            <span style="font-weight: 700; color: var(--grigio-900); font-size: 0.875rem;">${commento.autoreNome}</span>
+                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                <span style="font-size: 0.75rem; color: var(--grigio-500);">${dataStr}</span>
+                                ${isModificato ? '<span style="font-size: 0.6875rem; color: var(--grigio-400); font-style: italic;">modificato</span>' : ''}
+                                ${isMine ? `
+                                    <button onclick="DettaglioApp._editCommento('${commento.id}')" title="Modifica"
+                                        style="background: none; border: none; color: var(--grigio-400); cursor: pointer; padding: 2px 4px; font-size: 0.75rem;">
+                                        <i class="fas fa-pen"></i>
+                                    </button>
+                                    <button onclick="DettaglioApp._deleteCommento('${commento.id}')" title="Elimina"
+                                        style="background: none; border: none; color: var(--grigio-400); cursor: pointer; padding: 2px 4px; font-size: 0.75rem;">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                ` : ''}
+                            </div>
+                        </div>
+                        <div id="commentoTesto_${commento.id}" style="color: var(--grigio-700); font-size: 0.9375rem; line-height: 1.6; white-space: pre-wrap; word-break: break-word;">${this._escapeHtml(commento.testo)}</div>
+                    </div>
+                </div>
+            `;
+        });
+
+        list.innerHTML = html;
+    },
+
+    _escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    },
+
+    async _inviaCommento() {
+        const input = document.getElementById('discussioneInput');
+        if (!input) return;
+        const testo = input.value.trim();
+        if (!testo) {
+            UI.showError('Scrivi un commento prima di inviare');
+            return;
+        }
+
+        try {
+            const userId = AuthService.getUserId();
+            const userName = AuthService.getUserName();
+
+            const commento = {
+                appId: this.appId,
+                appNome: this.app?.nome || '',
+                testo: testo,
+                autoreId: userId,
+                autoreNome: userName,
+                autorePhoto: AuthService.currentUserData?.photoURL || null,
+                creatoIl: firebase.firestore.FieldValue.serverTimestamp()
+            };
+
+            await db.collection('discussioni_app').add(commento);
+
+            // Auto-follow: chi scrive diventa follower automaticamente
+            await this._setFollow(true);
+
+            // Svuota input
+            input.value = '';
+            input.style.height = 'auto';
+
+            // Ricarica commenti
+            await this._loadDiscussioni();
+
+            // Notifica i follower (escluso chi ha scritto)
+            this._notifyFollowers(userName, testo);
+
+            UI.showSuccess('Commento aggiunto');
+        } catch (e) {
+            console.error('Errore invio commento:', e);
+            UI.showError('Errore nell\'invio del commento');
+        }
+    },
+
+    async _editCommento(commentoId) {
+        const commento = this._discussioni.find(c => c.id === commentoId);
+        if (!commento) return;
+
+        const testoEl = document.getElementById(`commentoTesto_${commentoId}`);
+        if (!testoEl) return;
+
+        // Sostituisci il testo con un textarea di modifica
+        const testoOriginale = commento.testo;
+        testoEl.innerHTML = `
+            <textarea id="editCommento_${commentoId}" rows="3"
+                style="width: 100%; padding: 0.5rem; border: 2px solid var(--blu-500); border-radius: 8px; font-family: 'Titillium Web', sans-serif; font-size: 0.9375rem; resize: vertical; line-height: 1.5;">${this._escapeHtml(testoOriginale)}</textarea>
+            <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+                <button class="btn btn-primary btn-sm" onclick="DettaglioApp._salvaEditCommento('${commentoId}')">
+                    <i class="fas fa-check"></i> Salva
+                </button>
+                <button class="btn btn-secondary btn-sm" onclick="DettaglioApp._loadDiscussioni()">
+                    <i class="fas fa-times"></i> Annulla
+                </button>
+            </div>
+        `;
+
+        document.getElementById(`editCommento_${commentoId}`)?.focus();
+    },
+
+    async _salvaEditCommento(commentoId) {
+        const textarea = document.getElementById(`editCommento_${commentoId}`);
+        if (!textarea) return;
+        const nuovoTesto = textarea.value.trim();
+        if (!nuovoTesto) {
+            UI.showError('Il commento non può essere vuoto');
+            return;
+        }
+
+        try {
+            await db.collection('discussioni_app').doc(commentoId).update({
+                testo: nuovoTesto,
+                modificato: true,
+                modificatoIl: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            await this._loadDiscussioni();
+            UI.showSuccess('Commento modificato');
+        } catch (e) {
+            console.error('Errore modifica commento:', e);
+            UI.showError('Errore nella modifica');
+        }
+    },
+
+    async _deleteCommento(commentoId) {
+        if (!confirm('Vuoi eliminare questo commento?')) return;
+
+        try {
+            await db.collection('discussioni_app').doc(commentoId).delete();
+            await this._loadDiscussioni();
+            this._loadDiscussioneCount();
+            UI.showSuccess('Commento eliminato');
+        } catch (e) {
+            console.error('Errore eliminazione commento:', e);
+            UI.showError('Errore nell\'eliminazione');
+        }
+    },
+
+    // === SISTEMA SEGUI / NON SEGUIRE ===
+
+    async _toggleFollow() {
+        const newState = !this._isFollowing;
+        await this._setFollow(newState);
+        UI.showSuccess(newState ? 'Ora segui questa app — riceverai notifiche per i nuovi commenti' : 'Non segui più questa app');
+
+        // Aggiorna pulsante
+        this._updateFollowButton();
+    },
+
+    async _setFollow(active) {
+        const userId = AuthService.getUserId();
+        if (!userId) return;
+
+        const docId = `${this.appId}_${userId}`;
+        try {
+            await db.collection('app_followers').doc(docId).set({
+                appId: this.appId,
+                userId: userId,
+                userName: AuthService.getUserName(),
+                active: active,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            }, { merge: true });
+            this._isFollowing = active;
+        } catch (e) {
+            console.error('Errore aggiornamento follow:', e);
+        }
+    },
+
+    _updateFollowButton() {
+        const btn = document.getElementById('btnFollowApp');
+        if (!btn) return;
+        btn.style.background = this._isFollowing ? 'var(--verde-100)' : 'var(--grigio-100)';
+        btn.style.color = this._isFollowing ? 'var(--verde-700)' : 'var(--grigio-600)';
+        btn.style.borderColor = this._isFollowing ? 'var(--verde-700)' : 'var(--grigio-300)';
+        btn.innerHTML = `<i class="fas ${this._isFollowing ? 'fa-bell' : 'fa-bell-slash'}"></i> ${this._isFollowing ? 'Segui' : 'Non segui'}`;
+    },
+
+    // === NOTIFICHE AI FOLLOWER ===
+
+    // === GESTIONE FOLLOWER D'UFFICIO (Admin/Super Admin) ===
+
+    async _showGestisciFollower() {
+        try {
+            // Carica utenti del team e follower attuali in parallelo
+            const [teamUsers, followersSnap] = await Promise.all([
+                MessagingService.getTeamUsers(),
+                db.collection('app_followers')
+                    .where('appId', '==', this.appId)
+                    .where('active', '==', true)
+                    .get()
+            ]);
+
+            // Aggiungi anche l'utente corrente alla lista
+            const myId = AuthService.getUserId();
+            const allUsers = [
+                {
+                    id: myId,
+                    nomeCompleto: AuthService.getUserName() + ' (tu)',
+                    ruolo: AuthService.getUserRole()
+                },
+                ...teamUsers
+            ];
+
+            // Set di ID follower attuali
+            const followerIds = new Set();
+            followersSnap.forEach(doc => {
+                const data = doc.data();
+                if (data.userId) followerIds.add(data.userId);
+            });
+
+            // Costruisci lista con checkbox
+            let listaHtml = '';
+            allUsers.forEach(user => {
+                const isChecked = followerIds.has(user.id);
+                const ruoloLabel = user.ruolo ? `<span style="font-size:0.7rem;background:var(--grigio-100);color:var(--grigio-500);padding:0.1rem 0.4rem;border-radius:4px;margin-left:0.5rem;">${user.ruolo}</span>` : '';
+                listaHtml += `
+                    <label style="display:flex;align-items:center;gap:0.75rem;padding:0.625rem 0;border-bottom:1px solid var(--grigio-200);cursor:pointer;">
+                        <input type="checkbox" class="follower-check" value="${user.id}" data-name="${user.nomeCompleto}"
+                            ${isChecked ? 'checked' : ''}
+                            style="width:18px;height:18px;accent-color:var(--verde-700);cursor:pointer;" />
+                        <span style="font-size:0.9375rem;color:var(--grigio-900);">${user.nomeCompleto}${ruoloLabel}</span>
+                    </label>
+                `;
+            });
+
+            const content = `
+                <div style="margin-bottom:1rem;">
+                    <p style="color:var(--grigio-700);font-size:0.875rem;margin:0 0 1rem;">
+                        Seleziona chi deve seguire la discussione di questa app. I follower ricevono notifica nella campanella quando viene aggiunto un nuovo commento.
+                    </p>
+                    <div style="max-height:350px;overflow-y:auto;border:1px solid var(--grigio-300);border-radius:8px;padding:0 1rem;">
+                        ${listaHtml}
+                    </div>
+                    <p style="font-size:0.75rem;color:var(--grigio-500);margin-top:0.75rem;">
+                        <i class="fas fa-info-circle"></i> Follower attuali: <strong>${followerIds.size}</strong> —
+                        Chi scrive un commento viene automaticamente iscritto.
+                    </p>
+                </div>
+            `;
+
+            FormsManager.showModal(
+                '<i class="fas fa-users-cog"></i> Gestisci Follower Discussione',
+                content,
+                async () => {
+                    await this._salvaFollower();
+                    FormsManager.closeModal();
+                }
+            );
+        } catch (e) {
+            console.error('Errore caricamento gestione follower:', e);
+            UI.showError('Errore nel caricamento degli utenti');
+        }
+    },
+
+    async _salvaFollower() {
+        try {
+            const checkboxes = document.querySelectorAll('.follower-check');
+            const batch = db.batch();
+            let aggiunti = 0;
+            let rimossi = 0;
+
+            checkboxes.forEach(cb => {
+                const userId = cb.value;
+                const userName = cb.dataset.name;
+                const docId = `${this.appId}_${userId}`;
+                const ref = db.collection('app_followers').doc(docId);
+
+                if (cb.checked) {
+                    batch.set(ref, {
+                        appId: this.appId,
+                        userId: userId,
+                        userName: userName.replace(' (tu)', ''),
+                        active: true,
+                        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                    }, { merge: true });
+                    aggiunti++;
+                } else {
+                    batch.set(ref, {
+                        appId: this.appId,
+                        userId: userId,
+                        active: false,
+                        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                    }, { merge: true });
+                    rimossi++;
+                }
+            });
+
+            await batch.commit();
+
+            // Aggiorna lo stato follow dell'utente corrente
+            await this._loadFollowState();
+            this._updateFollowButton();
+
+            UI.showSuccess(`Follower aggiornati! ${aggiunti} iscritti.`);
+        } catch (e) {
+            console.error('Errore salvataggio follower:', e);
+            UI.showError('Errore nel salvataggio');
+        }
+    },
+
+    // === NOTIFICHE AI FOLLOWER ===
+
+    async _notifyFollowers(autoreNome, testo) {
+        try {
+            // Carica tutti i follower attivi di questa app
+            const followersSnap = await db.collection('app_followers')
+                .where('appId', '==', this.appId)
+                .where('active', '==', true)
+                .get();
+
+            const myId = AuthService.getUserId();
+            const followerIds = [];
+            followersSnap.forEach(doc => {
+                const data = doc.data();
+                if (data.userId && data.userId !== myId) {
+                    followerIds.push(data.userId);
+                }
+            });
+
+            if (followerIds.length === 0) return;
+
+            const preview = testo.length > 80 ? testo.substring(0, 80) + '...' : testo;
+            const appNome = this.app?.nome || 'App';
+
+            await NotificationService.createNotificationsForUsers(followerIds, {
+                type: 'app_discussion',
+                title: `Nuovo commento su ${appNome}`,
+                message: `${autoreNome}: ${preview}`,
+                appId: this.appId
+            });
+        } catch (e) {
+            console.warn('Errore invio notifiche follower:', e);
         }
     }
 };
