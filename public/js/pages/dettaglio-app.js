@@ -2435,7 +2435,7 @@ const DettaglioApp = {
                         </p>
                     </div>
                     <div style="display: flex; gap: 0.5rem; align-items: center;">
-                        ${AuthService.isAdmin() ? `
+                        ${AuthService.isCTO() ? `
                         <button class="btn btn-sm" onclick="DettaglioApp._showGestisciFollower()"
                             style="background: var(--blu-100); color: var(--blu-700); border: 1px solid var(--blu-300); border-radius: 20px; padding: 0.375rem 1rem; font-size: 0.8125rem; cursor: pointer;">
                             <i class="fas fa-users-cog"></i> Gestisci follower
