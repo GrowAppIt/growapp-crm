@@ -600,67 +600,76 @@ const OdAttivita = (() => {
     }
 
     function _showAttivitaModal(attivita, precompile) {
+        // Assicura che gli stili siano iniettati (anche se render() non è stato chiamato)
+        _addAttivitaStyles();
+
         const isEdit = !!attivita;
         const a = attivita || {};
         const pre = precompile || {};
         const canAssign = OfficinaDigitale.can('attivita.assign');
         const scadStr = a.scadenza?.toDate ? a.scadenza.toDate().toISOString().split('T')[0] : '';
 
+        // Rimuovi eventuale modal precedente
+        const prev = document.getElementById('odModalOverlay');
+        if (prev) prev.remove();
+
         const overlay = document.createElement('div');
         overlay.className = 'od-modal-overlay';
         overlay.id = 'odModalOverlay';
+        // Stili inline CRITICI come failsafe (anche se il CSS class non viene applicato)
+        overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;width:100vw;height:100vh;background:rgba(0,0,0,0.5);z-index:10000;display:flex;align-items:flex-start;justify-content:center;padding:1rem;overflow-y:auto;opacity:0;transition:opacity 0.2s;-webkit-overflow-scrolling:touch;box-sizing:border-box;';
         overlay.innerHTML = `
-        <div class="od-modal">
-            <div class="od-modal-header">
-                <h2><i class="fas fa-${isEdit ? 'pen' : 'plus'}"></i> ${isEdit ? 'Modifica' : 'Nuova'} Attività</h2>
-                <button class="od-modal-close" onclick="OdAttivita._closeModal()"><i class="fas fa-times"></i></button>
+        <div class="od-modal" style="background:#fff;border-radius:20px;width:100%;max-width:640px;display:flex;flex-direction:column;box-shadow:0 24px 48px rgba(0,0,0,0.2);box-sizing:border-box;margin:auto 0;">
+            <div class="od-modal-header" style="display:flex;align-items:center;justify-content:space-between;padding:1rem 1.25rem;border-bottom:1px solid #D9D9D9;flex-shrink:0;">
+                <h2 style="font-size:1.05rem;font-weight:700;color:#1E1E1E;margin:0;display:flex;align-items:center;gap:0.5rem;"><i class="fas fa-${isEdit ? 'pen' : 'plus'}"></i> ${isEdit ? 'Modifica' : 'Nuova'} Attività</h2>
+                <button onclick="OdAttivita._closeModal()" style="width:32px;height:32px;border-radius:8px;border:none;background:#F5F5F5;color:#4A4A4A;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;"><i class="fas fa-times"></i></button>
             </div>
-            <div class="od-modal-body">
-                <div class="od-form-grid">
-                    <div class="od-form-group od-form-full">
-                        <label>Titolo *</label>
-                        <input type="text" id="odaTitolo" value="${OfficinaDigitale.escHtml(a.titolo || '')}" required placeholder="es. Integrare widget meteo per Cefalù" class="od-input">
+            <div class="od-modal-body" style="padding:1.25rem;overflow-y:auto;flex:1;">
+                <div class="od-form-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:0.875rem;">
+                    <div class="od-form-group od-form-full" style="display:flex;flex-direction:column;gap:0.25rem;min-width:0;grid-column:1/-1;">
+                        <label style="font-size:0.75rem;font-weight:600;color:#4A4A4A;">Titolo *</label>
+                        <input type="text" id="odaTitolo" value="${OfficinaDigitale.escHtml(a.titolo || '')}" required placeholder="es. Integrare widget meteo per Cefalù" class="od-input" style="padding:0.5rem 0.75rem;border-radius:10px;border:1px solid #D9D9D9;font-size:0.8125rem;font-family:inherit;color:#1E1E1E;width:100%;box-sizing:border-box;max-width:100%;">
                     </div>
-                    <div class="od-form-group od-form-full">
-                        <label>Descrizione</label>
-                        <textarea id="odaDescrizione" rows="3" class="od-input" placeholder="Dettagli, specifiche, link utili...">${a.descrizione || ''}</textarea>
+                    <div class="od-form-group od-form-full" style="display:flex;flex-direction:column;gap:0.25rem;min-width:0;grid-column:1/-1;">
+                        <label style="font-size:0.75rem;font-weight:600;color:#4A4A4A;">Descrizione</label>
+                        <textarea id="odaDescrizione" rows="3" class="od-input" placeholder="Dettagli, specifiche, link utili..." style="padding:0.5rem 0.75rem;border-radius:10px;border:1px solid #D9D9D9;font-size:0.8125rem;font-family:inherit;color:#1E1E1E;width:100%;box-sizing:border-box;max-width:100%;resize:vertical;">${a.descrizione || ''}</textarea>
                     </div>
-                    <div class="od-form-group">
-                        <label>Stato</label>
-                        <select id="odaStato" class="od-input">
+                    <div class="od-form-group" style="display:flex;flex-direction:column;gap:0.25rem;min-width:0;">
+                        <label style="font-size:0.75rem;font-weight:600;color:#4A4A4A;">Stato</label>
+                        <select id="odaStato" class="od-input" style="padding:0.5rem 0.75rem;border-radius:10px;border:1px solid #D9D9D9;font-size:0.8125rem;font-family:inherit;color:#1E1E1E;width:100%;box-sizing:border-box;max-width:100%;">
                             ${STATI.map(s => `<option value="${s.value}" ${a.stato === s.value ? 'selected' : ''}>${s.value}</option>`).join('')}
                         </select>
                     </div>
-                    <div class="od-form-group">
-                        <label>Priorità</label>
-                        <select id="odaPriorita" class="od-input">
+                    <div class="od-form-group" style="display:flex;flex-direction:column;gap:0.25rem;min-width:0;">
+                        <label style="font-size:0.75rem;font-weight:600;color:#4A4A4A;">Priorità</label>
+                        <select id="odaPriorita" class="od-input" style="padding:0.5rem 0.75rem;border-radius:10px;border:1px solid #D9D9D9;font-size:0.8125rem;font-family:inherit;color:#1E1E1E;width:100%;box-sizing:border-box;max-width:100%;">
                             ${PRIORITA.map(p => `<option value="${p.value}" ${(a.priorita || 'Media') === p.value ? 'selected' : ''}>${p.value}</option>`).join('')}
                         </select>
                     </div>
-                    <div class="od-form-group">
-                        <label>Scadenza</label>
-                        <input type="date" id="odaScadenza" value="${scadStr}" class="od-input">
+                    <div class="od-form-group" style="display:flex;flex-direction:column;gap:0.25rem;min-width:0;">
+                        <label style="font-size:0.75rem;font-weight:600;color:#4A4A4A;">Scadenza</label>
+                        <input type="date" id="odaScadenza" value="${scadStr}" class="od-input" style="padding:0.5rem 0.75rem;border-radius:10px;border:1px solid #D9D9D9;font-size:0.8125rem;font-family:inherit;color:#1E1E1E;width:100%;box-sizing:border-box;max-width:100%;">
                     </div>
-                    <div class="od-form-group">
-                        <label>Assegnato a ${!canAssign ? '<small>(solo admin/CTO)</small>' : ''}</label>
-                        <select id="odaAssegnato" class="od-input" ${!canAssign ? 'disabled' : ''}>
+                    <div class="od-form-group" style="display:flex;flex-direction:column;gap:0.25rem;min-width:0;">
+                        <label style="font-size:0.75rem;font-weight:600;color:#4A4A4A;">Assegnato a ${!canAssign ? '<small style="font-weight:400;color:#9B9B9B;">(solo admin/CTO)</small>' : ''}</label>
+                        <select id="odaAssegnato" class="od-input" ${!canAssign ? 'disabled' : ''} style="padding:0.5rem 0.75rem;border-radius:10px;border:1px solid #D9D9D9;font-size:0.8125rem;font-family:inherit;color:#1E1E1E;width:100%;box-sizing:border-box;max-width:100%;">
                             <option value="">Non assegnato</option>
                             ${_utenti.map(u => `<option value="${u.id}" data-nome="${u.nome || ''} ${u.cognome || ''}" ${a.assegnatoA === u.id ? 'selected' : ''}>${u.nome || ''} ${u.cognome || ''}</option>`).join('')}
                         </select>
                     </div>
-                    <div class="od-form-group">
-                        <label>Comune collegato</label>
-                        <select id="odaComune" class="od-input">
+                    <div class="od-form-group" style="display:flex;flex-direction:column;gap:0.25rem;min-width:0;grid-column:1/-1;">
+                        <label style="font-size:0.75rem;font-weight:600;color:#4A4A4A;">Comune collegato</label>
+                        <select id="odaComune" class="od-input" style="padding:0.5rem 0.75rem;border-radius:10px;border:1px solid #D9D9D9;font-size:0.8125rem;font-family:inherit;color:#1E1E1E;width:100%;box-sizing:border-box;max-width:100%;">
                             <option value="">Nessuno</option>
                         </select>
                     </div>
-                    <div class="od-form-group">
-                        <label><i class="fab fa-github"></i> GitHub Issue URL</label>
-                        <input type="url" id="odaGithubIssue" class="od-input" value="${a.githubIssueUrl || ''}" placeholder="https://github.com/owner/repo/issues/42">
+                    <div class="od-form-group" style="display:flex;flex-direction:column;gap:0.25rem;min-width:0;grid-column:1/-1;">
+                        <label style="font-size:0.75rem;font-weight:600;color:#4A4A4A;"><i class="fab fa-github"></i> GitHub Issue URL</label>
+                        <input type="url" id="odaGithubIssue" class="od-input" value="${a.githubIssueUrl || ''}" placeholder="https://github.com/owner/repo/issues/42" style="padding:0.5rem 0.75rem;border-radius:10px;border:1px solid #D9D9D9;font-size:0.8125rem;font-family:inherit;color:#1E1E1E;width:100%;box-sizing:border-box;max-width:100%;">
                     </div>
                 </div>
             </div>
-            <div class="od-modal-footer">
+            <div class="od-modal-footer" style="display:flex;justify-content:flex-end;gap:0.5rem;padding:0.75rem 1.25rem;border-top:1px solid #D9D9D9;flex-shrink:0;">
                 <button class="btn btn-secondary" onclick="OdAttivita._closeModal()" style="border-radius:10px;">Annulla</button>
                 <button class="btn btn-primary" onclick="OdAttivita._saveAttivita('${a.id || ''}')" style="border-radius:10px;">
                     <i class="fas fa-save"></i> ${isEdit ? 'Salva' : 'Crea'}
@@ -669,7 +678,9 @@ const OdAttivita = (() => {
         </div>`;
 
         document.body.appendChild(overlay);
-        setTimeout(() => overlay.classList.add('visible'), 10);
+        // Forza reflow poi mostra con transizione
+        overlay.offsetHeight;
+        overlay.style.opacity = '1';
 
         // Carica comuni
         db.collection('clienti').orderBy('ragioneSociale', 'asc').get().then(snap => {
@@ -753,7 +764,11 @@ const OdAttivita = (() => {
 
     function _closeModal() {
         const overlay = document.getElementById('odModalOverlay');
-        if (overlay) { overlay.classList.remove('visible'); setTimeout(() => overlay.remove(), 300); }
+        if (overlay) {
+            overlay.style.opacity = '0';
+            overlay.classList.remove('visible');
+            setTimeout(() => overlay.remove(), 300);
+        }
     }
 
     function _applyFilters() { _renderView(); }
