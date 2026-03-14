@@ -210,6 +210,19 @@ const OfficinaDigitale = (() => {
                 });
                 break;
 
+            case 'generatore':
+                // Il Generatore Webapp è già caricato come script globale
+                if (typeof GeneratoreWebapp !== 'undefined') {
+                    GeneratoreWebapp.render();
+                } else {
+                    document.getElementById('mainContent').innerHTML = `
+                        <div style="padding:40px;text-align:center;color:var(--grigio-500);">
+                            <i class="fas fa-exclamation-circle" style="font-size:2rem;"></i>
+                            <p style="margin-top:1rem;">Generatore Webapp non disponibile.</p>
+                        </div>`;
+                }
+                break;
+
             default:
                 render();
         }
@@ -271,6 +284,10 @@ const OfficinaDigitale = (() => {
                 ${_can('attivita.view') ? `
                 <button class="od-nav-btn" data-section="attivita" onclick="OfficinaDigitale.navigateTo('attivita')">
                     <i class="fas fa-clipboard-check"></i> <span>Attività</span>
+                </button>` : ''}
+                ${_can('componenti.create') ? `
+                <button class="od-nav-btn" data-section="generatore" onclick="OfficinaDigitale.navigateTo('generatore')">
+                    <i class="fas fa-magic"></i> <span>Generatore</span>
                 </button>` : ''}
             </div>
 
@@ -393,6 +410,18 @@ const OfficinaDigitale = (() => {
                         <span class="od-kpi-tag">${d.attByStato['In Revisione']} in revisione</span>
                         ${d.attScadute > 0 ? `<span class="od-kpi-tag od-kpi-tag-danger">${d.attScadute} scadute</span>` : ''}
                     </div>
+                </div>
+                <i class="fas fa-chevron-right od-kpi-arrow"></i>
+            </div>` : ''}
+
+            <!-- Generatore Webapp -->
+            ${_can('componenti.create') ? `
+            <div class="od-kpi-card" style="border-left:4px solid #9C27B0;" onclick="OfficinaDigitale.navigateTo('generatore')">
+                <div class="od-kpi-icon" style="color:#9C27B0;"><i class="fas fa-magic"></i></div>
+                <div class="od-kpi-body">
+                    <div class="od-kpi-value" style="color:#9C27B0;"><i class="fas fa-magic"></i></div>
+                    <div class="od-kpi-label">Generatore Webapp</div>
+                    <div class="od-kpi-detail">Crea webapp personalizzate da modelli</div>
                 </div>
                 <i class="fas fa-chevron-right od-kpi-arrow"></i>
             </div>` : ''}
