@@ -131,6 +131,9 @@ const UI = {
             case 'generatore-webapp':
                 GeneratoreWebapp.render();
                 break;
+            case 'officina-digitale':
+                OfficinaDigitale.render();
+                break;
             // Pagine di dettaglio
             case 'dettaglio-cliente':
                 if (id) DettaglioCliente.render(id);
@@ -235,6 +238,7 @@ const UI = {
             'impostazioni': 'Torna alle impostazioni',
             'monitor-rss': 'Torna al Monitor RSS',
             'generatore-webapp': 'Torna al Generatore',
+            'officina-digitale': 'Torna all\'Officina Digitale',
             'dettaglio-cliente': 'Torna al dettaglio cliente',
             'dettaglio-app': 'Torna al dettaglio app',
             'dettaglio-contratto': 'Torna al dettaglio contratto',

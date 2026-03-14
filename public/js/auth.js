@@ -32,40 +32,46 @@ const AuthService = {
             'manage_apps', 'manage_invoices', 'manage_payments', 'view_reports',
             'export_data', 'manage_settings', 'view_audit',
             'view_dev_tasks', 'manage_dev_tasks', // ✅ Aggiunto accesso TASK
-            'view_company_info' // ✅ Può vedere card Growapp (ma non modificare)
+            'view_company_info', // ✅ Può vedere card Growapp (ma non modificare)
+            'view_officina_digitale', 'manage_officina_digitale' // ✅ Officina Digitale
         ],
         CTO: [
             'view_all_data', 'manage_apps', 'manage_dev_tasks', 'view_dev_tasks',
             'manage_app_content', 'manage_clients', 'manage_contracts',
             'view_company_info', 'manage_business_card', // ✅ Può vedere Growapp + modificare biglietto (NO view_reports)
-            'manage_webapp_templates' // ✅ Generatore Webapp
+            'manage_webapp_templates', // ✅ Generatore Webapp
+            'view_officina_digitale', 'manage_officina_digitale' // ✅ Officina Digitale
         ],
         SVILUPPATORE: [
             'view_dashboard', // ✅ Accesso Dashboard (senza dati amministrativi)
             'view_dev_tasks', 'manage_dev_tasks', 'manage_app_content', 'view_apps',
             'manage_apps', // ✅ Aggiunto: accesso Push Broadcast + gestione app
             'view_company_info', 'manage_business_card', // ✅ Impostazioni base
-            'manage_webapp_templates' // ✅ Generatore Webapp
+            'manage_webapp_templates', // ✅ Generatore Webapp
+            'view_officina_digitale', 'manage_officina_digitale' // ✅ Officina Digitale
         ],
         AGENTE: [
             'view_own_data', 'view_clients', 'view_contracts', 'view_apps',
             'view_invoices', // ⚠️ Solo lettura su clienti, contratti, fatture, app
             'view_dev_tasks', 'manage_dev_tasks', // ✅ TASK: visualizzazione + creazione
-            'view_company_info', 'manage_business_card' // ✅ Impostazioni base
+            'view_company_info', 'manage_business_card', // ✅ Impostazioni base
+            'view_officina_digitale' // ✅ Officina Digitale (sola lettura)
         ],
         CONTENT_MANAGER: [
             'view_dashboard', // ✅ Accesso Dashboard (senza dati amministrativi)
             'manage_app_content', 'view_apps', 'manage_apps',
             'view_dev_tasks', 'manage_dev_tasks', // ✅ Aggiunto TASK
             'view_company_info', 'manage_business_card', // ✅ Impostazioni base
-            'manage_webapp_templates' // ✅ Generatore Webapp
+            'manage_webapp_templates', // ✅ Generatore Webapp
+            'view_officina_digitale', 'manage_officina_digitale' // ✅ Officina Digitale
         ],
         CONTABILE: [
             'view_all_data', 'manage_invoices', 'manage_payments', 'view_reports',
             'export_data', 'view_clients', 'view_contracts',
             'view_apps', // ✅ Aggiunto APP
             'view_dev_tasks', 'manage_dev_tasks', // ✅ Aggiunto TASK + creazione task
-            'view_company_info', 'manage_business_card' // ✅ Impostazioni base
+            'view_company_info', 'manage_business_card', // ✅ Impostazioni base
+            'view_officina_digitale' // ✅ Officina Digitale (sola lettura)
         ]
     },
 
@@ -303,6 +309,7 @@ const AuthService = {
             'push-broadcast': ['*', 'view_all_data', 'manage_apps'],
             'aggiorna-push': ['*', 'view_all_data', 'manage_apps'],
             'generatore-webapp': ['*', 'manage_webapp_templates'],
+            'officina-digitale': ['*', 'view_officina_digitale', 'manage_officina_digitale'],
             'centro-notifiche': ['*', 'view_all_data', 'view_own_data', 'manage_dev_tasks', 'view_dev_tasks', 'view_clients', 'manage_clients', 'view_apps', 'manage_apps'],
             'messaggi': ['*', 'view_all_data', 'view_own_data', 'manage_dev_tasks', 'view_dev_tasks', 'view_clients', 'manage_clients', 'view_apps', 'manage_apps']
         };

@@ -78,6 +78,11 @@ const DettaglioCliente = {
                         <button class="tab-btn" data-tab="note" onclick="DettaglioCliente.switchTab('note')">
                             <i class="fas fa-sticky-note"></i> Note
                         </button>
+                        ${AuthService.hasPermission('view_officina_digitale') || AuthService.hasPermission('*') ? `
+                        <button class="tab-btn" data-tab="officina" onclick="DettaglioCliente.switchTab('officina')">
+                            <i class="fas fa-tools"></i> Officina Digitale
+                        </button>
+                        ` : ''}
                     </div>
                 </div>
 
@@ -143,6 +148,9 @@ const DettaglioCliente = {
                 return '<div id="timelineContainer"><div style="text-align:center;padding:2rem;"><i class="fas fa-spinner fa-spin" style="font-size:1.5rem;color:var(--blu-500);"></i><p style="margin-top:0.5rem;color:var(--grigio-500);">Caricamento timeline...</p></div></div>';
             case 'note':
                 return this.renderNote(cliente);
+            case 'officina':
+                this.loadOfficinaDigitale();
+                return '<div id="officinaContainer"><div style="text-align:center;padding:2rem;"><i class="fas fa-spinner fa-spin" style="font-size:1.5rem;color:var(--blu-500);"></i><p style="margin-top:0.5rem;color:var(--grigio-500);">Caricamento Officina Digitale...</p></div></div>';
             default:
                 return '';
         }
@@ -153,11 +161,13 @@ const DettaglioCliente = {
      */
     async loadTimeline() {
         try {
-            const [note, contratti, fatture, apps] = await Promise.allSettled([
+            const [note, contratti, fatture, apps, odAttivita, odIstanze] = await Promise.allSettled([
                 db.collection('note_cliente').where('clienteId', '==', this.clienteId).get(),
                 DataService.getContrattiCliente(this.clienteId),
                 DataService.getFattureCliente(this.clienteId),
-                db.collection('app').where('clientePaganteId', '==', this.clienteId).get()
+                db.collection('app').where('clientePaganteId', '==', this.clienteId).get(),
+                db.collection('od_attivita').where('comuneId', '==', this.clienteId).get(),
+                db.collection('od_istanze_componenti').where('comuneId', '==', this.clienteId).get()
             ]);
 
             const eventi = [];
@@ -229,6 +239,42 @@ const DettaglioCliente = {
                         description: a.piattaforma || '',
                         extra: a.stato || '',
                         onclick: `UI.showPage('dettaglio-app', '${doc.id}')`
+                    });
+                });
+            }
+
+            // Attività Officina Digitale
+            if (odAttivita.status === 'fulfilled') {
+                odAttivita.value.forEach(doc => {
+                    const d = doc.data();
+                    eventi.push({
+                        type: 'od_attivita',
+                        data: d.creatoIl,
+                        icon: 'fas fa-tasks',
+                        color: '#0288D1',
+                        bgColor: '#E1F5FE',
+                        title: `OD: ${d.titolo || 'Attività'}`,
+                        description: `${d.stato || ''} • ${d.priorita || ''} • ${d.assegnatoANome || 'Non assegnata'}`,
+                        extra: d.stato || '',
+                        onclick: `UI.showPage('officina-digitale');setTimeout(()=>OfficinaDigitale.navigateTo('dettaglio-attivita','${doc.id}'),300)`
+                    });
+                });
+            }
+
+            // Istanze componenti Officina Digitale
+            if (odIstanze.status === 'fulfilled') {
+                odIstanze.value.forEach(doc => {
+                    const d = doc.data();
+                    eventi.push({
+                        type: 'od_istanza',
+                        data: d.creatoIl,
+                        icon: 'fas fa-puzzle-piece',
+                        color: '#3CA434',
+                        bgColor: '#E2F8DE',
+                        title: `Componente: ${d.nomeComponente || 'Installato'}`,
+                        description: `Personalizzato per ${d.comuneNome || 'comune'}`,
+                        extra: 'Installato',
+                        onclick: `UI.showPage('officina-digitale');setTimeout(()=>OfficinaDigitale.navigateTo('dettaglio-componente','${d.componenteId}'),300)`
                     });
                 });
             }
@@ -1475,6 +1521,188 @@ const DettaglioCliente = {
      * - copiaCorpoTemplate()
      * - copiaTuttoTemplate()
      */
-    _templateDeprecated: true // placeholder per mantenere la virgola nell'oggetto
+    _templateDeprecated: true, // placeholder per mantenere la virgola nell'oggetto
+
+    // =====================================================
+    // TAB OFFICINA DIGITALE
+    // =====================================================
+
+    async loadOfficinaDigitale() {
+        const container = document.getElementById('officinaContainer');
+        if (!container) return;
+
+        try {
+            const clienteNome = this.cliente?.ragioneSociale || '';
+            const clienteId = this.clienteId;
+
+            // Carica in parallelo: prodotti dove il comune è utilizzatore, istanze componenti, attività collegate
+            const [prodottiSnap, istanzeSnap, attivitaSnap] = await Promise.all([
+                db.collection('od_prodotti').get(),
+                db.collection('od_istanze_componenti').where('comuneId', '==', clienteId).orderBy('creatoIl', 'desc').get(),
+                db.collection('od_attivita').where('comuneId', '==', clienteId).orderBy('creatoIl', 'desc').get()
+            ]);
+
+            // Filtra prodotti dove il comune è tra gli utilizzatori
+            const prodotti = [];
+            prodottiSnap.forEach(doc => {
+                const d = doc.data();
+                if (d.comuniUtilizzatori && Array.isArray(d.comuniUtilizzatori) && d.comuniUtilizzatori.includes(clienteId)) {
+                    prodotti.push({ id: doc.id, ...d });
+                }
+            });
+
+            const istanze = [];
+            istanzeSnap.forEach(doc => istanze.push({ id: doc.id, ...doc.data() }));
+
+            const attivita = [];
+            attivitaSnap.forEach(doc => attivita.push({ id: doc.id, ...doc.data() }));
+
+            // Render
+            container.innerHTML = this._renderOfficinaContent(prodotti, istanze, attivita, clienteNome);
+
+        } catch (error) {
+            console.error('Errore caricamento Officina Digitale:', error);
+            container.innerHTML = `
+                <div class="card" style="text-align:center;padding:2rem;">
+                    <i class="fas fa-exclamation-triangle" style="font-size:2rem;color:var(--giallo-avviso);margin-bottom:1rem;"></i>
+                    <p style="color:var(--grigio-700);">Errore nel caricamento dei dati Officina Digitale.</p>
+                    <p style="color:var(--grigio-500);font-size:0.85rem;">Se l'errore persiste, potrebbe essere necessario creare gli indici Firestore.</p>
+                </div>`;
+        }
+    },
+
+    _renderOfficinaContent(prodotti, istanze, attivita, clienteNome) {
+        // KPI counters
+        const attivitaAperte = attivita.filter(a => a.stato !== 'Fatto').length;
+
+        let html = `
+            <div class="card fade-in">
+                <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;">
+                    <h2 class="card-title" style="margin:0;">
+                        <i class="fas fa-tools" style="color:var(--blu-700);"></i> Officina Digitale
+                    </h2>
+                    <span style="font-size:0.8rem;color:var(--grigio-500);">
+                        Riepilogo prodotti e servizi attivi per questo comune
+                    </span>
+                </div>
+
+                <!-- KPI mini -->
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:0.75rem;margin:1rem 0;">
+                    <div style="background:var(--blu-100);border-radius:8px;padding:0.75rem 1rem;text-align:center;">
+                        <div style="font-size:1.5rem;font-weight:700;color:var(--blu-700);">${prodotti.length}</div>
+                        <div style="font-size:0.8rem;color:var(--blu-700);">Prodotti Attivi</div>
+                    </div>
+                    <div style="background:var(--verde-100);border-radius:8px;padding:0.75rem 1rem;text-align:center;">
+                        <div style="font-size:1.5rem;font-weight:700;color:var(--verde-700);">${istanze.length}</div>
+                        <div style="font-size:0.8rem;color:var(--verde-700);">Componenti Installati</div>
+                    </div>
+                    <div style="background:${attivitaAperte > 0 ? '#FFF3E0' : 'var(--grigio-100)'};border-radius:8px;padding:0.75rem 1rem;text-align:center;">
+                        <div style="font-size:1.5rem;font-weight:700;color:${attivitaAperte > 0 ? '#E65100' : 'var(--grigio-700)'};">${attivitaAperte}</div>
+                        <div style="font-size:0.8rem;color:var(--grigio-700);">Attività Aperte</div>
+                    </div>
+                </div>`;
+
+        // --- PRODOTTI ---
+        html += `<h3 style="font-size:1rem;font-weight:600;color:var(--grigio-900);margin:1.5rem 0 0.75rem;border-bottom:1px solid var(--grigio-300);padding-bottom:0.5rem;">
+            <i class="fas fa-box"></i> Prodotti Utilizzati
+        </h3>`;
+
+        if (prodotti.length === 0) {
+            html += `<p style="color:var(--grigio-500);font-size:0.9rem;padding:0.5rem 0;">Nessun prodotto associato a questo comune.</p>`;
+        } else {
+            html += `<div style="display:flex;flex-direction:column;gap:0.5rem;">`;
+            prodotti.forEach(p => {
+                const iconeCategorie = {
+                    'App Comunale': 'fa-mobile-alt', 'Webapp': 'fa-globe', 'Servizio SaaS': 'fa-cloud',
+                    'Modulo CRM': 'fa-puzzle-piece', 'Integrazione': 'fa-plug', 'Consulenza': 'fa-handshake',
+                    'Template': 'fa-palette', 'Altro': 'fa-ellipsis-h'
+                };
+                const icona = iconeCategorie[p.categoria] || 'fa-box';
+                const badgeColore = p.stato === 'Rilasciato' ? 'var(--verde-700)' : p.stato === 'In Evoluzione' ? 'var(--blu-500)' : 'var(--grigio-500)';
+                html += `
+                    <div style="display:flex;align-items:center;gap:0.75rem;padding:0.6rem 0.75rem;background:var(--grigio-100);border-radius:6px;cursor:pointer;transition:background 0.2s;"
+                         onclick="UI.showPage('officina-digitale');setTimeout(()=>OfficinaDigitale.navigateTo('dettaglio-prodotto','${p.id}'),300);"
+                         onmouseover="this.style.background='var(--blu-100)'" onmouseout="this.style.background='var(--grigio-100)'">
+                        <i class="fas ${icona}" style="color:var(--blu-700);font-size:1.1rem;width:24px;text-align:center;"></i>
+                        <div style="flex:1;min-width:0;">
+                            <div style="font-weight:600;color:var(--grigio-900);font-size:0.9rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${p.nome || 'Senza nome'}</div>
+                            <div style="font-size:0.75rem;color:var(--grigio-500);">${p.categoria || ''}</div>
+                        </div>
+                        <span style="font-size:0.7rem;padding:2px 8px;border-radius:20px;background:${badgeColore};color:#fff;">${p.stato || ''}</span>
+                        <i class="fas fa-chevron-right" style="color:var(--grigio-300);font-size:0.75rem;"></i>
+                    </div>`;
+            });
+            html += `</div>`;
+        }
+
+        // --- COMPONENTI INSTALLATI ---
+        html += `<h3 style="font-size:1rem;font-weight:600;color:var(--grigio-900);margin:1.5rem 0 0.75rem;border-bottom:1px solid var(--grigio-300);padding-bottom:0.5rem;">
+            <i class="fas fa-puzzle-piece"></i> Componenti Installati
+        </h3>`;
+
+        if (istanze.length === 0) {
+            html += `<p style="color:var(--grigio-500);font-size:0.9rem;padding:0.5rem 0;">Nessun componente personalizzato per questo comune.</p>`;
+        } else {
+            html += `<div style="display:flex;flex-direction:column;gap:0.5rem;">`;
+            istanze.forEach(ist => {
+                const dataCreazione = ist.creatoIl ? new Date(ist.creatoIl.seconds ? ist.creatoIl.seconds * 1000 : ist.creatoIl).toLocaleDateString('it-IT') : '';
+                html += `
+                    <div style="display:flex;align-items:center;gap:0.75rem;padding:0.6rem 0.75rem;background:var(--grigio-100);border-radius:6px;cursor:pointer;transition:background 0.2s;"
+                         onclick="UI.showPage('officina-digitale');setTimeout(()=>OfficinaDigitale.navigateTo('dettaglio-componente','${ist.componenteId}'),300);"
+                         onmouseover="this.style.background='var(--verde-100)'" onmouseout="this.style.background='var(--grigio-100)'">
+                        <i class="fas fa-code" style="color:var(--verde-700);font-size:1.1rem;width:24px;text-align:center;"></i>
+                        <div style="flex:1;min-width:0;">
+                            <div style="font-weight:600;color:var(--grigio-900);font-size:0.9rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${ist.nomeComponente || 'Componente'}</div>
+                            <div style="font-size:0.75rem;color:var(--grigio-500);">Installato il ${dataCreazione}</div>
+                        </div>
+                        <i class="fas fa-chevron-right" style="color:var(--grigio-300);font-size:0.75rem;"></i>
+                    </div>`;
+            });
+            html += `</div>`;
+        }
+
+        // --- ATTIVITÀ ---
+        html += `<h3 style="font-size:1rem;font-weight:600;color:var(--grigio-900);margin:1.5rem 0 0.75rem;border-bottom:1px solid var(--grigio-300);padding-bottom:0.5rem;">
+            <i class="fas fa-tasks"></i> Attività Recenti
+        </h3>`;
+
+        if (attivita.length === 0) {
+            html += `<p style="color:var(--grigio-500);font-size:0.9rem;padding:0.5rem 0;">Nessuna attività collegata a questo comune.</p>`;
+        } else {
+            const mostra = attivita.slice(0, 10); // Max 10 recenti
+            html += `<div style="display:flex;flex-direction:column;gap:0.5rem;">`;
+            mostra.forEach(att => {
+                const prioritaColori = { 'Urgente': '#D32F2F', 'Alta': '#E65100', 'Media': '#FFCC00', 'Bassa': '#9B9B9B' };
+                const statoColori = { 'Da Fare': 'var(--grigio-500)', 'In Corso': 'var(--blu-500)', 'In Revisione': '#E65100', 'Fatto': 'var(--verde-700)' };
+                const colPriorita = prioritaColori[att.priorita] || 'var(--grigio-500)';
+                const colStato = statoColori[att.stato] || 'var(--grigio-500)';
+                const scadenza = att.scadenza ? new Date(att.scadenza.seconds ? att.scadenza.seconds * 1000 : att.scadenza).toLocaleDateString('it-IT') : '';
+                html += `
+                    <div style="display:flex;align-items:center;gap:0.75rem;padding:0.6rem 0.75rem;background:var(--grigio-100);border-radius:6px;cursor:pointer;transition:background 0.2s;"
+                         onclick="UI.showPage('officina-digitale');setTimeout(()=>OfficinaDigitale.navigateTo('dettaglio-attivita','${att.id}'),300);"
+                         onmouseover="this.style.background='var(--blu-100)'" onmouseout="this.style.background='var(--grigio-100)'">
+                        <div style="width:4px;height:32px;border-radius:2px;background:${colPriorita};"></div>
+                        <div style="flex:1;min-width:0;">
+                            <div style="font-weight:600;color:var(--grigio-900);font-size:0.9rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${att.titolo || 'Senza titolo'}</div>
+                            <div style="font-size:0.75rem;color:var(--grigio-500);">${att.assegnatoANome || 'Non assegnata'}${scadenza ? ' · Scad. ' + scadenza : ''}</div>
+                        </div>
+                        <span style="font-size:0.7rem;padding:2px 8px;border-radius:20px;background:${colStato};color:#fff;">${att.stato || ''}</span>
+                        <i class="fas fa-chevron-right" style="color:var(--grigio-300);font-size:0.75rem;"></i>
+                    </div>`;
+            });
+            html += `</div>`;
+            if (attivita.length > 10) {
+                html += `<p style="text-align:center;margin-top:0.75rem;">
+                    <a href="javascript:void(0)" onclick="UI.showPage('officina-digitale');setTimeout(()=>OfficinaDigitale.navigateTo('attivita'),300);"
+                       style="color:var(--blu-500);font-size:0.85rem;text-decoration:none;">
+                        Vedi tutte le ${attivita.length} attività <i class="fas fa-arrow-right"></i>
+                    </a>
+                </p>`;
+            }
+        }
+
+        html += `</div>`; // chiude card
+        return html;
+    }
 };
 /* === FINE DettaglioCliente === */
