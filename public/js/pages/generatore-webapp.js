@@ -2554,6 +2554,11 @@ document.addEventListener('DOMContentLoaded', function() {
     container.innerHTML = `
       <div class="generatore-webapp">
         <div class="page-header">
+          <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.5rem;">
+            <button class="btn btn-secondary btn-sm" onclick="OfficinaDigitale.render()" style="border-radius:8px;">
+              <i class="fas fa-arrow-left"></i> Officina Digitale
+            </button>
+          </div>
           <h1><i class="fas fa-magic"></i> Generatore Webapp</h1>
           <p class="page-subtitle">Crea e personalizza modelli di webapp per le municipalità</p>
         </div>
