@@ -478,135 +478,7 @@ const OfficinaDigitale = (() => {
             </div>` : ''}
         </div>
 
-        <!-- Pannello Admin: Verifica Indici -->
-        ${_can('manage_officina') ? `
-        <div style="margin-top:2rem;padding:1rem;background:var(--grigio-100);border-radius:10px;border:1px dashed var(--grigio-300);">
-            <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;">
-                <div>
-                    <strong style="font-size:0.85rem;color:var(--grigio-700);"><i class="fas fa-database"></i> Gestione Database</strong>
-                    <p style="font-size:0.75rem;color:var(--grigio-500);margin:0.25rem 0 0;">Verifica che gli indici Firestore siano configurati correttamente.</p>
-                </div>
-                <button class="btn btn-secondary" onclick="OfficinaDigitale._verificaIndici()" style="border-radius:8px;font-size:0.8rem;">
-                    <i class="fas fa-stethoscope"></i> Verifica Indici
-                </button>
-            </div>
-            <div id="od-indici-results" style="display:none;margin-top:0.75rem;"></div>
-        </div>` : ''}
         `;
-    }
-
-    // =========================================================================
-    // VERIFICA INDICI FIRESTORE
-    // =========================================================================
-
-    async function _verificaIndici() {
-        const panel = document.getElementById('od-indici-results');
-        if (!panel) return;
-
-        panel.style.display = 'block';
-        panel.innerHTML = `<div style="text-align:center;padding:1rem;"><i class="fas fa-spinner fa-spin" style="color:var(--blu-500);"></i> <span style="font-size:0.85rem;color:var(--grigio-500);">Verifico gli indici...</span></div>`;
-
-        // Lista delle query che richiedono indici compositi
-        const queries = [
-            {
-                nome: 'od_attivita — stato + creatoIl',
-                descrizione: 'Kanban e lista attività',
-                query: () => db.collection('od_attivita').where('stato', '==', 'Da Fare').orderBy('creatoIl', 'desc').limit(1).get()
-            },
-            {
-                nome: 'od_attivita — assegnatoA + creatoIl',
-                descrizione: 'Filtro "Le mie attività"',
-                query: () => db.collection('od_attivita').where('assegnatoA', '==', 'test').orderBy('creatoIl', 'desc').limit(1).get()
-            },
-            {
-                nome: 'od_attivita — comuneId + creatoIl',
-                descrizione: 'Attività per comune (tab cliente)',
-                query: () => db.collection('od_attivita').where('comuneId', '==', 'test').orderBy('creatoIl', 'desc').limit(1).get()
-            },
-            {
-                nome: 'od_istanze_componenti — comuneId + creatoIl',
-                descrizione: 'Istanze per comune (tab cliente)',
-                query: () => db.collection('od_istanze_componenti').where('comuneId', '==', 'test').orderBy('creatoIl', 'desc').limit(1).get()
-            },
-            {
-                nome: 'od_istanze_componenti — componenteId + creatoIl',
-                descrizione: 'Istanze per componente (tab istanze)',
-                query: () => db.collection('od_istanze_componenti').where('componenteId', '==', 'test').orderBy('creatoIl', 'desc').limit(1).get()
-            },
-            {
-                nome: 'od_changelog — prodottoId + data',
-                descrizione: 'Changelog prodotto',
-                query: () => db.collection('od_changelog').where('prodottoId', '==', 'test').orderBy('data', 'desc').limit(1).get()
-            },
-            {
-                nome: 'commenti — taskId (od_) + creatoIl',
-                descrizione: 'Discussioni attività OD',
-                query: () => db.collection('commenti').where('taskId', '==', 'od_test').orderBy('creatoIl', 'asc').limit(1).get()
-            }
-        ];
-
-        let risultati = [];
-
-        for (const q of queries) {
-            try {
-                await q.query();
-                risultati.push({ nome: q.nome, desc: q.descrizione, ok: true });
-            } catch (error) {
-                const errMsg = error.message || '';
-                // Firebase restituisce un link per creare l'indice mancante
-                const linkMatch = errMsg.match(/(https:\/\/console\.firebase\.google\.com[^\s"']+)/);
-                risultati.push({
-                    nome: q.nome,
-                    desc: q.descrizione,
-                    ok: false,
-                    link: linkMatch ? linkMatch[1] : null,
-                    errore: errMsg.substring(0, 150)
-                });
-            }
-        }
-
-        // Rendering risultati
-        const okCount = risultati.filter(r => r.ok).length;
-        const koCount = risultati.filter(r => !r.ok).length;
-
-        let html = `
-            <div style="display:flex;gap:0.5rem;align-items:center;margin-bottom:0.75rem;">
-                <span style="font-size:0.85rem;font-weight:600;color:${koCount === 0 ? 'var(--verde-700)' : '#E65100'};">
-                    ${koCount === 0 ? '<i class="fas fa-check-circle"></i> Tutti gli indici sono OK!' : `<i class="fas fa-exclamation-triangle"></i> ${koCount} indici da creare`}
-                </span>
-                <span style="font-size:0.75rem;color:var(--grigio-500);">(${okCount}/${risultati.length} verificati)</span>
-            </div>`;
-
-        risultati.forEach(r => {
-            if (r.ok) {
-                html += `
-                <div style="display:flex;align-items:center;gap:0.5rem;padding:0.4rem 0.6rem;margin-bottom:0.35rem;background:#E2F8DE;border-radius:6px;font-size:0.8rem;">
-                    <i class="fas fa-check-circle" style="color:var(--verde-700);"></i>
-                    <span style="flex:1;color:var(--grigio-700);"><strong>${r.nome}</strong> — ${r.desc}</span>
-                </div>`;
-            } else {
-                html += `
-                <div style="padding:0.5rem 0.6rem;margin-bottom:0.35rem;background:#FFF3E0;border-radius:6px;border-left:3px solid #E65100;">
-                    <div style="display:flex;align-items:center;gap:0.5rem;font-size:0.8rem;">
-                        <i class="fas fa-times-circle" style="color:#D32F2F;"></i>
-                        <span style="flex:1;color:var(--grigio-900);"><strong>${r.nome}</strong> — ${r.desc}</span>
-                    </div>
-                    ${r.link ? `
-                    <a href="${r.link}" target="_blank" style="display:inline-flex;align-items:center;gap:0.35rem;margin-top:0.35rem;padding:4px 12px;background:var(--blu-700);color:#fff;border-radius:6px;font-size:0.75rem;text-decoration:none;">
-                        <i class="fas fa-external-link-alt"></i> Crea questo indice su Firebase
-                    </a>` : `<p style="font-size:0.7rem;color:var(--grigio-500);margin:0.25rem 0 0;">${_escHtml(r.errore)}</p>`}
-                </div>`;
-            }
-        });
-
-        if (koCount > 0) {
-            html += `
-            <div style="margin-top:0.75rem;padding:0.5rem;background:var(--blu-100);border-radius:6px;font-size:0.75rem;color:var(--blu-700);">
-                <i class="fas fa-info-circle"></i> Clicca su ogni pulsante blu per aprire Firebase Console. Nella pagina che si apre, clicca <strong>"Crea indice"</strong> e attendi qualche minuto. Poi torna qui e clicca di nuovo "Verifica Indici" per controllare.
-            </div>`;
-        }
-
-        panel.innerHTML = html;
     }
 
     // =========================================================================
@@ -792,7 +664,6 @@ const OfficinaDigitale = (() => {
         // Esposti per uso dai sotto-moduli
         can: _can,
         escHtml: _escHtml,
-        loadModule: _loadModule,
-        _verificaIndici
+        loadModule: _loadModule
     };
 })();
