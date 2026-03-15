@@ -366,8 +366,39 @@ const SalaRiunioni = {
             const userName = user?.displayName || user?.email?.split('@')[0] || 'Utente';
 
             const mainContent = document.getElementById('mainContent');
+            // Rimuovi padding dal mainContent per avere il video a pieno schermo
+            mainContent.style.padding = '0';
+            mainContent.style.overflow = 'hidden';
             mainContent.innerHTML = `
-                <div class="sr-jitsi-container" id="srJitsiContainer">
+                <style>
+                    #srJitsiContainer {
+                        width: 100%;
+                        height: calc(100vh - var(--header-height, 60px));
+                        position: relative;
+                        background: #1a1a2e;
+                        overflow: hidden;
+                    }
+                    #srJitsiContainer iframe {
+                        width: 100% !important;
+                        height: 100% !important;
+                        border: none;
+                    }
+                    .sr-jitsi-toolbar {
+                        position: absolute; top: 0; left: 0; right: 0; z-index: 10;
+                        background: rgba(0,0,0,0.7); backdrop-filter: blur(8px);
+                        padding: 0.5rem 1rem; display: flex; align-items: center; justify-content: space-between;
+                    }
+                    .sr-jitsi-toolbar h3 { color: white; font-size: 1rem; font-weight: 600; margin: 0; }
+                    .sr-btn-leave {
+                        background: #D32F2F; color: white; border: none; padding: 0.5rem 1rem;
+                        border-radius: 8px; font-weight: 700; cursor: pointer; font-size: 0.85rem;
+                        font-family: 'Titillium Web', sans-serif;
+                    }
+                    @media (max-width: 768px) {
+                        #srJitsiContainer { height: calc(100vh - 56px); }
+                    }
+                </style>
+                <div id="srJitsiContainer">
                     <div class="sr-jitsi-toolbar">
                         <h3>
                             <i class="fas ${isVideo ? 'fa-video' : 'fa-phone-alt'}" style="margin-right: 0.5rem;"></i>
@@ -458,6 +489,12 @@ const SalaRiunioni = {
             this._jitsiApi = null;
         }
         this._currentRoom = null;
+        // Ripristina padding del mainContent
+        const mainContent = document.getElementById('mainContent');
+        if (mainContent) {
+            mainContent.style.padding = '';
+            mainContent.style.overflow = '';
+        }
         this.render();
     },
 
@@ -486,6 +523,11 @@ const SalaRiunioni = {
             this._jitsiApi = null;
         }
         this._currentRoom = null;
+        const mainContent = document.getElementById('mainContent');
+        if (mainContent) {
+            mainContent.style.padding = '';
+            mainContent.style.overflow = '';
+        }
     },
 
     // =========================================================================
