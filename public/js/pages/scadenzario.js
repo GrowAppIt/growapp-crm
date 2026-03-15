@@ -389,10 +389,12 @@ const Scadenzario = {
             clienti = datiAgente.clienti;
             contratti = datiAgente.contratti.filter(c => c.stato === 'SCADUTO');
         } else {
-            [contratti, clienti] = await Promise.all([
-                DataService.getContratti({ stato: 'SCADUTO' }),
+            const [tuttiContratti, tuttiClienti] = await Promise.all([
+                DataService.getContratti(),
                 DataService.getClienti()
             ]);
+            contratti = tuttiContratti.filter(c => c.stato === 'SCADUTO');
+            clienti = tuttiClienti;
         }
 
         const contrattiArricchiti = contratti.map(c => {
@@ -454,10 +456,18 @@ const Scadenzario = {
                 c.stato === 'ATTIVO' && c.dataScadenza && new Date(c.dataScadenza) <= tra60gg
             );
         } else {
-            [contratti, clienti] = await Promise.all([
-                DataService.getContrattiInScadenza(60),
+            const [tuttiContratti, tuttiClienti] = await Promise.all([
+                DataService.getContratti(),
                 DataService.getClienti()
             ]);
+            const oggi = new Date();
+            oggi.setHours(0, 0, 0, 0);
+            const tra60gg = new Date();
+            tra60gg.setDate(oggi.getDate() + 60);
+            contratti = tuttiContratti.filter(c =>
+                c.stato === 'ATTIVO' && c.dataScadenza && new Date(c.dataScadenza) <= tra60gg
+            );
+            clienti = tuttiClienti;
         }
 
         const contrattiArricchiti = contratti.map(c => {
@@ -516,10 +526,18 @@ const Scadenzario = {
                 c.stato === 'ATTIVO' && c.dataScadenza && new Date(c.dataScadenza) <= tra60gg
             );
         } else {
-            [contratti, clienti] = await Promise.all([
-                DataService.getContrattiInScadenza(60),
+            const [tuttiContratti, tuttiClienti] = await Promise.all([
+                DataService.getContratti(),
                 DataService.getClienti()
             ]);
+            const oggi = new Date();
+            oggi.setHours(0, 0, 0, 0);
+            const tra60gg = new Date();
+            tra60gg.setDate(oggi.getDate() + 60);
+            contratti = tuttiContratti.filter(c =>
+                c.stato === 'ATTIVO' && c.dataScadenza && new Date(c.dataScadenza) <= tra60gg
+            );
+            clienti = tuttiClienti;
         }
 
         // Arricchisci contratti con dati cliente
