@@ -366,62 +366,75 @@ const SalaRiunioni = {
             const userName = user?.displayName || user?.email?.split('@')[0] || 'Utente';
 
             const mainContent = document.getElementById('mainContent');
-            // Rimuovi padding dal mainContent per avere il video a pieno schermo
-            mainContent.style.padding = '0';
-            mainContent.style.overflow = 'hidden';
-            mainContent.innerHTML = `
+            // Crea overlay fullscreen sopra tutto il layout (sidebar, header, ecc.)
+            // Così Jitsi ha il 100% della viewport e la toolbar non viene tagliata
+            const overlay = document.createElement('div');
+            overlay.id = 'srJitsiOverlay';
+            overlay.innerHTML = `
                 <style>
-                    #srJitsiContainer {
-                        width: 100%;
-                        height: calc(100vh - var(--header-height, 60px));
-                        position: relative;
+                    #srJitsiOverlay {
+                        position: fixed;
+                        top: 0; left: 0; right: 0; bottom: 0;
+                        z-index: 9999;
                         background: #1a1a2e;
-                        overflow: hidden;
+                        display: flex;
+                        flex-direction: column;
                     }
-                    #srJitsiContainer iframe {
-                        width: 100% !important;
-                        height: 100% !important;
-                        border: none;
+                    #srJitsiOverlay .sr-jitsi-topbar {
+                        flex-shrink: 0;
+                        background: #0D3A5C;
+                        padding: 0.5rem 1rem;
+                        display: flex;
+                        align-items: center;
+                        justify-content: space-between;
+                        z-index: 10;
                     }
-                    .sr-jitsi-toolbar {
-                        position: absolute; top: 0; left: 0; right: 0; z-index: 10;
-                        background: rgba(0,0,0,0.7); backdrop-filter: blur(8px);
-                        padding: 0.5rem 1rem; display: flex; align-items: center; justify-content: space-between;
-                    }
-                    .sr-jitsi-toolbar h3 { color: white; font-size: 1rem; font-weight: 600; margin: 0; }
-                    .sr-btn-leave {
-                        background: #D32F2F; color: white; border: none; padding: 0.5rem 1rem;
-                        border-radius: 8px; font-weight: 700; cursor: pointer; font-size: 0.85rem;
+                    #srJitsiOverlay .sr-jitsi-topbar h3 {
+                        color: white; font-size: 1rem; font-weight: 600; margin: 0;
                         font-family: 'Titillium Web', sans-serif;
                     }
-                    @media (max-width: 768px) {
-                        #srJitsiContainer { height: calc(100vh - 56px); }
+                    #srJitsiOverlay .sr-btn-leave {
+                        background: #D32F2F; color: white; border: none; padding: 0.5rem 1.25rem;
+                        border-radius: 8px; font-weight: 700; cursor: pointer; font-size: 0.9rem;
+                        font-family: 'Titillium Web', sans-serif;
+                        display: flex; align-items: center; gap: 0.4rem;
+                    }
+                    #srJitsiOverlay .sr-btn-leave:hover { background: #b71c1c; }
+                    #jitsiMeetContainer {
+                        flex: 1;
+                        width: 100%;
+                        min-height: 0;
+                    }
+                    #jitsiMeetContainer iframe {
+                        width: 100% !important;
+                        height: 100% !important;
+                        border: none !important;
                     }
                 </style>
-                <div id="srJitsiContainer">
-                    <div class="sr-jitsi-toolbar">
-                        <h3>
-                            <i class="fas ${isVideo ? 'fa-video' : 'fa-phone-alt'}" style="margin-right: 0.5rem;"></i>
-                            ${stanza.nome}
-                            <span style="font-weight: 400; font-size: 0.85rem; opacity: 0.7; margin-left: 0.5rem;">
-                                (${isVideo ? 'Videoconferenza' : 'Solo Audio'})
-                            </span>
-                        </h3>
-                        <button class="sr-btn-leave" onclick="SalaRiunioni.esciDallaStanza()">
-                            <i class="fas fa-phone-slash"></i> Esci
-                        </button>
-                    </div>
-                    <div id="jitsiMeetContainer" style="width: 100%; height: 100%;"></div>
+                <div class="sr-jitsi-topbar">
+                    <h3>
+                        <i class="fas ${isVideo ? 'fa-video' : 'fa-phone-alt'}" style="margin-right: 0.5rem;"></i>
+                        ${stanza.nome}
+                        <span style="font-weight: 400; font-size: 0.85rem; opacity: 0.7; margin-left: 0.75rem;">
+                            (${isVideo ? 'Videoconferenza' : 'Solo Audio'})
+                        </span>
+                    </h3>
+                    <button class="sr-btn-leave" onclick="SalaRiunioni.esciDallaStanza()">
+                        <i class="fas fa-phone-slash"></i> Esci dalla Riunione
+                    </button>
                 </div>
+                <div id="jitsiMeetContainer"></div>
             `;
+            document.body.appendChild(overlay);
 
             // Carica Jitsi API se non già caricata
             await this._loadJitsiApi();
 
-            // Inizializza Jitsi Meet
-            const domain = 'meet.jit.si';
+            // Inizializza Jitsi Meet via JaaS (8x8.vc)
+            const JAAS_APP_ID = 'vpaas-magic-cookie-f8b41b142e974dc98cb8a5112f8a5417';
+            const domain = '8x8.vc';
             const options = {
-                roomName: stanza.roomId,
+                roomName: JAAS_APP_ID + '/' + stanza.roomId,
                 parentNode: document.getElementById('jitsiMeetContainer'),
                 width: '100%',
                 height: '100%',
@@ -489,12 +502,9 @@ const SalaRiunioni = {
             this._jitsiApi = null;
         }
         this._currentRoom = null;
-        // Ripristina padding del mainContent
-        const mainContent = document.getElementById('mainContent');
-        if (mainContent) {
-            mainContent.style.padding = '';
-            mainContent.style.overflow = '';
-        }
+        // Rimuovi overlay fullscreen
+        const overlay = document.getElementById('srJitsiOverlay');
+        if (overlay) overlay.remove();
         this.render();
     },
 
@@ -523,11 +533,8 @@ const SalaRiunioni = {
             this._jitsiApi = null;
         }
         this._currentRoom = null;
-        const mainContent = document.getElementById('mainContent');
-        if (mainContent) {
-            mainContent.style.padding = '';
-            mainContent.style.overflow = '';
-        }
+        const overlay = document.getElementById('srJitsiOverlay');
+        if (overlay) overlay.remove();
     },
 
     // =========================================================================
@@ -545,7 +552,7 @@ const SalaRiunioni = {
             }
 
             const script = document.createElement('script');
-            script.src = 'https://meet.jit.si/external_api.js';
+            script.src = 'https://8x8.vc/vpaas-magic-cookie-f8b41b142e974dc98cb8a5112f8a5417/external_api.js';
             script.onload = () => {
                 this._jitsiLoaded = true;
                 resolve();
