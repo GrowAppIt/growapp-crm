@@ -212,6 +212,14 @@ const SalaRiunioni = {
                         Pianificata: <strong>${pianificataLabel}</strong>${oraLabel ? ' alle <strong>' + oraLabel + '</strong>' : ''}
                     </div>
                 ` : ''}
+                ${stanza.agenda ? `
+                    <div style="margin-top: 0.75rem; padding: 0.5rem 0.75rem; background: var(--grigio-100); border-radius: 6px; font-size: 0.8rem; color: var(--grigio-700); white-space: pre-line; line-height: 1.4;">
+                        <div style="font-weight: 600; color: var(--grigio-900); margin-bottom: 0.25rem;">
+                            <i class="fas fa-list-ol" style="margin-right: 0.3rem;"></i> Ordine del giorno
+                        </div>
+                        ${stanza.agenda}
+                    </div>
+                ` : ''}
                 ${invitati.length > 0 ? `
                     <div class="sr-room-partecipanti">
                         ${invitati.map(i => `<span class="sr-partecipante-tag"><i class="fas fa-user"></i> ${i}</span>`).join('')}
@@ -266,6 +274,13 @@ const SalaRiunioni = {
                     </label>
                     <input type="text" id="srNomeStanza" placeholder="Es: Riunione operativa, Stand-up settimanale..."
                         style="width: 100%; padding: 0.75rem; border: 1px solid var(--grigio-300); border-radius: 8px; font-size: 1rem; font-family: 'Titillium Web', sans-serif; box-sizing: border-box;" />
+                </div>
+                <div style="margin-bottom: 1.25rem;">
+                    <label style="display: block; font-size: 0.875rem; font-weight: 600; color: var(--grigio-700); margin-bottom: 0.5rem;">
+                        <i class="fas fa-list-ol" style="margin-right: 0.3rem;"></i> Ordine del giorno <span style="font-weight: 400; color: var(--grigio-500); font-size: 0.8rem;">(facoltativo)</span>
+                    </label>
+                    <textarea id="srAgenda" rows="3" placeholder="Es: 1. Aggiornamento stato progetti&#10;2. Assegnazione nuove attività&#10;3. Varie ed eventuali"
+                        style="width: 100%; padding: 0.75rem; border: 1px solid var(--grigio-300); border-radius: 8px; font-size: 0.95rem; font-family: 'Titillium Web', sans-serif; box-sizing: border-box; resize: vertical;"></textarea>
                 </div>
                 ${utentiHtml ? `
                 <div style="margin-bottom: 1.25rem;">
@@ -338,6 +353,9 @@ const SalaRiunioni = {
         const invitatiUids = Array.from(checkboxes).map(cb => cb.dataset.uid).filter(Boolean);
 
         // Pianificazione
+        // Agenda (facoltativa)
+        const agenda = document.getElementById('srAgenda')?.value?.trim() || '';
+
         const isPianificata = document.getElementById('srPianifica')?.checked || false;
         const dataPianificata = document.getElementById('srDataPianificata')?.value || '';
         const oraPianificata = document.getElementById('srOraPianificata')?.value || '';
@@ -365,6 +383,7 @@ const SalaRiunioni = {
                 creatoDaEmail: user?.email || '',
                 invitati: invitati,
                 invitatiUids: invitatiUids,
+                agenda: agenda,
                 creatoIl: new Date().toISOString(),
                 attiva: true,
                 // Campi pianificazione
