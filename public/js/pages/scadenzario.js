@@ -18,6 +18,9 @@ const Scadenzario = {
             this._isAgente = AuthService.canViewOnlyOwnData();
             this._agenteNome = this._isAgente ? AuthService.getAgenteFilterName() : null;
 
+            // Verifica automatica stati contratti (scaduti + rinnovi taciti)
+            await DataService.verificaEAggiornaStatiContratti();
+
             // Calcola scadenzario da dati reali
             const opzioni = {};
             if (this._isAgente && this._agenteNome) {
@@ -26,6 +29,25 @@ const Scadenzario = {
             this._datiCalcolati = await DataService.getScadenzeCompute(opzioni);
 
             const { contrattiDaRinnovare, fattureDaEmettere, fattureDaIncassare, tutteLeScadenze } = this._datiCalcolati;
+
+            // Carica contratti per le card "Scaduti" e "In Scadenza 60gg"
+            let _tuttiContratti;
+            if (this._isAgente && this._agenteNome) {
+                const datiAgente = await DataService.getDatiAgente(this._agenteNome);
+                _tuttiContratti = datiAgente.contratti;
+            } else {
+                _tuttiContratti = await DataService.getContratti();
+            }
+            const oggi = new Date();
+            oggi.setHours(0, 0, 0, 0);
+            const tra60gg = new Date(oggi);
+            tra60gg.setDate(tra60gg.getDate() + 60);
+
+            this._contrattiScaduti = _tuttiContratti.filter(c => c.stato === 'SCADUTO')
+                .sort((a, b) => new Date(a.dataScadenza || 0) - new Date(b.dataScadenza || 0));
+            this._contrattiInScadenza = _tuttiContratti.filter(c =>
+                c.stato === 'ATTIVO' && c.dataScadenza && new Date(c.dataScadenza) <= tra60gg
+            ).sort((a, b) => new Date(a.dataScadenza) - new Date(b.dataScadenza));
 
             const mainContent = document.getElementById('mainContent');
             mainContent.innerHTML = `
@@ -45,6 +67,12 @@ const Scadenzario = {
                             </button>
                         </div>
                     </div>
+                </div>
+
+                <!-- Card Contratti Scaduti + In Scadenza -->
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr)); gap: 1.5rem; margin-bottom: 1.5rem;">
+                    ${this.renderContrattiScadutiWidget(this._contrattiScaduti)}
+                    ${this.renderContrattiInScadenzaWidget(this._contrattiInScadenza)}
                 </div>
 
                 <!-- Widget Scadenze Rapide -->
@@ -196,9 +224,27 @@ const Scadenzario = {
         `;
     },
 
+    // Helper: calcola importo residuo (saldo dopo acconti per parzialmente pagate)
+    _calcolaImportoResiduo(f) {
+        if (f.statoPagamento === 'PARZIALMENTE_PAGATA') {
+            const totAcconti = (f.acconti || []).reduce((s, a) => s + (a.importo || 0), 0);
+            return Math.max(0, (f.importoTotale || 0) - totAcconti);
+        }
+        return f.importoTotale || 0;
+    },
+
+    // Helper: verifica credito sospeso
+    _isCreditoSospeso(f) {
+        return f.creditoSospeso === true || f.creditoSospeso === 'true';
+    },
+
     renderFattureScaduteWidget(fatture) {
-        const count = fatture.length;
-        const totale = fatture.reduce((sum, f) => sum + (parseFloat(f.importoTotale) || 0), 0);
+        // Depura le fatture con credito sospeso
+        const fattureNormali = fatture.filter(f => !this._isCreditoSospeso(f));
+        const fattureSospese = fatture.filter(f => this._isCreditoSospeso(f));
+        const count = fattureNormali.length;
+        const totale = fattureNormali.reduce((sum, f) => sum + this._calcolaImportoResiduo(f), 0);
+        const countSospese = fattureSospese.length;
 
         return `
             <div class="card fade-in" style="cursor: pointer; transition: transform 0.2s;"
@@ -219,7 +265,7 @@ const Scadenzario = {
                         ${count}
                     </p>
                     <p style="font-size: 0.75rem; color: var(--grigio-500); margin-top: 0.5rem;">
-                        Totale: ${DataService.formatCurrency(totale)}
+                        Totale: ${DataService.formatCurrency(totale)}${countSospese > 0 ? ` <span style="color:#FF9800;">(+ ${countSospese} in sospeso)</span>` : ''}
                     </p>
                 </div>
             </div>
@@ -227,12 +273,17 @@ const Scadenzario = {
     },
 
     renderFattureDaEmettereWidget(fatturazioni) {
-        const count = fatturazioni.length;
-        const prossime30gg = fatturazioni.filter(f => {
-            const giorni = this.calcolaGiorniRimanenti(f.dataScadenza);
-            return giorni <= 30 && giorni >= 0;
-        }).length;
-        const scadute = fatturazioni.filter(f => this.calcolaGiorniRimanenti(f.dataScadenza) < 0).length;
+        // Filtra solo quelle entro fine mese corrente (+ arretrate)
+        const oggi = new Date();
+        const fineMese = new Date(oggi.getFullYear(), oggi.getMonth() + 1, 0, 23, 59, 59);
+        const entroFineMese = fatturazioni.filter(f => {
+            if (!f.dataScadenza) return false;
+            return new Date(f.dataScadenza) <= fineMese;
+        });
+        const count = entroFineMese.length;
+        const scadute = entroFineMese.filter(f => this.calcolaGiorniRimanenti(f.dataScadenza) < 0).length;
+        const totale = entroFineMese.reduce((sum, f) => sum + (parseFloat(f.importo) || 0), 0);
+        const nomeMese = oggi.toLocaleDateString('it-IT', { month: 'long' });
 
         return `
             <div class="card fade-in" style="cursor: pointer; transition: transform 0.2s;"
@@ -244,7 +295,7 @@ const Scadenzario = {
                         <div style="background: linear-gradient(135deg, #3CA434 0%, #2A752F 100%); width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center;">
                             <i class="fas fa-file-invoice" style="color: white; font-size: 1.25rem;"></i>
                         </div>
-                        ${scadute > 0 ? `<span class="badge badge-danger">${scadute} in ritardo</span>` : prossime30gg > 0 ? `<span class="badge badge-info">${prossime30gg} prossime</span>` : ''}
+                        ${scadute > 0 ? `<span class="badge badge-danger">${scadute} in ritardo</span>` : count > 0 ? `<span class="badge badge-info">${count} da emettere</span>` : ''}
                     </div>
                     <h3 style="font-size: 0.875rem; font-weight: 600; color: var(--grigio-500); margin-bottom: 0.5rem; text-transform: uppercase;">
                         Fatture da Emettere
@@ -253,7 +304,72 @@ const Scadenzario = {
                         ${count}
                     </p>
                     <p style="font-size: 0.75rem; color: var(--grigio-500); margin-top: 0.5rem;">
-                        ${prossime30gg} nei prossimi 30 giorni
+                        Entro fine ${nomeMese}${totale > 0 ? ` — ${DataService.formatCurrency(totale)}` : ''}
+                    </p>
+                </div>
+            </div>
+        `;
+    },
+
+    // =========================================================================
+    // WIDGET: CONTRATTI SCADUTI + IN SCADENZA 60GG
+    // =========================================================================
+
+    renderContrattiScadutiWidget(contratti) {
+        const count = contratti.length;
+        return `
+            <div class="card fade-in" style="cursor: pointer; transition: transform 0.2s; ${count > 0 ? 'border-left: 4px solid #D32F2F;' : ''}"
+                 onclick="Scadenzario.mostraContrattiScaduti()"
+                 onmouseover="this.style.transform='translateY(-4px)'"
+                 onmouseout="this.style.transform='translateY(0)'">
+                <div style="padding: 1.5rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1rem;">
+                        <div style="background: linear-gradient(135deg, #D32F2F 0%, #B71C1C 100%); width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center;">
+                            <i class="fas fa-exclamation-circle" style="color: white; font-size: 1.25rem;"></i>
+                        </div>
+                        ${count > 0 ? `<span class="badge badge-danger">${count} da gestire</span>` : '<span class="badge badge-success">OK</span>'}
+                    </div>
+                    <h3 style="font-size: 0.875rem; font-weight: 600; color: var(--grigio-500); margin-bottom: 0.5rem; text-transform: uppercase;">
+                        Contratti Scaduti
+                    </h3>
+                    <p style="font-size: 2rem; font-weight: 700; color: ${count > 0 ? '#D32F2F' : 'var(--verde-700)'}; margin: 0;">
+                        ${count}
+                    </p>
+                    <p style="font-size: 0.75rem; color: var(--grigio-500); margin-top: 0.5rem;">
+                        ${count > 0 ? 'Da rinnovare o cessare' : 'Nessun contratto scaduto'}
+                    </p>
+                </div>
+            </div>
+        `;
+    },
+
+    renderContrattiInScadenzaWidget(contratti) {
+        const count = contratti.length;
+        const urgenti = contratti.filter(c => {
+            const giorni = this.calcolaGiorniRimanenti(c.dataScadenza);
+            return giorni <= 30;
+        }).length;
+
+        return `
+            <div class="card fade-in" style="cursor: pointer; transition: transform 0.2s; ${urgenti > 0 ? 'border-left: 4px solid #FFCC00;' : ''}"
+                 onclick="Scadenzario.mostraContrattiInScadenza()"
+                 onmouseover="this.style.transform='translateY(-4px)'"
+                 onmouseout="this.style.transform='translateY(0)'">
+                <div style="padding: 1.5rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1rem;">
+                        <div style="background: linear-gradient(135deg, #FFCC00 0%, #E6A800 100%); width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center;">
+                            <i class="fas fa-clock" style="color: white; font-size: 1.25rem;"></i>
+                        </div>
+                        ${urgenti > 0 ? `<span class="badge badge-warning">${urgenti} entro 30gg</span>` : ''}
+                    </div>
+                    <h3 style="font-size: 0.875rem; font-weight: 600; color: var(--grigio-500); margin-bottom: 0.5rem; text-transform: uppercase;">
+                        In Scadenza
+                    </h3>
+                    <p style="font-size: 2rem; font-weight: 700; color: ${count > 0 ? '#E6A800' : 'var(--verde-700)'}; margin: 0;">
+                        ${count}
+                    </p>
+                    <p style="font-size: 0.75rem; color: var(--grigio-500); margin-top: 0.5rem;">
+                        Prossimi 60 giorni
                     </p>
                 </div>
             </div>
@@ -263,6 +379,127 @@ const Scadenzario = {
     // =========================================================================
     // VISTE DETTAGLIO (click su widget)
     // =========================================================================
+
+    async mostraContrattiScaduti() {
+        UI.showLoading();
+
+        let contratti, clienti;
+        if (this._isAgente && this._agenteNome) {
+            const datiAgente = await DataService.getDatiAgente(this._agenteNome);
+            clienti = datiAgente.clienti;
+            contratti = datiAgente.contratti.filter(c => c.stato === 'SCADUTO');
+        } else {
+            [contratti, clienti] = await Promise.all([
+                DataService.getContratti({ stato: 'SCADUTO' }),
+                DataService.getClienti()
+            ]);
+        }
+
+        const contrattiArricchiti = contratti.map(c => {
+            const cliente = clienti.find(cl => cl.id === c.clienteId);
+            return { ...c, ragioneSociale: cliente?.ragioneSociale || c.clienteRagioneSociale || 'N/A' };
+        }).sort((a, b) => new Date(a.dataScadenza || 0) - new Date(b.dataScadenza || 0));
+
+        const oggi = new Date();
+        oggi.setHours(0, 0, 0, 0);
+
+        let listHtml = '';
+        if (contrattiArricchiti.length === 0) {
+            listHtml = UI.createEmptyState({ icon: 'check-circle', title: 'Nessun contratto scaduto', subtitle: 'Tutti i contratti sono in regola' });
+        } else {
+            listHtml = '<div class="list-group fade-in">';
+            contrattiArricchiti.forEach(c => {
+                const scadenza = c.dataScadenza ? new Date(c.dataScadenza) : null;
+                const giorniScaduto = scadenza ? Math.abs(Math.ceil((scadenza - oggi) / (1000 * 60 * 60 * 24))) : '?';
+                listHtml += UI.createListItem({
+                    title: c.ragioneSociale,
+                    subtitle: `${c.numeroContratto || 'N/A'} — ${c.oggetto || ''} — Scaduto da ${giorniScaduto} giorni (${c.dataScadenza ? DataService.formatDate(c.dataScadenza) : 'N/A'}) — ${c.importoAnnuale ? DataService.formatCurrency(c.importoAnnuale) + '/anno' : ''}`,
+                    badge: 'SCADUTO',
+                    badgeClass: 'badge-warning',
+                    icon: 'file-contract',
+                    onclick: `UI.showPage("dettaglio-contratto", "${c.id}")`
+                });
+            });
+            listHtml += '</div>';
+        }
+
+        document.getElementById('mainContent').innerHTML = `
+            <div class="page-header mb-3">
+                <button class="btn btn-secondary btn-sm" onclick="Scadenzario.render()" style="margin-bottom: 1rem;">
+                    <i class="fas fa-arrow-left"></i> Torna allo scadenzario
+                </button>
+                <h1 style="font-size: 2rem; font-weight: 700; color: #D32F2F; margin-bottom: 0.5rem;">
+                    <i class="fas fa-exclamation-circle"></i> Contratti Scaduti
+                </h1>
+                <p style="color: var(--grigio-500);">
+                    ${contrattiArricchiti.length} contratti da rinnovare o cessare
+                </p>
+            </div>
+            ${listHtml}
+        `;
+        UI.hideLoading();
+    },
+
+    async mostraContrattiInScadenza() {
+        UI.showLoading();
+
+        let contratti, clienti;
+        if (this._isAgente && this._agenteNome) {
+            const datiAgente = await DataService.getDatiAgente(this._agenteNome);
+            clienti = datiAgente.clienti;
+            const oggi = new Date();
+            const tra60gg = new Date();
+            tra60gg.setDate(oggi.getDate() + 60);
+            contratti = datiAgente.contratti.filter(c =>
+                c.stato === 'ATTIVO' && c.dataScadenza && new Date(c.dataScadenza) <= tra60gg
+            );
+        } else {
+            [contratti, clienti] = await Promise.all([
+                DataService.getContrattiInScadenza(60),
+                DataService.getClienti()
+            ]);
+        }
+
+        const contrattiArricchiti = contratti.map(c => {
+            const cliente = clienti.find(cl => cl.id === c.clienteId);
+            return { ...c, ragioneSociale: cliente?.ragioneSociale || c.clienteRagioneSociale || 'N/A' };
+        }).sort((a, b) => new Date(a.dataScadenza) - new Date(b.dataScadenza));
+
+        let listHtml = '';
+        if (contrattiArricchiti.length === 0) {
+            listHtml = UI.createEmptyState({ icon: 'check-circle', title: 'Nessun contratto in scadenza', subtitle: 'Nessun rinnovo previsto nei prossimi 60 giorni' });
+        } else {
+            listHtml = '<div class="list-group fade-in">';
+            contrattiArricchiti.forEach(c => {
+                const giorni = this.calcolaGiorniRimanenti(c.dataScadenza);
+                listHtml += UI.createListItem({
+                    title: c.ragioneSociale,
+                    subtitle: `${c.numeroContratto || 'N/A'} — ${c.oggetto || ''} — Scadenza: ${DataService.formatDate(c.dataScadenza)} — ${c.importoAnnuale ? DataService.formatCurrency(c.importoAnnuale) + '/anno' : ''}`,
+                    badge: `${giorni}gg`,
+                    badgeClass: giorni <= 30 ? 'badge-warning' : 'badge-info',
+                    icon: 'file-contract',
+                    onclick: `UI.showPage("dettaglio-contratto", "${c.id}")`
+                });
+            });
+            listHtml += '</div>';
+        }
+
+        document.getElementById('mainContent').innerHTML = `
+            <div class="page-header mb-3">
+                <button class="btn btn-secondary btn-sm" onclick="Scadenzario.render()" style="margin-bottom: 1rem;">
+                    <i class="fas fa-arrow-left"></i> Torna allo scadenzario
+                </button>
+                <h1 style="font-size: 2rem; font-weight: 700; color: #E6A800; margin-bottom: 0.5rem;">
+                    <i class="fas fa-clock"></i> Contratti in Scadenza
+                </h1>
+                <p style="color: var(--grigio-500);">
+                    ${contrattiArricchiti.length} contratti nei prossimi 60 giorni
+                </p>
+            </div>
+            ${listHtml}
+        `;
+        UI.hideLoading();
+    },
 
     async mostraContratti() {
         UI.showLoading();
@@ -326,11 +563,35 @@ const Scadenzario = {
             this._datiCalcolati = await DataService.getScadenzeCompute(opzioni);
         }
 
-        const fatture = this._datiCalcolati.fattureDaIncassare;
+        const tutteFatture = this._datiCalcolati.fattureDaIncassare;
+        const fattureNormali = tutteFatture.filter(f => !this._isCreditoSospeso(f));
+        const fattureSospese = tutteFatture.filter(f => this._isCreditoSospeso(f));
+
+        const totaleNormali = fattureNormali.reduce((sum, f) => sum + this._calcolaImportoResiduo(f), 0);
+        const totaleSospese = fattureSospese.reduce((sum, f) => sum + this._calcolaImportoResiduo(f), 0);
+
+        const listHtml = this.renderFattureScaduteList(fattureNormali);
+
+        // Pulsante toggle crediti sospesi
+        let sospesiHtml = '';
+        if (fattureSospese.length > 0) {
+            sospesiHtml = `
+                <div style="margin-top:1.5rem;">
+                    <button id="toggleSospesiScad" onclick="Scadenzario._toggleSospesi()" style="background:#FFF3E0;color:#E65100;border:1px solid #FFB74D;border-radius:20px;padding:0.5rem 1.25rem;font-size:0.85rem;font-weight:600;cursor:pointer;transition:all 0.2s;display:flex;align-items:center;gap:0.5rem;">
+                        <i class="fas fa-pause-circle"></i> Mostra crediti sospesi
+                        <span style="background:#FFE0B2;padding:0.15rem 0.5rem;border-radius:10px;font-size:0.75rem;">${fattureSospese.length} • ${DataService.formatCurrency(totaleSospese)}</span>
+                    </button>
+                    <div id="listaSospesiScad" style="display:none;margin-top:1rem;">
+                        <div style="padding:0.5rem 0.75rem;background:#FFFAF0;border-left:3px solid #FF9800;border-radius:6px;margin-bottom:0.75rem;">
+                            <span style="font-size:0.8rem;color:#E65100;font-weight:600;"><i class="fas fa-info-circle"></i> Fatture con credito sospeso — escluse dal totale da incassare</span>
+                        </div>
+                        ${this.renderFattureScaduteList(fattureSospese, true)}
+                    </div>
+                </div>
+            `;
+        }
 
         const mainContent = document.getElementById('mainContent');
-        const listHtml = this.renderFattureScaduteList(fatture);
-
         mainContent.innerHTML = `
             <div class="page-header mb-3">
                 <button class="btn btn-secondary btn-sm" onclick="Scadenzario.render()" style="margin-bottom: 1rem;">
@@ -340,12 +601,24 @@ const Scadenzario = {
                     <i class="fas fa-file-invoice-dollar"></i> Fatture da Incassare
                 </h1>
                 <p style="color: var(--grigio-500);">
-                    Fatture non pagate o parzialmente pagate
+                    ${fattureNormali.length} fatture • Totale residuo: ${DataService.formatCurrency(totaleNormali)}
                 </p>
             </div>
             ${listHtml}
+            ${sospesiHtml}
         `;
         UI.hideLoading();
+    },
+
+    _toggleSospesi() {
+        const lista = document.getElementById('listaSospesiScad');
+        const btn = document.getElementById('toggleSospesiScad');
+        if (!lista || !btn) return;
+        const visible = lista.style.display !== 'none';
+        lista.style.display = visible ? 'none' : 'block';
+        btn.innerHTML = visible
+            ? btn.innerHTML.replace('Nascondi', 'Mostra')
+            : btn.innerHTML.replace('Mostra', 'Nascondi');
     },
 
     async mostraFatturazioni() {
@@ -440,7 +713,7 @@ const Scadenzario = {
         return html;
     },
 
-    renderFattureScaduteList(fatture) {
+    renderFattureScaduteList(fatture, isSospeso) {
         if (fatture.length === 0) {
             return UI.createEmptyState({
                 icon: 'check-circle',
@@ -468,11 +741,17 @@ const Scadenzario = {
                 badgeClass = 'badge-info';
             }
 
-            const stato = fattura.statoPagamento === 'PARZIALMENTE_PAGATA' ? ' (parz.)' : '';
+            const isParziale = fattura.statoPagamento === 'PARZIALMENTE_PAGATA';
+            const residuo = this._calcolaImportoResiduo(fattura);
+            const stato = isParziale ? ' (parz.)' : '';
+            const importoLabel = isParziale
+                ? `Residuo: ${DataService.formatCurrency(residuo)} su ${DataService.formatCurrency(fattura.importoTotale)}`
+                : DataService.formatCurrency(fattura.importoTotale);
+            const sospesoLabel = isSospeso ? ' • <span style="color:#FF9800;font-weight:600;">Credito sospeso</span>' : '';
 
             html += UI.createListItem({
-                title: (fattura.numeroFatturaCompleto || fattura.numeroFattura || 'Fattura') + stato,
-                subtitle: `${clienteInfo} • Scadenza: ${DataService.formatDate(fattura.dataScadenza)} • ${DataService.formatCurrency(fattura.importoTotale)}`,
+                title: (isSospeso ? '<i class="fas fa-pause-circle" style="color:#FF9800;margin-right:4px;font-size:0.85rem;"></i>' : '') + (fattura.numeroFatturaCompleto || fattura.numeroFattura || 'Fattura') + stato,
+                subtitle: `${clienteInfo} • Scadenza: ${DataService.formatDate(fattura.dataScadenza)} • ${importoLabel}${sospesoLabel}`,
                 badge: badgeLabel,
                 badgeClass,
                 icon: 'file-invoice-dollar',

@@ -147,9 +147,9 @@ const DettaglioContratto = {
                             <label style="font-size: 0.75rem; color: var(--grigio-500); text-transform: uppercase; font-weight: 600;">Data Scadenza</label>
                             <div style="font-size: 1rem; color: var(--grigio-900); margin-top: 0.25rem;">
                                 ${this.contratto.dataScadenza ? DataService.formatDate(this.contratto.dataScadenza) : 'N/A'}
-                                ${giorniRimanenti !== null && this.contratto.stato === 'ATTIVO' ?
+                                ${giorniRimanenti !== null && this.contratto.stato === 'ATTIVO' && giorniRimanenti > 0 ?
                                     `<span style="font-size: 0.875rem; color: ${giorniRimanenti <= 30 ? 'var(--rosso-errore)' : 'var(--grigio-500)'};">
-                                        (${giorniRimanenti > 0 ? giorniRimanenti + ' giorni' : 'SCADUTO'})
+                                        (${giorniRimanenti} giorni)
                                     </span>`
                                 : ''}
                             </div>

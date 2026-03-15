@@ -475,6 +475,105 @@ const DataService = {
         }
     },
 
+    /**
+     * Verifica tutti i contratti ATTIVI e aggiorna automaticamente quelli scaduti.
+     * - Contratti con rinnovoAutomatico=true → rinnovo tacito (crea nuovo contratto)
+     * - Contratti senza rinnovo automatico → stato diventa SCADUTO
+     * Aggiorna anche lo stato dei clienti collegati.
+     * Chiamare al caricamento della lista contratti o della dashboard.
+     */
+    async verificaEAggiornaStatiContratti() {
+        try {
+            const oggi = new Date();
+            oggi.setHours(0, 0, 0, 0);
+
+            // Carica tutti i contratti ATTIVI
+            const snapshot = await db.collection('contratti')
+                .where('stato', '==', 'ATTIVO')
+                .get();
+
+            if (snapshot.empty) return { scaduti: 0, rinnovati: 0 };
+
+            let contScaduti = 0;
+            let contRinnovati = 0;
+            const clientiDaAggiornare = new Set();
+
+            for (const doc of snapshot.docs) {
+                const contratto = { ...doc.data(), id: doc.id };
+                if (!contratto.dataScadenza) continue;
+
+                const dataScadenza = new Date(contratto.dataScadenza);
+                dataScadenza.setHours(0, 0, 0, 0);
+
+                // Il contratto è ancora valido → salta
+                if (dataScadenza >= oggi) continue;
+
+                // === CONTRATTO SCADUTO ===
+                if (contratto.clienteId) clientiDaAggiornare.add(contratto.clienteId);
+
+                if (contratto.rinnovoAutomatico) {
+                    // --- RINNOVO TACITO AUTOMATICO ---
+                    try {
+                        const durataOriginale = contratto.durataContratto || 12;
+                        const nuovaDataInizio = new Date(contratto.dataScadenza);
+                        // Il giorno dopo la scadenza del vecchio
+                        nuovaDataInizio.setDate(nuovaDataInizio.getDate() + 1);
+                        const nuovaDataScadenza = new Date(nuovaDataInizio);
+                        nuovaDataScadenza.setMonth(nuovaDataScadenza.getMonth() + durataOriginale);
+
+                        await this.rinnovaContratto(contratto.id, {
+                            dataInizio: nuovaDataInizio.toISOString().split('T')[0],
+                            dataScadenza: nuovaDataScadenza.toISOString().split('T')[0],
+                            importoAnnuale: contratto.importoAnnuale || 0,
+                            importoMensile: contratto.importoMensile || 0,
+                            durataContratto: durataOriginale,
+                            rinnovoAutomatico: true,
+                            giorniPreavvisoRinnovo: contratto.giorniPreavvisoRinnovo || 60,
+                            note: `Rinnovo tacito automatico del ${new Date().toLocaleDateString('it-IT')}`
+                        });
+
+                        contRinnovati++;
+                        console.log(`[DataService] Rinnovo tacito eseguito: ${contratto.numeroContratto}`);
+                    } catch (errRinnovo) {
+                        // Se il rinnovo fallisce, marca come SCADUTO
+                        console.error(`[DataService] Errore rinnovo tacito ${contratto.numeroContratto}:`, errRinnovo);
+                        await this.updateContratto(contratto.id, { stato: 'SCADUTO' });
+                        this._logAudit('STATO_CHANGE', 'contratti', contratto.id, {
+                            azione: 'SCADUTO',
+                            motivo: 'Scadenza naturale (rinnovo tacito fallito)'
+                        });
+                        contScaduti++;
+                    }
+                } else {
+                    // --- SCADENZA NORMALE ---
+                    await this.updateContratto(contratto.id, { stato: 'SCADUTO' });
+                    this._logAudit('STATO_CHANGE', 'contratti', contratto.id, {
+                        azione: 'SCADUTO',
+                        motivo: 'Scadenza naturale'
+                    });
+                    contScaduti++;
+                    console.log(`[DataService] Contratto scaduto: ${contratto.numeroContratto}`);
+                }
+            }
+
+            // Aggiorna lo stato di tutti i clienti coinvolti
+            for (const clienteId of clientiDaAggiornare) {
+                await this.aggiornaStatoCliente(clienteId);
+            }
+
+            this._cacheInvalidate('contratti:');
+
+            if (contScaduti > 0 || contRinnovati > 0) {
+                console.log(`[DataService] Verifica contratti completata: ${contScaduti} scaduti, ${contRinnovati} rinnovati automaticamente`);
+            }
+
+            return { scaduti: contScaduti, rinnovati: contRinnovati };
+        } catch (error) {
+            console.error('[DataService] Errore verifica stati contratti:', error);
+            return { scaduti: 0, rinnovati: 0 };
+        }
+    },
+
     // Arricchisce l'array clienti con lo stato calcolato dai contratti
     async getClientiConStato(filtriClienti = {}) {
         // Carica clienti e contratti in parallelo

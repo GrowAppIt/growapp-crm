@@ -15,6 +15,9 @@ const Dashboard = {
             // FASE 0: Mostra SUBITO lo skeleton della dashboard (senza attendere i dati)
             this._renderSkeleton();
 
+            // Verifica automatica stati contratti (scaduti + rinnovi taciti)
+            await DataService.verificaEAggiornaStatiContratti();
+
             // OTTIMIZZAZIONE: carica le 6 collezioni base UNA sola volta, poi calcola tutto in memoria
             const _sysDash2 = SettingsService.getSystemSettingsSync();
 
@@ -113,13 +116,17 @@ const Dashboard = {
                 scadenze: { totale: _rawScadenze.length, scadute: scadenzeScaduteStats.length, imminenti: scadenzeImminentiStats.length }
             };
 
-            // Contratti in scadenza (filtro in memoria)
+            // Contratti in scadenza (filtro in memoria) — prossimi 60gg
             const _finestraContratti = _sysDash2.finestraContrattiDashboard || 60;
             const _dataLimiteContratti = new Date(oggi);
             _dataLimiteContratti.setDate(_dataLimiteContratti.getDate() + _finestraContratti);
             const contrattiInScadenza = contrattiTutti.filter(c =>
                 c.stato === 'ATTIVO' && c.dataScadenza && new Date(c.dataScadenza) <= _dataLimiteContratti
             ).sort((a, b) => new Date(a.dataScadenza) - new Date(b.dataScadenza));
+
+            // Contratti scaduti (stato SCADUTO nel database)
+            const contrattiScaduti = contrattiTutti.filter(c => c.stato === 'SCADUTO')
+                .sort((a, b) => new Date(a.dataScadenza || 0) - new Date(b.dataScadenza || 0));
 
             // Fatture scadute (filtro in memoria) — include anche PARZIALMENTE_PAGATA
             const fattureScadute = fatture.filter(f =>
@@ -203,6 +210,7 @@ const Dashboard = {
                             scadenzeImminenti,
                             scadenzeImminentiAlert,
                             contrattiInScadenza,
+                            contrattiScaduti,
                             fattureInScadenza,
                             clienti,
                             fatture,
@@ -365,7 +373,7 @@ const Dashboard = {
         // Widget AMMINISTRATIVI: nascosti a SVILUPPATORE e CONTENT_MANAGER (clienti, contratti, scadenze)
         const ruoliSenzaAmministrazione = ['SVILUPPATORE', 'CONTENT_MANAGER'];
         const isSenzaAmministrazione = ruoliSenzaAmministrazione.includes(ruoloCorrente);
-        const widgetAmministrativi = ['contrattiInScadenza', 'ultimiClienti', 'scadenzeImminenti'];
+        const widgetAmministrativi = ['contrattiInScadenza', 'contrattiScaduti', 'ultimiClienti', 'scadenzeImminenti'];
 
         // Widget TECNICI: visibili a tutti ma prioritari per i ruoli tecnici
         // contrattiInScadenza: visibile anche al CTO (ha responsabilità gestionale)
@@ -377,6 +385,7 @@ const Dashboard = {
             'scadenzeImminenti': ['manage_payments', 'view_all_data'],
             'fattureNonPagate': ['manage_invoices', 'view_invoices', 'view_all_data'],
             'contrattiInScadenza': ['manage_contracts', 'view_contracts', 'view_all_data'],
+            'contrattiScaduti': ['manage_contracts', 'view_contracts', 'view_all_data'],
             'andamentoMensile': ['manage_invoices', 'view_reports'],
             'statoApp': ['view_apps', 'manage_apps', 'manage_app_content', 'view_all_data'],
             'topClienti': ['manage_invoices', 'view_invoices', 'view_all_data'],
@@ -424,6 +433,9 @@ const Dashboard = {
                     break;
                 case 'contrattiInScadenza':
                     html += this.renderContrattiInScadenza(data.contrattiInScadenza);
+                    break;
+                case 'contrattiScaduti':
+                    html += this.renderContrattiScaduti(data.contrattiScaduti);
                     break;
                 case 'andamentoMensile':
                     html += await this.renderAndamentoMensile(data.fatture);
@@ -727,6 +739,69 @@ const Dashboard = {
                 onclick: `UI.showPage("dettaglio-contratto", "${contratto.id}")`
             });
         });
+
+        html += `
+                </div>
+            </div>
+        `;
+
+        return html;
+    },
+
+    renderContrattiScaduti(contratti) {
+        if (contratti.length === 0) {
+            return `
+                <div class="card fade-in">
+                    <div class="card-header">
+                        <h2 class="card-title">
+                            <i class="fas fa-exclamation-circle" style="color: var(--rosso-errore);"></i> Contratti Scaduti
+                        </h2>
+                    </div>
+                    <div class="empty-state">
+                        <i class="fas fa-check-circle" style="color: var(--verde-700);"></i>
+                        <p>Nessun contratto scaduto da gestire</p>
+                    </div>
+                </div>
+            `;
+        }
+
+        const oggi = new Date();
+        oggi.setHours(0, 0, 0, 0);
+
+        let html = `
+            <div class="card fade-in">
+                <div class="card-header" style="border-left: 4px solid var(--rosso-errore);">
+                    <h2 class="card-title">
+                        <i class="fas fa-exclamation-circle" style="color: var(--rosso-errore);"></i> Contratti Scaduti
+                    </h2>
+                    <div class="card-subtitle" style="color: var(--rosso-errore); font-weight: 600;">${contratti.length} contratt${contratti.length === 1 ? 'o' : 'i'} da rinnovare o cessare</div>
+                </div>
+                <div class="list-group">
+        `;
+
+        const slice = contratti.slice(0, 8);
+        slice.forEach(contratto => {
+            const scadenza = contratto.dataScadenza ? new Date(contratto.dataScadenza) : null;
+            const giorniScaduto = scadenza ? Math.abs(Math.ceil((scadenza - oggi) / (1000 * 60 * 60 * 24))) : '?';
+            html += UI.createListItem({
+                title: contratto.clienteRagioneSociale || 'Cliente non specificato',
+                subtitle: `${contratto.numeroContratto || 'N/A'} — scaduto da ${giorniScaduto} giorn${giorniScaduto === 1 ? 'o' : 'i'} (${contratto.dataScadenza ? DataService.formatDate(contratto.dataScadenza) : 'N/A'})`,
+                badge: 'SCADUTO',
+                badgeClass: 'badge-warning',
+                icon: 'file-contract',
+                onclick: `UI.showPage("dettaglio-contratto", "${contratto.id}")`
+            });
+        });
+
+        if (contratti.length > 8) {
+            html += `
+                <div style="padding: 0.75rem 1rem; text-align: center;">
+                    <a href="#" onclick="UI.showPage('contratti'); return false;" style="font-size: 0.8rem; color: var(--blu-500); text-decoration: none; font-weight: 600;">
+                        <i class="fas fa-arrow-right"></i> Vedi tutti i ${contratti.length} contratti scaduti
+                    </a>
+                </div>
+            `;
+        }
 
         html += `
                 </div>

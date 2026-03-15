@@ -16,6 +16,15 @@ const Contratti = {
         UI.showLoading();
 
         try {
+            // Verifica automatica stati contratti (scaduti + rinnovi taciti)
+            const esito = await DataService.verificaEAggiornaStatiContratti();
+            if (esito.scaduti > 0 || esito.rinnovati > 0) {
+                let msg = [];
+                if (esito.rinnovati > 0) msg.push(`${esito.rinnovati} contratt${esito.rinnovati === 1 ? 'o rinnovato' : 'i rinnovati'} automaticamente`);
+                if (esito.scaduti > 0) msg.push(`${esito.scaduti} contratt${esito.scaduti === 1 ? 'o scaduto' : 'i scaduti'}`);
+                UI.showNotification(msg.join(', '), esito.rinnovati > 0 ? 'success' : 'warning');
+            }
+
             // Se agente, carica solo dati dei propri clienti
             const _isAgente = AuthService.canViewOnlyOwnData();
             const _agenteNome = _isAgente ? AuthService.getAgenteFilterName() : null;
@@ -248,7 +257,7 @@ const Contratti = {
                             <div style="font-size: 0.75rem; color: var(--grigio-400); margin-top: 0.25rem;">
                                 ${contratto.tipologia ? this.getTipologiaLabel(contratto.tipologia) : 'N/A'} •
                                 Scadenza: ${contratto.dataScadenza ? DataService.formatDate(contratto.dataScadenza) : 'N/A'}
-                                ${giorniRimanenti !== null && contratto.stato === 'ATTIVO' ? ` (${giorniRimanenti > 0 ? giorniRimanenti + ' giorni' : 'SCADUTO'})` : ''}
+                                ${giorniRimanenti !== null && contratto.stato === 'ATTIVO' && giorniRimanenti > 0 ? ` (${giorniRimanenti} giorni)` : ''}
                             </div>
                         </div>
                     </div>

@@ -37,6 +37,13 @@ const SettingsService = {
             enabled: true,
             order: 4
         },
+        contrattiScaduti: {
+            id: 'contrattiScaduti',
+            nome: 'Contratti Scaduti',
+            descrizione: 'Contratti scaduti da rinnovare o cessare',
+            enabled: true,
+            order: 5
+        },
         andamentoMensile: {
             id: 'andamentoMensile',
             nome: 'Riepilogo Finanziario del Mese',
