@@ -123,6 +123,41 @@ const DataService = {
         }
     },
 
+    // === UTENTI (tutti gli utenti attivi del CRM) ===
+    _cacheUtenti: null,
+    _cacheUtentiTimestamp: 0,
+
+    async getUtenti(forceRefresh = false) {
+        const now = Date.now();
+        if (!forceRefresh && this._cacheUtenti && (now - this._cacheUtentiTimestamp) < 300000) {
+            return this._cacheUtenti;
+        }
+
+        try {
+            const snapshot = await db.collection('utenti')
+                .where('stato', '==', 'ATTIVO')
+                .get();
+
+            this._cacheUtenti = snapshot.docs.map(doc => {
+                const data = doc.data();
+                return {
+                    uid: doc.id,
+                    nome: data.nome || '',
+                    cognome: data.cognome || '',
+                    email: data.email || '',
+                    displayName: `${data.nome || ''} ${data.cognome || ''}`.trim() || data.email,
+                    ruolo: data.ruolo || ''
+                };
+            }).sort((a, b) => a.displayName.localeCompare(b.displayName));
+
+            this._cacheUtentiTimestamp = now;
+            return this._cacheUtenti;
+        } catch (error) {
+            console.error('Errore caricamento utenti:', error);
+            return [];
+        }
+    },
+
     // === CLIENTI ===
     async getClienti(filtri = {}) {
         try {

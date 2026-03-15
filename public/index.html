@@ -28,7 +28,7 @@
     <!-- 🔄 Cache Busting Automatico — cambia APP_VERSION per forzare reload globale -->
     <script>
     (function() {
-        var APP_VERSION = '3.6.5';
+        var APP_VERSION = '3.6.7';
         var storedVersion = localStorage.getItem('crm_app_version');
         if (storedVersion && storedVersion !== APP_VERSION) {
             localStorage.setItem('crm_app_version', APP_VERSION);
@@ -193,6 +193,9 @@
                 <li style="padding: 1rem 1.5rem; margin-top: 1rem; font-size: 0.75rem; font-weight: 700; color: var(--grigio-500); text-transform: uppercase; letter-spacing: 0.05em; border-top: 1px solid var(--grigio-300);">
                     <i class="fas fa-toolbox"></i> Utility
                 </li>
+                <li class="menu-item" data-page="sala-riunioni">
+                    <i class="fas fa-video"></i> <span>Sala Riunioni</span>
+                </li>
                 <li class="menu-item" data-page="mappa">
                     <i class="fas fa-map-marked-alt"></i> <span>Mappa</span>
                 </li>
@@ -328,6 +331,7 @@
     <script src="js/pages/promemoria.js?v=3.6.7"></script>
     <script src="js/pages/centro-notifiche.js?v=3.6.7"></script>
     <script src="js/pages/monitor-rss.js?v=3.6.7"></script>
+    <script src="js/pages/sala-riunioni.js?v=3.6.7"></script>
     <script src="js/goodbarber-service.js?v=3.6.7"></script>
     <script src="js/pages/report-goodbarber.js?v=3.6.7"></script>
     <script src="js/pages/push-broadcast.js?v=3.6.7"></script>

@@ -33,6 +33,9 @@ const UI = {
         if (typeof MonitorRSS !== 'undefined' && this.currentPage === 'monitor-rss' && pageName !== 'monitor-rss') {
             MonitorRSS.cleanup();
         }
+        if (typeof SalaRiunioni !== 'undefined' && this.currentPage === 'sala-riunioni' && pageName !== 'sala-riunioni') {
+            SalaRiunioni.cleanup();
+        }
 
         // Salva la pagina CORRENTE nello stack prima di navigare (solo se non è un goBack)
         if (!this._isGoingBack && this.currentPage) {
@@ -118,6 +121,9 @@ const UI = {
                 break;
             case 'monitor-rss':
                 MonitorRSS.render();
+                break;
+            case 'sala-riunioni':
+                SalaRiunioni.render();
                 break;
             case 'report-app':
                 ReportGoodBarber.render();
