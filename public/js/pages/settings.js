@@ -1095,6 +1095,27 @@ const Settings = {
                             </button>
                         </div>
 
+                        <!-- Migrazione Periodo di Competenza Fatture -->
+                        <div style="padding-top: 2rem; border-top: 1px solid var(--grigio-300);">
+                            <h4 style="color: #FF9800; margin-bottom: 0.5rem;">
+                                <i class="fas fa-calendar-week"></i> Migrazione Periodo di Competenza
+                            </h4>
+                            <p style="color: var(--grigio-500); margin-bottom: 1rem;">
+                                <strong>Calcola automaticamente</strong> il periodo di competenza (Dal/Al) per tutte le fatture esistenti
+                                basandosi sul contratto collegato e sulla periodicità.<br>
+                                Le fatture senza contratto o con dati insufficienti verranno segnalate per la verifica manuale.
+                            </p>
+                            <div id="migrazioneCompetenzaRisultato" style="margin-bottom: 1rem;"></div>
+                            <button
+                                class="btn"
+                                id="btnMigraCompetenza"
+                                style="background: #FF9800; color: white;"
+                                onclick="Settings.eseguiMigrazioneCompetenza()"
+                            >
+                                <i class="fas fa-play"></i> Esegui Migrazione Competenza
+                            </button>
+                        </div>
+
                         <!-- Statistiche Database -->
                         <div style="padding-top: 2rem; border-top: 1px solid var(--grigio-300);">
                             <h4 style="color: var(--blu-700); margin-bottom: 1rem;">
@@ -3202,7 +3223,95 @@ const Settings = {
         }
     },
 
-    // 🏛️ ARRICCHIMENTO MASSIVO DATI COMUNI
+    // MIGRAZIONE PERIODO DI COMPETENZA FATTURE
+    async eseguiMigrazioneCompetenza() {
+        if (!confirm('Vuoi eseguire la migrazione del periodo di competenza?\n\nQuesta operazione calcola automaticamente competenzaDal e competenzaAl per tutte le fatture esistenti basandosi sul contratto collegato.\n\nLe fatture senza dati sufficienti verranno segnalate per la verifica manuale.\n\nProcedere?')) {
+            return;
+        }
+
+        const btn = document.getElementById('btnMigraCompetenza');
+        const risultatoDiv = document.getElementById('migrazioneCompetenzaRisultato');
+        if (!btn || !risultatoDiv) return;
+
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Migrazione in corso...';
+        risultatoDiv.innerHTML = '<p style="color: var(--grigio-500);"><i class="fas fa-spinner fa-spin"></i> Analisi fatture in corso...</p>';
+
+        try {
+            const result = await DataService.migraCompetenzaFatture();
+
+            let html = `
+                <div style="padding: 1rem; background: var(--verde-100); border-radius: 8px; margin-bottom: 1rem; border-left: 4px solid var(--verde-700);">
+                    <h4 style="color: var(--verde-900); margin-bottom: 0.5rem;">
+                        <i class="fas fa-check-circle"></i> Migrazione completata
+                    </h4>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.5rem; font-size: 0.9rem;">
+                        <div><strong>${result.totale}</strong> fatture totali</div>
+                        <div style="color: var(--verde-700);"><strong>${result.aggiornate}</strong> aggiornate</div>
+                        <div><strong>${result.giaPresenti}</strong> già presenti</div>
+                        <div style="color: ${result.daVerificare.length > 0 ? '#FF9800' : 'var(--grigio-500)'};">
+                            <strong>${result.daVerificare.length}</strong> da verificare
+                        </div>
+                        ${result.errori > 0 ? `<div style="color: var(--rosso-errore);"><strong>${result.errori}</strong> errori</div>` : ''}
+                    </div>
+                </div>
+            `;
+
+            if (result.daVerificare.length > 0) {
+                html += `
+                    <div style="padding: 1rem; background: #FFF3E0; border-radius: 8px; border-left: 4px solid #FF9800;">
+                        <h4 style="color: #E65100; margin-bottom: 0.75rem;">
+                            <i class="fas fa-exclamation-triangle"></i> Fatture da verificare manualmente (${result.daVerificare.length})
+                        </h4>
+                        <div style="max-height: 400px; overflow-y: auto;">
+                            <table style="width: 100%; font-size: 0.85rem; border-collapse: collapse;">
+                                <thead>
+                                    <tr style="background: rgba(0,0,0,0.05); text-align: left;">
+                                        <th style="padding: 0.5rem;">Numero</th>
+                                        <th style="padding: 0.5rem;">Cliente</th>
+                                        <th style="padding: 0.5rem;">Data Em.</th>
+                                        <th style="padding: 0.5rem;">Importo</th>
+                                        <th style="padding: 0.5rem;">Motivo</th>
+                                        <th style="padding: 0.5rem;">Azione</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${result.daVerificare.map(f => `
+                                        <tr style="border-bottom: 1px solid var(--grigio-300);">
+                                            <td style="padding: 0.5rem; font-weight: 600;">${f.numero}</td>
+                                            <td style="padding: 0.5rem;">${f.cliente}</td>
+                                            <td style="padding: 0.5rem;">${f.dataEmissione ? DataService.formatDate(f.dataEmissione) : '—'}</td>
+                                            <td style="padding: 0.5rem;">${f.importo ? DataService.formatCurrency(f.importo) : '—'}</td>
+                                            <td style="padding: 0.5rem; color: #E65100; font-size: 0.8rem;">${f.motivo}</td>
+                                            <td style="padding: 0.5rem;">
+                                                <button class="btn btn-sm" onclick="UI.showPage('dettaglio-fattura','${f.id}')"
+                                                    style="padding: 0.25rem 0.5rem; font-size: 0.75rem; background: var(--blu-700); color: white; border: none; border-radius: 4px; cursor: pointer;">
+                                                    <i class="fas fa-edit"></i> Apri
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                `;
+            }
+
+            risultatoDiv.innerHTML = html;
+        } catch (error) {
+            risultatoDiv.innerHTML = `
+                <div style="padding: 1rem; background: #FFEBEE; border-radius: 8px; color: #D32F2F; border-left: 4px solid #D32F2F;">
+                    <i class="fas fa-times-circle"></i> Errore durante la migrazione: ${error.message}
+                </div>
+            `;
+        }
+
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-play"></i> Esegui Migrazione Competenza';
+    },
+
+    // ARRICCHIMENTO MASSIVO DATI COMUNI
     async avviaArricchimento() {
         if (!confirm('Vuoi avviare l\'arricchimento massivo?\n\nQuesta operazione:\n- Confronta tutti i clienti con il database di 7.909 comuni italiani\n- Compila automaticamente i campi vuoti\n- NON sovrascrive i campi già compilati\n\nProcedere?')) {
             return;
