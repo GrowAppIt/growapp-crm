@@ -311,7 +311,8 @@ const AuthService = {
             'generatore-webapp': ['*', 'manage_webapp_templates'],
             'officina-digitale': ['*', 'view_officina_digitale', 'manage_officina_digitale'],
             'centro-notifiche': ['*', 'view_all_data', 'view_own_data', 'manage_dev_tasks', 'view_dev_tasks', 'view_clients', 'manage_clients', 'view_apps', 'manage_apps'],
-            'messaggi': ['*', 'view_all_data', 'view_own_data', 'manage_dev_tasks', 'view_dev_tasks', 'view_clients', 'manage_clients', 'view_apps', 'manage_apps']
+            'messaggi': ['*', 'view_all_data', 'view_own_data', 'manage_dev_tasks', 'view_dev_tasks', 'view_clients', 'manage_clients', 'view_apps', 'manage_apps'],
+            'sala-riunioni': ['*', 'view_all_data', 'view_own_data', 'view_clients', 'manage_clients', 'view_apps', 'manage_apps', 'manage_dev_tasks', 'view_dev_tasks']
         };
 
         const requiredPermissions = pagePermissions[pageName] || [];
