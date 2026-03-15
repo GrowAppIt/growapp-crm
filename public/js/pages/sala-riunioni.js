@@ -13,6 +13,9 @@ const SalaRiunioni = {
         const mainContent = document.getElementById('mainContent');
         UI.showLoading();
 
+        // Avvia controllo riunioni pianificate (ogni 60s)
+        this.avviaControlloRiunioni();
+
         try {
             // Carica stanze attive da Firestore
             const stanze = await this._getStanze();
@@ -176,6 +179,10 @@ const SalaRiunioni = {
         const isVideo = stanza.tipo === 'video';
         const creataIl = stanza.creatoIl ? DataService.formatDate(stanza.creatoIl) : '';
         const invitati = stanza.invitati || [];
+        const canDelete = stanza.creatoDa === userName || AuthService.isSuperAdmin();
+        const isPianificata = stanza.pianificataIl && !stanza.iniziata;
+        const pianificataLabel = stanza.pianificataIl ? DataService.formatDate(stanza.pianificataIl) : '';
+        const oraLabel = stanza.oraInizio || '';
 
         return `
             <div class="sr-room-card sr-tipo-${stanza.tipo}">
@@ -183,7 +190,7 @@ const SalaRiunioni = {
                     <div class="sr-room-icon ${stanza.tipo}">
                         <i class="fas ${isVideo ? 'fa-video' : 'fa-phone-alt'}"></i>
                     </div>
-                    ${stanza.creatoDa === userName ? `
+                    ${canDelete ? `
                         <button onclick="event.stopPropagation(); SalaRiunioni.eliminaStanza('${stanza.id}')"
                             style="background: none; border: none; color: var(--grigio-500); cursor: pointer; padding: 0.25rem; font-size: 1rem;"
                             title="Elimina stanza">
@@ -199,6 +206,12 @@ const SalaRiunioni = {
                     <i class="fas ${isVideo ? 'fa-video' : 'fa-phone-alt'}"></i>
                     ${isVideo ? 'Videoconferenza' : 'Solo Audio'}
                 </span>
+                ${isPianificata ? `
+                    <div style="margin-top: 0.5rem; padding: 0.4rem 0.6rem; background: #FFF8E1; border-left: 3px solid #FFCC00; border-radius: 4px; font-size: 0.8rem; color: var(--grigio-700);">
+                        <i class="fas fa-calendar-alt" style="color: #FFCC00; margin-right: 0.3rem;"></i>
+                        Pianificata: <strong>${pianificataLabel}</strong>${oraLabel ? ' alle <strong>' + oraLabel + '</strong>' : ''}
+                    </div>
+                ` : ''}
                 ${invitati.length > 0 ? `
                     <div class="sr-room-partecipanti">
                         ${invitati.map(i => `<span class="sr-partecipante-tag"><i class="fas fa-user"></i> ${i}</span>`).join('')}
@@ -264,6 +277,25 @@ const SalaRiunioni = {
                     </div>
                 </div>
                 ` : ''}
+                <div style="margin-bottom: 1.25rem;">
+                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.875rem; font-weight: 600; color: var(--grigio-700); margin-bottom: 0.75rem;">
+                        <input type="checkbox" id="srPianifica" onchange="document.getElementById('srPianificaFields').style.display = this.checked ? 'grid' : 'none'"
+                            style="width: 18px; height: 18px; accent-color: var(--blu-700);" />
+                        <i class="fas fa-calendar-alt"></i> Pianifica per dopo
+                    </label>
+                    <div id="srPianificaFields" style="display: none; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+                        <div>
+                            <label style="display: block; font-size: 0.8rem; color: var(--grigio-500); margin-bottom: 0.25rem;">Data</label>
+                            <input type="date" id="srDataPianificata"
+                                style="width: 100%; padding: 0.6rem; border: 1px solid var(--grigio-300); border-radius: 8px; font-family: 'Titillium Web', sans-serif; box-sizing: border-box;" />
+                        </div>
+                        <div>
+                            <label style="display: block; font-size: 0.8rem; color: var(--grigio-500); margin-bottom: 0.25rem;">Ora</label>
+                            <input type="time" id="srOraPianificata"
+                                style="width: 100%; padding: 0.6rem; border: 1px solid var(--grigio-300); border-radius: 8px; font-family: 'Titillium Web', sans-serif; box-sizing: border-box;" />
+                        </div>
+                    </div>
+                </div>
                 <div style="display: flex; gap: 1rem; margin-top: 1.5rem;">
                     <button onclick="SalaRiunioni.creaStanza('${tipo}')"
                         style="flex: 1; padding: 0.75rem; border: none; border-radius: 10px; font-weight: 700; font-size: 1rem; cursor: pointer; color: white; font-family: 'Titillium Web', sans-serif;
@@ -305,6 +337,16 @@ const SalaRiunioni = {
         const invitati = Array.from(checkboxes).map(cb => cb.value);
         const invitatiUids = Array.from(checkboxes).map(cb => cb.dataset.uid).filter(Boolean);
 
+        // Pianificazione
+        const isPianificata = document.getElementById('srPianifica')?.checked || false;
+        const dataPianificata = document.getElementById('srDataPianificata')?.value || '';
+        const oraPianificata = document.getElementById('srOraPianificata')?.value || '';
+
+        if (isPianificata && !dataPianificata) {
+            UI.showError('Seleziona una data per la riunione pianificata');
+            return;
+        }
+
         // Genera room ID univoco per Jitsi
         const roomId = 'cd-' + nome.toLowerCase()
             .replace(/[^a-z0-9]/g, '-')
@@ -312,43 +354,64 @@ const SalaRiunioni = {
             .substring(0, 30) + '-' + Date.now().toString(36);
 
         try {
+            const tipoLabel = tipo === 'video' ? 'Videoconferenza' : 'Conferenza Audio';
+
             // Salva in Firestore
             const stanzaData = {
                 nome: nome,
-                tipo: tipo, // 'video' o 'audio'
+                tipo: tipo,
                 roomId: roomId,
                 creatoDa: userName,
                 creatoDaEmail: user?.email || '',
                 invitati: invitati,
                 invitatiUids: invitatiUids,
                 creatoIl: new Date().toISOString(),
-                attiva: true
+                attiva: true,
+                // Campi pianificazione
+                pianificata: isPianificata,
+                pianificataIl: isPianificata ? dataPianificata : null,
+                oraInizio: isPianificata ? oraPianificata : null,
+                iniziata: !isPianificata, // Se immediata, è già iniziata
+                notificaInizioInviata: !isPianificata // Se immediata, non serve notifica inizio
             };
 
-            await db.collection('saleRiunioni').add(stanzaData);
+            const docRef = await db.collection('saleRiunioni').add(stanzaData);
 
             // Invia notifiche push agli invitati
             if (invitatiUids.length > 0 && typeof NotificationService !== 'undefined') {
-                const tipoLabel = tipo === 'video' ? 'Videoconferenza' : 'Conferenza Audio';
-                NotificationService.createNotificationsForUsers(invitatiUids, {
-                    type: 'sala_riunioni',
-                    title: `${tipoLabel}: ${nome}`,
-                    message: `${userName} ti ha invitato alla riunione "${nome}". Entra dalla Sala Riunioni.`
-                }).catch(e => console.warn('[SalaRiunioni] Errore invio notifiche:', e));
+                if (isPianificata) {
+                    // Notifica di pianificazione
+                    const dataLabel = new Date(dataPianificata + 'T00:00:00').toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' });
+                    NotificationService.createNotificationsForUsers(invitatiUids, {
+                        type: 'sala_riunioni',
+                        title: `${tipoLabel} pianificata: ${nome}`,
+                        message: `${userName} ti ha invitato alla riunione "${nome}" prevista per ${dataLabel}${oraPianificata ? ' alle ' + oraPianificata : ''}. La troverai nella Sala Riunioni.`
+                    }).catch(e => console.warn('[SalaRiunioni] Errore invio notifiche pianificazione:', e));
+                } else {
+                    // Notifica immediata
+                    NotificationService.createNotificationsForUsers(invitatiUids, {
+                        type: 'sala_riunioni',
+                        title: `${tipoLabel}: ${nome}`,
+                        message: `${userName} ti ha invitato alla riunione "${nome}". Entra subito dalla Sala Riunioni!`
+                    }).catch(e => console.warn('[SalaRiunioni] Errore invio notifiche:', e));
+                }
             }
 
             // Chiudi il form
             document.getElementById('srFormOverlay')?.remove();
 
-            // Ricarica lista e poi entra
-            UI.showSuccess(`Stanza "${nome}" creata!`);
-            await this.render();
-
-            // Entra automaticamente nella stanza appena creata
-            const stanze = await this._getStanze();
-            const nuova = stanze.find(s => s.roomId === roomId);
-            if (nuova) {
-                this.entraInStanza(nuova.id);
+            if (isPianificata) {
+                UI.showSuccess(`Riunione "${nome}" pianificata! Gli invitati sono stati notificati.`);
+                await this.render();
+            } else {
+                UI.showSuccess(`Stanza "${nome}" creata!`);
+                await this.render();
+                // Entra automaticamente nella stanza appena creata
+                const stanze = await this._getStanze();
+                const nuova = stanze.find(s => s.roomId === roomId);
+                if (nuova) {
+                    this.entraInStanza(nuova.id);
+                }
             }
         } catch (error) {
             console.error('[SalaRiunioni] Errore creazione stanza:', error);
@@ -546,8 +609,71 @@ const SalaRiunioni = {
             this._jitsiApi = null;
         }
         this._currentRoom = null;
+        this.fermaControlloRiunioni();
         const overlay = document.getElementById('srJitsiOverlay');
         if (overlay) overlay.remove();
+    },
+
+    // =========================================================================
+    // CONTROLLO RIUNIONI PIANIFICATE — Invia notifica all'inizio
+    // =========================================================================
+    _checkInterval: null,
+
+    avviaControlloRiunioni() {
+        // Controlla ogni 60 secondi se ci sono riunioni pianificate da avviare
+        this._controllaRiunioniPianificate();
+        if (this._checkInterval) clearInterval(this._checkInterval);
+        this._checkInterval = setInterval(() => {
+            this._controllaRiunioniPianificate();
+        }, 60000);
+    },
+
+    fermaControlloRiunioni() {
+        if (this._checkInterval) {
+            clearInterval(this._checkInterval);
+            this._checkInterval = null;
+        }
+    },
+
+    async _controllaRiunioniPianificate() {
+        try {
+            const oggi = new Date().toISOString().split('T')[0];
+            const oraCorrente = new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', hour12: false });
+
+            const stanze = await this._getStanze();
+            const pianificate = stanze.filter(s =>
+                s.pianificata &&
+                s.pianificataIl === oggi &&
+                s.oraInizio &&
+                !s.notificaInizioInviata
+            );
+
+            for (const stanza of pianificate) {
+                // Confronta ora: se l'ora corrente >= ora inizio, invia notifica
+                if (oraCorrente >= stanza.oraInizio) {
+                    const tipoLabel = stanza.tipo === 'video' ? 'Videoconferenza' : 'Conferenza Audio';
+                    const invitatiUids = stanza.invitatiUids || [];
+
+                    if (invitatiUids.length > 0 && typeof NotificationService !== 'undefined') {
+                        await NotificationService.createNotificationsForUsers(invitatiUids, {
+                            type: 'sala_riunioni',
+                            title: `La riunione sta iniziando: ${stanza.nome}`,
+                            message: `La ${tipoLabel.toLowerCase()} "${stanza.nome}" sta iniziando ora! Entra dalla Sala Riunioni.`
+                        });
+                    }
+
+                    // Segna come notificata e iniziata
+                    await db.collection('saleRiunioni').doc(stanza.id).update({
+                        notificaInizioInviata: true,
+                        iniziata: true
+                    });
+
+                    console.log(`[SalaRiunioni] Notifica inizio inviata per: ${stanza.nome}`);
+                }
+            }
+        } catch (error) {
+            console.warn('[SalaRiunioni] Errore controllo riunioni pianificate:', error);
+        }
     },
 
     // =========================================================================

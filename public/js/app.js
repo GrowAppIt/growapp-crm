@@ -207,6 +207,11 @@ const App = {
             Promemoria.checkPromemoriaInScadenza();
         }
 
+        // Avvia controllo riunioni pianificate (notifiche automatiche all'inizio)
+        if (typeof SalaRiunioni !== 'undefined') {
+            SalaRiunioni.avviaControlloRiunioni();
+        }
+
         // Carica badge sidebar (scadenze, fatture, task)
         UI.loadSidebarBadges();
 
