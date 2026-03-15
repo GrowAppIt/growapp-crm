@@ -16,7 +16,7 @@ const SalaRiunioni = {
         try {
             // Carica stanze attive da Firestore
             const stanze = await this._getStanze();
-            const user = AuthService.getCurrentUser();
+            const user = AuthService.currentUser;
             const userName = user?.displayName || user?.email?.split('@')[0] || 'Utente';
 
             mainContent.innerHTML = `
@@ -220,7 +220,7 @@ const SalaRiunioni = {
         let utentiHtml = '';
         try {
             const utenti = await DataService.getUtenti();
-            const currentUser = AuthService.getCurrentUser();
+            const currentUser = AuthService.currentUser;
             const altriUtenti = utenti.filter(u => u.email !== currentUser?.email);
             utentiHtml = altriUtenti.map(u => `
                 <label style="display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0; cursor: pointer;">
@@ -296,7 +296,7 @@ const SalaRiunioni = {
             return;
         }
 
-        const user = AuthService.getCurrentUser();
+        const user = AuthService.currentUser;
         const userName = user?.displayName || user?.email?.split('@')[0] || 'Utente';
 
         // Raccogli invitati
@@ -362,7 +362,7 @@ const SalaRiunioni = {
             this._currentRoom = stanza;
             const isVideo = stanza.tipo === 'video';
 
-            const user = AuthService.getCurrentUser();
+            const user = AuthService.currentUser;
             const userName = user?.displayName || user?.email?.split('@')[0] || 'Utente';
 
             const mainContent = document.getElementById('mainContent');
