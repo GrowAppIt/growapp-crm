@@ -25,10 +25,6 @@ const MonitorRSS = {
 
                 /* Sidebar auto-hide su desktop quando Monitor RSS è attivo */
                 @media (min-width: 769px) {
-                    .app.rss-sidebar-hidden {
-                        grid-template-columns: 0px 1fr !important;
-                        transition: grid-template-columns 0.35s cubic-bezier(0.4, 0, 0.2, 1);
-                    }
                     .app.rss-sidebar-hidden .sidebar {
                         transform: translateX(-100%);
                         opacity: 0;
@@ -36,8 +32,9 @@ const MonitorRSS = {
                         transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1),
                                     opacity 0.25s ease;
                     }
-                    .app.rss-sidebar-visible {
-                        transition: grid-template-columns 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                    .app.rss-sidebar-hidden .main-content,
+                    .app.rss-sidebar-visible .main-content {
+                        margin-left: 0 !important;
                     }
                     .app.rss-sidebar-visible .sidebar {
                         transform: translateX(0);

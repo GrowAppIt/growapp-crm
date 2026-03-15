@@ -574,6 +574,183 @@ const DataService = {
         }
     },
 
+    /**
+     * Migrazione massiva: calcola e assegna competenzaDal/competenzaAl a tutte le fatture
+     * che non ce l'hanno ancora. Usa il contratto collegato e la periodicità per calcolare.
+     * Restituisce un report con fatture aggiornate e quelle da verificare manualmente.
+     */
+    async migraCompetenzaFatture() {
+        try {
+            const [fatture, contratti] = await Promise.all([
+                this.getFatture(),
+                this.getContratti()
+            ]);
+
+            const contrattiMap = {};
+            contratti.forEach(c => { contrattiMap[c.id] = c; });
+
+            const risultato = {
+                aggiornate: 0,
+                daVerificare: [],
+                totale: fatture.length,
+                giaPresenti: 0,
+                errori: 0
+            };
+
+            for (const fattura of fatture) {
+                // Se ha già competenzaDal, salta
+                if (fattura.competenzaDal && fattura.competenzaAl) {
+                    risultato.giaPresenti++;
+                    continue;
+                }
+
+                const contratto = fattura.contrattoId ? contrattiMap[fattura.contrattoId] : null;
+                const dataRif = fattura.dataEmissione || fattura.dataFattura;
+
+                // Se non c'è contratto o non c'è periodicità, segna da verificare
+                if (!contratto || !contratto.periodicita || !contratto.dataInizio) {
+                    risultato.daVerificare.push({
+                        id: fattura.id,
+                        numero: fattura.numeroFatturaCompleto || fattura.numero || 'N/A',
+                        cliente: fattura.clienteRagioneSociale || fattura.ragioneSociale || 'N/A',
+                        motivo: !contratto ? 'Nessun contratto collegato' :
+                                !contratto.periodicita ? 'Periodicità mancante nel contratto' :
+                                'Data inizio mancante nel contratto',
+                        dataEmissione: dataRif || '',
+                        importo: fattura.importoTotale || fattura.imponibile || 0
+                    });
+                    continue;
+                }
+
+                // Calcola l'intervallo mesi
+                const intervalloMesi = this._getIntervalloMesiFromPeriodicita(contratto.periodicita);
+
+                if (intervalloMesi === 0) {
+                    // UNA_TANTUM: competenza = tutto il contratto
+                    try {
+                        await this.updateFattura(fattura.id, {
+                            competenzaDal: contratto.dataInizio,
+                            competenzaAl: contratto.dataScadenza || contratto.dataInizio
+                        });
+                        risultato.aggiornate++;
+                    } catch (e) {
+                        risultato.errori++;
+                    }
+                    continue;
+                }
+
+                // Genera i periodi e trova quello che matcha
+                if (!dataRif) {
+                    risultato.daVerificare.push({
+                        id: fattura.id,
+                        numero: fattura.numeroFatturaCompleto || fattura.numero || 'N/A',
+                        cliente: fattura.clienteRagioneSociale || fattura.ragioneSociale || 'N/A',
+                        motivo: 'Data emissione mancante',
+                        dataEmissione: '',
+                        importo: fattura.importoTotale || fattura.imponibile || 0
+                    });
+                    continue;
+                }
+
+                const periodo = this._trovaPeriodoCompetenza(contratto, intervalloMesi, new Date(dataRif));
+
+                if (periodo) {
+                    try {
+                        await this.updateFattura(fattura.id, {
+                            competenzaDal: periodo.dal.toISOString(),
+                            competenzaAl: periodo.al.toISOString()
+                        });
+                        risultato.aggiornate++;
+                    } catch (e) {
+                        risultato.errori++;
+                    }
+                } else {
+                    risultato.daVerificare.push({
+                        id: fattura.id,
+                        numero: fattura.numeroFatturaCompleto || fattura.numero || 'N/A',
+                        cliente: fattura.clienteRagioneSociale || fattura.ragioneSociale || 'N/A',
+                        motivo: 'Data emissione fuori dal range del contratto',
+                        dataEmissione: dataRif,
+                        importo: fattura.importoTotale || fattura.imponibile || 0
+                    });
+                }
+            }
+
+            this._cacheInvalidate('fatture:');
+            console.log(`[DataService] Migrazione competenza completata: ${risultato.aggiornate} aggiornate, ${risultato.daVerificare.length} da verificare, ${risultato.giaPresenti} già presenti`);
+            return risultato;
+
+        } catch (error) {
+            console.error('[DataService] Errore migrazione competenza:', error);
+            throw error;
+        }
+    },
+
+    /**
+     * Helper: intervallo mesi da periodicità
+     */
+    _getIntervalloMesiFromPeriodicita(periodicita) {
+        switch (periodicita) {
+            case 'MENSILE': return 1;
+            case 'BIMENSILE': return 2;
+            case 'TRIMESTRALE': return 3;
+            case 'SEMESTRALE': return 6;
+            case 'ANNUALE': return 12;
+            case 'BIENNALE': return 24;
+            case 'TRIENNALE': return 36;
+            case 'QUADRIENNALE': return 48;
+            case 'QUINQUENNALE': return 60;
+            case 'UNA_TANTUM': return 0;
+            default: return 12;
+        }
+    },
+
+    /**
+     * Helper: dato un contratto, intervallo mesi e una data, trova il periodo di competenza
+     */
+    _trovaPeriodoCompetenza(contratto, intervalloMesi, data) {
+        const dataInizio = new Date(contratto.dataInizio);
+        dataInizio.setHours(0, 0, 0, 0);
+        const dataScadenza = contratto.dataScadenza ? new Date(contratto.dataScadenza) : null;
+        data.setHours(0, 0, 0, 0);
+
+        // Tolleranza: la fattura può essere emessa fino a 30 giorni prima/dopo il periodo
+        const tolleranzaGiorni = 45;
+
+        let current = new Date(dataInizio);
+        const maxPeriodi = 120;
+        let count = 0;
+
+        while (count < maxPeriodi) {
+            const dal = new Date(current);
+            const al = new Date(current);
+            al.setMonth(al.getMonth() + intervalloMesi);
+            al.setDate(al.getDate() - 1);
+            al.setHours(23, 59, 59, 999);
+
+            if (dataScadenza && dal > dataScadenza) break;
+            if (dataScadenza && al > dataScadenza) {
+                al.setTime(dataScadenza.getTime());
+                al.setHours(23, 59, 59, 999);
+            }
+
+            // Match con tolleranza
+            const dalTolleranza = new Date(dal);
+            dalTolleranza.setDate(dalTolleranza.getDate() - tolleranzaGiorni);
+            const alTolleranza = new Date(al);
+            alTolleranza.setDate(alTolleranza.getDate() + tolleranzaGiorni);
+
+            if (data >= dalTolleranza && data <= alTolleranza) {
+                return { dal: new Date(dal), al: new Date(al) };
+            }
+
+            current.setMonth(current.getMonth() + intervalloMesi);
+            count++;
+        }
+
+        return null; // Nessun periodo trovato
+    },
+
     // Arricchisce l'array clienti con lo stato calcolato dai contratti
     async getClientiConStato(filtriClienti = {}) {
         // Carica clienti e contratti in parallelo
@@ -1953,19 +2130,39 @@ const DataService = {
                     lookbackDate.setDate(lookbackDate.getDate() - (_sys.giorniLookbackStorico || 180));
                     if (dataFatturazione < lookbackDate) continue;
 
-                    // Calcola finestra temporale per il matching (metà intervallo)
-                    // Es: MENSILE → ±15gg, TRIMESTRALE → ±45gg, ANNUALE → ±90gg
-                    const giorniFinestra = Math.max(Math.floor(intervalloMesi * 15), 20);
-                    const dataMin = new Date(dataFatturazione);
-                    dataMin.setDate(dataMin.getDate() - giorniFinestra);
-                    const dataMax = new Date(dataFatturazione);
-                    dataMax.setDate(dataMax.getDate() + giorniFinestra);
+                    // Calcola i limiti del periodo di competenza per questo ciclo
+                    const periodoDal = new Date(dataFatturazione);
+                    const periodoAl = new Date(dataFatturazione);
+                    periodoAl.setMonth(periodoAl.getMonth() + intervalloMesi);
+                    periodoAl.setDate(periodoAl.getDate() - 1);
+                    periodoAl.setHours(23, 59, 59, 999);
 
                     // Verifica se esiste già una fattura per questo periodo
+                    // PRIORITÀ 1: match esatto tramite competenzaDal/competenzaAl
+                    // PRIORITÀ 2: fallback fuzzy per fatture senza competenza
                     const fatturaEsistente = tutteLeFatture.some(f => {
+                        // Match esatto per competenza (se la fattura ha i campi compilati)
+                        if (f.competenzaDal) {
+                            const fDal = new Date(f.competenzaDal);
+                            fDal.setHours(0, 0, 0, 0);
+                            // La fattura copre questo periodo se il suo inizio competenza
+                            // cade nel range del periodo generato (con tolleranza ±5 giorni)
+                            const dalMin = new Date(periodoDal);
+                            dalMin.setDate(dalMin.getDate() - 5);
+                            const dalMax = new Date(periodoDal);
+                            dalMax.setDate(dalMax.getDate() + 5);
+                            return fDal >= dalMin && fDal <= dalMax;
+                        }
+
+                        // Fallback: match fuzzy per data emissione (fatture senza competenza)
                         const dataRef = f.dataEmissione || f.dataFattura || f.dataScadenza;
                         if (!dataRef) return false;
                         const de = new Date(dataRef);
+                        const giorniFinestra = Math.max(Math.floor(intervalloMesi * 15), 20);
+                        const dataMin = new Date(dataFatturazione);
+                        dataMin.setDate(dataMin.getDate() - giorniFinestra);
+                        const dataMax = new Date(dataFatturazione);
+                        dataMax.setDate(dataMax.getDate() + giorniFinestra);
                         return de >= dataMin && de <= dataMax;
                     });
 
@@ -1979,6 +2176,8 @@ const DataService = {
                             clienteRagioneSociale: contratto.clienteRagioneSociale || '',
                             numeroContratto: contratto.numeroContratto || '',
                             dataScadenza: dataFatturazione.toISOString(),
+                            competenzaDal: periodoDal.toISOString(),
+                            competenzaAl: periodoAl.toISOString(),
                             importo: importoPerPeriodo,
                             agente: contratto.agente || '',
                             descrizione: `Fattura da emettere: ${periodoLabel} ${anno} — ${contratto.numeroContratto}`,

@@ -885,9 +885,11 @@ img {
 
     .sidebar {
         left: 0;
-        position: sticky;
+        position: fixed;
         top: var(--header-height);
         height: calc(100vh - var(--header-height));
+        z-index: 90;
+        overflow-y: auto;
     }
 
     .sidebar-overlay {
@@ -900,12 +902,13 @@ img {
     }
 
     .app {
-        grid-template-areas: "header header" "sidebar main";
-        grid-template-columns: var(--sidebar-width) 1fr;
+        grid-template-areas: "header" "main";
+        grid-template-columns: 1fr;
     }
 
     .main-content {
         padding: 2rem;
+        margin-left: var(--sidebar-width);
     }
 }
 

@@ -667,9 +667,12 @@ const Scadenzario = {
                 const urgenza = DataService.getUrgenzaScadenza(item.dataScadenza);
                 const badgeClass = this.getUrgenzaBadgeClass(urgenza);
 
+                const competenzaLabel = item.competenzaDal && item.competenzaAl
+                    ? `Competenza: ${DataService.formatDate(item.competenzaDal)} → ${DataService.formatDate(item.competenzaAl)} • `
+                    : '';
                 listHtml += UI.createListItem({
                     title: item.clienteRagioneSociale || 'N/A',
-                    subtitle: `${item.descrizione} • ${DataService.formatDate(item.dataScadenza)} • ${DataService.formatCurrency(item.importo)}`,
+                    subtitle: `${item.descrizione} • ${competenzaLabel}${DataService.formatDate(item.dataScadenza)} • ${DataService.formatCurrency(item.importo)}`,
                     badge: giorni < 0 ? `${Math.abs(giorni)}gg IN RITARDO` : `${giorni}gg`,
                     badgeClass,
                     icon: 'file-invoice',

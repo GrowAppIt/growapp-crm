@@ -665,6 +665,20 @@ const FormsManager = {
                 ${this.createFormField('Periodicità', 'periodicita', 'text', fattura.periodicita)}
             </div>
 
+            <!-- Periodo di Competenza -->
+            <div style="margin-top: 1rem; padding: 1rem; background: var(--blu-100); border-left: 4px solid var(--blu-700); border-radius: 8px;">
+                <div style="font-weight: 700; color: var(--blu-900); font-size: 0.95rem; margin-bottom: 0.75rem;">
+                    <i class="fas fa-calendar-week"></i> Periodo di Competenza
+                </div>
+                <div style="font-size: 0.8rem; color: var(--grigio-500); margin-bottom: 0.75rem;">
+                    Periodo di servizio coperto da questa fattura. Calcolato automaticamente dal contratto se disponibile.
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    ${this.createFormField('Dal', 'competenzaDal', 'date', fattura.competenzaDal?.split('T')[0])}
+                    ${this.createFormField('Al', 'competenzaAl', 'date', fattura.competenzaAl?.split('T')[0])}
+                </div>
+            </div>
+
             <!-- Credito Sospeso -->
             <div style="margin-top: 1rem; padding: 1rem; background: ${fattura.creditoSospeso ? '#FFF3E0' : 'var(--grigio-100)'}; border-left: 4px solid ${fattura.creditoSospeso ? '#FF9800' : 'var(--grigio-300)'}; border-radius: 8px;">
                 <label style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer; margin: 0;">
@@ -962,10 +976,25 @@ const FormsManager = {
                         Contratto collegato
                     </label>
                     <select name="contrattoId" id="contrattoIdFattura" class="form-input"
+                        onchange="FormsManager.onContrattoSelezionato(this.value)"
                         style="width: 100%; padding: 0.75rem; border: 1px solid var(--grigio-300); border-radius: 8px; font-size: 1rem; font-family: 'Titillium Web', sans-serif;">
                         <option value="">-- Nessun contratto --</option>
                     </select>
                     <small style="color: var(--grigio-500);">Collega la fattura a un contratto del cliente</small>
+                </div>
+
+                <!-- Periodo di Competenza -->
+                <div id="competenzaContainer" style="margin-top: 1rem; padding: 1rem; background: var(--blu-100); border-left: 4px solid var(--blu-700); border-radius: 8px;">
+                    <div style="font-weight: 700; color: var(--blu-900); font-size: 0.95rem; margin-bottom: 0.75rem;">
+                        <i class="fas fa-calendar-week"></i> Periodo di Competenza
+                    </div>
+                    <div style="font-size: 0.8rem; color: var(--grigio-500); margin-bottom: 0.75rem;">
+                        Calcolato automaticamente dal contratto. Puoi modificarlo manualmente se necessario.
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        ${this.createFormField('Dal', 'competenzaDal', 'date', '')}
+                        ${this.createFormField('Al', 'competenzaAl', 'date', '')}
+                    </div>
                 </div>
                 </div>
 
@@ -1061,6 +1090,11 @@ const FormsManager = {
                         contrattoSelect.innerHTML = '<option value="">-- Nessun contratto --</option>' +
                             attivi.map(c => `<option value="${c.id}" ${c.id === contrattoId ? 'selected' : ''}>${c.numeroContratto || 'N/D'} — ${c.oggetto || ''} (${c.periodicita || ''})</option>`).join('');
                         if (contrattoContainer) contrattoContainer.style.display = 'block';
+                        // Se contratto preselezionato, calcola competenza
+                        if (contrattoId) {
+                            FormsManager._contrattiCache = attivi;
+                            FormsManager.onContrattoSelezionato(contrattoId);
+                        }
                     }
                 } catch (e) {
                     console.warn('Errore caricamento contratti cliente preselezionato:', e);
@@ -1360,6 +1394,7 @@ const FormsManager = {
                 try {
                     const contratti = await DataService.getContrattiCliente(clienteId);
                     const attivi = contratti.filter(c => c.stato === 'ATTIVO' || c.stato === 'IN_RINNOVO');
+                    FormsManager._contrattiCache = attivi; // Cache per calcolo competenza
                     if (attivi.length > 0) {
                         contrattoSelect.innerHTML = '<option value="">-- Nessun contratto --</option>' +
                             attivi.map(c => `<option value="${c.id}">${c.numeroContratto || 'N/D'} — ${c.oggetto || ''} (${c.periodicita || ''})</option>`).join('');
@@ -1368,6 +1403,8 @@ const FormsManager = {
                         contrattoSelect.innerHTML = '<option value="">Nessun contratto attivo</option>';
                         if (contrattoContainer) contrattoContainer.style.display = 'none';
                     }
+                    // Reset competenza quando cambia cliente
+                    FormsManager.onContrattoSelezionato('');
                 } catch (e) {
                     console.warn('Errore caricamento contratti cliente:', e);
                 }
@@ -1438,6 +1475,148 @@ const FormsManager = {
             hiddenNumero.value = '';
             if (anteprimaDiv) anteprimaDiv.style.display = 'none';
         }
+    },
+
+    // Cache contratti per calcolo competenza (popolata al cambio cliente)
+    _contrattiCache: [],
+
+    /**
+     * Calcola il prossimo periodo di competenza per un contratto.
+     * Guarda le fatture già esistenti per quel contratto e propone il prossimo periodo scoperto.
+     */
+    async onContrattoSelezionato(contrattoId) {
+        const dalInput = document.getElementById('competenzaDal');
+        const alInput = document.getElementById('competenzaAl');
+        if (!dalInput || !alInput) return;
+
+        if (!contrattoId) {
+            dalInput.value = '';
+            alInput.value = '';
+            return;
+        }
+
+        // Trova il contratto dalla cache
+        const contratto = this._contrattiCache.find(c => c.id === contrattoId);
+        if (!contratto || !contratto.periodicita || !contratto.dataInizio) {
+            dalInput.value = '';
+            alInput.value = '';
+            return;
+        }
+
+        try {
+            // Calcola intervallo mesi dalla periodicità
+            const intervalloMesi = this._getIntervalloMesi(contratto.periodicita);
+            if (intervalloMesi === 0) {
+                // UNA_TANTUM: competenza = tutto il contratto
+                dalInput.value = contratto.dataInizio.split('T')[0];
+                alInput.value = contratto.dataScadenza ? contratto.dataScadenza.split('T')[0] : contratto.dataInizio.split('T')[0];
+                return;
+            }
+
+            // Carica fatture esistenti per questo contratto
+            const fatture = await DataService.getFatture();
+            const fattureContratto = fatture.filter(f => f.contrattoId === contrattoId && f.competenzaDal);
+
+            // Genera tutti i periodi del contratto
+            const periodi = this._generaPeriodiContratto(contratto, intervalloMesi);
+
+            // Trova il primo periodo non coperto da una fattura
+            let periodoScoperto = null;
+            for (const periodo of periodi) {
+                const coperto = fattureContratto.some(f => {
+                    const fDal = new Date(f.competenzaDal);
+                    fDal.setHours(0, 0, 0, 0);
+                    return fDal.getTime() === periodo.dal.getTime();
+                });
+                if (!coperto) {
+                    periodoScoperto = periodo;
+                    break;
+                }
+            }
+
+            // Se non c'è un periodo scoperto nel contratto corrente,
+            // fallback: usa la data emissione per calcolare il periodo
+            if (!periodoScoperto) {
+                const dataEmissione = document.getElementById('dataEmissione')?.value;
+                if (dataEmissione) {
+                    periodoScoperto = this._calcolaPeriodoDaData(contratto, intervalloMesi, new Date(dataEmissione));
+                }
+            }
+
+            if (periodoScoperto) {
+                dalInput.value = periodoScoperto.dal.toISOString().split('T')[0];
+                alInput.value = periodoScoperto.al.toISOString().split('T')[0];
+            }
+        } catch (e) {
+            console.warn('Errore calcolo competenza automatico:', e);
+        }
+    },
+
+    /**
+     * Restituisce l'intervallo in mesi per una data periodicità
+     */
+    _getIntervalloMesi(periodicita) {
+        switch (periodicita) {
+            case 'MENSILE': return 1;
+            case 'BIMENSILE': return 2;
+            case 'TRIMESTRALE': return 3;
+            case 'SEMESTRALE': return 6;
+            case 'ANNUALE': return 12;
+            case 'BIENNALE': return 24;
+            case 'TRIENNALE': return 36;
+            case 'QUADRIENNALE': return 48;
+            case 'QUINQUENNALE': return 60;
+            case 'UNA_TANTUM': return 0;
+            default: return 12;
+        }
+    },
+
+    /**
+     * Genera tutti i periodi di competenza di un contratto
+     */
+    _generaPeriodiContratto(contratto, intervalloMesi) {
+        const periodi = [];
+        const dataInizio = new Date(contratto.dataInizio);
+        dataInizio.setHours(0, 0, 0, 0);
+        const dataScadenza = contratto.dataScadenza ? new Date(contratto.dataScadenza) : null;
+        if (dataScadenza) dataScadenza.setHours(23, 59, 59, 999);
+
+        let current = new Date(dataInizio);
+        const maxPeriodi = 120; // Sicurezza: max 10 anni mensili
+        let count = 0;
+
+        while (count < maxPeriodi) {
+            const dal = new Date(current);
+            const al = new Date(current);
+            al.setMonth(al.getMonth() + intervalloMesi);
+            al.setDate(al.getDate() - 1); // Ultimo giorno del periodo
+            al.setHours(23, 59, 59, 999);
+
+            // Se il periodo va oltre la scadenza, tronca
+            if (dataScadenza && dal > dataScadenza) break;
+            if (dataScadenza && al > dataScadenza) {
+                al.setTime(dataScadenza.getTime());
+            }
+
+            periodi.push({ dal: new Date(dal), al: new Date(al) });
+
+            // Prossimo periodo
+            current.setMonth(current.getMonth() + intervalloMesi);
+            count++;
+        }
+        return periodi;
+    },
+
+    /**
+     * Dato un contratto e una data, calcola in quale periodo cade
+     */
+    _calcolaPeriodoDaData(contratto, intervalloMesi, data) {
+        const periodi = this._generaPeriodiContratto(contratto, intervalloMesi);
+        for (const p of periodi) {
+            if (data >= p.dal && data <= p.al) return p;
+        }
+        // Fallback: ultimo periodo generato
+        return periodi.length > 0 ? periodi[periodi.length - 1] : null;
     },
 
     /**

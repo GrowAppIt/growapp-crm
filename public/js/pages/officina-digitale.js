@@ -478,7 +478,117 @@ const OfficinaDigitale = (() => {
             </div>` : ''}
         </div>
 
+        <!-- Strumenti Dati -->
+        <div class="od-quick-grid" style="margin-top: 1.5rem;">
+            <div class="od-quick-card" style="border-left: 4px solid #FF9800;">
+                <div class="od-quick-header">
+                    <h3><i class="fas fa-database" style="color: #FF9800;"></i> Strumenti Dati</h3>
+                </div>
+                <div class="od-quick-body" style="padding: 1rem;">
+                    <div style="margin-bottom: 1rem;">
+                        <p style="font-size: 0.9rem; color: var(--grigio-700); margin-bottom: 0.75rem;">
+                            <strong>Migrazione Periodo di Competenza</strong><br/>
+                            Calcola automaticamente il periodo di competenza (Dal/Al) per tutte le fatture esistenti
+                            basandosi sul contratto collegato e sulla periodicità. Le fatture senza contratto o con dati
+                            insufficienti verranno segnalate per la verifica manuale.
+                        </p>
+                        <button class="btn btn-primary" id="btnMigraCompetenza" onclick="OfficinaDigitale.eseguiMigrazioneCompetenza()"
+                            style="background: #FF9800; border: none; padding: 0.6rem 1.25rem; border-radius: 8px; color: white; font-weight: 600; cursor: pointer;">
+                            <i class="fas fa-play"></i> Esegui Migrazione Competenza
+                        </button>
+                    </div>
+                    <div id="migrazioneCompetenzaRisultato"></div>
+                </div>
+            </div>
+        </div>
+
         `;
+    }
+
+    /**
+     * Esegue la migrazione massiva delle competenze fatture
+     */
+    async function _eseguiMigrazioneCompetenza() {
+        const btn = document.getElementById('btnMigraCompetenza');
+        const risultatoDiv = document.getElementById('migrazioneCompetenzaRisultato');
+        if (!btn || !risultatoDiv) return;
+
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Migrazione in corso...';
+        risultatoDiv.innerHTML = '<p style="color: var(--grigio-500);"><i class="fas fa-spinner fa-spin"></i> Analisi fatture in corso...</p>';
+
+        try {
+            const result = await DataService.migraCompetenzaFatture();
+
+            let html = `
+                <div style="padding: 1rem; background: var(--verde-100); border-radius: 8px; margin-bottom: 1rem;">
+                    <h4 style="color: var(--verde-900); margin-bottom: 0.5rem;">
+                        <i class="fas fa-check-circle"></i> Migrazione completata
+                    </h4>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 0.5rem; font-size: 0.9rem;">
+                        <div><strong>${result.totale}</strong> fatture totali</div>
+                        <div style="color: var(--verde-700);"><strong>${result.aggiornate}</strong> aggiornate</div>
+                        <div><strong>${result.giaPresenti}</strong> già presenti</div>
+                        <div style="color: ${result.daVerificare.length > 0 ? '#FF9800' : 'var(--grigio-500)'};">
+                            <strong>${result.daVerificare.length}</strong> da verificare
+                        </div>
+                        ${result.errori > 0 ? `<div style="color: var(--rosso-errore);"><strong>${result.errori}</strong> errori</div>` : ''}
+                    </div>
+                </div>
+            `;
+
+            if (result.daVerificare.length > 0) {
+                html += `
+                    <div style="padding: 1rem; background: #FFF3E0; border-radius: 8px; border-left: 4px solid #FF9800;">
+                        <h4 style="color: #E65100; margin-bottom: 0.75rem;">
+                            <i class="fas fa-exclamation-triangle"></i> Fatture da verificare manualmente (${result.daVerificare.length})
+                        </h4>
+                        <div style="max-height: 400px; overflow-y: auto;">
+                            <table style="width: 100%; font-size: 0.85rem; border-collapse: collapse;">
+                                <thead>
+                                    <tr style="background: rgba(0,0,0,0.05); text-align: left;">
+                                        <th style="padding: 0.5rem;">Numero</th>
+                                        <th style="padding: 0.5rem;">Cliente</th>
+                                        <th style="padding: 0.5rem;">Data Em.</th>
+                                        <th style="padding: 0.5rem;">Importo</th>
+                                        <th style="padding: 0.5rem;">Motivo</th>
+                                        <th style="padding: 0.5rem;">Azione</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${result.daVerificare.map(f => `
+                                        <tr style="border-bottom: 1px solid var(--grigio-300);">
+                                            <td style="padding: 0.5rem; font-weight: 600;">${_escHtml(f.numero)}</td>
+                                            <td style="padding: 0.5rem;">${_escHtml(f.cliente)}</td>
+                                            <td style="padding: 0.5rem;">${f.dataEmissione ? DataService.formatDate(f.dataEmissione) : '—'}</td>
+                                            <td style="padding: 0.5rem;">${f.importo ? DataService.formatCurrency(f.importo) : '—'}</td>
+                                            <td style="padding: 0.5rem; color: #E65100; font-size: 0.8rem;">${_escHtml(f.motivo)}</td>
+                                            <td style="padding: 0.5rem;">
+                                                <button class="btn btn-sm" onclick="UI.showPage('dettaglio-fattura','${f.id}')"
+                                                    style="padding: 0.25rem 0.5rem; font-size: 0.75rem; background: var(--blu-700); color: white; border: none; border-radius: 4px; cursor: pointer;">
+                                                    <i class="fas fa-edit"></i> Apri
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                `;
+            }
+
+            risultatoDiv.innerHTML = html;
+        } catch (error) {
+            risultatoDiv.innerHTML = `
+                <div style="padding: 1rem; background: #FFEBEE; border-radius: 8px; color: #D32F2F;">
+                    <i class="fas fa-times-circle"></i> Errore durante la migrazione: ${error.message}
+                </div>
+            `;
+        }
+
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-play"></i> Esegui Migrazione Competenza';
     }
 
     // =========================================================================
@@ -661,6 +771,7 @@ const OfficinaDigitale = (() => {
         render,
         navigateTo,
         COLLECTIONS,
+        eseguiMigrazioneCompetenza: _eseguiMigrazioneCompetenza,
         // Esposti per uso dai sotto-moduli
         can: _can,
         escHtml: _escHtml,

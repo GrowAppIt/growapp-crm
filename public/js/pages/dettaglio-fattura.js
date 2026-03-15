@@ -132,6 +132,8 @@ const DettaglioFattura = {
                         ${fattura.dataScadenza ? this.renderInfoField('Data Scadenza', DataService.formatDate(fattura.dataScadenza), 'calendar-times') : ''}
                         ${fattura.dataSaldo ? this.renderInfoField('Data Pagamento', DataService.formatDate(fattura.dataSaldo), 'calendar-check') : ''}
                         ${this.renderInfoField('Periodicità', fattura.periodicita, 'clock')}
+                        ${fattura.competenzaDal ? this.renderInfoField('Competenza Dal', DataService.formatDate(fattura.competenzaDal), 'calendar-week') : ''}
+                        ${fattura.competenzaAl ? this.renderInfoField('Competenza Al', DataService.formatDate(fattura.competenzaAl), 'calendar-week') : ''}
                         ${this.renderInfoField('Tipo', fattura.tipo, 'tag')}
                         ${this.renderInfoField('Stato Pagamento', fattura.statoPagamento?.replace('_', ' '), 'check-circle')}
                         ${fattura.metodoPagamento ? this.renderInfoField('Metodo Pagamento', fattura.metodoPagamento, 'credit-card') : ''}

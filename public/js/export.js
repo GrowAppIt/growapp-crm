@@ -125,6 +125,8 @@ const ExportManager = {
                 'Stato Pagamento': f.statoPagamento || '',
                 'Tipo': f.tipo || '',
                 'Periodicità': f.periodicita || '',
+                'Competenza Dal': f.competenzaDal ? DataService.formatDate(f.competenzaDal) : '',
+                'Competenza Al': f.competenzaAl ? DataService.formatDate(f.competenzaAl) : '',
                 'Metodo Pagamento': f.metodoPagamento || '',
                 'Note': f.note || ''
             }));
@@ -734,6 +736,8 @@ const ExportManager = {
                 statoPagamento: row['Stato Pagamento'] || 'NON_PAGATA',
                 tipo: row['Tipo'] || 'VENDITA',
                 periodicita: row['Periodicità'] || '',
+                competenzaDal: this.parseExcelDate(row['Competenza Dal']) || null,
+                competenzaAl: this.parseExcelDate(row['Competenza Al']) || null,
                 metodoPagamento: row['Metodo Pagamento'] || '',
                 note: row['Note'] || '',
                 _rowIndex: index + 2,
