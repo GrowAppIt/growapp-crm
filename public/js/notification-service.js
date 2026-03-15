@@ -9,7 +9,8 @@ const NotificationService = {
         TASK_TAKEN: 'task_taken',
         TASK_REASSIGNED: 'task_reassigned',
         NEW_COMMENT: 'new_comment',
-        APP_DISCUSSION: 'app_discussion'
+        APP_DISCUSSION: 'app_discussion',
+        SALA_RIUNIONI: 'sala_riunioni'
     },
 
     /**

@@ -225,6 +225,7 @@ const SalaRiunioni = {
             utentiHtml = altriUtenti.map(u => `
                 <label style="display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0; cursor: pointer;">
                     <input type="checkbox" name="invitato" value="${u.displayName || u.nome || u.email}"
+                        data-uid="${u.uid}" data-email="${u.email || ''}"
                         style="width: 18px; height: 18px; accent-color: var(--blu-700);" />
                     <span style="font-size: 0.9rem; color: var(--grigio-900);">
                         ${u.displayName || u.nome || u.email}
@@ -299,9 +300,10 @@ const SalaRiunioni = {
         const user = AuthService.currentUser;
         const userName = user?.displayName || user?.email?.split('@')[0] || 'Utente';
 
-        // Raccogli invitati
+        // Raccogli invitati (nomi + UID per notifiche)
         const checkboxes = document.querySelectorAll('#srFormOverlay input[name="invitato"]:checked');
         const invitati = Array.from(checkboxes).map(cb => cb.value);
+        const invitatiUids = Array.from(checkboxes).map(cb => cb.dataset.uid).filter(Boolean);
 
         // Genera room ID univoco per Jitsi
         const roomId = 'cd-' + nome.toLowerCase()
@@ -318,11 +320,22 @@ const SalaRiunioni = {
                 creatoDa: userName,
                 creatoDaEmail: user?.email || '',
                 invitati: invitati,
+                invitatiUids: invitatiUids,
                 creatoIl: new Date().toISOString(),
                 attiva: true
             };
 
             await db.collection('saleRiunioni').add(stanzaData);
+
+            // Invia notifiche push agli invitati
+            if (invitatiUids.length > 0 && typeof NotificationService !== 'undefined') {
+                const tipoLabel = tipo === 'video' ? 'Videoconferenza' : 'Conferenza Audio';
+                NotificationService.createNotificationsForUsers(invitatiUids, {
+                    type: 'sala_riunioni',
+                    title: `${tipoLabel}: ${nome}`,
+                    message: `${userName} ti ha invitato alla riunione "${nome}". Entra dalla Sala Riunioni.`
+                }).catch(e => console.warn('[SalaRiunioni] Errore invio notifiche:', e));
+            }
 
             // Chiudi il form
             document.getElementById('srFormOverlay')?.remove();
