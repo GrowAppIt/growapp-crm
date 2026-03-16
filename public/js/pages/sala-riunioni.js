@@ -5,6 +5,9 @@ const SalaRiunioni = {
     _jitsiApi: null,
     _currentRoom: null,
     _jitsiLoaded: false,
+    _isPiP: false,
+    _durationInterval: null,
+    _callStartTime: null,
 
     // =========================================================================
     // RENDER PRINCIPALE — Lista stanze
@@ -528,18 +531,96 @@ const SalaRiunioni = {
                         height: 100% !important;
                         border: none !important;
                     }
+
+                    /* ---- Modalità Picture-in-Picture ---- */
+                    #srJitsiOverlay.sr-pip-mode {
+                        top: auto !important; left: auto !important;
+                        right: 20px !important; bottom: 20px !important;
+                        width: 360px !important; height: 240px !important;
+                        border-radius: 16px !important;
+                        box-shadow: 0 8px 32px rgba(0,0,0,0.4) !important;
+                        resize: both;
+                        overflow: hidden;
+                        transition: width 0.3s, height 0.3s, right 0.3s, bottom 0.3s, border-radius 0.3s;
+                    }
+                    @media (max-width: 768px) {
+                        #srJitsiOverlay.sr-pip-mode {
+                            width: 180px !important; height: 130px !important;
+                            right: 10px !important; bottom: 10px !important;
+                            border-radius: 12px !important;
+                        }
+                    }
+                    #srJitsiOverlay.sr-pip-mode .sr-jitsi-topbar {
+                        padding: 0.25rem 0.5rem;
+                        cursor: grab;
+                    }
+                    #srJitsiOverlay.sr-pip-mode .sr-jitsi-topbar:active { cursor: grabbing; }
+                    #srJitsiOverlay.sr-pip-mode .sr-jitsi-topbar h3 { font-size: 0.75rem; }
+                    #srJitsiOverlay.sr-pip-mode .sr-jitsi-topbar h3 .sr-room-subtitle { display: none; }
+                    #srJitsiOverlay.sr-pip-mode .sr-btn-leave { display: none; }
+                    #srJitsiOverlay.sr-pip-mode .sr-btn-minimize { display: none; }
+                    #srJitsiOverlay.sr-pip-mode .sr-btn-expand {
+                        display: flex !important;
+                    }
+                    #srJitsiOverlay.sr-pip-mode .sr-call-duration { font-size: 0.65rem; }
+
+                    /* Pulsanti topbar call */
+                    .sr-btn-minimize {
+                        background: rgba(255,255,255,0.15); color: white; border: none;
+                        padding: 0.4rem 0.8rem; border-radius: 8px; font-weight: 600;
+                        cursor: pointer; font-size: 0.8rem;
+                        font-family: 'Titillium Web', sans-serif;
+                        display: flex; align-items: center; gap: 0.4rem;
+                        transition: background 0.2s;
+                    }
+                    .sr-btn-minimize:hover { background: rgba(255,255,255,0.25); }
+                    .sr-btn-expand {
+                        display: none !important;
+                        background: rgba(255,255,255,0.15); color: white; border: none;
+                        padding: 0.3rem 0.6rem; border-radius: 6px; font-weight: 600;
+                        cursor: pointer; font-size: 0.75rem;
+                        font-family: 'Titillium Web', sans-serif;
+                        align-items: center; gap: 0.3rem;
+                    }
+                    .sr-btn-expand:hover { background: rgba(255,255,255,0.3); }
+                    .sr-call-duration {
+                        color: rgba(255,255,255,0.7); font-size: 0.8rem;
+                        font-family: 'Titillium Web', sans-serif;
+                        margin-left: 0.5rem;
+                    }
+
+                    /* Indicatore call attiva nella sidebar */
+                    .sr-sidebar-active-indicator {
+                        display: inline-block; width: 8px; height: 8px;
+                        background: #3CA434; border-radius: 50%;
+                        margin-left: 6px; vertical-align: middle;
+                        animation: sr-pulse 1.5s ease-in-out infinite;
+                    }
+                    @keyframes sr-pulse {
+                        0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(60,164,52,0.5); }
+                        50% { opacity: 0.7; box-shadow: 0 0 0 6px rgba(60,164,52,0); }
+                    }
                 </style>
-                <div class="sr-jitsi-topbar">
+                <div class="sr-jitsi-topbar" id="srJitsiTopbar">
                     <h3>
                         <i class="fas ${isVideo ? 'fa-video' : 'fa-phone-alt'}" style="margin-right: 0.5rem;"></i>
                         ${stanza.nome}
-                        <span style="font-weight: 400; font-size: 0.85rem; opacity: 0.7; margin-left: 0.75rem;">
+                        <span class="sr-room-subtitle" style="font-weight: 400; font-size: 0.85rem; opacity: 0.7; margin-left: 0.75rem;">
                             (${isVideo ? 'Videoconferenza' : 'Solo Audio'})
                         </span>
+                        <span class="sr-call-duration" id="srCallDuration">00:00</span>
                     </h3>
-                    <button class="sr-btn-leave" onclick="SalaRiunioni.esciDallaStanza()">
-                        <i class="fas fa-phone-slash"></i> Esci dalla Riunione
-                    </button>
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                        <button class="sr-btn-minimize" onclick="SalaRiunioni.riduciAPiP()" title="Riduci a mini per navigare il CRM">
+                            <i class="fas fa-compress-alt"></i> Riduci a mini
+                        </button>
+                        <button class="sr-btn-expand" onclick="SalaRiunioni.tornaFullscreen()" title="Torna a schermo intero">
+                            <i class="fas fa-expand-alt"></i> Espandi
+                        </button>
+                        <button class="sr-btn-leave" onclick="SalaRiunioni.esciDallaStanza()">
+                            <i class="fas fa-phone-slash"></i> Esci dalla Riunione
+                        </button>
+                    </div>
                 </div>
                 <div id="jitsiMeetContainer"></div>
             `;
@@ -602,6 +683,16 @@ const SalaRiunioni = {
                 this.esciDallaStanza();
             });
 
+            // Avvia timer durata call
+            this._callStartTime = Date.now();
+            this._avviaDurationTimer();
+
+            // Mostra indicatore call attiva nella sidebar
+            this._mostraIndicatoreSidebar(true);
+
+            // Abilita drag per modalità PiP
+            this._abilitaDragPiP();
+
             UI.hideLoading();
         } catch (error) {
             console.error('[SalaRiunioni] Errore entrata stanza:', error);
@@ -620,6 +711,15 @@ const SalaRiunioni = {
             this._jitsiApi = null;
         }
         this._currentRoom = null;
+        this._isPiP = false;
+        this._callStartTime = null;
+        // Ferma timer durata
+        if (this._durationInterval) {
+            clearInterval(this._durationInterval);
+            this._durationInterval = null;
+        }
+        // Rimuovi indicatore sidebar
+        this._mostraIndicatoreSidebar(false);
         // Rimuovi overlay fullscreen
         const overlay = document.getElementById('srJitsiOverlay');
         if (overlay) overlay.remove();
@@ -651,6 +751,13 @@ const SalaRiunioni = {
             this._jitsiApi = null;
         }
         this._currentRoom = null;
+        this._isPiP = false;
+        this._callStartTime = null;
+        if (this._durationInterval) {
+            clearInterval(this._durationInterval);
+            this._durationInterval = null;
+        }
+        this._mostraIndicatoreSidebar(false);
         this.fermaControlloRiunioni();
         const overlay = document.getElementById('srJitsiOverlay');
         if (overlay) overlay.remove();
@@ -753,6 +860,172 @@ const SalaRiunioni = {
                 link
             );
         });
+    },
+
+    // =========================================================================
+    // PICTURE-IN-PICTURE (PiP) — Riduci / Espandi
+    // =========================================================================
+
+    /**
+     * Riduce l'overlay Jitsi a un mini-riquadro flottante (PiP).
+     * L'utente può così navigare il CRM senza chiudere la call.
+     */
+    riduciAPiP() {
+        const overlay = document.getElementById('srJitsiOverlay');
+        if (!overlay) return;
+
+        this._isPiP = true;
+        overlay.classList.add('sr-pip-mode');
+        // Resetta posizione inline (drag potrebbe averla spostata)
+        overlay.style.top = 'auto';
+        overlay.style.left = 'auto';
+        overlay.style.right = '20px';
+        overlay.style.bottom = '20px';
+    },
+
+    /**
+     * Torna da PiP a fullscreen
+     */
+    tornaFullscreen() {
+        const overlay = document.getElementById('srJitsiOverlay');
+        if (!overlay) return;
+
+        this._isPiP = false;
+        overlay.classList.remove('sr-pip-mode');
+        // Resetta posizioni inline per tornare a fixed fullscreen
+        overlay.style.top = '0';
+        overlay.style.left = '0';
+        overlay.style.right = '0';
+        overlay.style.bottom = '0';
+        overlay.style.width = '';
+        overlay.style.height = '';
+    },
+
+    /**
+     * Abilita il drag della finestra PiP trascinando la topbar.
+     * Funziona solo quando l'overlay è in modalità PiP.
+     */
+    _abilitaDragPiP() {
+        const topbar = document.getElementById('srJitsiTopbar');
+        if (!topbar) return;
+
+        let isDragging = false;
+        let startX, startY, startLeft, startTop;
+
+        topbar.addEventListener('mousedown', (e) => {
+            if (!this._isPiP) return;
+            // Ignora click su pulsanti
+            if (e.target.closest('button')) return;
+            isDragging = true;
+            const overlay = document.getElementById('srJitsiOverlay');
+            const rect = overlay.getBoundingClientRect();
+            startX = e.clientX;
+            startY = e.clientY;
+            startLeft = rect.left;
+            startTop = rect.top;
+            // Usa posizione assoluta via top/left durante il drag
+            overlay.style.right = 'auto';
+            overlay.style.bottom = 'auto';
+            overlay.style.left = startLeft + 'px';
+            overlay.style.top = startTop + 'px';
+            e.preventDefault();
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            const overlay = document.getElementById('srJitsiOverlay');
+            if (!overlay) { isDragging = false; return; }
+            const dx = e.clientX - startX;
+            const dy = e.clientY - startY;
+            overlay.style.left = (startLeft + dx) + 'px';
+            overlay.style.top = (startTop + dy) + 'px';
+        });
+
+        document.addEventListener('mouseup', () => {
+            isDragging = false;
+        });
+
+        // Touch support per mobile
+        topbar.addEventListener('touchstart', (e) => {
+            if (!this._isPiP) return;
+            if (e.target.closest('button')) return;
+            isDragging = true;
+            const overlay = document.getElementById('srJitsiOverlay');
+            const rect = overlay.getBoundingClientRect();
+            const touch = e.touches[0];
+            startX = touch.clientX;
+            startY = touch.clientY;
+            startLeft = rect.left;
+            startTop = rect.top;
+            overlay.style.right = 'auto';
+            overlay.style.bottom = 'auto';
+            overlay.style.left = startLeft + 'px';
+            overlay.style.top = startTop + 'px';
+        }, { passive: true });
+
+        document.addEventListener('touchmove', (e) => {
+            if (!isDragging) return;
+            const overlay = document.getElementById('srJitsiOverlay');
+            if (!overlay) { isDragging = false; return; }
+            const touch = e.touches[0];
+            const dx = touch.clientX - startX;
+            const dy = touch.clientY - startY;
+            overlay.style.left = (startLeft + dx) + 'px';
+            overlay.style.top = (startTop + dy) + 'px';
+        }, { passive: true });
+
+        document.addEventListener('touchend', () => {
+            isDragging = false;
+        });
+
+        // Doppio click sulla topbar per tornare fullscreen
+        topbar.addEventListener('dblclick', (e) => {
+            if (this._isPiP && !e.target.closest('button')) {
+                this.tornaFullscreen();
+            }
+        });
+    },
+
+    // =========================================================================
+    // TIMER DURATA CALL
+    // =========================================================================
+
+    _avviaDurationTimer() {
+        if (this._durationInterval) clearInterval(this._durationInterval);
+        this._durationInterval = setInterval(() => {
+            if (!this._callStartTime) return;
+            const elapsed = Math.floor((Date.now() - this._callStartTime) / 1000);
+            const hrs = Math.floor(elapsed / 3600);
+            const mins = Math.floor((elapsed % 3600) / 60);
+            const secs = elapsed % 60;
+            const display = hrs > 0
+                ? `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
+                : `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+            const el = document.getElementById('srCallDuration');
+            if (el) el.textContent = display;
+        }, 1000);
+    },
+
+    // =========================================================================
+    // INDICATORE CALL ATTIVA NELLA SIDEBAR
+    // =========================================================================
+
+    _mostraIndicatoreSidebar(show) {
+        // Rimuovi indicatore esistente
+        const existing = document.querySelector('.sr-sidebar-active-indicator');
+        if (existing) existing.remove();
+
+        if (!show) return;
+
+        // Trova la voce "Sala Riunioni" nel menu sidebar
+        const menuItem = document.querySelector('.menu-item[data-page="sala-riunioni"]');
+        if (menuItem) {
+            const label = menuItem.querySelector('.menu-label') || menuItem.querySelector('span') || menuItem;
+            const dot = document.createElement('span');
+            dot.className = 'sr-sidebar-active-indicator';
+            dot.title = 'Call in corso';
+            label.appendChild(dot);
+        }
     },
 
     // =========================================================================
