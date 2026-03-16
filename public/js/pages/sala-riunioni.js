@@ -89,6 +89,16 @@ const SalaRiunioni = {
                     .sr-room-enter.video { background: var(--blu-700); color: white; }
                     .sr-room-enter.audio { background: var(--verde-700); color: white; }
 
+                    .sr-btn-copy-link {
+                        margin-top: 0.5rem; width: 100%; padding: 0.5rem; border: 1.5px dashed var(--blu-300);
+                        border-radius: 8px; font-weight: 600; font-size: 0.8rem;
+                        cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 0.5rem;
+                        font-family: 'Titillium Web', sans-serif; transition: all 0.2s;
+                        background: var(--blu-100); color: var(--blu-700);
+                    }
+                    .sr-btn-copy-link:hover { background: var(--blu-300); color: white; border-color: var(--blu-300); }
+                    .sr-btn-copy-link.copied { background: var(--verde-100); color: var(--verde-700); border-color: var(--verde-300); }
+
                     .sr-empty {
                         text-align: center; padding: 3rem; color: var(--grigio-500);
                     }
@@ -135,6 +145,13 @@ const SalaRiunioni = {
                     <div class="sr-header">
                         <h1><i class="fas fa-video"></i> Sala Riunioni</h1>
                         <p>Videoconferenze e conferenze audio integrate nel CRM</p>
+                    </div>
+
+                    <div style="margin-bottom: 1.25rem; padding: 0.75rem 1rem; background: var(--blu-100); border-left: 3px solid var(--blu-700); border-radius: 6px; font-size: 0.85rem; color: var(--grigio-700); line-height: 1.5;">
+                        <i class="fas fa-info-circle" style="color: var(--blu-700); margin-right: 0.4rem;"></i>
+                        <strong>Ospiti esterni?</strong> Per invitare partecipanti che non fanno parte del CRM, clicca
+                        <strong>"Copia link per ospiti esterni"</strong> sulla stanza e condividi il link via email, WhatsApp o altro.
+                        L'ospite potrà partecipare direttamente dal browser, senza account e senza installare nulla.
                     </div>
 
                     <div class="sr-actions">
@@ -228,6 +245,11 @@ const SalaRiunioni = {
                 <button class="sr-room-enter ${stanza.tipo}" onclick="SalaRiunioni.entraInStanza('${stanza.id}')">
                     <i class="fas ${isVideo ? 'fa-sign-in-alt' : 'fa-phone-alt'}"></i>
                     ${isVideo ? 'Entra in Videoconferenza' : 'Entra in Conferenza Audio'}
+                </button>
+                <button class="sr-btn-copy-link" id="btnCopyLink_${stanza.id}"
+                    onclick="event.stopPropagation(); SalaRiunioni.copiaLinkInvito('${stanza.roomId}', '${stanza.id}')"
+                    title="Copia il link per invitare partecipanti esterni al CRM">
+                    <i class="fas fa-link"></i> Copia link per ospiti esterni
                 </button>
             </div>
         `;
@@ -695,6 +717,42 @@ const SalaRiunioni = {
         } catch (error) {
             console.warn('[SalaRiunioni] Errore controllo riunioni pianificate:', error);
         }
+    },
+
+    // =========================================================================
+    // COPIA LINK INVITO PER OSPITI ESTERNI
+    // =========================================================================
+    /**
+     * Genera e copia negli appunti il link diretto alla stanza Jitsi.
+     * Questo link può essere condiviso con chiunque (via email, WhatsApp, ecc.)
+     * per far partecipare persone esterne che non hanno un account nel CRM.
+     * L'ospite apre il link nel browser e accede direttamente alla videoconferenza.
+     */
+    copiaLinkInvito(roomId, stanzaId) {
+        const JAAS_APP_ID = 'vpaas-magic-cookie-f8b41b142e974dc98cb8a5112f8a5417';
+        const link = `https://8x8.vc/${JAAS_APP_ID}/${roomId}`;
+
+        navigator.clipboard.writeText(link).then(() => {
+            // Feedback visivo sul pulsante
+            const btn = document.getElementById('btnCopyLink_' + stanzaId);
+            if (btn) {
+                const originalHtml = btn.innerHTML;
+                btn.innerHTML = '<i class="fas fa-check"></i> Link copiato!';
+                btn.classList.add('copied');
+                setTimeout(() => {
+                    btn.innerHTML = originalHtml;
+                    btn.classList.remove('copied');
+                }, 2500);
+            }
+            UI.showSuccess('Link invito copiato! Condividilo via email, WhatsApp o altro per far partecipare ospiti esterni.');
+        }).catch(() => {
+            // Fallback: mostra il link in un prompt copiabile
+            prompt(
+                'Copia questo link e condividilo con chi vuoi invitare alla riunione.\n' +
+                'L\'ospite potrà partecipare direttamente dal browser senza account:',
+                link
+            );
+        });
     },
 
     // =========================================================================
