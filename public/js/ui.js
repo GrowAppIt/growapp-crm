@@ -34,7 +34,10 @@ const UI = {
             MonitorRSS.cleanup();
         }
         if (typeof SalaRiunioni !== 'undefined' && this.currentPage === 'sala-riunioni' && pageName !== 'sala-riunioni') {
-            SalaRiunioni.cleanup();
+            // Se la call è in PiP, non distruggere Jitsi — l'utente vuole navigare il CRM
+            if (!SalaRiunioni._isPiP || !SalaRiunioni._jitsiApi) {
+                SalaRiunioni.cleanup();
+            }
         }
 
         // Salva la pagina CORRENTE nello stack prima di navigare (solo se non è un goBack)

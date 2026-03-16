@@ -19,6 +19,11 @@ const SalaRiunioni = {
         // Avvia controllo riunioni pianificate (ogni 60s)
         this.avviaControlloRiunioni();
 
+        // Se c'è una call in PiP, riavvia anche il controllo sidebar
+        if (this._isPiP && this._jitsiApi) {
+            this._mostraIndicatoreSidebar(true);
+        }
+
         try {
             // Carica stanze attive da Firestore
             const stanze = await this._getStanze();
@@ -149,6 +154,19 @@ const SalaRiunioni = {
                         <h1><i class="fas fa-video"></i> Sala Riunioni</h1>
                         <p>Videoconferenze e conferenze audio integrate nel CRM</p>
                     </div>
+
+                    ${this._isPiP && this._jitsiApi && this._currentRoom ? `
+                    <div style="margin-bottom: 1.25rem; padding: 0.75rem 1rem; background: var(--verde-100); border-left: 3px solid var(--verde-700); border-radius: 6px; font-size: 0.85rem; color: var(--grigio-700); line-height: 1.5; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem;">
+                        <div>
+                            <i class="fas fa-video" style="color: var(--verde-700); margin-right: 0.4rem;"></i>
+                            <strong>Riunione in corso:</strong> "${this._currentRoom.nome}" — La call è attiva nel riquadro mini.
+                        </div>
+                        <button onclick="SalaRiunioni.tornaFullscreen()"
+                            style="padding: 0.4rem 0.8rem; border: none; border-radius: 6px; background: var(--verde-700); color: white; font-weight: 600; font-size: 0.8rem; cursor: pointer; font-family: 'Titillium Web', sans-serif; white-space: nowrap;">
+                            <i class="fas fa-expand-alt"></i> Torna a schermo intero
+                        </button>
+                    </div>
+                    ` : ''}
 
                     <div style="margin-bottom: 1.25rem; padding: 0.75rem 1rem; background: var(--blu-100); border-left: 3px solid var(--blu-700); border-radius: 6px; font-size: 0.85rem; color: var(--grigio-700); line-height: 1.5;">
                         <i class="fas fa-info-circle" style="color: var(--blu-700); margin-right: 0.4rem;"></i>
@@ -706,24 +724,12 @@ const SalaRiunioni = {
     // ESCI DALLA STANZA
     // =========================================================================
     esciDallaStanza() {
-        if (this._jitsiApi) {
-            this._jitsiApi.dispose();
-            this._jitsiApi = null;
+        // Force cleanup completo — l'utente vuole davvero uscire
+        this.cleanup(true);
+        // Se siamo ancora sulla pagina sala-riunioni, ricarica la lista
+        if (UI.currentPage === 'sala-riunioni') {
+            this.render();
         }
-        this._currentRoom = null;
-        this._isPiP = false;
-        this._callStartTime = null;
-        // Ferma timer durata
-        if (this._durationInterval) {
-            clearInterval(this._durationInterval);
-            this._durationInterval = null;
-        }
-        // Rimuovi indicatore sidebar
-        this._mostraIndicatoreSidebar(false);
-        // Rimuovi overlay fullscreen
-        const overlay = document.getElementById('srJitsiOverlay');
-        if (overlay) overlay.remove();
-        this.render();
     },
 
     // =========================================================================
@@ -745,7 +751,14 @@ const SalaRiunioni = {
     // =========================================================================
     // CLEANUP — Chiamato quando si naviga via
     // =========================================================================
-    cleanup() {
+    cleanup(forceClose = false) {
+        // Se c'è una call in PiP e non è un force close, mantienila attiva
+        if (this._isPiP && this._jitsiApi && !forceClose) {
+            // Ferma solo il controllo riunioni, la call resta in PiP
+            this.fermaControlloRiunioni();
+            return;
+        }
+
         if (this._jitsiApi) {
             this._jitsiApi.dispose();
             this._jitsiApi = null;
