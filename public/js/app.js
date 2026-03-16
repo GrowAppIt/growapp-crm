@@ -429,18 +429,33 @@ const NotificationUI = {
         `;
         toast.setAttribute('data-toast', '1');
 
-        // Click sul toast → naviga al task
+        // Click sul toast → naviga alla pagina di riferimento
         toast.addEventListener('click', () => {
             toast.remove();
-            if (data.taskId && data.taskId !== 'null' && data.taskId !== '') {
+            // 1) linkTo generico
+            if (data.linkToPage && data.linkToPage !== 'null' && data.linkToPage !== '') {
+                UI.showPage(data.linkToPage, data.linkToId && data.linkToId !== 'null' && data.linkToId !== '' ? data.linkToId : null);
+            }
+            // 2) Sala Riunioni
+            else if (data.type === 'sala_riunioni') {
+                UI.showPage('sala-riunioni');
+            }
+            // 3) App discussion
+            else if (data.type === 'app_discussion' && data.appId && data.appId !== 'null' && data.appId !== '') {
+                DettaglioApp.render(data.appId);
+                setTimeout(() => DettaglioApp.switchTab('discussione'), 800);
+            }
+            // 4) Task
+            else if (data.taskId && data.taskId !== 'null' && data.taskId !== '') {
                 UI.showPage('task');
                 setTimeout(() => {
                     if (window.GestioneTask && typeof GestioneTask.viewTaskDetails === 'function') {
                         GestioneTask.viewTaskDetails(data.taskId);
                     }
                 }, 500);
-            } else {
-                // Apri centro notifiche
+            }
+            // 5) Fallback → centro notifiche
+            else {
                 UI.showPage('centro-notifiche');
             }
         });
@@ -532,7 +547,7 @@ const NotificationUI = {
         const bg = notif.read ? '#fff' : 'var(--blu-100)';
 
         return `
-            <div onclick="NotificationUI.handleNotificationClick('${notif.id}', '${notif.taskId}')"
+            <div onclick="NotificationUI.handleNotificationClick('${notif.id}', '${notif.taskId || ''}', '${notif.appId || ''}', '${notif.type || ''}', '${notif.linkTo?.page || ''}', '${notif.linkTo?.id || ''}')"
                  style="padding:10px 14px;border-bottom:1px solid var(--grigio-200);cursor:pointer;background:${bg};transition:background .2s;"
                  onmouseover="this.style.background='var(--grigio-100)'" onmouseout="this.style.background='${bg}'">
                 <div style="display:flex;gap:10px;align-items:start;">
@@ -552,11 +567,26 @@ const NotificationUI = {
         `;
     },
 
-    async handleNotificationClick(notificationId, taskId) {
+    async handleNotificationClick(notificationId, taskId, appId, type, linkToPage, linkToId) {
         await NotificationService.markAsRead(notificationId);
         document.getElementById('notificationDropdown').classList.add('hidden');
 
-        if (taskId && taskId !== 'null' && taskId !== 'undefined') {
+        // 1) Navigazione generica via linkTo (priorità massima)
+        if (linkToPage && linkToPage !== 'null' && linkToPage !== 'undefined' && linkToPage !== '') {
+            UI.showPage(linkToPage, linkToId && linkToId !== 'null' && linkToId !== 'undefined' && linkToId !== '' ? linkToId : null);
+            this.updateBadge();
+            return;
+        }
+
+        // 2) Navigazione per tipo specifico
+        if (type === 'sala_riunioni') {
+            UI.showPage('sala-riunioni');
+        } else if (type === 'app_discussion' && appId && appId !== 'null' && appId !== 'undefined' && appId !== '') {
+            DettaglioApp.render(appId);
+            setTimeout(() => {
+                DettaglioApp.switchTab('discussione');
+            }, 800);
+        } else if (taskId && taskId !== 'null' && taskId !== 'undefined' && taskId !== '') {
             UI.showPage('task');
             setTimeout(() => {
                 if (window.GestioneTask && typeof GestioneTask.viewTaskDetails === 'function') {
@@ -613,7 +643,9 @@ const NotificationUI = {
                         const extra = {
                             type: notifData.type || '',
                             taskId: notifData.taskId || '',
-                            appId: notifData.appId || ''
+                            appId: notifData.appId || '',
+                            linkToPage: notifData.linkTo?.page || '',
+                            linkToId: notifData.linkTo?.id || ''
                         };
 
                         // Toast in-app

@@ -396,22 +396,23 @@ const SalaRiunioni = {
 
             const docRef = await db.collection('saleRiunioni').add(stanzaData);
 
-            // Invia notifiche push agli invitati
+            // Invia notifiche push agli invitati con linkTo per navigazione diretta
+            const stanzaLink = { page: 'sala-riunioni', id: docRef.id };
             if (invitatiUids.length > 0 && typeof NotificationService !== 'undefined') {
                 if (isPianificata) {
-                    // Notifica di pianificazione
                     const dataLabel = new Date(dataPianificata + 'T00:00:00').toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' });
                     NotificationService.createNotificationsForUsers(invitatiUids, {
                         type: 'sala_riunioni',
                         title: `${tipoLabel} pianificata: ${nome}`,
-                        message: `${userName} ti ha invitato alla riunione "${nome}" prevista per ${dataLabel}${oraPianificata ? ' alle ' + oraPianificata : ''}. La troverai nella Sala Riunioni.`
+                        message: `${userName} ti ha invitato alla riunione "${nome}" prevista per ${dataLabel}${oraPianificata ? ' alle ' + oraPianificata : ''}. La troverai nella Sala Riunioni.`,
+                        linkTo: stanzaLink
                     }).catch(e => console.warn('[SalaRiunioni] Errore invio notifiche pianificazione:', e));
                 } else {
-                    // Notifica immediata
                     NotificationService.createNotificationsForUsers(invitatiUids, {
                         type: 'sala_riunioni',
                         title: `${tipoLabel}: ${nome}`,
-                        message: `${userName} ti ha invitato alla riunione "${nome}". Entra subito dalla Sala Riunioni!`
+                        message: `${userName} ti ha invitato alla riunione "${nome}". Entra subito dalla Sala Riunioni!`,
+                        linkTo: stanzaLink
                     }).catch(e => console.warn('[SalaRiunioni] Errore invio notifiche:', e));
                 }
             }
@@ -677,7 +678,8 @@ const SalaRiunioni = {
                         await NotificationService.createNotificationsForUsers(invitatiUids, {
                             type: 'sala_riunioni',
                             title: `La riunione sta iniziando: ${stanza.nome}`,
-                            message: `La ${tipoLabel.toLowerCase()} "${stanza.nome}" sta iniziando ora! Entra dalla Sala Riunioni.`
+                            message: `La ${tipoLabel.toLowerCase()} "${stanza.nome}" sta iniziando ora! Entra dalla Sala Riunioni.`,
+                            linkTo: { page: 'sala-riunioni', id: stanza.id }
                         });
                     }
 

@@ -25,6 +25,7 @@ const NotificationService = {
                 message: notificationData.message,
                 taskId: notificationData.taskId || null,
                 appId: notificationData.appId || null,
+                linkTo: notificationData.linkTo || null, // { page: 'sala-riunioni', id: '...' }
                 read: false,
                 createdAt: firebase.firestore.FieldValue.serverTimestamp()
             };
@@ -40,7 +41,9 @@ const NotificationService = {
                     {
                         type: notificationData.type,
                         taskId: notificationData.taskId || '',
-                        appId: notificationData.appId || ''
+                        appId: notificationData.appId || '',
+                        linkToPage: notificationData.linkTo?.page || '',
+                        linkToId: notificationData.linkTo?.id || ''
                     }
                 ).catch(e => console.warn('Push FCM fallita:', e));
             }
@@ -68,6 +71,7 @@ const NotificationService = {
                     message: notificationData.message,
                     taskId: notificationData.taskId || null,
                     appId: notificationData.appId || null,
+                    linkTo: notificationData.linkTo || null,
                     read: false,
                     createdAt: firebase.firestore.FieldValue.serverTimestamp()
                 });
@@ -84,7 +88,9 @@ const NotificationService = {
                     {
                         type: notificationData.type,
                         taskId: notificationData.taskId || '',
-                        appId: notificationData.appId || ''
+                        appId: notificationData.appId || '',
+                        linkToPage: notificationData.linkTo?.page || '',
+                        linkToId: notificationData.linkTo?.id || ''
                     }
                 ).catch(e => console.warn('Push FCM batch fallita:', e));
             }
@@ -291,7 +297,8 @@ const NotificationService = {
             [this.TYPES.TASK_TAKEN]: 'fa-hand-paper',
             [this.TYPES.TASK_REASSIGNED]: 'fa-user-edit',
             [this.TYPES.NEW_COMMENT]: 'fa-comment',
-            [this.TYPES.APP_DISCUSSION]: 'fa-comments'
+            [this.TYPES.APP_DISCUSSION]: 'fa-comments',
+            [this.TYPES.SALA_RIUNIONI]: 'fa-video'
         };
         return icons[type] || 'fa-bell';
     },
@@ -308,7 +315,8 @@ const NotificationService = {
             [this.TYPES.TASK_TAKEN]: 'var(--verde-500)',
             [this.TYPES.TASK_REASSIGNED]: 'var(--blu-500)',
             [this.TYPES.NEW_COMMENT]: 'var(--verde-700)',
-            [this.TYPES.APP_DISCUSSION]: 'var(--blu-500)'
+            [this.TYPES.APP_DISCUSSION]: 'var(--blu-500)',
+            [this.TYPES.SALA_RIUNIONI]: 'var(--blu-700)'
         };
         return colors[type] || 'var(--grigio-600)';
     }

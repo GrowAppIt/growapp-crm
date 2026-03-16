@@ -57,6 +57,9 @@ const CentroNotifiche = {
                 <button class="cn-filter-btn" data-filter="new_comment" onclick="CentroNotifiche._setFilter('new_comment')">
                     <i class="fas fa-comment"></i> Commenti
                 </button>
+                <button class="cn-filter-btn" data-filter="sala_riunioni" onclick="CentroNotifiche._setFilter('sala_riunioni')">
+                    <i class="fas fa-video"></i> Riunioni
+                </button>
             </div>
 
             <!-- Contatore -->
@@ -208,7 +211,7 @@ const CentroNotifiche = {
         const unreadClass = notif.read ? '' : 'cn-notif-unread';
 
         return `
-            <div class="cn-notif-row ${unreadClass}" onclick="CentroNotifiche._clickNotif('${notif.id}', '${notif.taskId || ''}', '${notif.appId || ''}', '${notif.type || ''}')">
+            <div class="cn-notif-row ${unreadClass}" onclick="CentroNotifiche._clickNotif('${notif.id}', '${notif.taskId || ''}', '${notif.appId || ''}', '${notif.type || ''}', '${notif.linkTo?.page || ''}', '${notif.linkTo?.id || ''}')">
                 <div style="width:40px;height:40px;border-radius:50%;background:${color};display:flex;align-items:center;justify-content:center;color:#fff;flex-shrink:0;">
                     <i class="fas ${icon}"></i>
                 </div>
@@ -262,16 +265,24 @@ const CentroNotifiche = {
         window.scrollTo({ top: 0, behavior: 'smooth' });
     },
 
-    async _clickNotif(notifId, taskId, appId, type) {
+    async _clickNotif(notifId, taskId, appId, type, linkToPage, linkToId) {
         // Segna come letta
         await NotificationService.markAsRead(notifId);
         // Aggiorna localmente
         const notif = this._notifications.find(n => n.id === notifId);
         if (notif) notif.read = true;
 
-        // Naviga in base al tipo di notifica
-        if (type === 'app_discussion' && appId && appId !== 'null' && appId !== 'undefined' && appId !== '') {
-            // Vai al dettaglio app → tab discussione
+        // 1) Navigazione generica via linkTo (priorità massima)
+        if (linkToPage && linkToPage !== 'null' && linkToPage !== 'undefined' && linkToPage !== '') {
+            UI.showPage(linkToPage, linkToId && linkToId !== 'null' && linkToId !== 'undefined' && linkToId !== '' ? linkToId : null);
+            NotificationUI.updateBadge();
+            return;
+        }
+
+        // 2) Navigazione per tipo specifico (backward compatibility)
+        if (type === 'sala_riunioni') {
+            UI.showPage('sala-riunioni');
+        } else if (type === 'app_discussion' && appId && appId !== 'null' && appId !== 'undefined' && appId !== '') {
             DettaglioApp.render(appId);
             setTimeout(() => {
                 DettaglioApp.switchTab('discussione');
