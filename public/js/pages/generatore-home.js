@@ -385,9 +385,6 @@ window.GeneratoreHome = (function () {
     formHtml += '<div style="display:flex;gap:12px;flex-wrap:wrap;margin:24px 0 40px;">' +
       '<button type="button" id="ghBtnGenera" style="background:#145284;color:#fff;border:none;padding:14px 28px;border-radius:10px;font-weight:700;font-size:15px;cursor:pointer;font-family:\'Titillium Web\',sans-serif;box-shadow:0 4px 12px rgba(20,82,132,.3);"><i class="fas fa-download"></i> Genera HTML</button>' +
       '<button type="button" id="ghBtnPreview" style="background:#3CA434;color:#fff;border:none;padding:14px 28px;border-radius:10px;font-weight:700;font-size:15px;cursor:pointer;font-family:\'Titillium Web\',sans-serif;box-shadow:0 4px 12px rgba(60,164,52,.3);"><i class="fas fa-eye"></i> Anteprima</button>' +
-      '<button type="button" id="ghBtnExportJson" style="background:#fff;color:#145284;border:2px solid #145284;padding:12px 24px;border-radius:10px;font-weight:700;font-size:14px;cursor:pointer;font-family:\'Titillium Web\',sans-serif;"><i class="fas fa-file-export"></i> Esporta JSON</button>' +
-      '<button type="button" id="ghBtnImportJson" style="background:#fff;color:#145284;border:2px solid #145284;padding:12px 24px;border-radius:10px;font-weight:700;font-size:14px;cursor:pointer;font-family:\'Titillium Web\',sans-serif;"><i class="fas fa-file-import"></i> Importa JSON</button>' +
-      '<input type="file" id="ghJsonFileInput" accept=".json" style="display:none;">' +
     '</div>';
 
     formHtml += '</div>'; // close container
@@ -491,35 +488,6 @@ window.GeneratoreHome = (function () {
       w.document.close();
     });
 
-    // Export JSON
-    document.getElementById('ghBtnExportJson')?.addEventListener('click', () => {
-      collectState();
-      const json = JSON.stringify(state, null, 2);
-      const blob = new Blob([json], { type: 'application/json' });
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = (state.nomeComune || 'config').toLowerCase().replace(/\s+/g, '-') + '-home-config.json';
-      a.click();
-      URL.revokeObjectURL(a.href);
-    });
-
-    // Import JSON
-    document.getElementById('ghBtnImportJson')?.addEventListener('click', () => {
-      document.getElementById('ghJsonFileInput')?.click();
-    });
-    document.getElementById('ghJsonFileInput')?.addEventListener('change', e => {
-      const f = e.target.files[0];
-      if (!f) return;
-      const reader = new FileReader();
-      reader.onload = ev => {
-        try {
-          const imported = JSON.parse(ev.target.result);
-          state = Object.assign(getDefaultState(), imported);
-          render(); // re-render tutto
-        } catch (err) { alert('Errore JSON: ' + err.message); }
-      };
-      reader.readAsText(f);
-    });
 
     // Firebase config handlers
     document.getElementById('ghBtnSaveConfig')?.addEventListener('click', saveConfig);
