@@ -809,7 +809,7 @@ window.GeneratoreHome = (function () {
      FIREBASE – SAVE/LOAD CONFIGURATIONS
      ============================================================ */
   function isFirebaseAvailable() {
-    return typeof firebase !== 'undefined' && firebase.firestore && typeof AuthService !== 'undefined' && AuthService.isLoggedIn();
+    return typeof firebase !== 'undefined' && firebase.firestore && typeof AuthService !== 'undefined' && AuthService.isAuthenticated();
   }
 
   function showFirebaseWarning() {
