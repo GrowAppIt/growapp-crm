@@ -124,6 +124,17 @@ window.GeneratoreHome = (function () {
       footerCopyrightText: 'Comune.Digital', footerCopyrightUrl: 'https://app.comune.digital',
       a11yDarkMode: true, a11yContrasto: true, a11yFontScale: true, a11yMaxFontScale: 4, a11yRispettaSistema: false,
       spotlightWidgetId: '', spotlightDurata: 2500, spotlightForzaSempre: false,
+      widgets: [
+        { id: 'dateHeader', label: 'Barra Data', enabled: true, order: 0 },
+        { id: 'tickerBar', label: 'Ticker News', enabled: true, order: 1 },
+        { id: 'slideshow', label: 'Slideshow', enabled: true, order: 2 },
+        { id: 'servizi', label: 'Servizi', enabled: true, order: 3 },
+        { id: 'bannerScatti', label: 'Banner "Vista da Te"', enabled: true, order: 4 },
+        { id: 'bannerCIE', label: 'Banner CIE', enabled: true, order: 5 },
+        { id: 'raccoltaDifferenziata', label: 'Raccolta Differenziata', enabled: true, order: 6 },
+        { id: 'protezioneCivile', label: 'Protezione Civile', enabled: true, order: 7 },
+        { id: 'meteoCard', label: 'Meteo', enabled: true, order: 8 },
+      ],
     };
   }
 
@@ -173,6 +184,25 @@ window.GeneratoreHome = (function () {
     formHtml += '<h1 style="margin:0;font-size:24px;font-weight:900;"><i class="fas fa-home"></i> Generatore Home Comune</h1>';
     formHtml += '<p style="margin:8px 0 0;opacity:.8;font-size:14px;">Configura e genera la homepage personalizzata per l\'app del comune</p></div>';
 
+    // === SEZ. 0: CONFIGURAZIONI SALVATE (Firebase) ===
+    formHtml += makeSection('fa-database', 'Configurazioni Salvate',
+      '<div id="ghFirebaseWarning" style="background:#fff3cd;border:1px solid #ffc107;border-radius:8px;padding:12px 16px;margin-bottom:16px;color:#856404;font-size:13px;display:none;">' +
+        '<i class="fas fa-exclamation-triangle"></i> Firebase non disponibile – salvataggio disabilitato' +
+      '</div>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">' +
+        '<div><label style="display:block;font-weight:600;color:#4A4A4A;margin-bottom:6px;font-size:13px;">Configurazione Salvata</label>' +
+          '<select id="ghConfigSelect" style="width:100%;padding:10px 14px;border:1px solid #d0d0d0;border-radius:8px;font-family:\'Titillium Web\',sans-serif;font-size:14px;">' +
+            '<option value="">-- Nessuna --</option>' +
+          '</select></div>' +
+        '<div style="display:flex;flex-direction:column;justify-content:flex-end;gap:6px;">' +
+          '<button type="button" id="ghBtnLoadConfig" style="background:#3CA434;color:#fff;border:none;padding:10px 14px;border-radius:8px;font-weight:600;font-size:13px;cursor:pointer;font-family:\'Titillium Web\',sans-serif;"><i class="fas fa-download"></i> Carica</button>' +
+          '<button type="button" id="ghBtnDeleteConfig" style="background:#D32F2F;color:#fff;border:none;padding:10px 14px;border-radius:8px;font-weight:600;font-size:13px;cursor:pointer;font-family:\'Titillium Web\',sans-serif;"><i class="fas fa-trash"></i> Elimina</button>' +
+        '</div>' +
+      '</div>' +
+      '<button type="button" id="ghBtnSaveConfig" style="background:#145284;color:#fff;border:none;padding:12px 20px;border-radius:8px;font-weight:700;font-size:14px;cursor:pointer;font-family:\'Titillium Web\',sans-serif;width:100%;"><i class="fas fa-save"></i> Salva Configurazione</button>',
+      false
+    );
+
     // === SEZ. 1: IDENTITÀ ===
     formHtml += makeSection('fa-city', 'Identità Comune',
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">' +
@@ -187,7 +217,13 @@ window.GeneratoreHome = (function () {
       true
     );
 
-    // === SEZ. 2: GEOLOCALIZZAZIONE ===
+    // === SEZ. 2: GESTIONE WIDGET ===
+    formHtml += makeSection('fa-puzzle-piece', 'Gestione Widget',
+      '<div id="ghWidgetList" style="max-height:400px;overflow-y:auto;"></div>',
+      false
+    );
+
+    // === SEZ. 3: GEOLOCALIZZAZIONE ===
     formHtml += makeSection('fa-map-marker-alt', 'Geolocalizzazione',
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">' +
         makeInput('ghLat','Latitudine',state.lat,'37.6279','number') +
@@ -197,7 +233,7 @@ window.GeneratoreHome = (function () {
       false
     );
 
-    // === SEZ. 3: PALETTE COLORI ===
+    // === SEZ. 4: PALETTE COLORI ===
     formHtml += makeSection('fa-palette', 'Palette Colori',
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:16px;">' +
         '<div><label style="display:block;font-weight:600;color:#4A4A4A;margin-bottom:6px;font-size:13px;">Colore Principale</label>' +
@@ -211,7 +247,7 @@ window.GeneratoreHome = (function () {
       false
     );
 
-    // === SEZ. 4: TICKER NEWS ===
+    // === SEZ. 5: TICKER NEWS ===
     formHtml += makeSection('fa-newspaper', 'Ticker News',
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">' +
         makeInput('ghTickerRssId','ID Widget RSS.app',state.tickerRssId,'hJedxhkIBuP2z3VP') +
@@ -220,7 +256,7 @@ window.GeneratoreHome = (function () {
       false
     );
 
-    // === SEZ. 5: SLIDESHOW ===
+    // === SEZ. 6: SLIDESHOW ===
     formHtml += makeSection('fa-images', 'Slideshow (1-8 slide)',
       '<div id="ghSlidesContainer"></div>' +
       '<button type="button" id="ghBtnAddSlide" style="background:#E2F8DE;color:#2A752F;border:2px dashed #3CA434;padding:10px 20px;border-radius:10px;font-weight:700;font-size:14px;cursor:pointer;width:100%;margin-top:8px;font-family:\'Titillium Web\',sans-serif;">' +
@@ -228,7 +264,7 @@ window.GeneratoreHome = (function () {
       false
     );
 
-    // === SEZ. 6: SERVIZI ===
+    // === SEZ. 7: SERVIZI ===
     formHtml += makeSection('fa-th-large', 'Servizi (Icone)',
       '<div id="ghServiziContainer"></div>' +
       '<button type="button" id="ghBtnAddSezione" style="background:#D1E2F2;color:#145284;border:2px dashed #145284;padding:10px 20px;border-radius:10px;font-weight:700;font-size:14px;cursor:pointer;width:100%;margin-top:8px;font-family:\'Titillium Web\',sans-serif;">' +
@@ -236,7 +272,7 @@ window.GeneratoreHome = (function () {
       false
     );
 
-    // === SEZ. 7: BANNER "VISTA DA TE" ===
+    // === SEZ. 8: BANNER "VISTA DA TE" ===
     formHtml += makeSection('fa-camera', 'Banner "Vista da Te"',
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">' +
         makeInput('ghBannerScattiTitleIt','Titolo IT',state.bannerScattiTitleIt,'Vista da Te') +
@@ -249,7 +285,7 @@ window.GeneratoreHome = (function () {
       false
     );
 
-    // === SEZ. 8: BANNER CIE ===
+    // === SEZ. 9: BANNER CIE ===
     formHtml += makeSection('fa-id-card', 'Banner CIE',
       makeCheckbox('ghBannerCieEnabled','Abilita Banner CIE',state.bannerCieEnabled) +
       '<div id="ghBannerCieFields">' +
@@ -266,7 +302,7 @@ window.GeneratoreHome = (function () {
       false
     );
 
-    // === SEZ. 9: RACCOLTA DIFFERENZIATA ===
+    // === SEZ. 10: RACCOLTA DIFFERENZIATA ===
     formHtml += makeSection('fa-recycle', 'Raccolta Differenziata',
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">' +
         makeInput('ghRaccoltaFeedUrl','Feed RSS URL',state.raccoltaFeedUrl,'syndication/notifiche-differenziata/') +
@@ -277,7 +313,7 @@ window.GeneratoreHome = (function () {
       false
     );
 
-    // === SEZ. 10: PROTEZIONE CIVILE ===
+    // === SEZ. 11: PROTEZIONE CIVILE ===
     formHtml += makeSection('fa-shield-halved', 'Protezione Civile',
       makeCheckbox('ghProtCivileEnabled','Abilita Protezione Civile',state.protCivileEnabled) +
       '<div id="ghProtCivileFields">' +
@@ -292,7 +328,7 @@ window.GeneratoreHome = (function () {
       false
     );
 
-    // === SEZ. 11: METEO ===
+    // === SEZ. 12: METEO ===
     formHtml += makeSection('fa-cloud-sun', 'Meteo',
       '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;">' +
         makeInput('ghMeteoWeeklyUrl','URL Previsioni',state.meteoWeeklyUrl,'meteo') +
@@ -302,7 +338,7 @@ window.GeneratoreHome = (function () {
       false
     );
 
-    // === SEZ. 12: FOOTER ===
+    // === SEZ. 13: FOOTER ===
     formHtml += makeSection('fa-link', 'Footer',
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">' +
         makeInput('ghFooterTerminiUrl','URL Termini',state.footerTerminiUrl,'https://nomecomune.comune.digital/termini-e-condizioni-del-servizio') +
@@ -319,7 +355,7 @@ window.GeneratoreHome = (function () {
       false
     );
 
-    // === SEZ. 13: ACCESSIBILITÀ ===
+    // === SEZ. 14: ACCESSIBILITÀ ===
     formHtml += makeSection('fa-universal-access', 'Accessibilità',
       makeCheckbox('ghA11yDarkMode','Abilita Dark Mode',state.a11yDarkMode) +
       makeCheckbox('ghA11yContrasto','Abilita Alto Contrasto',state.a11yContrasto) +
@@ -329,7 +365,7 @@ window.GeneratoreHome = (function () {
       false
     );
 
-    // === SEZ. 14: SPOTLIGHT ===
+    // === SEZ. 15: SPOTLIGHT ===
     formHtml += makeSection('fa-lightbulb', 'Spotlight',
       '<div style="margin-bottom:16px;"><label style="display:block;font-weight:600;color:#4A4A4A;margin-bottom:6px;font-size:13px;">Widget da Evidenziare</label>' +
       '<select id="ghSpotlightWidgetId" style="width:100%;padding:10px 14px;border:1px solid #d0d0d0;border-radius:8px;font-family:\'Titillium Web\',sans-serif;font-size:14px;">' +
@@ -362,7 +398,10 @@ window.GeneratoreHome = (function () {
     attachEvents();
     refreshSlides();
     refreshServizi();
+    refreshWidgetList();
     updatePalettePreview();
+    if (!firebaseAvailable) showFirebaseWarning();
+    else loadConfigList();
   }
 
   /* ============================================================
@@ -480,6 +519,19 @@ window.GeneratoreHome = (function () {
         } catch (err) { alert('Errore JSON: ' + err.message); }
       };
       reader.readAsText(f);
+    });
+
+    // Firebase config handlers
+    document.getElementById('ghBtnSaveConfig')?.addEventListener('click', saveConfig);
+    document.getElementById('ghBtnLoadConfig')?.addEventListener('click', () => {
+      const sel = document.getElementById('ghConfigSelect');
+      if (sel && sel.value) loadConfig(sel.value);
+      else alert('Seleziona una configurazione');
+    });
+    document.getElementById('ghBtnDeleteConfig')?.addEventListener('click', () => {
+      const sel = document.getElementById('ghConfigSelect');
+      if (sel && sel.value) deleteConfig(sel.value);
+      else alert('Seleziona una configurazione');
     });
   }
 
@@ -606,6 +658,151 @@ window.GeneratoreHome = (function () {
   }
 
   /* ============================================================
+     DYNAMIC FORM – WIDGETS
+     ============================================================ */
+  function refreshWidgetList() {
+    const c = document.getElementById('ghWidgetList');
+    if (!c) return;
+    collectWidgetsFromDOM();
+    const sorted = state.widgets.slice().sort((a, b) => a.order - b.order);
+    let html = '';
+    sorted.forEach(w => {
+      html += '<div class="gh-widget-row" style="background:#f8f9fa;border:1px solid #e0e0e0;border-radius:10px;padding:14px 16px;margin-bottom:10px;display:flex;align-items:center;gap:12px;">' +
+        '<input type="checkbox" data-widget-toggle="'+w.id+'" '+(w.enabled?'checked':'')+' style="width:18px;height:18px;cursor:pointer;flex-shrink:0;">' +
+        '<span style="flex:1;font-weight:600;color:#145284;font-size:14px;">'+esc(w.label)+'</span>' +
+        '<button type="button" data-widget-up="'+w.id+'" style="background:none;border:1px solid #145284;color:#145284;padding:4px 10px;border-radius:6px;font-size:11px;cursor:pointer;font-weight:600;"><i class="fas fa-arrow-up"></i></button>' +
+        '<button type="button" data-widget-down="'+w.id+'" style="background:none;border:1px solid #145284;color:#145284;padding:4px 10px;border-radius:6px;font-size:11px;cursor:pointer;font-weight:600;"><i class="fas fa-arrow-down"></i></button>' +
+      '</div>';
+    });
+    c.innerHTML = html;
+
+    // Events
+    c.querySelectorAll('[data-widget-toggle]').forEach(cb => {
+      cb.addEventListener('change', e => {
+        const wid = e.currentTarget.getAttribute('data-widget-toggle');
+        const w = state.widgets.find(x => x.id === wid);
+        if (w) w.enabled = e.currentTarget.checked;
+      });
+    });
+    c.querySelectorAll('[data-widget-up]').forEach(btn => {
+      btn.addEventListener('click', e => {
+        const wid = e.currentTarget.getAttribute('data-widget-up');
+        const w = state.widgets.find(x => x.id === wid);
+        if (w && w.order > 0) {
+          const other = state.widgets.find(x => x.order === w.order - 1);
+          if (other) { w.order--; other.order++; }
+          refreshWidgetList();
+        }
+      });
+    });
+    c.querySelectorAll('[data-widget-down]').forEach(btn => {
+      btn.addEventListener('click', e => {
+        const wid = e.currentTarget.getAttribute('data-widget-down');
+        const w = state.widgets.find(x => x.id === wid);
+        if (w && w.order < state.widgets.length - 1) {
+          const other = state.widgets.find(x => x.order === w.order + 1);
+          if (other) { w.order++; other.order--; }
+          refreshWidgetList();
+        }
+      });
+    });
+  }
+
+  function collectWidgetsFromDOM() {
+    document.querySelectorAll('[data-widget-toggle]').forEach(cb => {
+      const wid = cb.getAttribute('data-widget-toggle');
+      const w = state.widgets.find(x => x.id === wid);
+      if (w) w.enabled = cb.checked;
+    });
+  }
+
+  /* ============================================================
+     FIREBASE – SAVE/LOAD CONFIGURATIONS
+     ============================================================ */
+  const firebaseAvailable = typeof firebase !== 'undefined' && firebase.firestore && typeof AuthService !== 'undefined' && AuthService.getCurrentUser;
+
+  function showFirebaseWarning() {
+    const w = document.getElementById('ghFirebaseWarning');
+    if (w) w.style.display = 'block';
+    const btns = [document.getElementById('ghBtnSaveConfig'), document.getElementById('ghBtnLoadConfig'), document.getElementById('ghBtnDeleteConfig')];
+    btns.forEach(b => { if (b) b.disabled = true; });
+  }
+
+  async function loadConfigList() {
+    const sel = document.getElementById('ghConfigSelect');
+    if (!sel || !firebaseAvailable) return;
+    try {
+      const db = firebase.firestore();
+      const snap = await db.collection('generatore-home-configs').get();
+      sel.innerHTML = '<option value="">-- Nessuna --</option>';
+      snap.forEach(doc => {
+        const opt = document.createElement('option');
+        opt.value = doc.id;
+        opt.textContent = doc.id;
+        sel.appendChild(opt);
+      });
+    } catch (err) {
+      console.error('Error loading configs:', err);
+    }
+  }
+
+  async function saveConfig() {
+    if (!firebaseAvailable) { alert('Firebase non disponibile'); return; }
+    collectState();
+    if (!state.nomeComune) { alert('Inserisci il nome del comune!'); return; }
+    try {
+      const db = firebase.firestore();
+      const docId = state.nomeComune.toLowerCase().replace(/\s+/g, '-');
+      const user = AuthService.getCurrentUser();
+      const timestamp = new Date();
+      await db.collection('generatore-home-configs').doc(docId).set({
+        config: state,
+        nomeComune: state.nomeComune,
+        updatedAt: timestamp,
+        createdBy: user ? user.email : 'unknown'
+      });
+      alert('Configurazione salvata!');
+      await loadConfigList();
+    } catch (err) {
+      console.error('Error saving config:', err);
+      alert('Errore durante il salvataggio: ' + err.message);
+    }
+  }
+
+  async function loadConfig(docId) {
+    if (!firebaseAvailable) { alert('Firebase non disponibile'); return; }
+    try {
+      const db = firebase.firestore();
+      const doc = await db.collection('generatore-home-configs').doc(docId).get();
+      if (doc.exists) {
+        const data = doc.data();
+        state = Object.assign(getDefaultState(), data.config || {});
+        populateForm();
+        alert('Configurazione caricata!');
+      } else {
+        alert('Configurazione non trovata');
+      }
+    } catch (err) {
+      console.error('Error loading config:', err);
+      alert('Errore durante il caricamento: ' + err.message);
+    }
+  }
+
+  async function deleteConfig(docId) {
+    if (!firebaseAvailable) { alert('Firebase non disponibile'); return; }
+    if (!confirm('Sei sicuro di voler eliminare questa configurazione?')) return;
+    try {
+      const db = firebase.firestore();
+      await db.collection('generatore-home-configs').doc(docId).delete();
+      alert('Configurazione eliminata!');
+      await loadConfigList();
+    } catch (err) {
+      console.error('Error deleting config:', err);
+      alert('Errore durante l\'eliminazione: ' + err.message);
+    }
+  }
+
+  /* ============================================================
      PALETTE PREVIEW
      ============================================================ */
   function updatePalettePreview() {
@@ -641,6 +838,7 @@ window.GeneratoreHome = (function () {
     state.tickerLinkUrl = v('ghTickerLinkUrl');
     collectSlidesFromDOM();
     collectServiziFromDOM();
+    collectWidgetsFromDOM();
     state.bannerScattiTitleIt = v('ghBannerScattiTitleIt');
     state.bannerScattiTitleEn = v('ghBannerScattiTitleEn');
     state.bannerScattiSubtitle = v('ghBannerScattiSubtitle');
@@ -732,6 +930,7 @@ window.GeneratoreHome = (function () {
     set('ghSpotlightForzaSempre', state.spotlightForzaSempre);
     refreshSlides();
     refreshServizi();
+    refreshWidgetList();
     updatePalettePreview();
   }
 
@@ -859,6 +1058,7 @@ window.GeneratoreHome = (function () {
       durata:   ${S.spotlightDurata},
       forzaSempre: ${!!S.spotlightForzaSempre},
     },
+    widgets: ${JSON.stringify(S.widgets)},
     i18n: {
       defaultLang: "it",
       lingue: { it: "\\u{1F1EE}\\u{1F1F9}", en: "\\u{1F1EC}\\u{1F1E7}" },
@@ -1316,40 +1516,22 @@ rssapp-ticker a{margin-right:50px!important;display:inline-block!important;color
   const mount=document.getElementById('widgetMount');
   let html='';
 
-  /* 1. Date Header */
-  html+='<header class="w-date-header" id="dateHeader" aria-label="Data odierna e meteo"><div class="date-header-inner"><div class="date-left"><span class="date-ico" aria-hidden="true"><i class="fa-solid fa-calendar-days"></i></span><div class="date-text"><span class="current-date" id="currentDate"></span><span class="special-event" id="specialEvent"></span></div></div><div class="weather-box" aria-label="Meteo attuale a '+esc(C.nomeComune)+'"><span class="weather-icon" id="weatherIcon">--</span><span class="temperature" id="temperature">--°C</span></div></div></header>';
+  // Build widget renderers
+  const widgetRenderers={
+    dateHeader:()=>'<header class="w-date-header" id="dateHeader" aria-label="Data odierna e meteo"><div class="date-header-inner"><div class="date-left"><span class="date-ico" aria-hidden="true"><i class="fa-solid fa-calendar-days"></i></span><div class="date-text"><span class="current-date" id="currentDate"></span><span class="special-event" id="specialEvent"></span></div></div><div class="weather-box" aria-label="Meteo attuale a '+esc(C.nomeComune)+'"><span class="weather-icon" id="weatherIcon">--</span><span class="temperature" id="temperature">--°C</span></div></div></header>',
+    tickerBar:()=>'<section class="w-ticker" id="tickerBar" aria-label="Notizie in scorrimento"><div class="ticker-header"><a href="'+esc(href(C.ticker.linkUrl))+'" target="_blank" rel="noopener"><span class="news-ico" aria-hidden="true"><span style="transform:translateY(1px);display:inline-block;">\\u{1F4F0}</span></span><span class="header-title" data-i18n="ticker.title">'+esc(t('ticker.title'))+'</span><span class="arrow-link" aria-hidden="true">\\u2197</span></a></div><div class="ticker-strip"><rssapp-ticker id="'+esc(C.ticker.rssWidgetId)+'"></rssapp-ticker></div></section>',
+    slideshow:()=>'<div id="slideshowSlot"></div>',
+    servizi:()=>{const svcSections=C.servizi.map(sec=>{const cards=sec.items.map(it=>'<a class="svc-link" href="'+esc(href(it.href))+'" target="_blank" rel="noopener"><div class="svc-card"><div class="svc-icon-box"><i class="fa-solid '+esc(it.icon)+'"></i></div><div class="svc-label-it" data-i18n-it="'+esc(it.labelIt)+'" data-i18n-en="'+esc(it.labelEn)+'">'+esc(LANG==='en'?it.labelEn:it.labelIt)+'</div></div></a>').join('');return '<div class="svc-section"><div class="svc-section-hdr"><div class="svc-title-it" data-i18n-it="'+esc(sec.sectionIt)+'" data-i18n-en="'+esc(sec.sectionEn)+'">'+esc(LANG==='en'?sec.sectionEn:sec.sectionIt)+'</div></div><div class="svc-grid">'+cards+'</div></div>';}).join('');return '<section class="w-services" id="servicesContainer" aria-label="Servizi comunali">'+svcSections+'</section>';},
+    bannerScatti:()=>'<section class="w-banner-scatti" id="bannerScatti" aria-label="I vostri scatti"><a href="'+esc(href(C.bannerScatti.href))+'" class="banner-link-card" target="_blank" rel="noopener"><div class="banner-content"><div class="banner-title" data-i18n-it="'+esc(C.bannerScatti.titleIt)+'" data-i18n-en="'+esc(C.bannerScatti.titleEn||C.bannerScatti.titleIt)+'">'+esc(LANG==='en'?(C.bannerScatti.titleEn||C.bannerScatti.titleIt):C.bannerScatti.titleIt)+'</div><div class="banner-subtitle-text" data-i18n="banner.subtitle">'+esc(t('banner.subtitle'))+'</div></div><div class="banner-actions"><i class="fas fa-camera camera-icon"></i><div class="cta-arrow-box"><i class="fas fa-chevron-right cta-arrow-icon"></i></div></div></a></section>',
+    bannerCIE:()=>C.bannerCie.enabled?'<section class="w-banner-cie" id="bannerCIE" role="region" aria-label="Avviso CIE"><a class="cie-link" href="'+esc(C.bannerCie.href)+'" target="_blank" rel="noopener" aria-label="'+esc(C.bannerCie.title)+'"><div class="cie-ico" aria-hidden="true"><i class="fa-solid fa-id-card"></i></div><div class="cie-txt"><p class="cie-title" data-i18n-it="'+esc(C.bannerCie.title)+'" data-i18n-en="'+esc(C.bannerCie.titleEn||C.bannerCie.title)+'">'+esc(LANG==='en'?(C.bannerCie.titleEn||C.bannerCie.title):C.bannerCie.title)+'</p><p class="cie-subtitle" data-i18n-it="'+esc(C.bannerCie.subtitle)+'" data-i18n-en="'+esc(C.bannerCie.subtitleEn||C.bannerCie.subtitle)+'">'+esc(LANG==='en'?(C.bannerCie.subtitleEn||C.bannerCie.subtitle):C.bannerCie.subtitle)+'</p></div><div class="cie-info-wrap" aria-hidden="true"><span class="cie-badge" data-i18n="cie.badge">'+esc(t('cie.badge'))+'</span><span class="cie-ring"></span><span class="cie-finger"><i class="fa-solid fa-hand-point-up"></i></span></div></a></section>':'',
+    raccoltaDifferenziata:()=>'<section class="w-raccolta-wrapper" aria-label="Raccolta differenziata"><div id="raccoltaDifferenziata" class="rd-card" aria-live="polite"></div></section>',
+    protezioneCivile:()=>C.protezioneCivile.enabled?'<section class="w-protezione" id="protezioneCivile" aria-label="Bollettino Protezione Civile"><div id="dpc-alerts-widget"></div></section>':'',
+    meteoCard:()=>'<section class="w-meteo-wrapper" aria-label="Meteo '+esc(C.nomeComune)+'"><div id="meteoCard" class="meteo-card" aria-live="polite"><div class="meteo-header"><div class="meteo-icon" aria-hidden="true"><i class="fa-solid fa-cloud-sun"></i></div><div><div class="meteo-title" data-i18n="meteo.title">'+esc(t('meteo.title'))+'</div><div class="meteo-sub" id="mwCity" data-i18n="meteo.loading">'+esc(t('meteo.loading'))+'</div></div><div class="meteo-badge" id="mwBadge">--:--</div></div><div class="meteo-section"><h3><i class="fa-solid fa-temperature-half"></i> <span data-i18n="meteo.current">'+esc(t('meteo.current'))+'</span></h3><div class="m-chips" id="meteoNow"></div></div><div class="meteo-section"><div class="meteo-acc" id="meteoAcc"><div class="meteo-acc-h" id="meteoAccHead"><strong><i class="fa-solid fa-circle-info"></i> <span data-i18n="meteo.details">'+esc(t('meteo.details'))+'</span></strong><small><i id="meteoChev" class="fa-solid fa-chevron-down"></i></small></div><div class="meteo-acc-b" id="meteoAccBody"><div class="m-chips" id="meteoDet"></div></div></div></div><div class="meteo-cta"><a class="meteo-btn" href="javascript:void(0)" id="meteoWeekly"><i class="fa-solid fa-calendar-week"></i> <span data-i18n="meteo.weekly">'+esc(t('meteo.weekly'))+'</span></a></div><div class="meteo-layer" id="meteoLoader"><div class="meteo-spinner" aria-label="Caricamento"></div></div><div class="meteo-layer meteo-err" id="meteoError" role="alert"><div><i class="fa-solid fa-triangle-exclamation"></i> <span data-i18n="meteo.error">'+esc(t('meteo.error'))+'</span></div><div class="msg" id="meteoErrmsg" data-i18n="meteo.errorSub">'+esc(t('meteo.errorSub'))+'</div><a class="meteo-btn" href="#" id="meteoRetry" style="margin-top:4px"><i class="fa-solid fa-rotate-right"></i> <span data-i18n="meteo.retry">'+esc(t('meteo.retry'))+'</span></a></div></div></section>'
+  };
 
-  /* 2. Ticker */
-  html+='<section class="w-ticker" id="tickerBar" aria-label="Notizie in scorrimento"><div class="ticker-header"><a href="'+esc(href(C.ticker.linkUrl))+'" target="_blank" rel="noopener"><span class="news-ico" aria-hidden="true"><span style="transform:translateY(1px);display:inline-block;">\\u{1F4F0}</span></span><span class="header-title" data-i18n="ticker.title">'+esc(t('ticker.title'))+'</span><span class="arrow-link" aria-hidden="true">\\u2197</span></a></div><div class="ticker-strip"><rssapp-ticker id="'+esc(C.ticker.rssWidgetId)+'"></rssapp-ticker></div></section>';
-
-  /* 3. Slideshow slot */
-  html+='<div id="slideshowSlot"></div>';
-
-  /* 4. Services */
-  const svcSections=C.servizi.map(sec=>{
-    const cards=sec.items.map(it=>'<a class="svc-link" href="'+esc(href(it.href))+'" target="_blank" rel="noopener"><div class="svc-card"><div class="svc-icon-box"><i class="fa-solid '+esc(it.icon)+'"></i></div><div class="svc-label-it" data-i18n-it="'+esc(it.labelIt)+'" data-i18n-en="'+esc(it.labelEn)+'">'+esc(LANG==='en'?it.labelEn:it.labelIt)+'</div></div></a>').join('');
-    return '<div class="svc-section"><div class="svc-section-hdr"><div class="svc-title-it" data-i18n-it="'+esc(sec.sectionIt)+'" data-i18n-en="'+esc(sec.sectionEn)+'">'+esc(LANG==='en'?sec.sectionEn:sec.sectionIt)+'</div></div><div class="svc-grid">'+cards+'</div></div>';
-  }).join('');
-  html+='<section class="w-services" id="servicesContainer" aria-label="Servizi comunali">'+svcSections+'</section>';
-
-  /* 5. Banner Scatti */
-  html+='<section class="w-banner-scatti" id="bannerScatti" aria-label="I vostri scatti"><a href="'+esc(href(C.bannerScatti.href))+'" class="banner-link-card" target="_blank" rel="noopener"><div class="banner-content"><div class="banner-title" data-i18n-it="'+esc(C.bannerScatti.titleIt)+'" data-i18n-en="'+esc(C.bannerScatti.titleEn||C.bannerScatti.titleIt)+'">'+esc(LANG==='en'?(C.bannerScatti.titleEn||C.bannerScatti.titleIt):C.bannerScatti.titleIt)+'</div><div class="banner-subtitle-text" data-i18n="banner.subtitle">'+esc(t('banner.subtitle'))+'</div></div><div class="banner-actions"><i class="fas fa-camera camera-icon"></i><div class="cta-arrow-box"><i class="fas fa-chevron-right cta-arrow-icon"></i></div></div></a></section>';
-
-  /* 6. Banner CIE */
-  if(C.bannerCie.enabled){
-    html+='<section class="w-banner-cie" id="bannerCIE" role="region" aria-label="Avviso CIE"><a class="cie-link" href="'+esc(C.bannerCie.href)+'" target="_blank" rel="noopener" aria-label="'+esc(C.bannerCie.title)+'"><div class="cie-ico" aria-hidden="true"><i class="fa-solid fa-id-card"></i></div><div class="cie-txt"><p class="cie-title" data-i18n-it="'+esc(C.bannerCie.title)+'" data-i18n-en="'+esc(C.bannerCie.titleEn||C.bannerCie.title)+'">'+esc(LANG==='en'?(C.bannerCie.titleEn||C.bannerCie.title):C.bannerCie.title)+'</p><p class="cie-subtitle" data-i18n-it="'+esc(C.bannerCie.subtitle)+'" data-i18n-en="'+esc(C.bannerCie.subtitleEn||C.bannerCie.subtitle)+'">'+esc(LANG==='en'?(C.bannerCie.subtitleEn||C.bannerCie.subtitle):C.bannerCie.subtitle)+'</p></div><div class="cie-info-wrap" aria-hidden="true"><span class="cie-badge" data-i18n="cie.badge">'+esc(t('cie.badge'))+'</span><span class="cie-ring"></span><span class="cie-finger"><i class="fa-solid fa-hand-point-up"></i></span></div></a></section>';
-  }
-
-  /* 7. Raccolta */
-  html+='<section class="w-raccolta-wrapper" aria-label="Raccolta differenziata"><div id="raccoltaDifferenziata" class="rd-card" aria-live="polite"></div></section>';
-
-  /* 8. Protezione Civile */
-  if(C.protezioneCivile.enabled){
-    html+='<section class="w-protezione" id="protezioneCivile" aria-label="Bollettino Protezione Civile"><div id="dpc-alerts-widget"></div></section>';
-  }
-
-  /* 9. Meteo */
-  html+='<section class="w-meteo-wrapper" aria-label="Meteo '+esc(C.nomeComune)+'"><div id="meteoCard" class="meteo-card" aria-live="polite"><div class="meteo-header"><div class="meteo-icon" aria-hidden="true"><i class="fa-solid fa-cloud-sun"></i></div><div><div class="meteo-title" data-i18n="meteo.title">'+esc(t('meteo.title'))+'</div><div class="meteo-sub" id="mwCity" data-i18n="meteo.loading">'+esc(t('meteo.loading'))+'</div></div><div class="meteo-badge" id="mwBadge">--:--</div></div><div class="meteo-section"><h3><i class="fa-solid fa-temperature-half"></i> <span data-i18n="meteo.current">'+esc(t('meteo.current'))+'</span></h3><div class="m-chips" id="meteoNow"></div></div><div class="meteo-section"><div class="meteo-acc" id="meteoAcc"><div class="meteo-acc-h" id="meteoAccHead"><strong><i class="fa-solid fa-circle-info"></i> <span data-i18n="meteo.details">'+esc(t('meteo.details'))+'</span></strong><small><i id="meteoChev" class="fa-solid fa-chevron-down"></i></small></div><div class="meteo-acc-b" id="meteoAccBody"><div class="m-chips" id="meteoDet"></div></div></div></div><div class="meteo-cta"><a class="meteo-btn" href="javascript:void(0)" id="meteoWeekly"><i class="fa-solid fa-calendar-week"></i> <span data-i18n="meteo.weekly">'+esc(t('meteo.weekly'))+'</span></a></div><div class="meteo-layer" id="meteoLoader"><div class="meteo-spinner" aria-label="Caricamento"></div></div><div class="meteo-layer meteo-err" id="meteoError" role="alert"><div><i class="fa-solid fa-triangle-exclamation"></i> <span data-i18n="meteo.error">'+esc(t('meteo.error'))+'</span></div><div class="msg" id="meteoErrmsg" data-i18n="meteo.errorSub">'+esc(t('meteo.errorSub'))+'</div><a class="meteo-btn" href="#" id="meteoRetry" style="margin-top:4px"><i class="fa-solid fa-rotate-right"></i> <span data-i18n="meteo.retry">'+esc(t('meteo.retry'))+'</span></a></div></div></section>';
+  // Sort widgets by order and render enabled ones
+  const enabledWidgets=(C.widgets||[]).filter(w=>w.enabled).sort((a,b)=>a.order-b.order);
+  enabledWidgets.forEach(w=>{if(widgetRenderers[w.id]){const rendered=widgetRenderers[w.id]();if(rendered)html+=rendered;}});
 
   mount.innerHTML=html;
 
