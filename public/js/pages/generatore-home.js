@@ -64,6 +64,24 @@ window.GeneratoreHome = (function () {
   }
 
   /* ============================================================
+     PRESET COLOR PALETTES
+     ============================================================ */
+  const COLOR_PRESETS = [
+    { name: 'Comune.Digital',       primary: '#145284', secondary: '#3CA434', icon: 'fa-city',              desc: 'Blu istituzionale + Verde' },
+    { name: 'Blu Notte',            primary: '#0D3A5C', secondary: '#FF9800', icon: 'fa-moon',              desc: 'Blu scuro + Arancione' },
+    { name: 'Verde Natura',         primary: '#2E7D32', secondary: '#FF6F00', icon: 'fa-leaf',              desc: 'Verde bosco + Arancio caldo' },
+    { name: 'Rosso Borghi',         primary: '#B71C1C', secondary: '#1565C0', icon: 'fa-landmark',          desc: 'Rosso mattone + Blu' },
+    { name: 'Azzurro Mare',         primary: '#0288D1', secondary: '#43A047', icon: 'fa-water',             desc: 'Azzurro + Verde acqua' },
+    { name: 'Viola Cultura',        primary: '#6A1B9A', secondary: '#00897B', icon: 'fa-masks-theater',     desc: 'Viola + Verde teal' },
+    { name: 'Arancione Energia',    primary: '#E65100', secondary: '#1B5E20', icon: 'fa-sun',               desc: 'Arancione + Verde scuro' },
+    { name: 'Grigio Moderno',       primary: '#37474F', secondary: '#00ACC1', icon: 'fa-building',          desc: 'Grigio antracite + Ciano' },
+    { name: 'Turchese Costiero',    primary: '#00695C', secondary: '#EF6C00', icon: 'fa-umbrella-beach',    desc: 'Turchese + Arancio' },
+    { name: 'Bordeaux Elegante',    primary: '#880E4F', secondary: '#4A148C', icon: 'fa-wine-glass',        desc: 'Bordeaux + Viola profondo' },
+    { name: 'Oliva Campagna',       primary: '#558B2F', secondary: '#8D6E63', icon: 'fa-tractor',           desc: 'Oliva + Marrone terra' },
+    { name: 'Blu Elettrico',        primary: '#1A237E', secondary: '#F57C00', icon: 'fa-bolt',              desc: 'Blu intenso + Arancione' },
+  ];
+
+  /* ============================================================
      FA ICONS LIST
      ============================================================ */
   const FA_ICONS = [
@@ -234,15 +252,46 @@ window.GeneratoreHome = (function () {
     );
 
     // === SEZ. 4: PALETTE COLORI ===
+    // Build preset palette cards
+    let presetHtml = '<div style="margin-bottom:20px;">' +
+      '<label style="display:block;font-weight:700;color:#145284;margin-bottom:10px;font-size:14px;"><i class="fas fa-swatchbook"></i> Palette Preimpostate</label>' +
+      '<div id="ghPresetGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;">';
+    COLOR_PRESETS.forEach(function(pr, idx) {
+      const isActive = (state.colorePrimario.toLowerCase() === pr.primary.toLowerCase() && state.coloreSecondario.toLowerCase() === pr.secondary.toLowerCase());
+      presetHtml += '<div class="ghPresetCard" data-preset-idx="'+idx+'" style="border:2px solid '+(isActive ? pr.primary : '#e0e0e0')+';border-radius:12px;padding:12px 10px;cursor:pointer;text-align:center;transition:all .2s;background:'+(isActive ? pr.primary+'12' : '#fff')+';position:relative;">' +
+        (isActive ? '<div style="position:absolute;top:6px;right:6px;background:'+pr.primary+';color:#fff;width:20px;height:20px;border-radius:50%;font-size:10px;display:flex;align-items:center;justify-content:center;"><i class="fas fa-check"></i></div>' : '') +
+        '<div style="display:flex;justify-content:center;gap:6px;margin-bottom:8px;">' +
+          '<div style="width:32px;height:32px;border-radius:8px;background:'+esc(pr.primary)+';border:1px solid rgba(0,0,0,.1);"></div>' +
+          '<div style="width:32px;height:32px;border-radius:8px;background:'+esc(pr.secondary)+';border:1px solid rgba(0,0,0,.1);"></div>' +
+        '</div>' +
+        '<div style="font-weight:700;font-size:12px;color:#1E1E1E;line-height:1.2;">'+esc(pr.name)+'</div>' +
+        '<div style="font-size:10px;color:#9B9B9B;margin-top:2px;"><i class="fas '+esc(pr.icon)+'"></i> '+esc(pr.desc)+'</div>' +
+      '</div>';
+    });
+    presetHtml += '</div></div>';
+
+    // Separator + Custom section
+    presetHtml += '<div style="display:flex;align-items:center;gap:12px;margin:16px 0;">' +
+      '<div style="flex:1;height:1px;background:#D9D9D9;"></div>' +
+      '<span style="font-size:12px;font-weight:600;color:#9B9B9B;">oppure scegli manualmente</span>' +
+      '<div style="flex:1;height:1px;background:#D9D9D9;"></div>' +
+    '</div>';
+
+    presetHtml += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:16px;">' +
+      '<div><label style="display:block;font-weight:600;color:#4A4A4A;margin-bottom:6px;font-size:13px;">Colore Principale</label>' +
+        '<div style="display:flex;align-items:center;gap:12px;">' +
+          '<input type="color" id="ghColorePrimario" value="'+esc(state.colorePrimario)+'" style="width:60px;height:40px;border:none;cursor:pointer;border-radius:8px;">' +
+          '<input type="text" id="ghColorePrimarioHex" value="'+esc(state.colorePrimario)+'" maxlength="7" style="width:90px;padding:8px 10px;border:1px solid #d0d0d0;border-radius:8px;font-weight:700;font-size:14px;color:#4A4A4A;font-family:\'Titillium Web\',sans-serif;text-transform:uppercase;">' +
+        '</div></div>' +
+      '<div><label style="display:block;font-weight:600;color:#4A4A4A;margin-bottom:6px;font-size:13px;">Colore Secondario</label>' +
+        '<div style="display:flex;align-items:center;gap:12px;">' +
+          '<input type="color" id="ghColoreSecondario" value="'+esc(state.coloreSecondario)+'" style="width:60px;height:40px;border:none;cursor:pointer;border-radius:8px;">' +
+          '<input type="text" id="ghColoreSecondarioHex" value="'+esc(state.coloreSecondario)+'" maxlength="7" style="width:90px;padding:8px 10px;border:1px solid #d0d0d0;border-radius:8px;font-weight:700;font-size:14px;color:#4A4A4A;font-family:\'Titillium Web\',sans-serif;text-transform:uppercase;">' +
+        '</div></div>' +
+    '</div>';
+
     formHtml += makeSection('fa-palette', 'Palette Colori',
-      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:16px;">' +
-        '<div><label style="display:block;font-weight:600;color:#4A4A4A;margin-bottom:6px;font-size:13px;">Colore Principale</label>' +
-          '<div style="display:flex;align-items:center;gap:12px;"><input type="color" id="ghColorePrimario" value="'+esc(state.colorePrimario)+'" style="width:60px;height:40px;border:none;cursor:pointer;border-radius:8px;">' +
-          '<span id="ghColorePrimarioHex" style="font-weight:700;font-size:14px;color:#4A4A4A;">'+esc(state.colorePrimario)+'</span></div></div>' +
-        '<div><label style="display:block;font-weight:600;color:#4A4A4A;margin-bottom:6px;font-size:13px;">Colore Secondario</label>' +
-          '<div style="display:flex;align-items:center;gap:12px;"><input type="color" id="ghColoreSecondario" value="'+esc(state.coloreSecondario)+'" style="width:60px;height:40px;border:none;cursor:pointer;border-radius:8px;">' +
-          '<span id="ghColoreSecondarioHex" style="font-weight:700;font-size:14px;color:#4A4A4A;">'+esc(state.coloreSecondario)+'</span></div></div>' +
-      '</div>' +
+      presetHtml +
       '<div id="ghPalettePreview" style="display:flex;gap:8px;flex-wrap:wrap;"></div>',
       false
     );
@@ -397,7 +446,7 @@ window.GeneratoreHome = (function () {
     refreshServizi();
     refreshWidgetList();
     updatePalettePreview();
-    if (!firebaseAvailable) showFirebaseWarning();
+    if (!isFirebaseAvailable()) showFirebaseWarning();
     else loadConfigList();
   }
 
@@ -418,20 +467,62 @@ window.GeneratoreHome = (function () {
       });
     });
 
-    // Color pickers
+    // Color pickers + hex text inputs (bidirezionali)
     const cp = document.getElementById('ghColorePrimario');
     const cs = document.getElementById('ghColoreSecondario');
+    const cpHex = document.getElementById('ghColorePrimarioHex');
+    const csHex = document.getElementById('ghColoreSecondarioHex');
+
     if (cp) cp.addEventListener('input', e => {
       state.colorePrimario = e.target.value;
-      const hex = document.getElementById('ghColorePrimarioHex');
-      if (hex) hex.textContent = e.target.value;
+      if (cpHex) cpHex.value = e.target.value;
       updatePalettePreview();
+      updatePresetHighlight();
     });
     if (cs) cs.addEventListener('input', e => {
       state.coloreSecondario = e.target.value;
-      const hex = document.getElementById('ghColoreSecondarioHex');
-      if (hex) hex.textContent = e.target.value;
+      if (csHex) csHex.value = e.target.value;
       updatePalettePreview();
+      updatePresetHighlight();
+    });
+
+    // Hex input → aggiorna color picker
+    if (cpHex) cpHex.addEventListener('input', e => {
+      let val = e.target.value.trim();
+      if (val.length >= 4 && /^#[0-9a-fA-F]{3,6}$/.test(val)) {
+        if (val.length === 4) val = '#' + val[1]+val[1] + val[2]+val[2] + val[3]+val[3];
+        state.colorePrimario = val;
+        if (cp) cp.value = val;
+        updatePalettePreview();
+        updatePresetHighlight();
+      }
+    });
+    if (csHex) csHex.addEventListener('input', e => {
+      let val = e.target.value.trim();
+      if (val.length >= 4 && /^#[0-9a-fA-F]{3,6}$/.test(val)) {
+        if (val.length === 4) val = '#' + val[1]+val[1] + val[2]+val[2] + val[3]+val[3];
+        state.coloreSecondario = val;
+        if (cs) cs.value = val;
+        updatePalettePreview();
+        updatePresetHighlight();
+      }
+    });
+
+    // Preset palette cards click
+    document.querySelectorAll('.ghPresetCard').forEach(card => {
+      card.addEventListener('click', () => {
+        const idx = parseInt(card.getAttribute('data-preset-idx'));
+        const preset = COLOR_PRESETS[idx];
+        if (!preset) return;
+        state.colorePrimario = preset.primary;
+        state.coloreSecondario = preset.secondary;
+        if (cp) cp.value = preset.primary;
+        if (cs) cs.value = preset.secondary;
+        if (cpHex) cpHex.value = preset.primary;
+        if (csHex) csHex.value = preset.secondary;
+        updatePalettePreview();
+        updatePresetHighlight();
+      });
     });
 
     // Add slide
@@ -687,7 +778,9 @@ window.GeneratoreHome = (function () {
   /* ============================================================
      FIREBASE – SAVE/LOAD CONFIGURATIONS
      ============================================================ */
-  const firebaseAvailable = typeof firebase !== 'undefined' && firebase.firestore && typeof AuthService !== 'undefined' && AuthService.getCurrentUser;
+  function isFirebaseAvailable() {
+    return typeof firebase !== 'undefined' && firebase.firestore && typeof AuthService !== 'undefined' && AuthService.getCurrentUser;
+  }
 
   function showFirebaseWarning() {
     const w = document.getElementById('ghFirebaseWarning');
@@ -698,7 +791,7 @@ window.GeneratoreHome = (function () {
 
   async function loadConfigList() {
     const sel = document.getElementById('ghConfigSelect');
-    if (!sel || !firebaseAvailable) return;
+    if (!sel || !isFirebaseAvailable()) return;
     try {
       const db = firebase.firestore();
       const snap = await db.collection('generatore-home-configs').get();
@@ -715,7 +808,7 @@ window.GeneratoreHome = (function () {
   }
 
   async function saveConfig() {
-    if (!firebaseAvailable) { alert('Firebase non disponibile'); return; }
+    if (!isFirebaseAvailable()) { alert('Firebase non disponibile'); return; }
     collectState();
     if (!state.nomeComune) { alert('Inserisci il nome del comune!'); return; }
     try {
@@ -738,7 +831,7 @@ window.GeneratoreHome = (function () {
   }
 
   async function loadConfig(docId) {
-    if (!firebaseAvailable) { alert('Firebase non disponibile'); return; }
+    if (!isFirebaseAvailable()) { alert('Firebase non disponibile'); return; }
     try {
       const db = firebase.firestore();
       const doc = await db.collection('generatore-home-configs').doc(docId).get();
@@ -757,7 +850,7 @@ window.GeneratoreHome = (function () {
   }
 
   async function deleteConfig(docId) {
-    if (!firebaseAvailable) { alert('Firebase non disponibile'); return; }
+    if (!isFirebaseAvailable()) { alert('Firebase non disponibile'); return; }
     if (!confirm('Sei sicuro di voler eliminare questa configurazione?')) return;
     try {
       const db = firebase.firestore();
@@ -779,14 +872,36 @@ window.GeneratoreHome = (function () {
     const p = generatePalette(state.colorePrimario);
     const g = generatePalette(state.coloreSecondario);
     const box = (color, label) => '<div style="text-align:center;"><div style="width:40px;height:40px;border-radius:10px;background:'+color+';border:1px solid rgba(0,0,0,.1);margin:0 auto 4px;"></div><div style="font-size:10px;color:#4A4A4A;">'+label+'</div></div>';
-    el.innerHTML = '<div style="margin-bottom:8px;font-size:12px;font-weight:700;color:#145284;width:100%;">Primario</div>' +
+    el.innerHTML = '<div style="margin-bottom:8px;font-size:12px;font-weight:700;color:'+state.colorePrimario+';width:100%;">Primario</div>' +
       '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">' +
         box(p['900'],'900') + box(p['700'],'700') + box(p['500'],'500') + box(p['300'],'300') + box(p['100'],'100') +
       '</div>' +
-      '<div style="margin-bottom:8px;font-size:12px;font-weight:700;color:#3CA434;width:100%;">Secondario</div>' +
+      '<div style="margin-bottom:8px;font-size:12px;font-weight:700;color:'+state.coloreSecondario+';width:100%;">Secondario</div>' +
       '<div style="display:flex;gap:8px;flex-wrap:wrap;">' +
         box(g['900'],'900') + box(g['700'],'700') + box(g['500'],'500') + box(g['300'],'300') + box(g['100'],'100') +
       '</div>';
+  }
+
+  function updatePresetHighlight() {
+    document.querySelectorAll('.ghPresetCard').forEach(card => {
+      const idx = parseInt(card.getAttribute('data-preset-idx'));
+      const pr = COLOR_PRESETS[idx];
+      if (!pr) return;
+      const isActive = (state.colorePrimario.toLowerCase() === pr.primary.toLowerCase() && state.coloreSecondario.toLowerCase() === pr.secondary.toLowerCase());
+      card.style.borderColor = isActive ? pr.primary : '#e0e0e0';
+      card.style.background = isActive ? pr.primary + '12' : '#fff';
+      // Aggiorna check icon
+      const existingCheck = card.querySelector('.ghPresetCheck');
+      if (isActive && !existingCheck) {
+        const check = document.createElement('div');
+        check.className = 'ghPresetCheck';
+        check.style.cssText = 'position:absolute;top:6px;right:6px;background:'+pr.primary+';color:#fff;width:20px;height:20px;border-radius:50%;font-size:10px;display:flex;align-items:center;justify-content:center;';
+        check.innerHTML = '<i class="fas fa-check"></i>';
+        card.appendChild(check);
+      } else if (!isActive && existingCheck) {
+        existingCheck.remove();
+      }
+    });
   }
 
   /* ============================================================
