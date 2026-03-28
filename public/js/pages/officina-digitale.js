@@ -36,7 +36,8 @@ const OfficinaDigitale = (() => {
             const scriptMap = {
                 'portafoglio': `js/pages/od-portafoglio.js?v=${version}`,
                 'catalogo': `js/pages/od-catalogo.js?v=${version}`,
-                'attivita': `js/pages/od-attivita.js?v=${version}`
+                'attivita': `js/pages/od-attivita.js?v=${version}`,
+                'generatore-home': `js/pages/generatore-home.js?v=${version}`
             };
 
             const src = scriptMap[moduleName];
@@ -211,7 +212,11 @@ const OfficinaDigitale = (() => {
                 break;
 
             case 'generatore':
-                // Il Generatore Webapp è già caricato come script globale
+                _renderGeneratoreSelector();
+                break;
+
+            case 'generatore-webapp':
+                // Il Generatore Webapp generico (già caricato come script globale)
                 if (typeof GeneratoreWebapp !== 'undefined') {
                     GeneratoreWebapp.render();
                 } else {
@@ -223,9 +228,114 @@ const OfficinaDigitale = (() => {
                 }
                 break;
 
+            case 'generatore-home':
+                // Generatore Home Page – lazy loaded
+                _loadModuleAndRender('generatore-home', () => {
+                    if (typeof GeneratoreHome !== 'undefined') {
+                        GeneratoreHome.render();
+                    } else {
+                        document.getElementById('mainContent').innerHTML = `
+                            <div style="padding:40px;text-align:center;color:var(--grigio-500);">
+                                <i class="fas fa-exclamation-circle" style="font-size:2rem;"></i>
+                                <p style="margin-top:1rem;">Generatore Home Page non disponibile.</p>
+                            </div>`;
+                    }
+                });
+                break;
+
             default:
                 render();
         }
+    }
+
+    // =========================================================================
+    // GENERATORE – SCHERMATA SELEZIONE MODELLI
+    // =========================================================================
+
+    /**
+     * Mostra la griglia di selezione dei modelli disponibili nel Generatore.
+     * Ogni card rappresenta un tipo di webapp generabile.
+     */
+    function _renderGeneratoreSelector() {
+        const container = document.getElementById('mainContent');
+
+        const modelli = [
+            {
+                id: 'generatore-webapp',
+                nome: 'Webapp Generica',
+                descrizione: 'Genera webapp personalizzate con layout e componenti standard per i comuni.',
+                icona: 'fas fa-window-maximize',
+                colore: '#9C27B0',
+                disponibile: typeof GeneratoreWebapp !== 'undefined'
+            },
+            {
+                id: 'generatore-home',
+                nome: 'Home Page App',
+                descrizione: 'Genera la home page completa dell\'app comunale con meteo, servizi, raccolta differenziata, news e molto altro.',
+                icona: 'fas fa-home',
+                colore: '#145284',
+                disponibile: true  // lazy-loaded, sempre disponibile
+            }
+        ];
+
+        container.innerHTML = `
+            <div style="padding: 24px; max-width: 900px; margin: 0 auto;">
+                <!-- Header -->
+                <div style="display:flex; align-items:center; gap:12px; margin-bottom:8px;">
+                    <button onclick="OfficinaDigitale.render()" style="background:none;border:none;cursor:pointer;color:var(--grigio-500);font-size:1.1rem;padding:4px;">
+                        <i class="fas fa-arrow-left"></i>
+                    </button>
+                    <h2 style="margin:0;font-family:'Titillium Web',sans-serif;font-weight:700;color:#1E1E1E;font-size:1.4rem;">
+                        <i class="fas fa-magic" style="color:#9C27B0;margin-right:8px;"></i>Generatore Webapp
+                    </h2>
+                </div>
+                <p style="color:#4A4A4A;margin:0 0 24px 36px;font-size:0.95rem;">
+                    Scegli il modello da generare. Ogni modello produce un file HTML completo e funzionante.
+                </p>
+
+                <!-- Griglia modelli -->
+                <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:20px;padding:0 0 0 0;">
+                    ${modelli.map(m => `
+                        <div onclick="${m.disponibile ? `OfficinaDigitale.navigateTo('${m.id}')` : ''}"
+                             style="
+                                background:#fff;
+                                border-radius:12px;
+                                border:1px solid ${m.disponibile ? '#D9D9D9' : '#eee'};
+                                border-left:4px solid ${m.colore};
+                                padding:24px;
+                                cursor:${m.disponibile ? 'pointer' : 'not-allowed'};
+                                opacity:${m.disponibile ? '1' : '0.5'};
+                                transition:all 0.2s ease;
+                                box-shadow:0 2px 8px rgba(0,0,0,0.06);
+                             "
+                             onmouseover="if(${m.disponibile})this.style.boxShadow='0 4px 16px rgba(0,0,0,0.12)';if(${m.disponibile})this.style.transform='translateY(-2px)'"
+                             onmouseout="this.style.boxShadow='0 2px 8px rgba(0,0,0,0.06)';this.style.transform='none'">
+                            <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+                                <div style="width:48px;height:48px;border-radius:12px;background:${m.colore}15;display:flex;align-items:center;justify-content:center;">
+                                    <i class="${m.icona}" style="font-size:1.3rem;color:${m.colore};"></i>
+                                </div>
+                                <div>
+                                    <h3 style="margin:0;font-family:'Titillium Web',sans-serif;font-weight:700;color:#1E1E1E;font-size:1.1rem;">
+                                        ${m.nome}
+                                    </h3>
+                                    ${!m.disponibile ? '<span style="font-size:0.75rem;color:#D32F2F;font-weight:600;">Non caricato</span>' : ''}
+                                </div>
+                            </div>
+                            <p style="margin:0;color:#4A4A4A;font-size:0.9rem;line-height:1.5;">
+                                ${m.descrizione}
+                            </p>
+                            ${m.disponibile ? `
+                                <div style="margin-top:16px;text-align:right;">
+                                    <span style="color:${m.colore};font-size:0.85rem;font-weight:600;">
+                                        Apri generatore <i class="fas fa-arrow-right" style="margin-left:4px;"></i>
+                                    </span>
+                                </div>
+                            ` : ''}
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
     }
 
     function _loadModuleAndRender(moduleName, callback) {
