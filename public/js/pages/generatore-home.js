@@ -115,7 +115,7 @@ window.GeneratoreHome = (function () {
         ]
       }],
       bannerCustomItems: [
-        { icon: 'fa-bullhorn', kicker: '', titleIt: '', titleEn: '', href: '', ctaLabel: 'Apri', ctaIcon: 'fa-arrow-right', bgImage: '' }
+        { icon: 'fa-bullhorn', kicker: '', titleIt: '', href: '', ctaLabel: 'Apri', ctaIcon: 'fa-arrow-right', bgImage: '' }
       ],
       bannerCieEnabled: true,
       bannerCieTitle: "Stop alla carta d'identità cartacea",
@@ -529,7 +529,7 @@ window.GeneratoreHome = (function () {
     if (btnAddBanner) btnAddBanner.addEventListener('click', () => {
       if (state.bannerCustomItems.length < 4) {
         collectBannerItemsFromDOM();
-        state.bannerCustomItems.push({ icon: 'fa-star', kicker: '', titleIt: '', titleEn: '', href: '', ctaLabel: 'Apri', ctaIcon: 'fa-arrow-right', bgImage: '' });
+        state.bannerCustomItems.push({ icon: 'fa-star', kicker: '', titleIt: '', href: '', ctaLabel: 'Apri', ctaIcon: 'fa-arrow-right', bgImage: '' });
         refreshBannerItems();
       } else {
         alert('Massimo 4 card nel banner carousel!');
@@ -695,12 +695,10 @@ window.GeneratoreHome = (function () {
           '<div><label style="font-size:12px;font-weight:600;color:#4A4A4A;">Etichetta (kicker)</label>' +
             '<input type="text" data-banner="'+i+'" data-bfield="kicker" value="'+esc(item.kicker)+'" placeholder="Es: Notizie" style="width:100%;padding:8px 10px;border:1px solid #d0d0d0;border-radius:6px;font-size:13px;box-sizing:border-box;font-family:\'Titillium Web\',sans-serif;"></div>' +
         '</div>' +
-        // Riga 2: Titolo IT + Titolo EN
-        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:8px;">' +
-          '<div><label style="font-size:12px;font-weight:600;color:#4A4A4A;">Titolo IT</label>' +
-            '<input type="text" data-banner="'+i+'" data-bfield="titleIt" value="'+esc(item.titleIt)+'" placeholder="Es: News dal Comune" style="width:100%;padding:8px 10px;border:1px solid #d0d0d0;border-radius:6px;font-size:13px;box-sizing:border-box;font-family:\'Titillium Web\',sans-serif;"></div>' +
-          '<div><label style="font-size:12px;font-weight:600;color:#4A4A4A;">Sottotitolo EN</label>' +
-            '<input type="text" data-banner="'+i+'" data-bfield="titleEn" value="'+esc(item.titleEn)+'" placeholder="Es: City news" style="width:100%;padding:8px 10px;border:1px solid #d0d0d0;border-radius:6px;font-size:13px;box-sizing:border-box;font-family:\'Titillium Web\',sans-serif;"></div>' +
+        // Riga 2: Titolo
+        '<div style="margin-bottom:8px;">' +
+          '<label style="font-size:12px;font-weight:600;color:#4A4A4A;">Titolo</label>' +
+          '<input type="text" data-banner="'+i+'" data-bfield="titleIt" value="'+esc(item.titleIt)+'" placeholder="Es: News dal Comune" style="width:100%;padding:8px 10px;border:1px solid #d0d0d0;border-radius:6px;font-size:13px;box-sizing:border-box;font-family:\'Titillium Web\',sans-serif;">' +
         '</div>' +
         // Riga 3: Link + BG Image
         '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:8px;">' +
@@ -1559,7 +1557,7 @@ rssapp-ticker a{margin-right:50px!important;display:inline-block!important;color
 .bc-kicker{display:inline-flex;align-items:center;gap:.4rem;font-weight:700;font-size:clamp(.7rem,2.5vw,.85rem);text-transform:uppercase;letter-spacing:.03em;color:var(--blu);background:rgba(20,82,132,.08);border:1px solid rgba(20,82,132,.15);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);padding:.25rem .6rem;border-radius:999px;line-height:1;max-width:100%;word-break:break-word;box-shadow:0 2px 10px rgba(20,82,132,.05);}
 .bc-kicker i{font-size:.9em;}
 .bc-title{margin:.2rem 0 0;font-weight:700;font-size:clamp(1.1rem,4.2vw,1.35rem);line-height:1.15;color:var(--blu);text-shadow:0 2px 4px rgba(20,82,132,.15);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word;}
-.bc-subtitle-en{margin:0;font-weight:400;font-size:clamp(.8rem,2.8vw,.95rem);line-height:1.3;color:var(--cd-gray-700);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+
 .bc-cta{display:inline-flex;align-items:center;justify-content:center;gap:.4rem;padding:.6rem;border-radius:50%;background:linear-gradient(135deg,var(--blu) 0%,var(--blu-dark) 100%);color:#fff;border:none;box-shadow:0 4px 12px rgba(20,82,132,.3);transition:transform .2s ease,box-shadow .2s ease;flex:0 0 auto;}
 .bc-cta:hover{transform:translateY(-2px);box-shadow:0 6px 16px rgba(20,82,132,.4);}
 .bc-cta-label{display:none;font-weight:700;font-size:.9rem;}
@@ -1573,7 +1571,7 @@ rssapp-ticker a{margin-right:50px!important;display:inline-block!important;color
 [data-theme="dark"] .bc-slide-link{color:var(--cd-blue-700);}
 [data-theme="dark"] .bc-kicker{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.15);color:var(--cd-blue-500);}
 [data-theme="dark"] .bc-title{color:var(--cd-blue-500);text-shadow:none;}
-[data-theme="dark"] .bc-subtitle-en{color:var(--cd-gray-700);}
+
 [data-theme="dark"] .bc-dots{background:rgba(30,30,30,.6);border-color:rgba(255,255,255,.1);}
 .w-banner-cie{width:100%;max-width:900px;margin:0 auto;background:linear-gradient(180deg,rgba(20,82,132,.96),rgba(15,55,88,.96));border:1px solid rgba(255,255,255,.12);box-shadow:var(--shadow-md);position:relative;overflow:hidden;}
 .w-banner-cie::before{content:"";position:absolute;inset:-2px;background:radial-gradient(900px 220px at 18% 0%,rgba(255,255,255,.22),transparent 55%),radial-gradient(780px 220px at 92% 30%,rgba(255,255,255,.10),transparent 60%),radial-gradient(520px 260px at 40% 140%,rgba(60,164,52,.14),transparent 65%);pointer-events:none;mix-blend-mode:overlay;}
@@ -1722,8 +1720,7 @@ rssapp-ticker a{margin-right:50px!important;display:inline-block!important;color
           +'<a class="bc-slide-link" href="'+esc(href(it.href))+'" target="_blank" rel="noopener" aria-label="'+esc(it.titleIt)+'">'
           +'<div class="bc-text-wrap"><div class="bc-title-group">'
           +'<span class="bc-kicker"><i class="fa-solid '+esc(it.icon||'fa-bullhorn')+'"></i> <span data-i18n-it="'+esc(it.kicker)+'" data-i18n-en="'+esc(it.kicker)+'">'+esc(it.kicker)+'</span></span>'
-          +'<h2 class="bc-title" data-i18n-it="'+esc(it.titleIt)+'" data-i18n-en="'+esc(it.titleEn||it.titleIt)+'">'+esc(it.titleIt)+'</h2>'
-          +(it.titleEn?'<p class="bc-subtitle-en" lang="en">'+esc(it.titleEn)+'</p>':'')
+          +'<h2 class="bc-title" data-i18n-it="'+esc(it.titleIt)+'" data-i18n-en="'+esc(it.titleIt)+'">'+esc(it.titleIt)+'</h2>'
           +'</div></div>'
           +'<span class="bc-cta"><span class="bc-cta-label">'+esc(it.ctaLabel||'Apri')+'</span><i class="fa-solid '+esc(it.ctaIcon||'fa-arrow-right')+'"></i></span>'
           +'</a></div>';
