@@ -917,7 +917,7 @@ window.GeneratoreHome = (function () {
     try {
       const db = firebase.firestore();
       const docId = state.nomeComune.toLowerCase().replace(/\s+/g, '-');
-      const userEmail = AuthService.getEmail() || 'unknown';
+      const userEmail = AuthService.getUserEmail() || 'unknown';
       const timestamp = new Date();
       await db.collection('generatore-home-configs').doc(docId).set({
         config: state,
