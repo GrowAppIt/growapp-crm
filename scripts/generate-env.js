@@ -8,7 +8,11 @@
 const fs = require('fs');
 const path = require('path');
 
-console.log('🔧 Generazione env.js da Vercel Environment Variables...');
+// Leggi la versione dal package.json
+const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8'));
+const APP_VERSION = pkg.version || '1.0.0';
+
+console.log(`🔧 Generazione env.js (v${APP_VERSION}) da Vercel Environment Variables...`);
 
 // Verifica che tutte le variabili siano presenti
 const requiredVars = [
@@ -44,7 +48,9 @@ window.ENV = {
     FIREBASE_APP_ID: "${process.env.FIREBASE_APP_ID}"
 };
 
-console.log('✅ Configurazione Firebase caricata da Vercel Environment Variables');
+window.CRM_APP_VERSION = "${APP_VERSION}";
+
+console.log('✅ Configurazione Firebase caricata da Vercel Environment Variables (v${APP_VERSION})');
 `;
 
 // Percorso del file di output (ora in public/js/)
