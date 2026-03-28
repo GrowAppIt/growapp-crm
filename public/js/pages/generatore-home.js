@@ -115,7 +115,7 @@ window.GeneratoreHome = (function () {
         ]
       }],
       bannerCustomItems: [
-        { icon: 'fa-bullhorn', kicker: '', titleIt: '', href: '', ctaLabel: 'Apri', ctaIcon: 'fa-arrow-right', bgImage: '' }
+        { icon: 'fa-bullhorn', kicker: '', titleIt: '', titleEn: '', href: '', ctaLabel: 'Apri', ctaIcon: 'fa-arrow-right', bgImage: '' }
       ],
       bannerCieEnabled: true,
       bannerCieTitle: "Stop alla carta d'identità cartacea",
@@ -529,7 +529,7 @@ window.GeneratoreHome = (function () {
     if (btnAddBanner) btnAddBanner.addEventListener('click', () => {
       if (state.bannerCustomItems.length < 4) {
         collectBannerItemsFromDOM();
-        state.bannerCustomItems.push({ icon: 'fa-star', kicker: '', titleIt: '', href: '', ctaLabel: 'Apri', ctaIcon: 'fa-arrow-right', bgImage: '' });
+        state.bannerCustomItems.push({ icon: 'fa-star', kicker: '', titleIt: '', titleEn: '', href: '', ctaLabel: 'Apri', ctaIcon: 'fa-arrow-right', bgImage: '' });
         refreshBannerItems();
       } else {
         alert('Massimo 4 card nel banner carousel!');
@@ -695,10 +695,12 @@ window.GeneratoreHome = (function () {
           '<div><label style="font-size:12px;font-weight:600;color:#4A4A4A;">Etichetta (kicker)</label>' +
             '<input type="text" data-banner="'+i+'" data-bfield="kicker" value="'+esc(item.kicker)+'" placeholder="Es: Notizie" style="width:100%;padding:8px 10px;border:1px solid #d0d0d0;border-radius:6px;font-size:13px;box-sizing:border-box;font-family:\'Titillium Web\',sans-serif;"></div>' +
         '</div>' +
-        // Riga 2: Titolo
-        '<div style="margin-bottom:8px;">' +
-          '<label style="font-size:12px;font-weight:600;color:#4A4A4A;">Titolo</label>' +
-          '<input type="text" data-banner="'+i+'" data-bfield="titleIt" value="'+esc(item.titleIt)+'" placeholder="Es: News dal Comune" style="width:100%;padding:8px 10px;border:1px solid #d0d0d0;border-radius:6px;font-size:13px;box-sizing:border-box;font-family:\'Titillium Web\',sans-serif;">' +
+        // Riga 2: Titolo IT + Titolo EN
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:8px;">' +
+          '<div><label style="font-size:12px;font-weight:600;color:#4A4A4A;">Titolo (IT)</label>' +
+            '<input type="text" data-banner="'+i+'" data-bfield="titleIt" value="'+esc(item.titleIt)+'" placeholder="Es: News dal Comune" style="width:100%;padding:8px 10px;border:1px solid #d0d0d0;border-radius:6px;font-size:13px;box-sizing:border-box;font-family:\'Titillium Web\',sans-serif;"></div>' +
+          '<div><label style="font-size:12px;font-weight:600;color:#4A4A4A;">Titolo (EN)</label>' +
+            '<input type="text" data-banner="'+i+'" data-bfield="titleEn" value="'+esc(item.titleEn)+'" placeholder="Es: City news" style="width:100%;padding:8px 10px;border:1px solid #d0d0d0;border-radius:6px;font-size:13px;box-sizing:border-box;font-family:\'Titillium Web\',sans-serif;"></div>' +
         '</div>' +
         // Riga 3: Link + BG Image
         '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:8px;">' +
@@ -1720,7 +1722,7 @@ rssapp-ticker a{margin-right:50px!important;display:inline-block!important;color
           +'<a class="bc-slide-link" href="'+esc(href(it.href))+'" target="_blank" rel="noopener" aria-label="'+esc(it.titleIt)+'">'
           +'<div class="bc-text-wrap"><div class="bc-title-group">'
           +'<span class="bc-kicker"><i class="fa-solid '+esc(it.icon||'fa-bullhorn')+'"></i> <span data-i18n-it="'+esc(it.kicker)+'" data-i18n-en="'+esc(it.kicker)+'">'+esc(it.kicker)+'</span></span>'
-          +'<h2 class="bc-title" data-i18n-it="'+esc(it.titleIt)+'" data-i18n-en="'+esc(it.titleIt)+'">'+esc(it.titleIt)+'</h2>'
+          +'<h2 class="bc-title" data-i18n-it="'+esc(it.titleIt)+'" data-i18n-en="'+esc(it.titleEn||it.titleIt)+'">'+esc(it.titleIt)+'</h2>'
           +'</div></div>'
           +'<span class="bc-cta"><span class="bc-cta-label">'+esc(it.ctaLabel||'Apri')+'</span><i class="fa-solid '+esc(it.ctaIcon||'fa-arrow-right')+'"></i></span>'
           +'</a></div>';
