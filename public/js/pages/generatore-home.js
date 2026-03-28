@@ -79,6 +79,7 @@ window.GeneratoreHome = (function () {
     { name: 'Bordeaux Elegante',    primary: '#880E4F', secondary: '#4A148C', icon: 'fa-wine-glass',        desc: 'Bordeaux + Viola profondo' },
     { name: 'Oliva Campagna',       primary: '#558B2F', secondary: '#8D6E63', icon: 'fa-tractor',           desc: 'Oliva + Marrone terra' },
     { name: 'Blu Elettrico',        primary: '#1A237E', secondary: '#F57C00', icon: 'fa-bolt',              desc: 'Blu intenso + Arancione' },
+    { name: 'Rosso Gonfalone',      primary: '#9A162B', secondary: '#145284', icon: 'fa-flag',              desc: 'Rosso gonfalone + Blu' },
   ];
 
   /* ============================================================
@@ -113,8 +114,9 @@ window.GeneratoreHome = (function () {
           { icon: 'fa-triangle-exclamation', labelIt: 'Segnala', labelEn: 'Report Issue', href: 'segnalazioni' },
         ]
       }],
-      bannerCustomTitleIt: '', bannerCustomTitleEn: '',
-      bannerCustomSubtitle: '', bannerCustomHref: '', bannerCustomIcon: 'fa-bullhorn',
+      bannerCustomItems: [
+        { icon: 'fa-bullhorn', kicker: '', titleIt: '', titleEn: '', href: '', ctaLabel: 'Apri', ctaIcon: 'fa-arrow-right', bgImage: '' }
+      ],
       bannerCieEnabled: true,
       bannerCieTitle: "Stop alla carta d'identità cartacea",
       bannerCieTitleEn: 'Paper ID cards discontinued',
@@ -321,38 +323,12 @@ window.GeneratoreHome = (function () {
       false
     );
 
-    // === SEZ. 8: BANNER PERSONALIZZABILE ===
-    // Build icon selector for banner
-    let bannerIconOptions = '';
-    const BANNER_ICONS = [
-      'fa-bullhorn','fa-camera','fa-star','fa-gift','fa-heart','fa-calendar-check',
-      'fa-handshake','fa-trophy','fa-fire','fa-bolt','fa-bell','fa-megaphone',
-      'fa-percent','fa-tags','fa-ticket','fa-champagne-glasses','fa-masks-theater',
-      'fa-music','fa-palette','fa-tree','fa-snowflake','fa-umbrella-beach',
-      'fa-graduation-cap','fa-children','fa-hands-holding-heart','fa-earth-europe',
-      'fa-flag','fa-lightbulb','fa-circle-info','fa-shield-halved'
-    ];
-    BANNER_ICONS.forEach(ic => {
-      bannerIconOptions += '<option value="'+ic+'"'+(state.bannerCustomIcon === ic ? ' selected' : '')+'>'+ic.replace('fa-','')+'</option>';
-    });
-
-    formHtml += makeSection('fa-bullhorn', 'Banner Personalizzabile',
-      '<p style="font-size:12px;color:#9B9B9B;margin:0 0 12px;">Banner generico da personalizzare di volta in volta (promozioni, eventi, avvisi temporanei...)</p>' +
-      '<div style="margin-bottom:16px;"><label style="display:block;font-weight:600;color:#4A4A4A;margin-bottom:6px;font-size:13px;">Icona Banner</label>' +
-        '<div style="display:flex;align-items:center;gap:12px;">' +
-          '<div id="ghBannerIconPreview" style="width:48px;height:48px;border-radius:12px;background:linear-gradient(135deg,#145284,#0D3A5C);display:flex;align-items:center;justify-content:center;"><i class="fas '+esc(state.bannerCustomIcon)+'" style="color:#fff;font-size:20px;"></i></div>' +
-          '<select id="ghBannerCustomIcon" style="flex:1;padding:10px 14px;border:1px solid #d0d0d0;border-radius:8px;font-family:\'Titillium Web\',sans-serif;font-size:14px;">' +
-            bannerIconOptions +
-          '</select>' +
-        '</div></div>' +
-      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">' +
-        makeInput('ghBannerCustomTitleIt','Titolo IT',state.bannerCustomTitleIt,'Es: Festa Patronale') +
-        makeInput('ghBannerCustomTitleEn','Titolo EN',state.bannerCustomTitleEn,'Es: Patron Saint Festival') +
-      '</div>' +
-      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">' +
-        makeInput('ghBannerCustomSubtitle','Sottotitolo',state.bannerCustomSubtitle,'Es: 15-18 Agosto 2026') +
-        makeInput('ghBannerCustomHref','Link',state.bannerCustomHref,'pagina-evento') +
-      '</div>',
+    // === SEZ. 8: BANNER PERSONALIZZABILE (1-4 slide) ===
+    formHtml += makeSection('fa-bullhorn', 'Banner Personalizzabile (Carousel)',
+      '<p style="font-size:12px;color:#9B9B9B;margin:0 0 12px;">Carousel con 1-4 card personalizzabili: promozioni, eventi, servizi, avvisi. Ogni card ha icona, testo e CTA.</p>' +
+      '<div id="ghBannerItemsContainer"></div>' +
+      '<button type="button" id="ghBtnAddBannerItem" style="background:#D1E2F2;color:#145284;border:2px dashed #145284;padding:10px 20px;border-radius:10px;font-weight:700;font-size:14px;cursor:pointer;width:100%;margin-top:8px;font-family:\'Titillium Web\',sans-serif;">' +
+      '<i class="fas fa-plus"></i> Aggiungi Card (max 4)</button>',
       false
     );
 
@@ -466,6 +442,7 @@ window.GeneratoreHome = (function () {
     attachEvents();
     refreshSlides();
     refreshServizi();
+    refreshBannerItems();
     refreshWidgetList();
     updatePalettePreview();
     if (!isFirebaseAvailable()) showFirebaseWarning();
@@ -547,12 +524,16 @@ window.GeneratoreHome = (function () {
       });
     });
 
-    // Banner icon selector
-    const bannerIconSel = document.getElementById('ghBannerCustomIcon');
-    if (bannerIconSel) bannerIconSel.addEventListener('change', e => {
-      state.bannerCustomIcon = e.target.value;
-      const preview = document.getElementById('ghBannerIconPreview');
-      if (preview) preview.innerHTML = '<i class="fas '+e.target.value+'" style="color:#fff;font-size:20px;"></i>';
+    // Add banner custom item
+    const btnAddBanner = document.getElementById('ghBtnAddBannerItem');
+    if (btnAddBanner) btnAddBanner.addEventListener('click', () => {
+      if (state.bannerCustomItems.length < 4) {
+        collectBannerItemsFromDOM();
+        state.bannerCustomItems.push({ icon: 'fa-star', kicker: '', titleIt: '', titleEn: '', href: '', ctaLabel: 'Apri', ctaIcon: 'fa-arrow-right', bgImage: '' });
+        refreshBannerItems();
+      } else {
+        alert('Massimo 4 card nel banner carousel!');
+      }
     });
 
     // Add slide
@@ -663,6 +644,98 @@ window.GeneratoreHome = (function () {
       const i = parseInt(input.getAttribute('data-slide'));
       const f = input.getAttribute('data-field');
       if (state.slides[i]) state.slides[i][f] = input.value;
+    });
+  }
+
+  /* ============================================================
+     DYNAMIC FORM – BANNER CUSTOM ITEMS
+     ============================================================ */
+  const BANNER_ICONS = [
+    'fa-bullhorn','fa-camera','fa-star','fa-gift','fa-heart','fa-calendar-check',
+    'fa-handshake','fa-trophy','fa-fire','fa-bolt','fa-bell','fa-newspaper',
+    'fa-percent','fa-tags','fa-ticket','fa-champagne-glasses','fa-masks-theater',
+    'fa-music','fa-palette','fa-tree','fa-snowflake','fa-umbrella-beach',
+    'fa-graduation-cap','fa-children','fa-hands-holding-heart','fa-earth-europe',
+    'fa-flag','fa-lightbulb','fa-circle-info','fa-shield-halved','fa-toolbox',
+    'fa-camera-retro','fa-paper-plane','fa-book-open','fa-eye','fa-arrow-right',
+    'fa-map-location-dot','fa-utensils','fa-futbol','fa-church','fa-mountain-sun'
+  ];
+
+  const CTA_ICONS = [
+    'fa-arrow-right','fa-chevron-right','fa-eye','fa-paper-plane','fa-book-open',
+    'fa-external-link-alt','fa-hand-pointer','fa-play','fa-download','fa-phone'
+  ];
+
+  function refreshBannerItems() {
+    const c = document.getElementById('ghBannerItemsContainer');
+    if (!c) return;
+    collectBannerItemsFromDOM();
+    let html = '';
+    state.bannerCustomItems.forEach((item, i) => {
+      // Icon options
+      let iconOpts = '';
+      BANNER_ICONS.forEach(ic => {
+        iconOpts += '<option value="'+ic+'"'+(item.icon === ic ? ' selected' : '')+'>'+ic.replace('fa-','')+'</option>';
+      });
+      // CTA icon options
+      let ctaOpts = '';
+      CTA_ICONS.forEach(ic => {
+        ctaOpts += '<option value="'+ic+'"'+(item.ctaIcon === ic ? ' selected' : '')+'>'+ic.replace('fa-','')+'</option>';
+      });
+
+      html += '<div class="gh-banner-card" style="background:#f8f9fa;border:1px solid #e0e0e0;border-radius:10px;padding:16px;margin-bottom:12px;position:relative;">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">' +
+          '<strong style="color:#145284;font-size:14px;"><i class="fas '+esc(item.icon)+'"></i> Card '+(i+1)+'</strong>' +
+          (state.bannerCustomItems.length > 1 ? '<button type="button" data-remove-banner="'+i+'" style="background:#D32F2F;color:#fff;border:none;padding:4px 10px;border-radius:6px;font-size:12px;cursor:pointer;font-weight:700;"><i class="fas fa-trash"></i></button>' : '') +
+        '</div>' +
+        // Riga 1: Icona + Kicker
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:8px;">' +
+          '<div><label style="font-size:12px;font-weight:600;color:#4A4A4A;">Icona</label>' +
+            '<select data-banner="'+i+'" data-bfield="icon" style="width:100%;padding:8px 10px;border:1px solid #d0d0d0;border-radius:6px;font-size:12px;font-family:\'Titillium Web\',sans-serif;">'+iconOpts+'</select></div>' +
+          '<div><label style="font-size:12px;font-weight:600;color:#4A4A4A;">Etichetta (kicker)</label>' +
+            '<input type="text" data-banner="'+i+'" data-bfield="kicker" value="'+esc(item.kicker)+'" placeholder="Es: Notizie" style="width:100%;padding:8px 10px;border:1px solid #d0d0d0;border-radius:6px;font-size:13px;box-sizing:border-box;font-family:\'Titillium Web\',sans-serif;"></div>' +
+        '</div>' +
+        // Riga 2: Titolo IT + Titolo EN
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:8px;">' +
+          '<div><label style="font-size:12px;font-weight:600;color:#4A4A4A;">Titolo IT</label>' +
+            '<input type="text" data-banner="'+i+'" data-bfield="titleIt" value="'+esc(item.titleIt)+'" placeholder="Es: News dal Comune" style="width:100%;padding:8px 10px;border:1px solid #d0d0d0;border-radius:6px;font-size:13px;box-sizing:border-box;font-family:\'Titillium Web\',sans-serif;"></div>' +
+          '<div><label style="font-size:12px;font-weight:600;color:#4A4A4A;">Sottotitolo EN</label>' +
+            '<input type="text" data-banner="'+i+'" data-bfield="titleEn" value="'+esc(item.titleEn)+'" placeholder="Es: City news" style="width:100%;padding:8px 10px;border:1px solid #d0d0d0;border-radius:6px;font-size:13px;box-sizing:border-box;font-family:\'Titillium Web\',sans-serif;"></div>' +
+        '</div>' +
+        // Riga 3: Link + BG Image
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:8px;">' +
+          '<div><label style="font-size:12px;font-weight:600;color:#4A4A4A;">Link (href)</label>' +
+            '<input type="text" data-banner="'+i+'" data-bfield="href" value="'+esc(item.href)+'" placeholder="pagina-notizie" style="width:100%;padding:8px 10px;border:1px solid #d0d0d0;border-radius:6px;font-size:13px;box-sizing:border-box;font-family:\'Titillium Web\',sans-serif;"></div>' +
+          '<div><label style="font-size:12px;font-weight:600;color:#4A4A4A;">Immagine sfondo (opz.)</label>' +
+            '<input type="text" data-banner="'+i+'" data-bfield="bgImage" value="'+esc(item.bgImage || '')+'" placeholder="docs/banner-bg.jpg" style="width:100%;padding:8px 10px;border:1px solid #d0d0d0;border-radius:6px;font-size:13px;box-sizing:border-box;font-family:\'Titillium Web\',sans-serif;"></div>' +
+        '</div>' +
+        // Riga 4: CTA Label + CTA Icon
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">' +
+          '<div><label style="font-size:12px;font-weight:600;color:#4A4A4A;">Testo Pulsante</label>' +
+            '<input type="text" data-banner="'+i+'" data-bfield="ctaLabel" value="'+esc(item.ctaLabel)+'" placeholder="Apri" style="width:100%;padding:8px 10px;border:1px solid #d0d0d0;border-radius:6px;font-size:13px;box-sizing:border-box;font-family:\'Titillium Web\',sans-serif;"></div>' +
+          '<div><label style="font-size:12px;font-weight:600;color:#4A4A4A;">Icona Pulsante</label>' +
+            '<select data-banner="'+i+'" data-bfield="ctaIcon" style="width:100%;padding:8px 10px;border:1px solid #d0d0d0;border-radius:6px;font-size:12px;font-family:\'Titillium Web\',sans-serif;">'+ctaOpts+'</select></div>' +
+        '</div>' +
+      '</div>';
+    });
+    c.innerHTML = html;
+
+    // Remove banner item buttons
+    c.querySelectorAll('[data-remove-banner]').forEach(btn => {
+      btn.addEventListener('click', e => {
+        const idx = parseInt(e.currentTarget.getAttribute('data-remove-banner'));
+        collectBannerItemsFromDOM();
+        state.bannerCustomItems.splice(idx, 1);
+        refreshBannerItems();
+      });
+    });
+  }
+
+  function collectBannerItemsFromDOM() {
+    document.querySelectorAll('[data-banner]').forEach(el => {
+      const i = parseInt(el.getAttribute('data-banner'));
+      const f = el.getAttribute('data-bfield');
+      if (state.bannerCustomItems[i]) state.bannerCustomItems[i][f] = el.value;
     });
   }
 
@@ -951,12 +1024,8 @@ window.GeneratoreHome = (function () {
     state.tickerLinkUrl = v('ghTickerLinkUrl');
     collectSlidesFromDOM();
     collectServiziFromDOM();
+    collectBannerItemsFromDOM();
     collectWidgetsFromDOM();
-    state.bannerCustomTitleIt = v('ghBannerCustomTitleIt');
-    state.bannerCustomTitleEn = v('ghBannerCustomTitleEn');
-    state.bannerCustomSubtitle = v('ghBannerCustomSubtitle');
-    state.bannerCustomHref = v('ghBannerCustomHref');
-    state.bannerCustomIcon = v('ghBannerCustomIcon') || 'fa-bullhorn';
     state.bannerCieEnabled = v('ghBannerCieEnabled');
     state.bannerCieTitle = v('ghBannerCieTitle');
     state.bannerCieTitleEn = v('ghBannerCieTitleEn');
@@ -1006,14 +1075,7 @@ window.GeneratoreHome = (function () {
     set('ghColoreSecondario', state.coloreSecondario);
     set('ghTickerRssId', state.tickerRssId);
     set('ghTickerLinkUrl', state.tickerLinkUrl);
-    set('ghBannerCustomTitleIt', state.bannerCustomTitleIt);
-    set('ghBannerCustomTitleEn', state.bannerCustomTitleEn);
-    set('ghBannerCustomSubtitle', state.bannerCustomSubtitle);
-    set('ghBannerCustomHref', state.bannerCustomHref);
-    set('ghBannerCustomIcon', state.bannerCustomIcon || 'fa-bullhorn');
-    // Aggiorna preview icona
-    const iconPrev = document.getElementById('ghBannerIconPreview');
-    if (iconPrev) iconPrev.innerHTML = '<i class="fas '+(state.bannerCustomIcon || 'fa-bullhorn')+'" style="color:#fff;font-size:20px;"></i>';
+    refreshBannerItems();
     set('ghBannerCieEnabled', state.bannerCieEnabled);
     set('ghBannerCieTitle', state.bannerCieTitle);
     set('ghBannerCieTitleEn', state.bannerCieTitleEn);
@@ -1122,11 +1184,8 @@ window.GeneratoreHome = (function () {
     slides: ${JSON.stringify(S.slides, null, 4)},
     servizi: ${serviziStr},
     bannerCustom: {
-      titleIt:    ${q(S.bannerCustomTitleIt)},
-      titleEn:    ${q(S.bannerCustomTitleEn)},
-      subtitle:   ${q(S.bannerCustomSubtitle)},
-      href:       ${q(S.bannerCustomHref)},
-      icon:       ${q(S.bannerCustomIcon || 'fa-bullhorn')},
+      items: ${JSON.stringify(S.bannerCustomItems || [], null, 6)},
+      slideDuration: 5000,
     },
     bannerCie: {
       title:      ${q(S.bannerCieTitle)},
@@ -1184,7 +1243,7 @@ window.GeneratoreHome = (function () {
       ui: {
         "ticker.title":        { it: "news dal Comune", en: "Municipal News" },
         "slide.cta":           { it: "Apri sezione", en: "Open section" },
-        "banner.subtitle":     { it: ${q(S.bannerCustomSubtitle)}, en: ${q(S.bannerCustomSubtitle)} },
+        "banner.cta":          { it: "Apri", en: "Open" },
         "cie.badge":           { it: "INFO", en: "INFO" },
         "rd.title":            { it: "Raccolta differenziata", en: "Waste Collection" },
         "rd.sub":              { it: "Avvisi conferimenti", en: "Collection Notices" },
@@ -1490,18 +1549,32 @@ rssapp-ticker a{margin-right:50px!important;display:inline-block!important;color
 .svc-ripple{position:absolute;border-radius:50%;transform:scale(0);background:rgba(60,164,52,.25);pointer-events:none;animation:svcRipple .55s linear;}
 @keyframes svcRipple{to{transform:scale(3.5);opacity:0;}}
 .w-banner-custom{width:100%;}
-.banner-link-card{display:flex;align-items:center;justify-content:space-between;width:100%;background:linear-gradient(135deg,var(--blu-dark) 0%,var(--blu) 50%,var(--blu-hover) 100%);color:#fff;text-decoration:none;padding:clamp(14px,3.5vw,20px) clamp(14px,3.5vw,22px);box-shadow:var(--shadow-md);transition:filter .3s ease;cursor:pointer;}
-.banner-link-card:hover{filter:brightness(1.1);}
-.banner-content{display:flex;flex-direction:column;flex:1;min-width:0;}
-.banner-title{font-size:var(--fs-lg);font-weight:700;line-height:1.2;letter-spacing:.3px;}
-.banner-subtitle-text{font-size:var(--fs-sm);font-weight:300;opacity:.80;margin-top:4px;}
-.banner-actions{display:flex;align-items:center;padding-left:12px;gap:10px;flex-shrink:0;}
-.banner-custom-icon{font-size:var(--fs-xl);opacity:.5;}
-.cta-arrow-box{background:rgba(255,255,255,.18);width:36px;height:36px;display:flex;align-items:center;justify-content:center;border-radius:50%;}
-.cta-arrow-icon{font-size:var(--fs-md);animation:nudgeRight 2s infinite ease-in-out;}
-@keyframes nudgeRight{0%,100%{transform:translateX(0);}50%{transform:translateX(4px);}}
-.banner-link-card:hover .cta-arrow-icon{animation-duration:.8s;}
-.banner-link-card:hover .cta-arrow-box{background:rgba(255,255,255,.3);}
+.bc-container{position:relative;width:100%;border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow-md);min-height:clamp(110px,26vw,170px);isolation:isolate;background:#fff;border:1px solid rgba(0,0,0,.06);}
+.bc-slide{position:absolute;inset:0;opacity:0;visibility:hidden;transition:opacity .5s ease,visibility .5s ease;display:grid;place-items:center start;}
+.bc-slide.active{opacity:1;visibility:visible;}
+.bc-slide::before{content:"";position:absolute;inset:0;background-image:var(--bg-image,none);background-size:cover;background-position:center;opacity:.05;z-index:0;pointer-events:none;filter:grayscale(100%);}
+.bc-slide-link{z-index:1;color:var(--blu);text-decoration:none;display:flex;align-items:center;justify-content:space-between;gap:.8rem;padding:clamp(12px,3vw,20px) clamp(14px,4vw,24px);width:100%;height:100%;}
+.bc-text-wrap{display:flex;align-items:flex-start;min-width:0;flex:1 1 auto;}
+.bc-title-group{display:flex;flex-direction:column;gap:.25rem;min-width:0;}
+.bc-kicker{display:inline-flex;align-items:center;gap:.4rem;font-weight:700;font-size:clamp(.7rem,2.5vw,.85rem);text-transform:uppercase;letter-spacing:.03em;color:var(--blu);background:rgba(20,82,132,.08);border:1px solid rgba(20,82,132,.15);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);padding:.25rem .6rem;border-radius:999px;line-height:1;max-width:100%;word-break:break-word;box-shadow:0 2px 10px rgba(20,82,132,.05);}
+.bc-kicker i{font-size:.9em;}
+.bc-title{margin:.2rem 0 0;font-weight:700;font-size:clamp(1.1rem,4.2vw,1.35rem);line-height:1.15;color:var(--blu);text-shadow:0 2px 4px rgba(20,82,132,.15);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word;}
+.bc-subtitle-en{margin:0;font-weight:400;font-size:clamp(.8rem,2.8vw,.95rem);line-height:1.3;color:var(--cd-gray-700);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+.bc-cta{display:inline-flex;align-items:center;justify-content:center;gap:.4rem;padding:.6rem;border-radius:50%;background:linear-gradient(135deg,var(--blu) 0%,var(--blu-dark) 100%);color:#fff;border:none;box-shadow:0 4px 12px rgba(20,82,132,.3);transition:transform .2s ease,box-shadow .2s ease;flex:0 0 auto;}
+.bc-cta:hover{transform:translateY(-2px);box-shadow:0 6px 16px rgba(20,82,132,.4);}
+.bc-cta-label{display:none;font-weight:700;font-size:.9rem;}
+.bc-dots{position:absolute;left:50%;transform:translateX(-50%);bottom:10px;display:flex;gap:8px;z-index:2;padding:4px 8px;background:rgba(255,255,255,.6);border:1px solid rgba(20,82,132,.1);border-radius:999px;backdrop-filter:blur(4px);}
+.bc-dot{width:8px;height:8px;min-width:8px;flex-shrink:0;border-radius:50%;background:rgba(20,82,132,.25);border:0;cursor:pointer;transition:all .25s cubic-bezier(.25,1,.5,1);padding:0;}
+.bc-dot:hover{background:rgba(20,82,132,.6);}
+.bc-dot.active{transform:scale(1.3);background:var(--blu);box-shadow:0 2px 6px rgba(20,82,132,.4);}
+@media(min-width:768px){.bc-cta{width:auto;height:auto;border-radius:999px;padding:.5rem 1.2rem;}.bc-cta-label{display:inline;}.bc-title{font-size:1.5rem;}}
+@media(prefers-reduced-motion:reduce){.bc-slide,.bc-cta,.bc-dot{transition:none;}}
+[data-theme="dark"] .bc-container{background:var(--cd-blue-100);border-color:rgba(255,255,255,.08);}
+[data-theme="dark"] .bc-slide-link{color:var(--cd-blue-700);}
+[data-theme="dark"] .bc-kicker{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.15);color:var(--cd-blue-500);}
+[data-theme="dark"] .bc-title{color:var(--cd-blue-500);text-shadow:none;}
+[data-theme="dark"] .bc-subtitle-en{color:var(--cd-gray-700);}
+[data-theme="dark"] .bc-dots{background:rgba(30,30,30,.6);border-color:rgba(255,255,255,.1);}
 .w-banner-cie{width:100%;max-width:900px;margin:0 auto;background:linear-gradient(180deg,rgba(20,82,132,.96),rgba(15,55,88,.96));border:1px solid rgba(255,255,255,.12);box-shadow:var(--shadow-md);position:relative;overflow:hidden;}
 .w-banner-cie::before{content:"";position:absolute;inset:-2px;background:radial-gradient(900px 220px at 18% 0%,rgba(255,255,255,.22),transparent 55%),radial-gradient(780px 220px at 92% 30%,rgba(255,255,255,.10),transparent 60%),radial-gradient(520px 260px at 40% 140%,rgba(60,164,52,.14),transparent 65%);pointer-events:none;mix-blend-mode:overlay;}
 .cie-link{position:relative;display:flex;align-items:center;gap:clamp(8px,2.5vw,12px);padding:clamp(10px,2.5vw,14px);color:#fff;text-decoration:none;min-height:clamp(62px,16vw,80px);}
@@ -1641,7 +1714,23 @@ rssapp-ticker a{margin-right:50px!important;display:inline-block!important;color
     tickerBar:()=>'<section class="w-ticker" id="tickerBar" aria-label="Notizie in scorrimento"><div class="ticker-header"><a href="'+esc(href(C.ticker.linkUrl))+'" target="_blank" rel="noopener"><span class="news-ico" aria-hidden="true"><span style="transform:translateY(1px);display:inline-block;">\\u{1F4F0}</span></span><span class="header-title" data-i18n="ticker.title">'+esc(t('ticker.title'))+'</span><span class="arrow-link" aria-hidden="true">\\u2197</span></a></div><div class="ticker-strip"><rssapp-ticker id="'+esc(C.ticker.rssWidgetId)+'"></rssapp-ticker></div></section>',
     slideshow:()=>'<div id="slideshowSlot"></div>',
     servizi:()=>{const svcSections=C.servizi.map(sec=>{const cards=sec.items.map(it=>'<a class="svc-link" href="'+esc(href(it.href))+'" target="_blank" rel="noopener"><div class="svc-card"><div class="svc-icon-box"><i class="fa-solid '+esc(it.icon)+'"></i></div><div class="svc-label-it" data-i18n-it="'+esc(it.labelIt)+'" data-i18n-en="'+esc(it.labelEn)+'">'+esc(LANG==='en'?it.labelEn:it.labelIt)+'</div></div></a>').join('');return '<div class="svc-section"><div class="svc-section-hdr"><div class="svc-title-it" data-i18n-it="'+esc(sec.sectionIt)+'" data-i18n-en="'+esc(sec.sectionEn)+'">'+esc(LANG==='en'?sec.sectionEn:sec.sectionIt)+'</div></div><div class="svc-grid">'+cards+'</div></div>';}).join('');return '<section class="w-services" id="servicesContainer" aria-label="Servizi comunali">'+svcSections+'</section>';},
-    bannerCustom:()=>'<section class="w-banner-custom" id="bannerCustom" aria-label="'+esc(C.bannerCustom.titleIt||'Banner')+'"><a href="'+esc(href(C.bannerCustom.href))+'" class="banner-link-card" target="_blank" rel="noopener"><div class="banner-content"><div class="banner-title" data-i18n-it="'+esc(C.bannerCustom.titleIt)+'" data-i18n-en="'+esc(C.bannerCustom.titleEn||C.bannerCustom.titleIt)+'">'+esc(LANG==='en'?(C.bannerCustom.titleEn||C.bannerCustom.titleIt):C.bannerCustom.titleIt)+'</div><div class="banner-subtitle-text" data-i18n-it="'+esc(C.bannerCustom.subtitle)+'" data-i18n-en="'+esc(C.bannerCustom.subtitle)+'">'+esc(C.bannerCustom.subtitle)+'</div></div><div class="banner-actions"><i class="fas '+esc(C.bannerCustom.icon||'fa-bullhorn')+' banner-custom-icon"></i><div class="cta-arrow-box"><i class="fas fa-chevron-right cta-arrow-icon"></i></div></div></a></section>',
+    bannerCustom:()=>{
+      const items=C.bannerCustom.items||[];if(!items.length)return '';
+      let slidesH='';items.forEach((it,i)=>{
+        const bg=it.bgImage?(it.bgImage.startsWith('http')?it.bgImage:BASE+'/'+it.bgImage):'';
+        slidesH+='<div class="bc-slide'+(i===0?' active':'')+'" data-title="'+esc(it.kicker||it.titleIt)+'"'+(bg?' style="--bg-image:url(\''+esc(bg)+'\')"':'')+'>'
+          +'<a class="bc-slide-link" href="'+esc(href(it.href))+'" target="_blank" rel="noopener" aria-label="'+esc(it.titleIt)+'">'
+          +'<div class="bc-text-wrap"><div class="bc-title-group">'
+          +'<span class="bc-kicker"><i class="fa-solid '+esc(it.icon||'fa-bullhorn')+'"></i> <span data-i18n-it="'+esc(it.kicker)+'" data-i18n-en="'+esc(it.kicker)+'">'+esc(it.kicker)+'</span></span>'
+          +'<h2 class="bc-title" data-i18n-it="'+esc(it.titleIt)+'" data-i18n-en="'+esc(it.titleEn||it.titleIt)+'">'+esc(it.titleIt)+'</h2>'
+          +(it.titleEn?'<p class="bc-subtitle-en" lang="en">'+esc(it.titleEn)+'</p>':'')
+          +'</div></div>'
+          +'<span class="bc-cta"><span class="bc-cta-label">'+esc(it.ctaLabel||'Apri')+'</span><i class="fa-solid '+esc(it.ctaIcon||'fa-arrow-right')+'"></i></span>'
+          +'</a></div>';
+      });
+      let dotsH='';if(items.length>1){dotsH='<div class="bc-dots" role="tablist" aria-label="Indicatori banner">';items.forEach((it,i)=>{dotsH+='<button class="bc-dot'+(i===0?' active':'')+'" type="button" role="tab" aria-label="Banner '+(i+1)+': '+esc(it.kicker||it.titleIt)+'"></button>';});dotsH+='</div>';}
+      return '<section class="w-banner-custom" id="bannerCustom" aria-label="Banner informativi" aria-roledescription="carousel"><div class="bc-container">'+slidesH+dotsH+'</div></section>';
+    },
     bannerCIE:()=>C.bannerCie.enabled?'<section class="w-banner-cie" id="bannerCIE" role="region" aria-label="Avviso CIE"><a class="cie-link" href="'+esc(C.bannerCie.href)+'" target="_blank" rel="noopener" aria-label="'+esc(C.bannerCie.title)+'"><div class="cie-ico" aria-hidden="true"><i class="fa-solid fa-id-card"></i></div><div class="cie-txt"><p class="cie-title" data-i18n-it="'+esc(C.bannerCie.title)+'" data-i18n-en="'+esc(C.bannerCie.titleEn||C.bannerCie.title)+'">'+esc(LANG==='en'?(C.bannerCie.titleEn||C.bannerCie.title):C.bannerCie.title)+'</p><p class="cie-subtitle" data-i18n-it="'+esc(C.bannerCie.subtitle)+'" data-i18n-en="'+esc(C.bannerCie.subtitleEn||C.bannerCie.subtitle)+'">'+esc(LANG==='en'?(C.bannerCie.subtitleEn||C.bannerCie.subtitle):C.bannerCie.subtitle)+'</p></div><div class="cie-info-wrap" aria-hidden="true"><span class="cie-badge" data-i18n="cie.badge">'+esc(t('cie.badge'))+'</span><span class="cie-ring"></span><span class="cie-finger"><i class="fa-solid fa-hand-point-up"></i></span></div></a></section>':'',
     raccoltaDifferenziata:()=>'<section class="w-raccolta-wrapper" aria-label="Raccolta differenziata"><div id="raccoltaDifferenziata" class="rd-card" aria-live="polite"></div></section>',
     protezioneCivile:()=>C.protezioneCivile.enabled?'<section class="w-protezione" id="protezioneCivile" aria-label="Bollettino Protezione Civile"><div id="dpc-alerts-widget"></div></section>':'',
@@ -1653,6 +1742,40 @@ rssapp-ticker a{margin-right:50px!important;display:inline-block!important;color
   enabledWidgets.forEach(w=>{if(widgetRenderers[w.id]){const rendered=widgetRenderers[w.id]();if(rendered)html+=rendered;}});
 
   mount.innerHTML=html;
+
+  /* BANNER CUSTOM CAROUSEL */
+  (function(){
+    var bcSlides=document.querySelectorAll('.bc-slide');
+    var bcDots=document.querySelectorAll('.bc-dot');
+    if(!bcSlides.length||bcSlides.length<2){return;}
+    var bcIdx=0,bcTimer=null,bcPlaying=true,bcUserPaused=false,bcTransitioning=false;
+    var bcDuration=(C.bannerCustom&&C.bannerCustom.slideDuration)||5000;
+    var bcContainer=document.querySelector('.bc-container');
+    function bcGoTo(i){
+      if(bcTransitioning||i===bcIdx)return;bcTransitioning=true;
+      bcSlides[bcIdx].classList.remove('active');if(bcDots[bcIdx])bcDots[bcIdx].classList.remove('active');
+      bcIdx=(i+bcSlides.length)%bcSlides.length;
+      bcSlides[bcIdx].classList.add('active');if(bcDots[bcIdx])bcDots[bcIdx].classList.add('active');
+      setTimeout(function(){bcTransitioning=false;},500);
+    }
+    function bcNext(){bcGoTo(bcIdx+1);}
+    function bcPrev(){bcGoTo(bcIdx-1);}
+    function bcPlay(){if(!bcPlaying||bcUserPaused)return;clearInterval(bcTimer);bcTimer=setInterval(bcNext,bcDuration);}
+    function bcPause(){clearInterval(bcTimer);}
+    bcPlay();
+    bcDots.forEach(function(d,i){d.addEventListener('click',function(){clearInterval(bcTimer);bcGoTo(i);bcPlaying=true;if(!bcUserPaused)bcPlay();});});
+    if(bcContainer){
+      var bsx=0,bex=0,bsy=0,bey=0;
+      bcContainer.addEventListener('touchstart',function(e){bsx=e.touches[0].clientX;bsy=e.touches[0].clientY;},{passive:true});
+      bcContainer.addEventListener('touchmove',function(e){bex=e.touches[0].clientX;bey=e.touches[0].clientY;},{passive:true});
+      bcContainer.addEventListener('touchend',function(){var dx=bsx-bex,dy=bsy-bey;if(Math.abs(dx)>50&&Math.abs(dx)>Math.abs(dy)){clearInterval(bcTimer);dx>0?bcNext():bcPrev();bcPlaying=true;if(!bcUserPaused)bcPlay();}bsx=bex=bsy=bey=0;},{passive:true});
+      if(window.matchMedia('(min-width:769px)').matches){
+        bcContainer.addEventListener('mouseenter',function(){bcUserPaused=true;bcPause();});
+        bcContainer.addEventListener('mouseleave',function(){bcUserPaused=false;if(bcPlaying)bcPlay();});
+      }
+    }
+    document.addEventListener('visibilitychange',function(){if(document.hidden)bcPause();else if(bcPlaying&&!bcUserPaused)bcPlay();});
+  })();
 
   /* Move static slideshow */
   const slideshowEl=document.getElementById('slideshowStatic');
