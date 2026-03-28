@@ -56,13 +56,56 @@ console.log('✅ Configurazione Firebase caricata da Vercel Environment Variable
 // Percorso del file di output (ora in public/js/)
 const outputPath = path.join(__dirname, '..', 'public', 'js', 'env.js');
 
-// Scrivi il file
+// Scrivi il file env.js
 try {
     fs.writeFileSync(outputPath, envContent, 'utf8');
     console.log('✅ public/js/env.js generato con successo');
     console.log(`📁 Percorso: ${outputPath}`);
-    console.log('\n🚀 Build completato! Firebase configurato correttamente.');
 } catch (error) {
     console.error('❌ ERRORE durante la scrittura di env.js:', error.message);
     process.exit(1);
 }
+
+// ============================================================
+// VERSIONING AUTOMATICO — Aggiorna index.html con la versione
+// dal package.json, così non serve cambiare a mano.
+// ============================================================
+const indexPath = path.join(__dirname, '..', 'public', 'index.html');
+
+try {
+    let indexHtml = fs.readFileSync(indexPath, 'utf8');
+
+    // Trova la versione attuale nell'index.html (cerca il pattern APP_VERSION = 'x.y.z')
+    const versionMatch = indexHtml.match(/var APP_VERSION\s*=\s*'([^']+)'/);
+    const currentVersion = versionMatch ? versionMatch[1] : null;
+
+    if (currentVersion && currentVersion !== APP_VERSION) {
+        console.log(`\n🔄 Aggiornamento versione in index.html: ${currentVersion} → ${APP_VERSION}`);
+
+        // 1. Aggiorna APP_VERSION nello script inline
+        indexHtml = indexHtml.replace(
+            /var APP_VERSION\s*=\s*'[^']+'/,
+            `var APP_VERSION = '${APP_VERSION}'`
+        );
+
+        // 2. Aggiorna tutti i ?v=x.y.z per cache busting (script e css)
+        indexHtml = indexHtml.replace(
+            /\?v=[\d]+\.[\d]+\.[\d]+/g,
+            `?v=${APP_VERSION}`
+        );
+
+        fs.writeFileSync(indexPath, indexHtml, 'utf8');
+        console.log(`✅ index.html aggiornato alla versione ${APP_VERSION}`);
+        console.log(`   - APP_VERSION inline aggiornata`);
+        console.log(`   - Cache busting (?v=) aggiornato su tutti gli script`);
+    } else if (currentVersion === APP_VERSION) {
+        console.log(`\nℹ️  index.html già alla versione ${APP_VERSION}, nessun aggiornamento necessario`);
+    } else {
+        console.warn('⚠️  Non ho trovato APP_VERSION in index.html — versioning non aggiornato');
+    }
+} catch (error) {
+    console.error('⚠️  Errore durante l\'aggiornamento di index.html:', error.message);
+    console.error('   Il build env.js è riuscito, ma il versioning non è stato aggiornato.');
+}
+
+console.log('\n🚀 Build completato! Firebase configurato correttamente.');
