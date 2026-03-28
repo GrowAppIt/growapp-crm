@@ -113,8 +113,8 @@ window.GeneratoreHome = (function () {
           { icon: 'fa-triangle-exclamation', labelIt: 'Segnala', labelEn: 'Report Issue', href: 'segnalazioni' },
         ]
       }],
-      bannerScattiTitleIt: 'Vista da Te', bannerScattiTitleEn: 'Seen from You',
-      bannerScattiSubtitle: 'I vostri scatti più belli', bannerScattiHref: '',
+      bannerCustomTitleIt: '', bannerCustomTitleEn: '',
+      bannerCustomSubtitle: '', bannerCustomHref: '', bannerCustomIcon: 'fa-bullhorn',
       bannerCieEnabled: true,
       bannerCieTitle: "Stop alla carta d'identità cartacea",
       bannerCieTitleEn: 'Paper ID cards discontinued',
@@ -147,7 +147,7 @@ window.GeneratoreHome = (function () {
         { id: 'tickerBar', label: 'Ticker News', enabled: true, order: 1 },
         { id: 'slideshow', label: 'Slideshow', enabled: true, order: 2 },
         { id: 'servizi', label: 'Servizi', enabled: true, order: 3 },
-        { id: 'bannerScatti', label: 'Banner "Vista da Te"', enabled: true, order: 4 },
+        { id: 'bannerCustom', label: 'Banner Personalizzabile', enabled: true, order: 4 },
         { id: 'bannerCIE', label: 'Banner CIE', enabled: true, order: 5 },
         { id: 'raccoltaDifferenziata', label: 'Raccolta Differenziata', enabled: true, order: 6 },
         { id: 'protezioneCivile', label: 'Protezione Civile', enabled: true, order: 7 },
@@ -321,15 +321,37 @@ window.GeneratoreHome = (function () {
       false
     );
 
-    // === SEZ. 8: BANNER "VISTA DA TE" ===
-    formHtml += makeSection('fa-camera', 'Banner "Vista da Te"',
+    // === SEZ. 8: BANNER PERSONALIZZABILE ===
+    // Build icon selector for banner
+    let bannerIconOptions = '';
+    const BANNER_ICONS = [
+      'fa-bullhorn','fa-camera','fa-star','fa-gift','fa-heart','fa-calendar-check',
+      'fa-handshake','fa-trophy','fa-fire','fa-bolt','fa-bell','fa-megaphone',
+      'fa-percent','fa-tags','fa-ticket','fa-champagne-glasses','fa-masks-theater',
+      'fa-music','fa-palette','fa-tree','fa-snowflake','fa-umbrella-beach',
+      'fa-graduation-cap','fa-children','fa-hands-holding-heart','fa-earth-europe',
+      'fa-flag','fa-lightbulb','fa-circle-info','fa-shield-halved'
+    ];
+    BANNER_ICONS.forEach(ic => {
+      bannerIconOptions += '<option value="'+ic+'"'+(state.bannerCustomIcon === ic ? ' selected' : '')+'>'+ic.replace('fa-','')+'</option>';
+    });
+
+    formHtml += makeSection('fa-bullhorn', 'Banner Personalizzabile',
+      '<p style="font-size:12px;color:#9B9B9B;margin:0 0 12px;">Banner generico da personalizzare di volta in volta (promozioni, eventi, avvisi temporanei...)</p>' +
+      '<div style="margin-bottom:16px;"><label style="display:block;font-weight:600;color:#4A4A4A;margin-bottom:6px;font-size:13px;">Icona Banner</label>' +
+        '<div style="display:flex;align-items:center;gap:12px;">' +
+          '<div id="ghBannerIconPreview" style="width:48px;height:48px;border-radius:12px;background:linear-gradient(135deg,#145284,#0D3A5C);display:flex;align-items:center;justify-content:center;"><i class="fas '+esc(state.bannerCustomIcon)+'" style="color:#fff;font-size:20px;"></i></div>' +
+          '<select id="ghBannerCustomIcon" style="flex:1;padding:10px 14px;border:1px solid #d0d0d0;border-radius:8px;font-family:\'Titillium Web\',sans-serif;font-size:14px;">' +
+            bannerIconOptions +
+          '</select>' +
+        '</div></div>' +
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">' +
-        makeInput('ghBannerScattiTitleIt','Titolo IT',state.bannerScattiTitleIt,'Vista da Te') +
-        makeInput('ghBannerScattiTitleEn','Titolo EN',state.bannerScattiTitleEn,'Seen from You') +
+        makeInput('ghBannerCustomTitleIt','Titolo IT',state.bannerCustomTitleIt,'Es: Festa Patronale') +
+        makeInput('ghBannerCustomTitleEn','Titolo EN',state.bannerCustomTitleEn,'Es: Patron Saint Festival') +
       '</div>' +
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">' +
-        makeInput('ghBannerScattiSubtitle','Sottotitolo',state.bannerScattiSubtitle,'I vostri scatti più belli') +
-        makeInput('ghBannerScattiHref','Link',state.bannerScattiHref,'nomecomune-vista-da-te') +
+        makeInput('ghBannerCustomSubtitle','Sottotitolo',state.bannerCustomSubtitle,'Es: 15-18 Agosto 2026') +
+        makeInput('ghBannerCustomHref','Link',state.bannerCustomHref,'pagina-evento') +
       '</div>',
       false
     );
@@ -421,7 +443,7 @@ window.GeneratoreHome = (function () {
         '<option value="">-- Nessuno (disattivato) --</option>' +
         '<option value="dateHeader">Barra Data</option><option value="tickerBar">Ticker News</option>' +
         '<option value="slideshowContainer">Slideshow</option><option value="servicesContainer">Servizi</option>' +
-        '<option value="bannerScatti">Banner Scatti</option><option value="bannerCIE">Banner CIE</option>' +
+        '<option value="bannerCustom">Banner Personalizzabile</option><option value="bannerCIE">Banner CIE</option>' +
         '<option value="raccoltaDifferenziata">Raccolta Differenziata</option>' +
         '<option value="protezioneCivile">Protezione Civile</option><option value="meteoCard">Meteo</option>' +
       '</select></div>' +
@@ -523,6 +545,14 @@ window.GeneratoreHome = (function () {
         updatePalettePreview();
         updatePresetHighlight();
       });
+    });
+
+    // Banner icon selector
+    const bannerIconSel = document.getElementById('ghBannerCustomIcon');
+    if (bannerIconSel) bannerIconSel.addEventListener('change', e => {
+      state.bannerCustomIcon = e.target.value;
+      const preview = document.getElementById('ghBannerIconPreview');
+      if (preview) preview.innerHTML = '<i class="fas '+e.target.value+'" style="color:#fff;font-size:20px;"></i>';
     });
 
     // Add slide
@@ -779,7 +809,7 @@ window.GeneratoreHome = (function () {
      FIREBASE – SAVE/LOAD CONFIGURATIONS
      ============================================================ */
   function isFirebaseAvailable() {
-    return typeof firebase !== 'undefined' && firebase.firestore && typeof AuthService !== 'undefined' && AuthService.getCurrentUser;
+    return typeof firebase !== 'undefined' && firebase.firestore && typeof AuthService !== 'undefined' && AuthService.isLoggedIn();
   }
 
   function showFirebaseWarning() {
@@ -814,13 +844,13 @@ window.GeneratoreHome = (function () {
     try {
       const db = firebase.firestore();
       const docId = state.nomeComune.toLowerCase().replace(/\s+/g, '-');
-      const user = AuthService.getCurrentUser();
+      const userEmail = AuthService.getEmail() || 'unknown';
       const timestamp = new Date();
       await db.collection('generatore-home-configs').doc(docId).set({
         config: state,
         nomeComune: state.nomeComune,
         updatedAt: timestamp,
-        createdBy: user ? user.email : 'unknown'
+        createdBy: userEmail
       });
       alert('Configurazione salvata!');
       await loadConfigList();
@@ -922,10 +952,11 @@ window.GeneratoreHome = (function () {
     collectSlidesFromDOM();
     collectServiziFromDOM();
     collectWidgetsFromDOM();
-    state.bannerScattiTitleIt = v('ghBannerScattiTitleIt');
-    state.bannerScattiTitleEn = v('ghBannerScattiTitleEn');
-    state.bannerScattiSubtitle = v('ghBannerScattiSubtitle');
-    state.bannerScattiHref = v('ghBannerScattiHref');
+    state.bannerCustomTitleIt = v('ghBannerCustomTitleIt');
+    state.bannerCustomTitleEn = v('ghBannerCustomTitleEn');
+    state.bannerCustomSubtitle = v('ghBannerCustomSubtitle');
+    state.bannerCustomHref = v('ghBannerCustomHref');
+    state.bannerCustomIcon = v('ghBannerCustomIcon') || 'fa-bullhorn';
     state.bannerCieEnabled = v('ghBannerCieEnabled');
     state.bannerCieTitle = v('ghBannerCieTitle');
     state.bannerCieTitleEn = v('ghBannerCieTitleEn');
@@ -975,10 +1006,14 @@ window.GeneratoreHome = (function () {
     set('ghColoreSecondario', state.coloreSecondario);
     set('ghTickerRssId', state.tickerRssId);
     set('ghTickerLinkUrl', state.tickerLinkUrl);
-    set('ghBannerScattiTitleIt', state.bannerScattiTitleIt);
-    set('ghBannerScattiTitleEn', state.bannerScattiTitleEn);
-    set('ghBannerScattiSubtitle', state.bannerScattiSubtitle);
-    set('ghBannerScattiHref', state.bannerScattiHref);
+    set('ghBannerCustomTitleIt', state.bannerCustomTitleIt);
+    set('ghBannerCustomTitleEn', state.bannerCustomTitleEn);
+    set('ghBannerCustomSubtitle', state.bannerCustomSubtitle);
+    set('ghBannerCustomHref', state.bannerCustomHref);
+    set('ghBannerCustomIcon', state.bannerCustomIcon || 'fa-bullhorn');
+    // Aggiorna preview icona
+    const iconPrev = document.getElementById('ghBannerIconPreview');
+    if (iconPrev) iconPrev.innerHTML = '<i class="fas '+(state.bannerCustomIcon || 'fa-bullhorn')+'" style="color:#fff;font-size:20px;"></i>';
     set('ghBannerCieEnabled', state.bannerCieEnabled);
     set('ghBannerCieTitle', state.bannerCieTitle);
     set('ghBannerCieTitleEn', state.bannerCieTitleEn);
@@ -1086,11 +1121,12 @@ window.GeneratoreHome = (function () {
     },
     slides: ${JSON.stringify(S.slides, null, 4)},
     servizi: ${serviziStr},
-    bannerScatti: {
-      titleIt:    ${q(S.bannerScattiTitleIt)},
-      titleEn:    ${q(S.bannerScattiTitleEn)},
-      subtitle:   ${q(S.bannerScattiSubtitle)},
-      href:       ${q(S.bannerScattiHref)},
+    bannerCustom: {
+      titleIt:    ${q(S.bannerCustomTitleIt)},
+      titleEn:    ${q(S.bannerCustomTitleEn)},
+      subtitle:   ${q(S.bannerCustomSubtitle)},
+      href:       ${q(S.bannerCustomHref)},
+      icon:       ${q(S.bannerCustomIcon || 'fa-bullhorn')},
     },
     bannerCie: {
       title:      ${q(S.bannerCieTitle)},
@@ -1148,7 +1184,7 @@ window.GeneratoreHome = (function () {
       ui: {
         "ticker.title":        { it: "news dal Comune", en: "Municipal News" },
         "slide.cta":           { it: "Apri sezione", en: "Open section" },
-        "banner.subtitle":     { it: ${q(S.bannerScattiSubtitle)}, en: "Your most beautiful shots" },
+        "banner.subtitle":     { it: ${q(S.bannerCustomSubtitle)}, en: ${q(S.bannerCustomSubtitle)} },
         "cie.badge":           { it: "INFO", en: "INFO" },
         "rd.title":            { it: "Raccolta differenziata", en: "Waste Collection" },
         "rd.sub":              { it: "Avvisi conferimenti", en: "Collection Notices" },
@@ -1453,14 +1489,14 @@ rssapp-ticker a{margin-right:50px!important;display:inline-block!important;color
 .svc-label-en{font-size:var(--fs-xs);font-weight:600;color:var(--ink-sub);line-height:1.1;width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:.9;}
 .svc-ripple{position:absolute;border-radius:50%;transform:scale(0);background:rgba(60,164,52,.25);pointer-events:none;animation:svcRipple .55s linear;}
 @keyframes svcRipple{to{transform:scale(3.5);opacity:0;}}
-.w-banner-scatti{width:100%;}
+.w-banner-custom{width:100%;}
 .banner-link-card{display:flex;align-items:center;justify-content:space-between;width:100%;background:linear-gradient(135deg,var(--blu-dark) 0%,var(--blu) 50%,var(--blu-hover) 100%);color:#fff;text-decoration:none;padding:clamp(14px,3.5vw,20px) clamp(14px,3.5vw,22px);box-shadow:var(--shadow-md);transition:filter .3s ease;cursor:pointer;}
 .banner-link-card:hover{filter:brightness(1.1);}
 .banner-content{display:flex;flex-direction:column;flex:1;min-width:0;}
 .banner-title{font-size:var(--fs-lg);font-weight:700;line-height:1.2;letter-spacing:.3px;}
 .banner-subtitle-text{font-size:var(--fs-sm);font-weight:300;opacity:.80;margin-top:4px;}
 .banner-actions{display:flex;align-items:center;padding-left:12px;gap:10px;flex-shrink:0;}
-.camera-icon{font-size:var(--fs-xl);opacity:.5;}
+.banner-custom-icon{font-size:var(--fs-xl);opacity:.5;}
 .cta-arrow-box{background:rgba(255,255,255,.18);width:36px;height:36px;display:flex;align-items:center;justify-content:center;border-radius:50%;}
 .cta-arrow-icon{font-size:var(--fs-md);animation:nudgeRight 2s infinite ease-in-out;}
 @keyframes nudgeRight{0%,100%{transform:translateX(0);}50%{transform:translateX(4px);}}
@@ -1605,7 +1641,7 @@ rssapp-ticker a{margin-right:50px!important;display:inline-block!important;color
     tickerBar:()=>'<section class="w-ticker" id="tickerBar" aria-label="Notizie in scorrimento"><div class="ticker-header"><a href="'+esc(href(C.ticker.linkUrl))+'" target="_blank" rel="noopener"><span class="news-ico" aria-hidden="true"><span style="transform:translateY(1px);display:inline-block;">\\u{1F4F0}</span></span><span class="header-title" data-i18n="ticker.title">'+esc(t('ticker.title'))+'</span><span class="arrow-link" aria-hidden="true">\\u2197</span></a></div><div class="ticker-strip"><rssapp-ticker id="'+esc(C.ticker.rssWidgetId)+'"></rssapp-ticker></div></section>',
     slideshow:()=>'<div id="slideshowSlot"></div>',
     servizi:()=>{const svcSections=C.servizi.map(sec=>{const cards=sec.items.map(it=>'<a class="svc-link" href="'+esc(href(it.href))+'" target="_blank" rel="noopener"><div class="svc-card"><div class="svc-icon-box"><i class="fa-solid '+esc(it.icon)+'"></i></div><div class="svc-label-it" data-i18n-it="'+esc(it.labelIt)+'" data-i18n-en="'+esc(it.labelEn)+'">'+esc(LANG==='en'?it.labelEn:it.labelIt)+'</div></div></a>').join('');return '<div class="svc-section"><div class="svc-section-hdr"><div class="svc-title-it" data-i18n-it="'+esc(sec.sectionIt)+'" data-i18n-en="'+esc(sec.sectionEn)+'">'+esc(LANG==='en'?sec.sectionEn:sec.sectionIt)+'</div></div><div class="svc-grid">'+cards+'</div></div>';}).join('');return '<section class="w-services" id="servicesContainer" aria-label="Servizi comunali">'+svcSections+'</section>';},
-    bannerScatti:()=>'<section class="w-banner-scatti" id="bannerScatti" aria-label="I vostri scatti"><a href="'+esc(href(C.bannerScatti.href))+'" class="banner-link-card" target="_blank" rel="noopener"><div class="banner-content"><div class="banner-title" data-i18n-it="'+esc(C.bannerScatti.titleIt)+'" data-i18n-en="'+esc(C.bannerScatti.titleEn||C.bannerScatti.titleIt)+'">'+esc(LANG==='en'?(C.bannerScatti.titleEn||C.bannerScatti.titleIt):C.bannerScatti.titleIt)+'</div><div class="banner-subtitle-text" data-i18n="banner.subtitle">'+esc(t('banner.subtitle'))+'</div></div><div class="banner-actions"><i class="fas fa-camera camera-icon"></i><div class="cta-arrow-box"><i class="fas fa-chevron-right cta-arrow-icon"></i></div></div></a></section>',
+    bannerCustom:()=>'<section class="w-banner-custom" id="bannerCustom" aria-label="'+esc(C.bannerCustom.titleIt||'Banner')+'"><a href="'+esc(href(C.bannerCustom.href))+'" class="banner-link-card" target="_blank" rel="noopener"><div class="banner-content"><div class="banner-title" data-i18n-it="'+esc(C.bannerCustom.titleIt)+'" data-i18n-en="'+esc(C.bannerCustom.titleEn||C.bannerCustom.titleIt)+'">'+esc(LANG==='en'?(C.bannerCustom.titleEn||C.bannerCustom.titleIt):C.bannerCustom.titleIt)+'</div><div class="banner-subtitle-text" data-i18n-it="'+esc(C.bannerCustom.subtitle)+'" data-i18n-en="'+esc(C.bannerCustom.subtitle)+'">'+esc(C.bannerCustom.subtitle)+'</div></div><div class="banner-actions"><i class="fas '+esc(C.bannerCustom.icon||'fa-bullhorn')+' banner-custom-icon"></i><div class="cta-arrow-box"><i class="fas fa-chevron-right cta-arrow-icon"></i></div></div></a></section>',
     bannerCIE:()=>C.bannerCie.enabled?'<section class="w-banner-cie" id="bannerCIE" role="region" aria-label="Avviso CIE"><a class="cie-link" href="'+esc(C.bannerCie.href)+'" target="_blank" rel="noopener" aria-label="'+esc(C.bannerCie.title)+'"><div class="cie-ico" aria-hidden="true"><i class="fa-solid fa-id-card"></i></div><div class="cie-txt"><p class="cie-title" data-i18n-it="'+esc(C.bannerCie.title)+'" data-i18n-en="'+esc(C.bannerCie.titleEn||C.bannerCie.title)+'">'+esc(LANG==='en'?(C.bannerCie.titleEn||C.bannerCie.title):C.bannerCie.title)+'</p><p class="cie-subtitle" data-i18n-it="'+esc(C.bannerCie.subtitle)+'" data-i18n-en="'+esc(C.bannerCie.subtitleEn||C.bannerCie.subtitle)+'">'+esc(LANG==='en'?(C.bannerCie.subtitleEn||C.bannerCie.subtitle):C.bannerCie.subtitle)+'</p></div><div class="cie-info-wrap" aria-hidden="true"><span class="cie-badge" data-i18n="cie.badge">'+esc(t('cie.badge'))+'</span><span class="cie-ring"></span><span class="cie-finger"><i class="fa-solid fa-hand-point-up"></i></span></div></a></section>':'',
     raccoltaDifferenziata:()=>'<section class="w-raccolta-wrapper" aria-label="Raccolta differenziata"><div id="raccoltaDifferenziata" class="rd-card" aria-live="polite"></div></section>',
     protezioneCivile:()=>C.protezioneCivile.enabled?'<section class="w-protezione" id="protezioneCivile" aria-label="Bollettino Protezione Civile"><div id="dpc-alerts-widget"></div></section>':'',
