@@ -276,13 +276,6 @@ window.GeneratoreHome = (function () {
         ]
       }],
       bannerGroups: [],
-      // Video widget (unico)
-      videoType: 'mp4',        // 'mp4' | 'embed'
-      videoUrl: '',
-      videoTargetUrl: '',
-      videoTitleIt: '',
-      videoTitleEn: '',
-      videoPosterUrl: '',
       // RSS Sliders (replicabili)
       rssSliders: [],
       bannerCieEnabled: true,
@@ -329,8 +322,7 @@ window.GeneratoreHome = (function () {
         { id: 'raccoltaDifferenziata', label: 'Raccolta Differenziata', enabled: true, order: 6 },
         { id: 'protezioneCivile', label: 'Protezione Civile', enabled: true, order: 7 },
         { id: 'meteoCard', label: 'Meteo', enabled: true, order: 8 },
-        { id: 'videoWidget', label: 'Video', enabled: false, order: 9 },
-        { id: 'tabBar', label: 'Tab Bar', enabled: false, order: 10 },
+        { id: 'tabBar', label: 'Tab Bar', enabled: false, order: 9 },
       ],
     };
   }
@@ -567,26 +559,6 @@ window.GeneratoreHome = (function () {
       false
     );
 
-    // === SEZ. 13: VIDEO WIDGET ===
-    formHtml += makeSection('fa-video', 'Video',
-      '<div style="margin-bottom:16px;"><label style="display:block;font-weight:600;color:#4A4A4A;margin-bottom:6px;font-size:13px;">Tipo Sorgente</label>' +
-      '<select id="ghVideoType" style="width:100%;padding:10px 14px;border:1px solid #d0d0d0;border-radius:8px;font-family:\'Titillium Web\',sans-serif;font-size:14px;">' +
-        '<option value="mp4"' + (state.videoType === 'mp4' ? ' selected' : '') + '>MP4 diretto (autoplay muto)</option>' +
-        '<option value="embed"' + (state.videoType === 'embed' ? ' selected' : '') + '>Embed YouTube / Vimeo</option>' +
-      '</select></div>' +
-      makeInput('ghVideoUrl', 'URL Video', state.videoUrl, 'https://... (.mp4 o link YouTube/Vimeo)') +
-      '<div id="ghVideoMp4Fields">' +
-        makeInput('ghVideoTargetUrl', 'URL di destinazione (click)', state.videoTargetUrl, 'https://...pagina-collegata') +
-        makeInput('ghVideoPosterUrl', 'Immagine poster/fallback (opz.)', state.videoPosterUrl, 'docs/video-poster.jpg') +
-      '</div>' +
-      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">' +
-        makeInput('ghVideoTitleIt', 'Titolo sovrapposto (IT, opz.)', state.videoTitleIt, '') +
-        makeInput('ghVideoTitleEn', 'Titolo sovrapposto (EN, opz.)', state.videoTitleEn, '') +
-      '</div>' +
-      '<p style="font-size:12px;color:#9B9B9B;margin-top:6px;"><i class="fas fa-info-circle"></i> Abilita il widget "Video" nella Gestione Widget per includerlo nella home. MP4: parte in autoplay muto; Embed: l\'utente clicca play.</p>',
-      false
-    );
-
     // === SEZ. 14: SLIDER RSS (replicabili) ===
     formHtml += makeSection('fa-rss', 'Slider RSS (Eventi, Mostre, ...)',
       '<p style="font-size:12px;color:#9B9B9B;margin-bottom:12px;"><i class="fas fa-info-circle"></i> Puoi aggiungere più slider RSS, ognuno con il suo feed. Appariranno nella Gestione Widget per posizionarli dove vuoi.</p>' +
@@ -632,7 +604,6 @@ window.GeneratoreHome = (function () {
         '<option value="bannerCustom">Banner Personalizzabile</option><option value="bannerCIE">Banner CIE</option>' +
         '<option value="raccoltaDifferenziata">Raccolta Differenziata</option>' +
         '<option value="protezioneCivile">Protezione Civile</option><option value="meteoCard">Meteo</option>' +
-        '<option value="videoWidget">Video</option>' +
       '</select></div>' +
       makeInput('ghSpotlightDurata','Durata (ms)',String(state.spotlightDurata),'2500','number') +
       makeCheckbox('ghSpotlightForzaSempre','Forza Sempre (per test)',state.spotlightForzaSempre),
@@ -665,7 +636,6 @@ window.GeneratoreHome = (function () {
     refreshServizi();
     syncBannerCustomWidgets();
     refreshBannerGroups();
-    ensureWidgetExists('videoWidget', 'Video', false);
     ensureWidgetExists('tabBar', 'Tab Bar', false);
     syncRssSliderWidgets();
     refreshRssSliders();
@@ -792,15 +762,6 @@ window.GeneratoreHome = (function () {
       const fields = document.getElementById('ghProtCivileFields');
       if (fields) fields.style.opacity = e.target.checked ? '1' : '0.4';
     });
-
-    // Video type toggle
-    const videoSel = document.getElementById('ghVideoType');
-    const mp4Fields = document.getElementById('ghVideoMp4Fields');
-    if (videoSel && mp4Fields) {
-      const toggleMp4 = () => { mp4Fields.style.display = videoSel.value === 'mp4' ? 'block' : 'none'; };
-      toggleMp4();
-      videoSel.addEventListener('change', toggleMp4);
-    }
 
     // Add RSS Slider
     const btnAddRss = document.getElementById('ghBtnAddRssSlider');
@@ -1787,13 +1748,6 @@ window.GeneratoreHome = (function () {
     state.spotlightWidgetId = v('ghSpotlightWidgetId');
     state.spotlightDurata = parseInt(v('ghSpotlightDurata')) || 2500;
     state.spotlightForzaSempre = v('ghSpotlightForzaSempre');
-    // Video
-    state.videoType = v('ghVideoType') || 'mp4';
-    state.videoUrl = v('ghVideoUrl');
-    state.videoTargetUrl = v('ghVideoTargetUrl');
-    state.videoTitleIt = v('ghVideoTitleIt');
-    state.videoTitleEn = v('ghVideoTitleEn');
-    state.videoPosterUrl = v('ghVideoPosterUrl');
     // Tab Bar
     collectTabBarFromDOM();
     // RSS Sliders
@@ -1849,17 +1803,6 @@ window.GeneratoreHome = (function () {
     set('ghSpotlightWidgetId', state.spotlightWidgetId);
     set('ghSpotlightDurata', state.spotlightDurata);
     set('ghSpotlightForzaSempre', state.spotlightForzaSempre);
-    // Video
-    set('ghVideoType', state.videoType);
-    set('ghVideoUrl', state.videoUrl);
-    set('ghVideoTargetUrl', state.videoTargetUrl);
-    set('ghVideoTitleIt', state.videoTitleIt);
-    set('ghVideoTitleEn', state.videoTitleEn);
-    set('ghVideoPosterUrl', state.videoPosterUrl);
-    const mp4F = document.getElementById('ghVideoMp4Fields');
-    if (mp4F) mp4F.style.display = state.videoType === 'mp4' ? 'block' : 'none';
-    // Assicura che i widget nuovi esistano (per config salvate prima dell'aggiunta)
-    ensureWidgetExists('videoWidget', 'Video', false);
     // Tab Bar
     ensureWidgetExists('tabBar', 'Tab Bar', false);
     refreshTabBarItems(true);
@@ -1945,14 +1888,6 @@ window.GeneratoreHome = (function () {
       weeklyForecastUrl: ${q(S.meteoWeeklyUrl)},
       updateIntervalMin: ${S.meteoInterval},
       timeoutMs:         ${S.meteoTimeout},
-    },
-    video: {
-      type:       ${q(S.videoType)},
-      url:        ${q(S.videoUrl)},
-      targetUrl:  ${q(S.videoTargetUrl)},
-      titleIt:    ${q(S.videoTitleIt)},
-      titleEn:    ${q(S.videoTitleEn)},
-      posterUrl:  ${q(S.videoPosterUrl)},
     },
     rssSliders: ${JSON.stringify(S.rssSliders || [], null, 4)},
     header: {
@@ -2420,19 +2355,6 @@ rssapp-ticker a{margin-right:50px!important;display:inline-block!important;color
 .sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important;}
 .a11y-live{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden;}
 .keyboard-nav a:focus-visible,.keyboard-nav button:focus-visible,.keyboard-nav [tabindex]:focus-visible,.keyboard-nav input:focus-visible{outline:3px solid var(--blu-hover)!important;outline-offset:2px!important;}
-/* === VIDEO WIDGET === */
-.w-video-widget{width:100%;max-width:900px;margin:0 auto;overflow:hidden;box-shadow:var(--shadow-md);}
-.vw-container{position:relative;width:100%;background:#000;}
-.vw-mp4{aspect-ratio:16/9;}
-.vw-link{display:block;width:100%;height:100%;position:relative;}
-.vw-video{width:100%;height:100%;object-fit:cover;display:block;}
-.vw-overlay{position:absolute;bottom:0;left:0;right:0;padding:16px 20px;background:linear-gradient(transparent,rgba(0,0,0,.65));pointer-events:none;}
-.vw-title{margin:0;font-weight:700;font-size:clamp(1rem,3.5vw,1.3rem);color:#fff;text-shadow:0 2px 8px rgba(0,0,0,.4);}
-.vw-title-bar{padding:12px 16px;background:var(--blu);color:#fff;}
-.vw-title-bar .vw-title{color:#fff;text-shadow:none;}
-.vw-iframe-wrap{position:relative;width:100%;padding-bottom:56.25%;height:0;overflow:hidden;}
-.vw-iframe-wrap iframe{position:absolute;top:0;left:0;width:100%;height:100%;border:0;}
-[data-theme="dark"] .vw-title-bar{background:var(--blu-dark);}
 /* === RSS SLIDER WIDGET === */
 .w-rss-slider{width:100%;max-width:1200px;margin:0 auto;padding:10px 0 20px 0;}
 .rss-header{padding:0 14px 10px 14px;display:flex;justify-content:space-between;align-items:center;}
@@ -2759,72 +2681,6 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 90px);}`;
       + '<span data-i18n="meteo.retry">'
       + esc(t('meteo.retry')) + '</span></a>'
       + '</div></div></section>',
-    videoWidget: () => {
-      const V = C.video;
-      if (!V || !V.url) return '';
-
-      if (V.type === 'embed') {
-        let embedUrl = V.url;
-        if (embedUrl.includes('youtube.com/watch')) {
-          const vid = new URL(embedUrl).searchParams.get('v');
-          if (vid) embedUrl = 'https://www.youtube.com/embed/' + vid;
-        } else if (embedUrl.includes('youtu.be/')) {
-          embedUrl = 'https://www.youtube.com/embed/'
-            + embedUrl.split('youtu.be/')[1].split('?')[0];
-        } else if (
-          embedUrl.includes('vimeo.com/')
-          && !embedUrl.includes('player.vimeo.com')
-        ) {
-          embedUrl = 'https://player.vimeo.com/video/'
-            + embedUrl.split('vimeo.com/')[1].split('?')[0];
-        }
-        return '<section class="w-video-widget" id="videoWidget" '
-          + 'aria-label="Video">'
-          + '<div class="vw-container vw-embed">'
-          + (V.titleIt
-            ? '<div class="vw-title-bar">'
-            + '<h2 class="vw-title" '
-            + 'data-i18n-it="' + esc(V.titleIt) + '" '
-            + 'data-i18n-en="' + esc(V.titleEn || V.titleIt) + '">'
-            + esc(V.titleIt) + '</h2></div>'
-            : '')
-          + '<div class="vw-iframe-wrap">'
-          + '<iframe src="' + esc(embedUrl) + '" frameborder="0" '
-          + 'allow="accelerometer; autoplay; encrypted-media; '
-          + 'gyroscope; picture-in-picture" allowfullscreen '
-          + 'loading="lazy" title="' + esc(V.titleIt || 'Video') + '">'
-          + '</iframe></div>'
-          + '</div></section>';
-      }
-
-      const poster = V.posterUrl
-        ? (V.posterUrl.startsWith('http') ? V.posterUrl : BASE + '/' + V.posterUrl)
-        : '';
-      const targetH = V.targetUrl ? href(V.targetUrl) : '';
-
-      return '<section class="w-video-widget" id="videoWidget" '
-        + 'aria-label="Video">'
-        + '<div class="vw-container vw-mp4">'
-        + (targetH
-          ? '<a href="' + esc(targetH) + '" target="_blank" '
-          + 'rel="noopener" class="vw-link" '
-          + 'aria-label="' + esc(V.titleIt || 'Apri video') + '">'
-          : '')
-        + '<video autoplay muted loop playsinline'
-        + (poster ? ' poster="' + esc(poster) + '"' : '')
-        + ' class="vw-video">'
-        + '<source src="' + esc(V.url) + '" type="video/mp4">'
-        + '</video>'
-        + (V.titleIt
-          ? '<div class="vw-overlay">'
-          + '<h2 class="vw-title" '
-          + 'data-i18n-it="' + esc(V.titleIt) + '" '
-          + 'data-i18n-en="' + esc(V.titleEn || V.titleIt) + '">'
-          + esc(V.titleIt) + '</h2></div>'
-          : '')
-        + (targetH ? '</a>' : '')
-        + '</div></section>';
-    },
   };
 
   // Register dynamic RSS slider renderers
