@@ -1001,10 +1001,10 @@ window.GeneratoreHome = (function () {
   /* ============================================================
      DYNAMIC FORM – SLIDES
      ============================================================ */
-  function refreshSlides() {
+  function refreshSlides(skipCollect) {
     const c = document.getElementById('ghSlidesContainer');
     if (!c) return;
-    collectSlidesFromDOM(); // salva prima di ricostruire
+    if (!skipCollect) collectSlidesFromDOM(); // salva prima di ricostruire
     let html = '';
     state.slides.forEach((s, i) => {
       html += '<div class="gh-slide-card" style="background:#f8f9fa;border:1px solid #e0e0e0;border-radius:10px;padding:16px;margin-bottom:12px;position:relative;">' +
@@ -1131,10 +1131,10 @@ window.GeneratoreHome = (function () {
   /* ============================================================
      DYNAMIC FORM – RSS SLIDERS
      ============================================================ */
-  function refreshRssSliders() {
+  function refreshRssSliders(skipCollect) {
     const c = document.getElementById('ghRssSlidersContainer');
     if (!c) return;
-    collectRssSlidersFromDOM();
+    if (!skipCollect) collectRssSlidersFromDOM();
     let html = '';
     state.rssSliders.forEach((slider, i) => {
       let iconOpts = '';
@@ -1225,10 +1225,10 @@ window.GeneratoreHome = (function () {
     });
   }
 
-  function refreshBannerItems() {
+  function refreshBannerItems(skipCollect) {
     const c = document.getElementById('ghBannerItemsContainer');
     if (!c) return;
-    collectBannerItemsFromDOM();
+    if (!skipCollect) collectBannerItemsFromDOM();
     let html = '';
     state.bannerCustomItems.forEach((item, i) => {
       // Icon options
@@ -1301,10 +1301,10 @@ window.GeneratoreHome = (function () {
   /* ============================================================
      DYNAMIC FORM – SERVIZI
      ============================================================ */
-  function refreshServizi() {
+  function refreshServizi(skipCollect) {
     const c = document.getElementById('ghServiziContainer');
     if (!c) return;
-    collectServiziFromDOM();
+    if (!skipCollect) collectServiziFromDOM();
     let html = '';
     state.servizi.forEach((sec, si) => {
       html += '<div class="gh-sez-card" style="background:#f0f4f8;border:1px solid #d0d8e0;border-radius:10px;padding:16px;margin-bottom:16px;">';
@@ -1643,7 +1643,7 @@ window.GeneratoreHome = (function () {
     set('ghColoreSecondario', state.coloreSecondario);
     set('ghTickerRssId', state.tickerRssId);
     set('ghTickerLinkUrl', state.tickerLinkUrl);
-    refreshBannerItems();
+    refreshBannerItems(true); // skipCollect: lo state è già aggiornato dal load
     set('ghBannerCieEnabled', state.bannerCieEnabled);
     set('ghBannerCieTitle', state.bannerCieTitle);
     set('ghBannerCieTitleEn', state.bannerCieTitleEn);
@@ -1689,9 +1689,9 @@ window.GeneratoreHome = (function () {
     ensureWidgetExists('videoWidget', 'Video', false);
     // RSS Sliders
     syncRssSliderWidgets();
-    refreshRssSliders();
-    refreshSlides();
-    refreshServizi();
+    refreshRssSliders(true); // skipCollect: lo state è già aggiornato dal load
+    refreshSlides(true); // skipCollect: lo state è già aggiornato dal load
+    refreshServizi(true); // skipCollect: lo state è già aggiornato dal load
     refreshWidgetList();
     updatePalettePreview();
   }
