@@ -313,11 +313,10 @@ window.GeneratoreHome = (function () {
       a11yDarkMode: true, a11yContrasto: true, a11yFontScale: true, a11yMaxFontScale: 4, a11yRispettaSistema: false,
       spotlightWidgetId: '', spotlightDurata: 2500, spotlightForzaSempre: false,
       // Tab Bar
-      tabBarEnabled: false,
       tabBarItems: [
-        { icon: 'fa-house', labelIt: 'Home', labelEn: 'Home', href: '', isCenter: true },
         { icon: 'fa-building-columns', labelIt: 'Municipio', labelEn: 'Town Hall', href: 'municipio-cittadini', isCenter: false },
         { icon: 'fa-triangle-exclamation', labelIt: 'Emergenza', labelEn: 'Emergency', href: 'emergenza', isCenter: false },
+        { icon: 'fa-house', labelIt: 'Home', labelEn: 'Home', href: '', isCenter: true },
         { icon: 'fa-heart-pulse', labelIt: 'DAE', labelEn: 'AED', href: 'dae', isCenter: false },
         { icon: 'fa-bars', labelIt: 'Menu', labelEn: 'Menu', href: 'menu', isCenter: false },
       ],
@@ -331,6 +330,7 @@ window.GeneratoreHome = (function () {
         { id: 'protezioneCivile', label: 'Protezione Civile', enabled: true, order: 7 },
         { id: 'meteoCard', label: 'Meteo', enabled: true, order: 8 },
         { id: 'videoWidget', label: 'Video', enabled: false, order: 9 },
+        { id: 'tabBar', label: 'Tab Bar', enabled: false, order: 10 },
       ],
     };
   }
@@ -641,8 +641,7 @@ window.GeneratoreHome = (function () {
 
     // === SEZ. 17: TAB BAR ===
     formHtml += makeSection('fa-ellipsis', 'Tab Bar (Navigazione)',
-      makeCheckbox('ghTabBarEnabled', 'Abilita Tab Bar', state.tabBarEnabled) +
-      '<p style="font-size:12px;color:#9B9B9B;margin:0 0 12px;"><i class="fas fa-info-circle"></i> Barra di navigazione fissa in basso con 5 pulsanti. Il pulsante centrale (Home) sarà più grande e in evidenza.</p>' +
+      '<p style="font-size:12px;color:#9B9B9B;margin:0 0 12px;"><i class="fas fa-info-circle"></i> Barra di navigazione flottante in basso con 5 pulsanti. Attiva/disattiva dalla <strong>Gestione Widget</strong>. Il pulsante centrale sarà più grande e in evidenza.</p>' +
       '<div id="ghTabBarItemsContainer"></div>',
       false
     );
@@ -667,6 +666,7 @@ window.GeneratoreHome = (function () {
     syncBannerCustomWidgets();
     refreshBannerGroups();
     ensureWidgetExists('videoWidget', 'Video', false);
+    ensureWidgetExists('tabBar', 'Tab Bar', false);
     syncRssSliderWidgets();
     refreshRssSliders();
     refreshTabBarItems();
@@ -1637,6 +1637,12 @@ window.GeneratoreHome = (function () {
           state.bannerGroups = [{ items: state.bannerCustomItems }];
           delete state.bannerCustomItems;
         }
+        // Migrate old tabBarEnabled to widget system
+        if (state.tabBarEnabled !== undefined) {
+          const tbW = state.widgets.find(w => w.id === 'tabBar');
+          if (tbW) tbW.enabled = !!state.tabBarEnabled;
+          delete state.tabBarEnabled;
+        }
         populateForm();
         alert('Configurazione caricata!');
       } else {
@@ -1762,7 +1768,6 @@ window.GeneratoreHome = (function () {
     state.videoTitleEn = v('ghVideoTitleEn');
     state.videoPosterUrl = v('ghVideoPosterUrl');
     // Tab Bar
-    state.tabBarEnabled = v('ghTabBarEnabled');
     collectTabBarFromDOM();
     // RSS Sliders
     collectRssSlidersFromDOM();
@@ -1829,7 +1834,7 @@ window.GeneratoreHome = (function () {
     // Assicura che i widget nuovi esistano (per config salvate prima dell'aggiunta)
     ensureWidgetExists('videoWidget', 'Video', false);
     // Tab Bar
-    set('ghTabBarEnabled', state.tabBarEnabled);
+    ensureWidgetExists('tabBar', 'Tab Bar', false);
     refreshTabBarItems(true);
     // RSS Sliders
     syncRssSliderWidgets();
@@ -1948,7 +1953,6 @@ window.GeneratoreHome = (function () {
       forzaSempre: ${!!S.spotlightForzaSempre},
     },
     tabBar: {
-      enabled: ${!!S.tabBarEnabled},
       items: ${JSON.stringify(S.tabBarItems || [], null, 4)},
     },
     widgets: ${JSON.stringify(S.widgets)},
@@ -2427,25 +2431,33 @@ rssapp-ticker a{margin-right:50px!important;display:inline-block!important;color
 [data-theme="dark"] .rss-card-img{background:#2a2a2a;}
 @media(max-width:380px){.rss-event-card{flex:0 0 280px;height:120px;}.rss-card-img{width:95px;}}
 /* TAB BAR */
-.cd-tab-bar{position:fixed;bottom:0;left:0;right:0;z-index:9999;padding:0 12px 0;pointer-events:none;display:none;}
-.cd-tab-bar.active{display:block;}
-.cd-tab-bar-inner{max-width:480px;margin:0 auto;background:rgba(255,255,255,.92);backdrop-filter:blur(20px) saturate(180%);-webkit-backdrop-filter:blur(20px) saturate(180%);border-radius:28px 28px 0 0;border:1px solid rgba(255,255,255,.6);border-bottom:none;box-shadow:0 -4px 30px rgba(0,0,0,.12),0 -1px 6px rgba(0,0,0,.06);display:flex;align-items:flex-end;justify-content:space-around;padding:6px 8px 8px;pointer-events:auto;}
-.cd-tab-btn{display:flex;flex-direction:column;align-items:center;gap:2px;text-decoration:none;color:var(--cd-gray-500);font-size:10px;font-weight:600;letter-spacing:.02em;padding:4px 6px;border-radius:14px;transition:color .2s;min-width:52px;-webkit-tap-highlight-color:transparent;position:relative;}
-.cd-tab-btn:active{color:var(--blu);}
-.cd-tab-btn .cd-tab-icon{width:28px;height:28px;display:grid;place-items:center;font-size:15px;border-radius:12px;transition:all .25s cubic-bezier(.4,0,.2,1);}
-.cd-tab-btn .cd-tab-label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:64px;line-height:1.2;}
-.cd-tab-btn.cd-tab-center{color:var(--blu);}
-.cd-tab-btn.cd-tab-center .cd-tab-icon{width:50px;height:50px;font-size:22px;border-radius:18px;background:linear-gradient(145deg,var(--blu),var(--blu-dark));color:#fff;box-shadow:0 6px 20px rgba(var(--blu-rgb),.35),0 2px 6px rgba(0,0,0,.1);margin-top:-22px;border:3px solid #fff;}
-.cd-tab-btn.cd-tab-center .cd-tab-label{font-weight:800;color:var(--blu);}
+.cd-tab-bar{position:fixed;bottom:12px;left:0;right:0;z-index:9998;padding:0 14px;pointer-events:none;display:none;}
+.cd-tab-bar.active{display:flex;justify-content:center;}
+.cd-tab-bar-inner{width:100%;max-width:420px;background:rgba(255,255,255,.88);backdrop-filter:blur(24px) saturate(180%);-webkit-backdrop-filter:blur(24px) saturate(180%);border-radius:26px;border:1px solid rgba(255,255,255,.7);box-shadow:0 8px 32px rgba(0,0,0,.14),0 2px 8px rgba(0,0,0,.08);display:flex;align-items:flex-end;justify-content:space-around;padding:8px 4px 10px;pointer-events:auto;}
+.cd-tab-btn{display:flex;flex-direction:column;align-items:center;gap:3px;text-decoration:none;color:var(--cd-gray-500);font-size:10px;font-weight:600;letter-spacing:.02em;padding:2px 0;min-width:56px;-webkit-tap-highlight-color:transparent;position:relative;font-family:'Titillium Web',sans-serif;}
+.cd-tab-btn:active{transform:scale(.92);}
+.cd-tab-btn .cd-tab-icon{width:32px;height:32px;display:grid;place-items:center;font-size:17px;border-radius:12px;transition:all .2s ease;color:inherit;}
+.cd-tab-btn .cd-tab-label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:64px;line-height:1.2;font-size:10px;}
+/* Center button — elevated, larger, gradient */
+.cd-tab-btn.cd-tab-center{margin-top:-28px;color:var(--blu);}
+.cd-tab-btn.cd-tab-center .cd-tab-icon{width:56px;height:56px;font-size:24px;border-radius:50%;background:linear-gradient(145deg,var(--blu),var(--blu-dark));color:#fff;box-shadow:0 6px 24px rgba(var(--blu-rgb),.4),0 2px 8px rgba(0,0,0,.12);border:4px solid #fff;transition:transform .2s ease,box-shadow .2s ease;}
+.cd-tab-btn.cd-tab-center:active .cd-tab-icon{transform:scale(.9);}
+.cd-tab-btn.cd-tab-center .cd-tab-label{font-weight:800;color:var(--blu);margin-top:2px;}
+/* Active non-center */
 .cd-tab-btn.cd-tab-active:not(.cd-tab-center){color:var(--blu);}
 .cd-tab-btn.cd-tab-active:not(.cd-tab-center) .cd-tab-icon{background:rgba(var(--blu-rgb),.1);color:var(--blu);}
+/* Safe area */
 @supports(padding-bottom: env(safe-area-inset-bottom)){
-  .cd-tab-bar-inner{padding-bottom:calc(8px + env(safe-area-inset-bottom));}
+  .cd-tab-bar{bottom:calc(12px + env(safe-area-inset-bottom));}
 }
-[data-theme="dark"] .cd-tab-bar-inner{background:rgba(30,30,30,.92);border-color:rgba(255,255,255,.08);box-shadow:0 -4px 30px rgba(0,0,0,.4);}
-[data-theme="dark"] .cd-tab-btn{color:var(--cd-gray-500);}
-[data-theme="dark"] .cd-tab-btn.cd-tab-center .cd-tab-icon{border-color:rgba(30,30,30,.92);}
-body.has-tab-bar{padding-bottom:80px;}`;
+/* Dark mode */
+[data-theme="dark"] .cd-tab-bar-inner{background:rgba(28,28,30,.88);border-color:rgba(255,255,255,.08);box-shadow:0 8px 32px rgba(0,0,0,.45);}
+[data-theme="dark"] .cd-tab-btn{color:rgba(255,255,255,.45);}
+[data-theme="dark"] .cd-tab-btn.cd-tab-center .cd-tab-icon{border-color:rgba(28,28,30,.88);}
+[data-theme="dark"] .cd-tab-btn.cd-tab-active:not(.cd-tab-center){color:var(--cd-blue-300);}
+/* Body padding + A11y FAB offset */
+body.has-tab-bar{padding-bottom:100px;}
+body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 90px);}`;
   }
 
   /* ============================================================
@@ -2582,7 +2594,9 @@ body.has-tab-bar{padding-bottom:80px;}`;
   /* TAB BAR */
   (function(){
     var tbm=document.getElementById('tabBarMount');if(!tbm)return;
-    var tb=C.tabBar;if(!tb||!tb.enabled)return;
+    var tb=C.tabBar;if(!tb)return;
+    var tbWidget=(C.widgets||[]).find(function(w){return w.id==='tabBar';});
+    if(!tbWidget||!tbWidget.enabled)return;
     document.body.classList.add('has-tab-bar');
     var items=tb.items||[];if(!items.length)return;
     var h='<nav class="cd-tab-bar active" id="cdTabBar" role="navigation" aria-label="Navigazione principale"><div class="cd-tab-bar-inner">';
