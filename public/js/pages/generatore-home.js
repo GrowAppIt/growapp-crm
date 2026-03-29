@@ -86,14 +86,175 @@ window.GeneratoreHome = (function () {
      FA ICONS LIST
      ============================================================ */
   const FA_ICONS = [
-    'fa-building-columns','fa-gears','fa-triangle-exclamation','fa-newspaper','fa-screwdriver-wrench',
-    'fa-user-doctor','fa-recycle','fa-helmet-safety','fa-book-open','fa-map-location-dot',
-    'fa-bus','fa-graduation-cap','fa-calendar-days','fa-house-medical','fa-baby',
-    'fa-tree-city','fa-landmark','fa-phone','fa-envelope','fa-wifi',
-    'fa-utensils','fa-futbol','fa-music','fa-church','fa-mountain-sun',
-    'fa-water','fa-masks-theater','fa-paw','fa-dumbbell','fa-paintbrush',
-    'fa-mosque','fa-hands-praying','fa-users','fa-id-card','fa-camera',
-    'fa-store','fa-car','fa-bicycle','fa-leaf','fa-shield-halved'
+    // — Edifici e luoghi istituzionali —
+    { v: 'fa-building-columns', l: 'Municipio / Palazzo' },
+    { v: 'fa-landmark', l: 'Monumento / Sede istituzionale' },
+    { v: 'fa-building', l: 'Edificio / Ufficio' },
+    { v: 'fa-building-flag', l: 'Sede con bandiera' },
+    { v: 'fa-city', l: 'Città / Skyline' },
+    { v: 'fa-tree-city', l: 'Città verde / Urbanistica' },
+    { v: 'fa-house', l: 'Casa / Abitazione' },
+    { v: 'fa-house-chimney', l: 'Casa con camino' },
+    { v: 'fa-school', l: 'Scuola' },
+    { v: 'fa-hospital', l: 'Ospedale' },
+    { v: 'fa-house-medical', l: 'Guardia medica / ASL' },
+    { v: 'fa-church', l: 'Chiesa' },
+    { v: 'fa-mosque', l: 'Moschea' },
+    { v: 'fa-store', l: 'Negozio / Commercio' },
+    { v: 'fa-shop', l: 'Bottega / Attività locale' },
+    // — Servizi e utilità —
+    { v: 'fa-gears', l: 'Servizi / Ingranaggi' },
+    { v: 'fa-screwdriver-wrench', l: 'Manutenzione / Lavori' },
+    { v: 'fa-phone', l: 'Telefono / Contatti' },
+    { v: 'fa-envelope', l: 'Posta / E-mail' },
+    { v: 'fa-wifi', l: 'Wi-Fi / Connettività' },
+    { v: 'fa-globe', l: 'Web / Sito internet' },
+    { v: 'fa-circle-info', l: 'Informazioni' },
+    { v: 'fa-circle-question', l: 'FAQ / Domande' },
+    { v: 'fa-headset', l: 'Assistenza / Supporto' },
+    { v: 'fa-comment-dots', l: 'Chat / Messaggi' },
+    { v: 'fa-bell', l: 'Notifiche / Avvisi' },
+    { v: 'fa-bullhorn', l: 'Comunicazioni / Annunci' },
+    { v: 'fa-newspaper', l: 'Notizie / Giornale' },
+    { v: 'fa-clipboard-list', l: 'Lista / Elenco pratiche' },
+    { v: 'fa-file-lines', l: 'Documento / Modulo' },
+    { v: 'fa-file-signature', l: 'Firma / Autocertificazione' },
+    { v: 'fa-file-invoice', l: 'Fattura / Tributi' },
+    { v: 'fa-receipt', l: 'Ricevuta / Pagamenti' },
+    { v: 'fa-credit-card', l: 'Pagamento / Carta' },
+    { v: 'fa-money-bill-wave', l: 'Pagamenti / Economia' },
+    { v: 'fa-coins', l: 'Tasse / Tributi locali' },
+    { v: 'fa-scale-balanced', l: 'Giustizia / Legale' },
+    { v: 'fa-gavel', l: 'Delibere / Atti ufficiali' },
+    // — Segnalazioni e sicurezza —
+    { v: 'fa-triangle-exclamation', l: 'Segnalazione / Attenzione' },
+    { v: 'fa-flag', l: 'Segnala / Bandiera' },
+    { v: 'fa-shield-halved', l: 'Sicurezza / Protezione' },
+    { v: 'fa-helmet-safety', l: 'Cantiere / Lavori in corso' },
+    { v: 'fa-tower-broadcast', l: 'Allerte / Emergenze' },
+    { v: 'fa-fire-extinguisher', l: 'Vigili del fuoco' },
+    { v: 'fa-kit-medical', l: 'Pronto soccorso' },
+    // — Persone e servizi sociali —
+    { v: 'fa-users', l: 'Comunità / Persone' },
+    { v: 'fa-people-group', l: 'Gruppo / Associazioni' },
+    { v: 'fa-user', l: 'Cittadino / Profilo' },
+    { v: 'fa-user-doctor', l: 'Medico / Sanità' },
+    { v: 'fa-user-graduate', l: 'Laureato / Formazione' },
+    { v: 'fa-user-tie', l: 'Funzionario / Dirigente' },
+    { v: 'fa-user-shield', l: 'Protezione dati / Privacy' },
+    { v: 'fa-baby', l: 'Neonato / Infanzia' },
+    { v: 'fa-children', l: 'Bambini / Minori' },
+    { v: 'fa-person-cane', l: 'Anziani / Terza età' },
+    { v: 'fa-wheelchair', l: 'Accessibilità / Disabilità' },
+    { v: 'fa-hand-holding-heart', l: 'Servizi sociali / Volontariato' },
+    { v: 'fa-hands-holding-child', l: 'Tutela minori / Famiglia' },
+    { v: 'fa-id-card', l: 'Carta d\'identità / Documenti' },
+    { v: 'fa-passport', l: 'Passaporto / Anagrafe' },
+    { v: 'fa-hands-praying', l: 'Culto / Spiritualità' },
+    // — Istruzione e cultura —
+    { v: 'fa-graduation-cap', l: 'Istruzione / Scuola' },
+    { v: 'fa-book-open', l: 'Biblioteca / Lettura' },
+    { v: 'fa-book', l: 'Libro / Cultura' },
+    { v: 'fa-chalkboard-user', l: 'Insegnamento / Corsi' },
+    { v: 'fa-palette', l: 'Arte / Creatività' },
+    { v: 'fa-paintbrush', l: 'Pittura / Restauro' },
+    { v: 'fa-masks-theater', l: 'Teatro / Spettacoli' },
+    { v: 'fa-music', l: 'Musica / Concerti' },
+    { v: 'fa-film', l: 'Cinema / Video' },
+    { v: 'fa-camera', l: 'Fotografia / Immagini' },
+    // — Turismo e territorio —
+    { v: 'fa-map-location-dot', l: 'Mappa / Posizione' },
+    { v: 'fa-map', l: 'Cartina / Territorio' },
+    { v: 'fa-location-dot', l: 'Punto di interesse' },
+    { v: 'fa-route', l: 'Itinerario / Percorso' },
+    { v: 'fa-signs-post', l: 'Indicazioni / Segnaletica' },
+    { v: 'fa-mountain-sun', l: 'Montagna / Paesaggio' },
+    { v: 'fa-mountain', l: 'Montagna / Sentieri' },
+    { v: 'fa-water', l: 'Mare / Acqua' },
+    { v: 'fa-umbrella-beach', l: 'Spiaggia / Balneare' },
+    { v: 'fa-campground', l: 'Campeggio / Natura' },
+    { v: 'fa-person-hiking', l: 'Escursioni / Trekking' },
+    { v: 'fa-person-biking', l: 'Ciclismo / Bici' },
+    { v: 'fa-compass', l: 'Esplora / Bussola' },
+    { v: 'fa-binoculars', l: 'Osservazione / Panorami' },
+    { v: 'fa-bed', l: 'Alloggio / Dormire' },
+    { v: 'fa-suitcase', l: 'Turismo / Viaggiare' },
+    { v: 'fa-plane', l: 'Aeroporto / Voli' },
+    { v: 'fa-ship', l: 'Porto / Traghetti' },
+    // — Trasporti e mobilità —
+    { v: 'fa-bus', l: 'Autobus / Trasporto pubblico' },
+    { v: 'fa-train', l: 'Treno / Ferrovia' },
+    { v: 'fa-car', l: 'Auto / Parcheggi' },
+    { v: 'fa-taxi', l: 'Taxi / NCC' },
+    { v: 'fa-bicycle', l: 'Bicicletta / Ciclabile' },
+    { v: 'fa-motorcycle', l: 'Moto / Scooter' },
+    { v: 'fa-charging-station', l: 'Colonnina elettrica' },
+    { v: 'fa-gas-pump', l: 'Distributore / Carburante' },
+    { v: 'fa-road', l: 'Strade / Viabilità' },
+    { v: 'fa-parking', l: 'Parcheggio' },
+    // — Ambiente e sostenibilità —
+    { v: 'fa-leaf', l: 'Natura / Ecologia' },
+    { v: 'fa-seedling', l: 'Piantina / Sostenibilità' },
+    { v: 'fa-tree', l: 'Albero / Parco' },
+    { v: 'fa-recycle', l: 'Riciclo / Raccolta differenziata' },
+    { v: 'fa-trash-can', l: 'Rifiuti / Spazzatura' },
+    { v: 'fa-dumpster', l: 'Cassonetto / Isola ecologica' },
+    { v: 'fa-solar-panel', l: 'Energia solare / Rinnovabili' },
+    { v: 'fa-wind', l: 'Vento / Eolico' },
+    { v: 'fa-temperature-half', l: 'Temperatura / Clima' },
+    { v: 'fa-paw', l: 'Animali / Canile' },
+    { v: 'fa-dog', l: 'Cane / Animali domestici' },
+    // — Sport e tempo libero —
+    { v: 'fa-futbol', l: 'Calcio / Sport' },
+    { v: 'fa-basketball', l: 'Basket / Palestra' },
+    { v: 'fa-volleyball', l: 'Pallavolo / Beach volley' },
+    { v: 'fa-table-tennis-paddle-ball', l: 'Ping pong / Giochi' },
+    { v: 'fa-dumbbell', l: 'Palestra / Fitness' },
+    { v: 'fa-person-swimming', l: 'Piscina / Nuoto' },
+    { v: 'fa-person-running', l: 'Corsa / Atletica' },
+    { v: 'fa-chess', l: 'Giochi / Scacchi' },
+    // — Cibo e ristorazione —
+    { v: 'fa-utensils', l: 'Ristorante / Mangiare' },
+    { v: 'fa-pizza-slice', l: 'Pizzeria / Street food' },
+    { v: 'fa-wine-glass', l: 'Enoteca / Vino' },
+    { v: 'fa-mug-hot', l: 'Bar / Caffè' },
+    { v: 'fa-ice-cream', l: 'Gelateria / Dolci' },
+    { v: 'fa-wheat-awn', l: 'Agricoltura / Grano' },
+    { v: 'fa-lemon', l: 'Agrumi / Prodotti tipici' },
+    // — Eventi e calendario —
+    { v: 'fa-calendar-days', l: 'Calendario / Eventi' },
+    { v: 'fa-calendar-check', l: 'Prenotazione / Appuntamento' },
+    { v: 'fa-clock', l: 'Orari / Aperture' },
+    { v: 'fa-champagne-glasses', l: 'Feste / Celebrazioni' },
+    { v: 'fa-gift', l: 'Regalo / Promozioni' },
+    { v: 'fa-star', l: 'Speciale / Preferiti' },
+    { v: 'fa-heart', l: 'Cuore / Preferiti' },
+    { v: 'fa-trophy', l: 'Premio / Concorsi' },
+    { v: 'fa-ticket', l: 'Biglietto / Ingressi' },
+    { v: 'fa-fire', l: 'Evento caldo / Tendenza' },
+    // — Tecnologia e digitale —
+    { v: 'fa-laptop', l: 'Computer / Digitale' },
+    { v: 'fa-mobile-screen', l: 'Smartphone / App' },
+    { v: 'fa-qrcode', l: 'QR Code / Scansione' },
+    { v: 'fa-download', l: 'Download / Scarica' },
+    { v: 'fa-cloud', l: 'Cloud / Servizi online' },
+    { v: 'fa-lock', l: 'Sicurezza / Accesso protetto' },
+    { v: 'fa-key', l: 'Chiave / SPID / Login' },
+    { v: 'fa-fingerprint', l: 'Impronta / Identità digitale' },
+    // — Altro —
+    { v: 'fa-face-smile', l: 'Sorriso / Soddisfazione' },
+    { v: 'fa-lightbulb', l: 'Idea / Suggerimenti' },
+    { v: 'fa-wrench', l: 'Strumenti / Configurazione' },
+    { v: 'fa-bolt', l: 'Energia / Elettricità' },
+    { v: 'fa-cross', l: 'Cimitero / Servizi cimiteriali' },
+    { v: 'fa-dove', l: 'Pace / Colomba' },
+    { v: 'fa-earth-europe', l: 'Europa / Internazionale' },
+    { v: 'fa-handshake', l: 'Accordi / Collaborazioni' },
+    { v: 'fa-section', l: 'Regolamento / Normativa' },
+    { v: 'fa-universal-access', l: 'Accessibilità universale' },
+    { v: 'fa-eye', l: 'Trasparenza / Visualizza' },
+    { v: 'fa-chart-line', l: 'Statistiche / Andamento' },
+    { v: 'fa-chart-pie', l: 'Grafici / Bilancio' },
   ];
 
   /* ============================================================
@@ -195,7 +356,7 @@ window.GeneratoreHome = (function () {
   }
 
   function makeIconSelect(id, selected) {
-    let opts = FA_ICONS.map(ic => '<option value="'+ic+'" '+(ic===selected?'selected':'')+'>'+ic.replace('fa-','')+'</option>').join('');
+    let opts = FA_ICONS.map(ic => '<option value="'+ic.v+'" '+(ic.v===selected?'selected':'')+'>'+ic.l+'</option>').join('');
     return '<select id="'+id+'" style="width:100%;padding:10px 14px;border:1px solid #d0d0d0;border-radius:8px;font-family:\'Titillium Web\',sans-serif;font-size:14px;">'+opts+'</select>';
   }
 
@@ -883,26 +1044,88 @@ window.GeneratoreHome = (function () {
      DYNAMIC FORM – BANNER CUSTOM ITEMS
      ============================================================ */
   const BANNER_ICONS = [
-    'fa-bullhorn','fa-camera','fa-star','fa-gift','fa-heart','fa-calendar-check',
-    'fa-handshake','fa-trophy','fa-fire','fa-bolt','fa-bell','fa-newspaper',
-    'fa-percent','fa-tags','fa-ticket','fa-champagne-glasses','fa-masks-theater',
-    'fa-music','fa-palette','fa-tree','fa-snowflake','fa-umbrella-beach',
-    'fa-graduation-cap','fa-children','fa-hands-holding-heart','fa-earth-europe',
-    'fa-flag','fa-lightbulb','fa-circle-info','fa-shield-halved','fa-toolbox',
-    'fa-camera-retro','fa-paper-plane','fa-book-open','fa-eye','fa-arrow-right',
-    'fa-map-location-dot','fa-utensils','fa-futbol','fa-church','fa-mountain-sun'
+    { v: 'fa-bullhorn', l: 'Annuncio / Comunicazioni' },
+    { v: 'fa-bell', l: 'Notifica / Avviso' },
+    { v: 'fa-newspaper', l: 'Notizia / Giornale' },
+    { v: 'fa-circle-info', l: 'Informazione' },
+    { v: 'fa-star', l: 'Speciale / In evidenza' },
+    { v: 'fa-fire', l: 'Tendenza / Novità' },
+    { v: 'fa-gift', l: 'Promozione / Regalo' },
+    { v: 'fa-heart', l: 'Cuore / Preferito' },
+    { v: 'fa-calendar-check', l: 'Evento / Appuntamento' },
+    { v: 'fa-trophy', l: 'Premio / Concorso' },
+    { v: 'fa-ticket', l: 'Biglietto / Ingresso' },
+    { v: 'fa-champagne-glasses', l: 'Festa / Celebrazione' },
+    { v: 'fa-masks-theater', l: 'Teatro / Spettacolo' },
+    { v: 'fa-music', l: 'Musica / Concerto' },
+    { v: 'fa-palette', l: 'Arte / Mostra' },
+    { v: 'fa-camera', l: 'Fotografia / Immagine' },
+    { v: 'fa-film', l: 'Cinema / Video' },
+    { v: 'fa-graduation-cap', l: 'Scuola / Formazione' },
+    { v: 'fa-children', l: 'Bambini / Famiglie' },
+    { v: 'fa-hands-holding-heart', l: 'Solidarietà / Volontariato' },
+    { v: 'fa-handshake', l: 'Accordo / Collaborazione' },
+    { v: 'fa-flag', l: 'Bandiera / Commemorazione' },
+    { v: 'fa-lightbulb', l: 'Idea / Suggerimento' },
+    { v: 'fa-shield-halved', l: 'Sicurezza / Protezione' },
+    { v: 'fa-tree', l: 'Natura / Ambiente' },
+    { v: 'fa-umbrella-beach', l: 'Estate / Spiaggia' },
+    { v: 'fa-mountain-sun', l: 'Paesaggio / Montagna' },
+    { v: 'fa-utensils', l: 'Gastronomia / Sagra' },
+    { v: 'fa-futbol', l: 'Sport / Calcio' },
+    { v: 'fa-church', l: 'Festa patronale / Religione' },
+    { v: 'fa-earth-europe', l: 'Europa / Internazionale' },
+    { v: 'fa-bolt', l: 'Energia / Urgente' },
+    { v: 'fa-triangle-exclamation', l: 'Allerta / Attenzione' },
+    { v: 'fa-road', l: 'Strade / Viabilità' },
+    { v: 'fa-recycle', l: 'Riciclo / Ambiente' },
+    { v: 'fa-map-location-dot', l: 'Mappa / Luogo' },
+    { v: 'fa-book-open', l: 'Biblioteca / Lettura' },
+    { v: 'fa-eye', l: 'Trasparenza / Vedi' },
   ];
 
   const CTA_ICONS = [
-    'fa-arrow-right','fa-chevron-right','fa-eye','fa-paper-plane','fa-book-open',
-    'fa-external-link-alt','fa-hand-pointer','fa-play','fa-download','fa-phone'
+    { v: 'fa-arrow-right', l: 'Freccia destra' },
+    { v: 'fa-chevron-right', l: 'Chevron destra' },
+    { v: 'fa-eye', l: 'Visualizza' },
+    { v: 'fa-paper-plane', l: 'Invia' },
+    { v: 'fa-book-open', l: 'Leggi' },
+    { v: 'fa-external-link-alt', l: 'Link esterno' },
+    { v: 'fa-hand-pointer', l: 'Clicca' },
+    { v: 'fa-play', l: 'Riproduci' },
+    { v: 'fa-download', l: 'Scarica' },
+    { v: 'fa-phone', l: 'Chiama' },
+    { v: 'fa-circle-info', l: 'Info' },
+    { v: 'fa-plus', l: 'Aggiungi / Scopri' },
   ];
 
   const RSS_SLIDER_ICONS = [
-    'fa-palette','fa-calendar-days','fa-newspaper','fa-music','fa-film','fa-theater-masks',
-    'fa-masks-theater','fa-camera','fa-mountain-sun','fa-utensils','fa-futbol','fa-church',
-    'fa-landmark','fa-book-open','fa-graduation-cap','fa-star','fa-heart','fa-trophy',
-    'fa-bullhorn','fa-ticket','fa-champagne-glasses','fa-gift','fa-fire','fa-tree'
+    { v: 'fa-calendar-days', l: 'Calendario / Eventi' },
+    { v: 'fa-newspaper', l: 'Notizie / Giornale' },
+    { v: 'fa-palette', l: 'Arte / Mostre' },
+    { v: 'fa-masks-theater', l: 'Teatro / Spettacoli' },
+    { v: 'fa-music', l: 'Musica / Concerti' },
+    { v: 'fa-film', l: 'Cinema / Video' },
+    { v: 'fa-camera', l: 'Fotografia' },
+    { v: 'fa-mountain-sun', l: 'Escursioni / Natura' },
+    { v: 'fa-utensils', l: 'Gastronomia / Sagre' },
+    { v: 'fa-futbol', l: 'Sport' },
+    { v: 'fa-church', l: 'Feste patronali' },
+    { v: 'fa-landmark', l: 'Cultura / Monumenti' },
+    { v: 'fa-book-open', l: 'Biblioteca / Lettura' },
+    { v: 'fa-graduation-cap', l: 'Formazione / Scuola' },
+    { v: 'fa-star', l: 'In evidenza' },
+    { v: 'fa-heart', l: 'Preferiti' },
+    { v: 'fa-trophy', l: 'Premi / Concorsi' },
+    { v: 'fa-bullhorn', l: 'Comunicazioni' },
+    { v: 'fa-ticket', l: 'Biglietti / Ingressi' },
+    { v: 'fa-champagne-glasses', l: 'Feste / Celebrazioni' },
+    { v: 'fa-gift', l: 'Promozioni' },
+    { v: 'fa-fire', l: 'Tendenze / Novità' },
+    { v: 'fa-tree', l: 'Natura / Ambiente' },
+    { v: 'fa-umbrella-beach', l: 'Estate / Mare' },
+    { v: 'fa-person-hiking', l: 'Escursioni / Trekking' },
+    { v: 'fa-children', l: 'Bambini / Famiglie' },
   ];
 
   /* ============================================================
@@ -916,7 +1139,7 @@ window.GeneratoreHome = (function () {
     state.rssSliders.forEach((slider, i) => {
       let iconOpts = '';
       RSS_SLIDER_ICONS.forEach(ic => {
-        iconOpts += '<option value="'+ic+'"'+(slider.icon === ic ? ' selected' : '')+'>'+ic.replace('fa-','')+'</option>';
+        iconOpts += '<option value="'+ic.v+'"'+(slider.icon === ic.v ? ' selected' : '')+'>'+ic.l+'</option>';
       });
       html += '<div class="gh-rss-card" style="background:#f8f9fa;border:1px solid #e0e0e0;border-radius:10px;padding:16px;margin-bottom:12px;position:relative;">' +
         '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">' +
@@ -1011,12 +1234,12 @@ window.GeneratoreHome = (function () {
       // Icon options
       let iconOpts = '';
       BANNER_ICONS.forEach(ic => {
-        iconOpts += '<option value="'+ic+'"'+(item.icon === ic ? ' selected' : '')+'>'+ic.replace('fa-','')+'</option>';
+        iconOpts += '<option value="'+ic.v+'"'+(item.icon === ic.v ? ' selected' : '')+'>'+ic.l+'</option>';
       });
       // CTA icon options
       let ctaOpts = '';
       CTA_ICONS.forEach(ic => {
-        ctaOpts += '<option value="'+ic+'"'+(item.ctaIcon === ic ? ' selected' : '')+'>'+ic.replace('fa-','')+'</option>';
+        ctaOpts += '<option value="'+ic.v+'"'+(item.ctaIcon === ic.v ? ' selected' : '')+'>'+ic.l+'</option>';
       });
 
       html += '<div class="gh-banner-card" style="background:#f8f9fa;border:1px solid #e0e0e0;border-radius:10px;padding:16px;margin-bottom:12px;position:relative;">' +
@@ -1102,7 +1325,7 @@ window.GeneratoreHome = (function () {
           '</div>' +
           '<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;">' +
             '<div><label style="font-size:11px;font-weight:600;color:#4A4A4A;">Icona</label><select data-item="'+si+'-'+ii+'" data-item-field="icon" style="width:100%;padding:6px 8px;border:1px solid #d0d0d0;border-radius:6px;font-size:12px;font-family:\'Titillium Web\',sans-serif;">' +
-              FA_ICONS.map(ic => '<option value="'+ic+'" '+(ic===it.icon?'selected':'')+'>'+ic.replace('fa-','')+'</option>').join('') +
+              FA_ICONS.map(ic => '<option value="'+ic.v+'" '+(ic.v===it.icon?'selected':'')+'>'+ic.l+'</option>').join('') +
             '</select></div>' +
             '<div><label style="font-size:11px;font-weight:600;color:#4A4A4A;">Label IT</label><input type="text" data-item="'+si+'-'+ii+'" data-item-field="labelIt" value="'+esc(it.labelIt)+'" style="width:100%;padding:6px 8px;border:1px solid #d0d0d0;border-radius:6px;font-size:12px;box-sizing:border-box;font-family:\'Titillium Web\',sans-serif;"></div>' +
             '<div><label style="font-size:11px;font-weight:600;color:#4A4A4A;">Label EN</label><input type="text" data-item="'+si+'-'+ii+'" data-item-field="labelEn" value="'+esc(it.labelEn)+'" style="width:100%;padding:6px 8px;border:1px solid #d0d0d0;border-radius:6px;font-size:12px;box-sizing:border-box;font-family:\'Titillium Web\',sans-serif;"></div>' +
