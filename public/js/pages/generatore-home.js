@@ -491,7 +491,7 @@ window.GeneratoreHome = (function () {
         '</div>' +
       '</div>' +
       '<div id="ghPreviewFrame" style="background:#e0e0e0;border:1px solid #ccc;border-top:none;border-radius:0 0 12px 12px;overflow:hidden;position:relative;">' +
-        '<iframe id="ghPreviewIframe" style="width:375px;height:700px;border:none;display:block;margin:0 auto;background:#fff;transition:width .3s ease;" title="Anteprima homepage"></iframe>' +
+        '<iframe id="ghPreviewIframe" sandbox="allow-scripts allow-same-origin allow-popups" style="width:375px;height:700px;border:none;display:block;margin:0 auto;background:#fff;transition:width .3s ease;" title="Anteprima homepage"></iframe>' +
       '</div>' +
       '<p style="text-align:center;font-size:11px;color:#9B9B9B;margin-top:8px;">Si aggiorna ad ogni modifica · <span id="ghPreviewStatus">Pronto</span></p>' +
     '</div>';
@@ -690,7 +690,6 @@ window.GeneratoreHome = (function () {
     const previewIframe = document.getElementById('ghPreviewIframe');
     const previewStatus = document.getElementById('ghPreviewStatus');
     let previewTimer = null;
-    let previewRevoke = null;
 
     function updateLivePreview() {
       if (!previewIframe) return;
@@ -702,11 +701,9 @@ window.GeneratoreHome = (function () {
         }
         if (previewStatus) previewStatus.textContent = 'Aggiornando...';
         const html = generateHTML();
-        const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
-        if (previewRevoke) URL.revokeObjectURL(previewRevoke);
-        const url = URL.createObjectURL(blob);
-        previewRevoke = url;
-        previewIframe.src = url;
+
+        // Metodo 1: srcdoc (permette esecuzione JS, stessa origin)
+        previewIframe.srcdoc = html;
         previewIframe.onload = () => {
           if (previewStatus) previewStatus.textContent = 'Aggiornato ' + new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
         };
