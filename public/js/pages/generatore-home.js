@@ -2418,12 +2418,12 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 90px);}`;
     // This is the complete JS logic – it reads from COMUNE_CONFIG at runtime
     return `(function(){
   "use strict";
-  if(/iPhone|iPad|iPod/.test(navigator.userAgent)){
+  if(new RegExp('iPhone|iPad|iPod').test(navigator.userAgent)){
     document.documentElement.classList.add('ios-device');
   }
 
   const C = window.COMUNE_CONFIG;
-  const BASE = C.baseUrl.replace(/\\/+$/, '');
+  const BASE = C.baseUrl.replace(new RegExp('[/]+$'), '');
 
   const href = (path) => {
     const url = path.startsWith('http') ? path : BASE + '/' + path;
@@ -2434,10 +2434,10 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 90px);}`;
 
   const esc = (s) => {
     return String(s)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
+      .split('&').join('&amp;')
+      .split('<').join('&lt;')
+      .split('>').join('&gt;')
+      .split('"').join('&quot;');
   };
 
   let LANG = localStorage.getItem('cd_lang') || C.i18n.defaultLang;
@@ -3724,9 +3724,8 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 90px);}`;
     const fmtDate = (d, opts) => {
       opts = opts || { weekday: 'short', day: '2-digit', month: 'short' };
       const loc = LANG === 'en' ? 'en-GB' : 'it-IT';
-      return d.toLocaleDateString(loc, opts)
-        .replace(/\./g, '')
-        .replace(/^\w/, (c) => c.toUpperCase());
+      var s = d.toLocaleDateString(loc, opts).split('.').join('');
+    return s.charAt(0).toUpperCase() + s.slice(1);
     };
 
     const toMid = (d) => {
@@ -3744,7 +3743,8 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 90px);}`;
     const findDay = (items, d) =>
       items.filter((it) => sameDay(it.date, d));
 
-    const fetchText = (url, ms = 8000) => {
+    const fetchText = (url, ms) => {
+      ms = ms || 8000;
       const ctrl = new AbortController();
       const tm = setTimeout(() => ctrl.abort(), ms);
       return fetch(url, { signal: ctrl.signal })
@@ -3953,13 +3953,13 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 90px);}`;
       if (!document.hidden) loadRD();
     });
 
-    (() => {
-      const ms = new Date(new Date().getFullYear(),
+    (function rdMidnightCheck() {
+      var ms = new Date(new Date().getFullYear(),
         new Date().getMonth(),
         new Date().getDate() + 1) - new Date();
-      setTimeout(() => {
+      setTimeout(function() {
         loadRD();
-        arguments.callee();
+        rdMidnightCheck();
       }, ms);
     })();
   })();
