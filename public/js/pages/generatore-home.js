@@ -1413,20 +1413,22 @@ window.GeneratoreHome = (function () {
   }
 
   function collectTabBarFromDOM() {
+    // Prima raccogli tutti i campi testo/icona
     state.tabBarItems.forEach((item, i) => {
       const icon = document.querySelector('[data-tabbar="'+i+'"][data-tbfield="icon"]');
       const labelIt = document.querySelector('[data-tabbar="'+i+'"][data-tbfield="labelIt"]');
       const labelEn = document.querySelector('[data-tabbar="'+i+'"][data-tbfield="labelEn"]');
       const href = document.querySelector('[data-tabbar="'+i+'"][data-tbfield="href"]');
-      const centerRadio = document.querySelector('input[name="ghTabBarCenter"][value="'+i+'"]');
       if (icon) state.tabBarItems[i].icon = icon.value;
       if (labelIt) state.tabBarItems[i].labelIt = labelIt.value;
       if (labelEn) state.tabBarItems[i].labelEn = labelEn.value;
       if (href) state.tabBarItems[i].href = href.value;
-      // Update all isCenter flags
-      state.tabBarItems.forEach((it, idx) => {
-        it.isCenter = (idx === i && centerRadio && centerRadio.checked);
-      });
+    });
+    // Poi aggiorna isCenter in un passaggio separato (quale radio è selezionata?)
+    const checkedRadio = document.querySelector('input[name="ghTabBarCenter"]:checked');
+    const centerIdx = checkedRadio ? parseInt(checkedRadio.value) : -1;
+    state.tabBarItems.forEach((it, idx) => {
+      it.isCenter = (idx === centerIdx);
     });
   }
 
@@ -1513,10 +1515,10 @@ window.GeneratoreHome = (function () {
   /* ============================================================
      DYNAMIC FORM – WIDGETS
      ============================================================ */
-  function refreshWidgetList() {
+  function refreshWidgetList(skipCollect) {
     const c = document.getElementById('ghWidgetList');
     if (!c) return;
-    collectWidgetsFromDOM();
+    if (!skipCollect) collectWidgetsFromDOM();
     const sorted = state.widgets.slice().sort((a, b) => a.order - b.order);
     let html = '';
     sorted.forEach(w => {
@@ -1841,7 +1843,7 @@ window.GeneratoreHome = (function () {
     refreshRssSliders(true); // skipCollect: lo state è già aggiornato dal load
     refreshSlides(true); // skipCollect: lo state è già aggiornato dal load
     refreshServizi(true); // skipCollect: lo state è già aggiornato dal load
-    refreshWidgetList();
+    refreshWidgetList(true); // skipCollect: lo state è già aggiornato dal load
     updatePalettePreview();
   }
 
@@ -2434,9 +2436,10 @@ rssapp-ticker a{margin-right:50px!important;display:inline-block!important;color
 .cd-tab-bar{position:fixed;bottom:12px;left:0;right:0;z-index:9998;padding:0 14px;pointer-events:none;display:none;}
 .cd-tab-bar.active{display:flex;justify-content:center;}
 .cd-tab-bar-inner{width:100%;max-width:420px;background:rgba(255,255,255,.88);backdrop-filter:blur(24px) saturate(180%);-webkit-backdrop-filter:blur(24px) saturate(180%);border-radius:26px;border:1px solid rgba(255,255,255,.7);box-shadow:0 8px 32px rgba(0,0,0,.14),0 2px 8px rgba(0,0,0,.08);display:flex;align-items:flex-end;justify-content:space-around;padding:8px 4px 10px;pointer-events:auto;}
-.cd-tab-btn{display:flex;flex-direction:column;align-items:center;gap:3px;text-decoration:none;color:var(--cd-gray-500);font-size:10px;font-weight:600;letter-spacing:.02em;padding:2px 0;min-width:56px;-webkit-tap-highlight-color:transparent;position:relative;font-family:'Titillium Web',sans-serif;}
+.cd-tab-btn{display:flex;flex-direction:column;align-items:center;gap:3px;text-decoration:none;color:var(--cd-gray-700);font-size:10px;font-weight:600;letter-spacing:.02em;padding:2px 0;min-width:56px;-webkit-tap-highlight-color:transparent;position:relative;font-family:'Titillium Web',sans-serif;}
 .cd-tab-btn:active{transform:scale(.92);}
-.cd-tab-btn .cd-tab-icon{width:32px;height:32px;display:grid;place-items:center;font-size:17px;border-radius:12px;transition:all .2s ease;color:inherit;}
+.cd-tab-btn .cd-tab-icon{width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-size:18px;border-radius:12px;transition:all .2s ease;color:inherit;}
+.cd-tab-btn .cd-tab-icon i{display:inline-block;line-height:1;font-style:normal;}
 .cd-tab-btn .cd-tab-label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:64px;line-height:1.2;font-size:10px;}
 /* Center button — elevated, larger, gradient */
 .cd-tab-btn.cd-tab-center{margin-top:-28px;color:var(--blu);}
