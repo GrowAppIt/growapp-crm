@@ -1985,7 +1985,7 @@ window.GeneratoreHome = (function () {
     widgets: ${JSON.stringify(S.widgets)},
     i18n: {
       defaultLang: "it",
-      lingue: { it: "\\u{1F1EE}\\u{1F1F9}", en: "\\u{1F1EC}\\u{1F1E7}" },
+      lingue: { it: "\uD83C\uDDEE\uD83C\uDDF9", en: "\uD83C\uDDEC\uD83C\uDDE7" },
       ui: {
         "ticker.title":        { it: "news dal Comune", en: "Municipal News" },
         "slide.cta":           { it: "Apri sezione", en: "Open section" },
@@ -2511,7 +2511,7 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 90px);}`;
   // Build widget renderers
   const widgetRenderers={
     dateHeader:()=>'<header class="w-date-header" id="dateHeader" aria-label="Data odierna e meteo"><div class="date-header-inner"><div class="date-left"><span class="date-ico" aria-hidden="true"><i class="fa-solid fa-calendar-days"></i></span><div class="date-text"><span class="current-date" id="currentDate"></span><span class="special-event" id="specialEvent"></span></div></div><div class="weather-box" aria-label="Meteo attuale a '+esc(C.nomeComune)+'"><span class="weather-icon" id="weatherIcon">--</span><span class="temperature" id="temperature">--°C</span></div></div></header>',
-    tickerBar:()=>'<section class="w-ticker" id="tickerBar" aria-label="Notizie in scorrimento"><div class="ticker-header"><a href="'+esc(href(C.ticker.linkUrl))+'" target="_blank" rel="noopener"><span class="news-ico" aria-hidden="true"><span style="transform:translateY(1px);display:inline-block;">\\u{1F4F0}</span></span><span class="header-title" data-i18n="ticker.title">'+esc(t('ticker.title'))+'</span><span class="arrow-link" aria-hidden="true">\\u2197</span></a></div><div class="ticker-strip"><rssapp-ticker id="'+esc(C.ticker.rssWidgetId)+'"></rssapp-ticker></div></section>',
+    tickerBar:()=>'<section class="w-ticker" id="tickerBar" aria-label="Notizie in scorrimento"><div class="ticker-header"><a href="'+esc(href(C.ticker.linkUrl))+'" target="_blank" rel="noopener"><span class="news-ico" aria-hidden="true"><span style="transform:translateY(1px);display:inline-block;">\\uD83D\\uDCF0</span></span><span class="header-title" data-i18n="ticker.title">'+esc(t('ticker.title'))+'</span><span class="arrow-link" aria-hidden="true">\\u2197</span></a></div><div class="ticker-strip"><rssapp-ticker id="'+esc(C.ticker.rssWidgetId)+'"></rssapp-ticker></div></section>',
     slideshow:()=>{
       const slides=C.slides||[];const hasContent=slides.some(s=>s.titleIt||s.bg);
       if(!hasContent)return '';
@@ -2810,7 +2810,7 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 90px);}`;
 
   /* DATE WIDGET */
   function dayOfYear(date){const start=new Date(date.getFullYear(),0,0);const diff=(date-start)+((start.getTimezoneOffset()-date.getTimezoneOffset())*60*1000);return Math.floor(diff/(1000*60*60*24));}
-  const specialEvents={'1/1':'\\u{1F389} Buon Anno!','1/6':'\\u{1F9D9} Befana!','1/27':'\\u{1F56F} Giorno della Memoria','2/14':'\\u{1F496} San Valentino!','3/8':'\\u{1F469} Giornata internazionale della donna','3/17':'\\u{1F1EE}\\u{1F1F9} Giornata Unità Nazionale','3/19':'\\u{1F468} Festa del papà','3/21':'\\u{1F338} Giornata della Poesia','3/22':'\\u{1F4A7} Giornata Mondiale dell\\'acqua','4/22':'\\u{1F30D} Giornata della Terra','4/25':'\\u{1F1EE}\\u{1F1F9} Festa della Liberazione','5/1':'\\u{1F6E0} Festa dei Lavoratori!','5/9':'\\u{1F1EA}\\u{1F1FA} Festa dell\\'Europa','6/2':'\\u{1F1EE}\\u{1F1F9} Festa della Repubblica','6/5':'\\u{1F333} Giornata dell\\'Ambiente','6/21':'\\u{1F3B6} Festa della Musica','8/15':'\\u2600\\uFE0F Ferragosto!','10/4':'San Francesco d\\'Assisi','10/31':'\\u{1F383} Halloween!','11/1':'\\u{1F56F} Tutti i Santi','11/4':'\\u{1F396} Giornata Unità e Forze Armate','12/8':'\\u{1F64F} Immacolata Concezione','12/24':'\\u{1F384} Vigilia di Natale','12/25':'\\u{1F385} Natale!','12/26':'\\u{1F381} Santo Stefano','12/31':'\\u{1F38A} Vigilia di Capodanno'};
+  const specialEvents={'1/1':'\\uD83C\\uDF89 Buon Anno!','1/6':'\\uD83E\\uDDD9 Befana!','1/27':'\\uD83D\\uDD6F Giorno della Memoria','2/14':'\\uD83D\\uDC96 San Valentino!','3/8':'\\uD83D\\uDC69 Giornata internazionale della donna','3/17':'\\uD83C\\uDDEE\\uD83C\\uDDF9 Giornata Unità Nazionale','3/19':'\\uD83D\\uDC68 Festa del papà','3/21':'\\uD83C\\uDF38 Giornata della Poesia','3/22':'\\uD83D\\uDCA7 Giornata Mondiale dell\\'acqua','4/22':'\\uD83C\\uDF0D Giornata della Terra','4/25':'\\uD83C\\uDDEE\\uD83C\\uDDF9 Festa della Liberazione','5/1':'\\uD83D\\uDEE0 Festa dei Lavoratori!','5/9':'\\uD83C\\uDDEA\\uD83C\\uDDFA Festa dell\\'Europa','6/2':'\\uD83C\\uDDEE\\uD83C\\uDDF9 Festa della Repubblica','6/5':'\\uD83C\\uDF33 Giornata dell\\'Ambiente','6/21':'\\uD83C\\uDFB6 Festa della Musica','8/15':'\\u2600\\uFE0F Ferragosto!','10/4':'San Francesco d\\'Assisi','10/31':'\\uD83C\\uDF83 Halloween!','11/1':'\\uD83D\\uDD6F Tutti i Santi','11/4':'\\uD83C\\uDF96 Giornata Unità e Forze Armate','12/8':'\\uD83D\\uDE4F Immacolata Concezione','12/24':'\\uD83C\\uDF84 Vigilia di Natale','12/25':'\\uD83C\\uDF85 Natale!','12/26':'\\uD83C\\uDF81 Santo Stefano','12/31':'\\uD83C\\uDF8A Vigilia di Capodanno'};
 
   function updateDateWidget(){
     const now=new Date();const locale=LANG==='en'?'en-GB':'it-IT';
@@ -2827,7 +2827,7 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 90px);}`;
 
   /* MINI METEO */
   const miniMeteoUrl='https://api.open-meteo.com/v1/forecast?latitude='+C.lat+'&longitude='+C.lon+'&current=temperature_2m,weather_code&timezone=Europe/Rome';
-  function miniWeatherIcon(code){const m={0:'\\u2600\\uFE0F',1:'\\u{1F324}\\uFE0F',2:'\\u26C5\\uFE0F',3:'\\u2601\\uFE0F',45:'\\u{1F32B}\\uFE0F',48:'\\u{1F32B}\\uFE0F',51:'\\u{1F326}\\uFE0F',53:'\\u{1F326}\\uFE0F',55:'\\u{1F327}\\uFE0F',61:'\\u{1F327}\\uFE0F',63:'\\u{1F327}\\uFE0F',65:'\\u{1F327}\\uFE0F',71:'\\u{1F328}\\uFE0F',73:'\\u{1F328}\\uFE0F',75:'\\u{1F328}\\uFE0F',80:'\\u{1F327}\\uFE0F',95:'\\u26C8\\uFE0F',96:'\\u26C8\\uFE0F'};return m[code]||'\\u2014';}
+  function miniWeatherIcon(code){const m={0:'\\u2600\\uFE0F',1:'\\uD83C\\uDF24\\uFE0F',2:'\\u26C5\\uFE0F',3:'\\u2601\\uFE0F',45:'\\uD83C\\uDF2B\\uFE0F',48:'\\uD83C\\uDF2B\\uFE0F',51:'\\uD83C\\uDF26\\uFE0F',53:'\\uD83C\\uDF26\\uFE0F',55:'\\uD83C\\uDF27\\uFE0F',61:'\\uD83C\\uDF27\\uFE0F',63:'\\uD83C\\uDF27\\uFE0F',65:'\\uD83C\\uDF27\\uFE0F',71:'\\uD83C\\uDF28\\uFE0F',73:'\\uD83C\\uDF28\\uFE0F',75:'\\uD83C\\uDF28\\uFE0F',80:'\\uD83C\\uDF27\\uFE0F',95:'\\u26C8\\uFE0F',96:'\\u26C8\\uFE0F'};return m[code]||'\\u2014';}
   async function fetchMiniMeteo(){try{const res=await fetch(miniMeteoUrl);if(!res.ok)throw new Error();const data=await res.json();const c=data.current;document.getElementById('weatherIcon').textContent=miniWeatherIcon(c.weather_code);document.getElementById('temperature').textContent=Math.round(c.temperature_2m)+'°C';}catch(e){document.getElementById('weatherIcon').textContent='\\u2014';document.getElementById('temperature').textContent='--°C';}}
   fetchMiniMeteo();setInterval(fetchMiniMeteo,300000);
 
@@ -2928,7 +2928,7 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 90px);}`;
   function applyLang(lang){
     LANG=lang;localStorage.setItem('cd_lang',lang);
     const flagBtn=document.getElementById('langToggle');
-    if(flagBtn){const otherLang=lang==='it'?'en':'it';flagBtn.textContent=C.i18n.lingue[otherLang]||'\\u{1F310}';}
+    if(flagBtn){const otherLang=lang==='it'?'en':'it';flagBtn.textContent=C.i18n.lingue[otherLang]||'\\uD83C\\uDF10';}
     document.querySelectorAll('[data-i18n]').forEach(el=>{const key=el.getAttribute('data-i18n');const val=t(key);if(val!==key)el.textContent=val;});
     document.querySelectorAll('[data-i18n-it]').forEach(el=>{const txt=el.getAttribute('data-i18n-'+lang)||el.getAttribute('data-i18n-it');if(txt)el.textContent=txt;});
     document.querySelectorAll('.slide').forEach(slide=>{const title=slide.getAttribute('data-title-'+lang)||slide.getAttribute('data-title-it');const h1=slide.querySelector('.slide-title');if(h1&&title)h1.textContent=title;});
