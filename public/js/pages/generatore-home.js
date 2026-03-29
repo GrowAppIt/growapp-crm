@@ -655,9 +655,10 @@ window.GeneratoreHome = (function () {
       URL.revokeObjectURL(a.href);
     });
 
-    // === LIVE PREVIEW SYSTEM (popup window) ===
+    // === LIVE PREVIEW SYSTEM (popup window con Blob URL) ===
     let previewWin = null;
     let previewTimer = null;
+    let lastBlobUrl = null;
     const previewStatus = document.getElementById('ghPreviewStatus');
 
     function isPreviewOpen() {
@@ -666,6 +667,15 @@ window.GeneratoreHome = (function () {
 
     function updatePreviewStatus(msg) {
       if (previewStatus) previewStatus.textContent = msg;
+    }
+
+    function buildPreviewBlobUrl() {
+      collectState();
+      if (!state.nomeComune || !state.baseUrl) return null;
+      const html = generateHTML();
+      if (lastBlobUrl) URL.revokeObjectURL(lastBlobUrl);
+      lastBlobUrl = URL.createObjectURL(new Blob([html], { type: 'text/html;charset=utf-8' }));
+      return lastBlobUrl;
     }
 
     function refreshPreviewContent() {
@@ -680,10 +690,9 @@ window.GeneratoreHome = (function () {
           return;
         }
         updatePreviewStatus('Aggiornando...');
-        const html = generateHTML();
-        previewWin.document.open();
-        previewWin.document.write(html);
-        previewWin.document.close();
+        const url = buildPreviewBlobUrl();
+        if (!url) return;
+        previewWin.location.href = url;
         updatePreviewStatus('Aggiornato ' + new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
       } catch (e) {
         updatePreviewStatus('Errore: ' + e.message);
@@ -693,7 +702,7 @@ window.GeneratoreHome = (function () {
     function schedulePreview() {
       if (!isPreviewOpen()) return;
       clearTimeout(previewTimer);
-      previewTimer = setTimeout(refreshPreviewContent, 800);
+      previewTimer = setTimeout(refreshPreviewContent, 1200);
     }
 
     // Bottone "Apri Anteprima Live" — deve partire da click utente per evitare popup blocker
@@ -708,14 +717,18 @@ window.GeneratoreHome = (function () {
         return;
       }
 
-      // Apri finestra popup con dimensioni mobile-like
+      // Genera Blob URL
+      const url = buildPreviewBlobUrl();
+      if (!url) { alert('Inserisci nome comune e URL base prima di aprire l\'anteprima.'); return; }
+
+      // Apri finestra popup con Blob URL
       const sw = window.screen.availWidth;
       const sh = window.screen.availHeight;
       const pw = 420;
       const ph = Math.min(780, sh - 40);
       const left = sw - pw - 20;
       const top = 20;
-      previewWin = window.open('', 'ghPreviewPopup',
+      previewWin = window.open(url, 'ghPreviewPopup',
         'width=' + pw + ',height=' + ph + ',left=' + left + ',top=' + top +
         ',resizable=yes,scrollbars=yes,menubar=no,toolbar=no,location=no,status=no');
 
@@ -724,11 +737,6 @@ window.GeneratoreHome = (function () {
         return;
       }
 
-      // Scrivi il contenuto iniziale
-      const html = generateHTML();
-      previewWin.document.open();
-      previewWin.document.write(html);
-      previewWin.document.close();
       updatePreviewStatus('Anteprima aperta — si aggiorna automaticamente');
 
       // Controlla periodicamente se la finestra è stata chiusa dall'utente
@@ -736,6 +744,7 @@ window.GeneratoreHome = (function () {
         if (!isPreviewOpen()) {
           clearInterval(checkClosed);
           updatePreviewStatus('Finestra chiusa. Clicca "Apri Anteprima Live" per riaprire.');
+          if (lastBlobUrl) { URL.revokeObjectURL(lastBlobUrl); lastBlobUrl = null; }
         }
       }, 2000);
     });
@@ -2026,7 +2035,7 @@ rssapp-ticker a{margin-right:50px!important;display:inline-block!important;color
       const items=C.bannerCustom.items||[];if(!items.length)return '';
       let slidesH='';items.forEach((it,i)=>{
         const bg=it.bgImage?(it.bgImage.startsWith('http')?it.bgImage:BASE+'/'+it.bgImage):'';
-        slidesH+='<div class="bc-slide'+(i===0?' active':'')+'" data-title="'+esc(it.kicker||it.titleIt)+'"'+(bg?' style="--bg-image:url(\''+esc(bg)+'\')"':'')+'>'
+        slidesH+='<div class="bc-slide'+(i===0?' active':'')+'" data-title="'+esc(it.kicker||it.titleIt)+'"'+(bg?' style="--bg-image:url(\\''+esc(bg)+'\\')"':'')+'>'
           +'<a class="bc-slide-link" href="'+esc(href(it.href))+'" target="_blank" rel="noopener" aria-label="'+esc(it.titleIt)+'">'
           +'<div class="bc-text-wrap"><div class="bc-title-group">'
           +'<span class="bc-kicker"><i class="fa-solid '+esc(it.icon||'fa-bullhorn')+'"></i> <span data-i18n-it="'+esc(it.kicker)+'" data-i18n-en="'+esc(it.kicker)+'">'+esc(it.kicker)+'</span></span>'
