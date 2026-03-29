@@ -117,6 +117,15 @@ window.GeneratoreHome = (function () {
       bannerCustomItems: [
         { icon: 'fa-bullhorn', kicker: '', titleIt: '', titleEn: '', href: '', ctaLabel: 'Apri', ctaIcon: 'fa-arrow-right', bgImage: '' }
       ],
+      // Video widget (unico)
+      videoType: 'mp4',        // 'mp4' | 'embed'
+      videoUrl: '',
+      videoTargetUrl: '',
+      videoTitleIt: '',
+      videoTitleEn: '',
+      videoPosterUrl: '',
+      // RSS Sliders (replicabili)
+      rssSliders: [],
       bannerCieEnabled: true,
       bannerCieTitle: "Stop alla carta d'identità cartacea",
       bannerCieTitleEn: 'Paper ID cards discontinued',
@@ -154,6 +163,7 @@ window.GeneratoreHome = (function () {
         { id: 'raccoltaDifferenziata', label: 'Raccolta Differenziata', enabled: true, order: 6 },
         { id: 'protezioneCivile', label: 'Protezione Civile', enabled: true, order: 7 },
         { id: 'meteoCard', label: 'Meteo', enabled: true, order: 8 },
+        { id: 'videoWidget', label: 'Video', enabled: false, order: 9 },
       ],
     };
   }
@@ -385,7 +395,35 @@ window.GeneratoreHome = (function () {
       false
     );
 
-    // === SEZ. 13: FOOTER ===
+    // === SEZ. 13: VIDEO WIDGET ===
+    formHtml += makeSection('fa-video', 'Video',
+      '<div style="margin-bottom:16px;"><label style="display:block;font-weight:600;color:#4A4A4A;margin-bottom:6px;font-size:13px;">Tipo Sorgente</label>' +
+      '<select id="ghVideoType" style="width:100%;padding:10px 14px;border:1px solid #d0d0d0;border-radius:8px;font-family:\'Titillium Web\',sans-serif;font-size:14px;">' +
+        '<option value="mp4"' + (state.videoType === 'mp4' ? ' selected' : '') + '>MP4 diretto (autoplay muto)</option>' +
+        '<option value="embed"' + (state.videoType === 'embed' ? ' selected' : '') + '>Embed YouTube / Vimeo</option>' +
+      '</select></div>' +
+      makeInput('ghVideoUrl', 'URL Video', state.videoUrl, 'https://... (.mp4 o link YouTube/Vimeo)') +
+      '<div id="ghVideoMp4Fields">' +
+        makeInput('ghVideoTargetUrl', 'URL di destinazione (click)', state.videoTargetUrl, 'https://...pagina-collegata') +
+        makeInput('ghVideoPosterUrl', 'Immagine poster/fallback (opz.)', state.videoPosterUrl, 'docs/video-poster.jpg') +
+      '</div>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">' +
+        makeInput('ghVideoTitleIt', 'Titolo sovrapposto (IT, opz.)', state.videoTitleIt, '') +
+        makeInput('ghVideoTitleEn', 'Titolo sovrapposto (EN, opz.)', state.videoTitleEn, '') +
+      '</div>' +
+      '<p style="font-size:12px;color:#9B9B9B;margin-top:6px;"><i class="fas fa-info-circle"></i> Abilita il widget "Video" nella Gestione Widget per includerlo nella home. MP4: parte in autoplay muto; Embed: l\'utente clicca play.</p>',
+      false
+    );
+
+    // === SEZ. 14: SLIDER RSS (replicabili) ===
+    formHtml += makeSection('fa-rss', 'Slider RSS (Eventi, Mostre, ...)',
+      '<p style="font-size:12px;color:#9B9B9B;margin-bottom:12px;"><i class="fas fa-info-circle"></i> Puoi aggiungere più slider RSS, ognuno con il suo feed. Appariranno nella Gestione Widget per posizionarli dove vuoi.</p>' +
+      '<div id="ghRssSlidersContainer"></div>' +
+      '<button type="button" id="ghBtnAddRssSlider" style="background:#145284;color:#fff;border:none;padding:10px 20px;border-radius:8px;font-weight:600;font-size:13px;cursor:pointer;font-family:\'Titillium Web\',sans-serif;margin-top:8px;"><i class="fas fa-plus"></i> Aggiungi Slider RSS</button>',
+      false
+    );
+
+    // === SEZ. 15: FOOTER ===
     formHtml += makeSection('fa-link', 'Footer',
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">' +
         makeInput('ghFooterTerminiUrl','URL Termini',state.footerTerminiUrl,'https://nomecomune.comune.digital/termini-e-condizioni-del-servizio') +
@@ -422,6 +460,7 @@ window.GeneratoreHome = (function () {
         '<option value="bannerCustom">Banner Personalizzabile</option><option value="bannerCIE">Banner CIE</option>' +
         '<option value="raccoltaDifferenziata">Raccolta Differenziata</option>' +
         '<option value="protezioneCivile">Protezione Civile</option><option value="meteoCard">Meteo</option>' +
+        '<option value="videoWidget">Video</option>' +
       '</select></div>' +
       makeInput('ghSpotlightDurata','Durata (ms)',String(state.spotlightDurata),'2500','number') +
       makeCheckbox('ghSpotlightForzaSempre','Forza Sempre (per test)',state.spotlightForzaSempre),
@@ -566,6 +605,31 @@ window.GeneratoreHome = (function () {
       if (fields) fields.style.opacity = e.target.checked ? '1' : '0.4';
     });
 
+    // Video type toggle
+    const videoSel = document.getElementById('ghVideoType');
+    const mp4Fields = document.getElementById('ghVideoMp4Fields');
+    if (videoSel && mp4Fields) {
+      const toggleMp4 = () => { mp4Fields.style.display = videoSel.value === 'mp4' ? 'block' : 'none'; };
+      toggleMp4();
+      videoSel.addEventListener('change', toggleMp4);
+    }
+
+    // Add RSS Slider
+    const btnAddRss = document.getElementById('ghBtnAddRssSlider');
+    if (btnAddRss) btnAddRss.addEventListener('click', () => {
+      collectRssSlidersFromDOM();
+      state.rssSliders.push({
+        icon: 'fa-calendar-days', titleIt: '', titleEn: '', feedUrl: '', targetUrl: '', domainBase: '',
+        newLabelIt: 'NUOVO', newLabelEn: 'NEW'
+      });
+      syncRssSliderWidgets();
+      refreshRssSliders();
+      refreshWidgetList();
+    });
+
+    // Init RSS sliders form
+    refreshRssSliders();
+
     // Genera
     document.getElementById('ghBtnGenera')?.addEventListener('click', () => {
       collectState();
@@ -665,6 +729,103 @@ window.GeneratoreHome = (function () {
     'fa-arrow-right','fa-chevron-right','fa-eye','fa-paper-plane','fa-book-open',
     'fa-external-link-alt','fa-hand-pointer','fa-play','fa-download','fa-phone'
   ];
+
+  const RSS_SLIDER_ICONS = [
+    'fa-palette','fa-calendar-days','fa-newspaper','fa-music','fa-film','fa-theater-masks',
+    'fa-masks-theater','fa-camera','fa-mountain-sun','fa-utensils','fa-futbol','fa-church',
+    'fa-landmark','fa-book-open','fa-graduation-cap','fa-star','fa-heart','fa-trophy',
+    'fa-bullhorn','fa-ticket','fa-champagne-glasses','fa-gift','fa-fire','fa-tree'
+  ];
+
+  /* ============================================================
+     DYNAMIC FORM – RSS SLIDERS
+     ============================================================ */
+  function refreshRssSliders() {
+    const c = document.getElementById('ghRssSlidersContainer');
+    if (!c) return;
+    collectRssSlidersFromDOM();
+    let html = '';
+    state.rssSliders.forEach((slider, i) => {
+      let iconOpts = '';
+      RSS_SLIDER_ICONS.forEach(ic => {
+        iconOpts += '<option value="'+ic+'"'+(slider.icon === ic ? ' selected' : '')+'>'+ic.replace('fa-','')+'</option>';
+      });
+      html += '<div class="gh-rss-card" style="background:#f8f9fa;border:1px solid #e0e0e0;border-radius:10px;padding:16px;margin-bottom:12px;position:relative;">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">' +
+          '<span style="font-weight:700;color:#145284;font-size:14px;"><i class="fas fa-rss"></i> Slider #'+(i+1)+' — '+(slider.titleIt || 'Nuovo slider')+'</span>' +
+          (state.rssSliders.length > 1 ? '<button type="button" data-rss-remove="'+i+'" style="background:#D32F2F;color:#fff;border:none;padding:4px 12px;border-radius:6px;font-size:12px;cursor:pointer;font-weight:600;"><i class="fas fa-trash"></i></button>' : '') +
+        '</div>' +
+        // Riga 1: Icona + Titolo IT + Titolo EN
+        '<div style="display:grid;grid-template-columns:auto 1fr 1fr;gap:12px;margin-bottom:8px;">' +
+          '<div><label style="font-size:12px;font-weight:600;color:#4A4A4A;">Icona</label>' +
+            '<select data-rss="'+i+'" data-rfield="icon" style="width:100%;padding:8px 10px;border:1px solid #d0d0d0;border-radius:6px;font-size:12px;font-family:\'Titillium Web\',sans-serif;">'+iconOpts+'</select></div>' +
+          '<div><label style="font-size:12px;font-weight:600;color:#4A4A4A;">Titolo (IT)</label>' +
+            '<input type="text" data-rss="'+i+'" data-rfield="titleIt" value="'+esc(slider.titleIt)+'" placeholder="Es: Mostre e Musei" style="width:100%;padding:8px 10px;border:1px solid #d0d0d0;border-radius:6px;font-size:13px;box-sizing:border-box;font-family:\'Titillium Web\',sans-serif;"></div>' +
+          '<div><label style="font-size:12px;font-weight:600;color:#4A4A4A;">Titolo (EN)</label>' +
+            '<input type="text" data-rss="'+i+'" data-rfield="titleEn" value="'+esc(slider.titleEn)+'" placeholder="Es: Exhibitions" style="width:100%;padding:8px 10px;border:1px solid #d0d0d0;border-radius:6px;font-size:13px;box-sizing:border-box;font-family:\'Titillium Web\',sans-serif;"></div>' +
+        '</div>' +
+        // Riga 2: Feed RSS URL
+        '<div style="margin-bottom:8px;">' +
+          '<label style="font-size:12px;font-weight:600;color:#4A4A4A;">URL Feed RSS</label>' +
+          '<input type="text" data-rss="'+i+'" data-rfield="feedUrl" value="'+esc(slider.feedUrl)+'" placeholder="https://comune.digital/syndication/mostre/" style="width:100%;padding:8px 10px;border:1px solid #d0d0d0;border-radius:6px;font-size:13px;box-sizing:border-box;font-family:\'Titillium Web\',sans-serif;">' +
+        '</div>' +
+        // Riga 3: Target URL + Dominio base
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:8px;">' +
+          '<div><label style="font-size:12px;font-weight:600;color:#4A4A4A;">URL pagina "Vedi tutti"</label>' +
+            '<input type="text" data-rss="'+i+'" data-rfield="targetUrl" value="'+esc(slider.targetUrl)+'" placeholder="https://comune.digital/mostre/c/0" style="width:100%;padding:8px 10px;border:1px solid #d0d0d0;border-radius:6px;font-size:13px;box-sizing:border-box;font-family:\'Titillium Web\',sans-serif;"></div>' +
+          '<div><label style="font-size:12px;font-weight:600;color:#4A4A4A;">Dominio base (per immagini)</label>' +
+            '<input type="text" data-rss="'+i+'" data-rfield="domainBase" value="'+esc(slider.domainBase)+'" placeholder="https://comune.digital" style="width:100%;padding:8px 10px;border:1px solid #d0d0d0;border-radius:6px;font-size:13px;box-sizing:border-box;font-family:\'Titillium Web\',sans-serif;"></div>' +
+        '</div>' +
+        // Riga 4: Label tag NUOVO
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">' +
+          '<div><label style="font-size:12px;font-weight:600;color:#4A4A4A;">Etichetta "nuovo" (IT)</label>' +
+            '<input type="text" data-rss="'+i+'" data-rfield="newLabelIt" value="'+esc(slider.newLabelIt || 'NUOVO')+'" placeholder="NUOVO" style="width:100%;padding:8px 10px;border:1px solid #d0d0d0;border-radius:6px;font-size:13px;box-sizing:border-box;font-family:\'Titillium Web\',sans-serif;"></div>' +
+          '<div><label style="font-size:12px;font-weight:600;color:#4A4A4A;">Etichetta "nuovo" (EN)</label>' +
+            '<input type="text" data-rss="'+i+'" data-rfield="newLabelEn" value="'+esc(slider.newLabelEn || 'NEW')+'" placeholder="NEW" style="width:100%;padding:8px 10px;border:1px solid #d0d0d0;border-radius:6px;font-size:13px;box-sizing:border-box;font-family:\'Titillium Web\',sans-serif;"></div>' +
+        '</div>' +
+      '</div>';
+    });
+    c.innerHTML = html;
+
+    // Remove buttons
+    c.querySelectorAll('[data-rss-remove]').forEach(btn => {
+      btn.addEventListener('click', e => {
+        const idx = parseInt(e.currentTarget.getAttribute('data-rss-remove'));
+        collectRssSlidersFromDOM();
+        const removedId = 'rssSlider_' + idx;
+        // Remove from widgets
+        state.widgets = state.widgets.filter(w => w.id !== removedId);
+        // Renumber remaining rssSlider widgets
+        state.rssSliders.splice(idx, 1);
+        syncRssSliderWidgets();
+        refreshRssSliders();
+        refreshWidgetList();
+      });
+    });
+  }
+
+  function collectRssSlidersFromDOM() {
+    document.querySelectorAll('[data-rss]').forEach(el => {
+      const i = parseInt(el.getAttribute('data-rss'));
+      const f = el.getAttribute('data-rfield');
+      if (state.rssSliders[i]) state.rssSliders[i][f] = el.value;
+    });
+  }
+
+  function syncRssSliderWidgets() {
+    // Remove all rssSlider_* widgets
+    state.widgets = state.widgets.filter(w => !w.id.startsWith('rssSlider_'));
+    // Re-add with correct indices
+    const maxOrder = state.widgets.reduce((m, w) => Math.max(m, w.order), -1);
+    state.rssSliders.forEach((slider, i) => {
+      state.widgets.push({
+        id: 'rssSlider_' + i,
+        label: 'RSS: ' + (slider.titleIt || 'Slider ' + (i + 1)),
+        enabled: true,
+        order: maxOrder + 1 + i
+      });
+    });
+  }
 
   function refreshBannerItems() {
     const c = document.getElementById('ghBannerItemsContainer');
@@ -1058,6 +1219,15 @@ window.GeneratoreHome = (function () {
     state.spotlightWidgetId = v('ghSpotlightWidgetId');
     state.spotlightDurata = parseInt(v('ghSpotlightDurata')) || 2500;
     state.spotlightForzaSempre = v('ghSpotlightForzaSempre');
+    // Video
+    state.videoType = v('ghVideoType') || 'mp4';
+    state.videoUrl = v('ghVideoUrl');
+    state.videoTargetUrl = v('ghVideoTargetUrl');
+    state.videoTitleIt = v('ghVideoTitleIt');
+    state.videoTitleEn = v('ghVideoTitleEn');
+    state.videoPosterUrl = v('ghVideoPosterUrl');
+    // RSS Sliders
+    collectRssSlidersFromDOM();
   }
 
   /* ============================================================
@@ -1108,6 +1278,18 @@ window.GeneratoreHome = (function () {
     set('ghSpotlightWidgetId', state.spotlightWidgetId);
     set('ghSpotlightDurata', state.spotlightDurata);
     set('ghSpotlightForzaSempre', state.spotlightForzaSempre);
+    // Video
+    set('ghVideoType', state.videoType);
+    set('ghVideoUrl', state.videoUrl);
+    set('ghVideoTargetUrl', state.videoTargetUrl);
+    set('ghVideoTitleIt', state.videoTitleIt);
+    set('ghVideoTitleEn', state.videoTitleEn);
+    set('ghVideoPosterUrl', state.videoPosterUrl);
+    const mp4F = document.getElementById('ghVideoMp4Fields');
+    if (mp4F) mp4F.style.display = state.videoType === 'mp4' ? 'block' : 'none';
+    // RSS Sliders
+    syncRssSliderWidgets();
+    refreshRssSliders();
     refreshSlides();
     refreshServizi();
     refreshWidgetList();
@@ -1212,6 +1394,15 @@ window.GeneratoreHome = (function () {
       updateIntervalMin: ${S.meteoInterval},
       timeoutMs:         ${S.meteoTimeout},
     },
+    video: {
+      type:       ${q(S.videoType)},
+      url:        ${q(S.videoUrl)},
+      targetUrl:  ${q(S.videoTargetUrl)},
+      titleIt:    ${q(S.videoTitleIt)},
+      titleEn:    ${q(S.videoTitleEn)},
+      posterUrl:  ${q(S.videoPosterUrl)},
+    },
+    rssSliders: ${JSON.stringify(S.rssSliders || [], null, 4)},
     header: {
       mostraNome:     true,
       stemmaUrl:   ${q(S.stemmaUrl)},
@@ -1686,7 +1877,44 @@ rssapp-ticker a{margin-right:50px!important;display:inline-block!important;color
 .a11y-fontsize-val{min-width:20px;text-align:center;font-weight:900;font-size:var(--fs-sm);color:var(--ink);}
 .sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important;}
 .a11y-live{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden;}
-.keyboard-nav a:focus-visible,.keyboard-nav button:focus-visible,.keyboard-nav [tabindex]:focus-visible,.keyboard-nav input:focus-visible{outline:3px solid var(--blu-hover)!important;outline-offset:2px!important;}`;
+.keyboard-nav a:focus-visible,.keyboard-nav button:focus-visible,.keyboard-nav [tabindex]:focus-visible,.keyboard-nav input:focus-visible{outline:3px solid var(--blu-hover)!important;outline-offset:2px!important;}
+/* === VIDEO WIDGET === */
+.w-video-widget{width:100%;max-width:900px;margin:0 auto;overflow:hidden;border-radius:var(--radius-card,14px);box-shadow:var(--shadow-md);}
+.vw-container{position:relative;width:100%;background:#000;}
+.vw-mp4{aspect-ratio:16/9;}
+.vw-link{display:block;width:100%;height:100%;position:relative;}
+.vw-video{width:100%;height:100%;object-fit:cover;display:block;}
+.vw-overlay{position:absolute;bottom:0;left:0;right:0;padding:16px 20px;background:linear-gradient(transparent,rgba(0,0,0,.65));pointer-events:none;}
+.vw-title{margin:0;font-weight:700;font-size:clamp(1rem,3.5vw,1.3rem);color:#fff;text-shadow:0 2px 8px rgba(0,0,0,.4);}
+.vw-title-bar{padding:12px 16px;background:var(--blu);color:#fff;}
+.vw-title-bar .vw-title{color:#fff;text-shadow:none;}
+.vw-iframe-wrap{position:relative;width:100%;padding-bottom:56.25%;height:0;overflow:hidden;}
+.vw-iframe-wrap iframe{position:absolute;top:0;left:0;width:100%;height:100%;border:0;}
+[data-theme="dark"] .vw-title-bar{background:var(--blu-dark);}
+/* === RSS SLIDER WIDGET === */
+.w-rss-slider{width:100%;max-width:1200px;margin:0 auto;padding:10px 0 20px 0;}
+.rss-header{padding:0 14px 10px 14px;display:flex;justify-content:space-between;align-items:center;}
+.rss-title{font-size:1.15rem;font-weight:700;color:var(--cd-blue-100,#fff);margin:0;display:flex;align-items:center;gap:8px;}
+.rss-view-all{font-size:0.8rem;color:rgba(255,255,255,0.9);text-decoration:none;font-weight:600;background:rgba(255,255,255,0.1);padding:4px 10px;border-radius:20px;transition:background .2s;}
+.rss-view-all:hover{background:rgba(255,255,255,0.2);}
+.rss-slider-container{display:flex;gap:14px;overflow-x:auto;padding:0 14px 25px 14px;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;scrollbar-width:none;margin:0;}
+.rss-slider-container::-webkit-scrollbar{display:none;}
+.rss-event-card{flex:0 0 310px;height:130px;scroll-snap-align:start;background:#fff;border-radius:var(--radius-card,14px);box-shadow:0 6px 18px rgba(0,0,0,0.15);display:flex;overflow:hidden;text-decoration:none;position:relative;border:1px solid rgba(255,255,255,0.2);transition:transform 0.2s;}
+.rss-event-card:active{transform:scale(0.98);}
+.rss-card-img{width:115px;height:100%;position:relative;background:#f0f2f5;flex-shrink:0;display:flex;align-items:center;justify-content:center;overflow:hidden;}
+.rss-card-img img{width:100%;height:100%;object-fit:cover;display:block;}
+.rss-fallback-icon{font-size:2.2rem;color:#cbd5e0;}
+.rss-today-tag{position:absolute;top:0;left:0;background:var(--verde,#3CA434);color:#fff;font-size:0.7rem;font-weight:700;padding:3px 8px;border-bottom-right-radius:10px;box-shadow:1px 1px 4px rgba(0,0,0,0.3);z-index:2;}
+.rss-card-body{flex:1;padding:12px 14px;display:flex;flex-direction:column;justify-content:center;min-width:0;}
+.rss-event-date{font-size:0.8rem;font-weight:700;color:var(--verde,#3CA434);text-transform:uppercase;margin-bottom:6px;display:flex;align-items:center;gap:6px;}
+.rss-event-date i{font-size:0.9rem;}
+.rss-event-title{font-size:1rem;font-weight:700;line-height:1.3;color:var(--blu);margin:0;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;}
+.rss-msg-box{color:rgba(255,255,255,0.8);font-size:0.9rem;padding:20px;text-align:center;width:100%;}
+[data-theme="dark"] .rss-event-card{background:var(--cd-gray-900);border-color:rgba(255,255,255,.1);}
+[data-theme="dark"] .rss-event-title{color:var(--cd-blue-300);}
+[data-theme="dark"] .rss-event-date{color:var(--cd-green-300);}
+[data-theme="dark"] .rss-card-img{background:#2a2a2a;}
+@media(max-width:380px){.rss-event-card{flex:0 0 280px;height:120px;}.rss-card-img{width:95px;}}`;
   }
 
   /* ============================================================
@@ -1734,7 +1962,40 @@ rssapp-ticker a{margin-right:50px!important;display:inline-block!important;color
     raccoltaDifferenziata:()=>'<section class="w-raccolta-wrapper" aria-label="Raccolta differenziata"><div id="raccoltaDifferenziata" class="rd-card" aria-live="polite"></div></section>',
     protezioneCivile:()=>C.protezioneCivile.enabled?'<section class="w-protezione" id="protezioneCivile" aria-label="Bollettino Protezione Civile"><div id="dpc-alerts-widget"></div></section>':'',
     meteoCard:()=>'<section class="w-meteo-wrapper" aria-label="Meteo '+esc(C.nomeComune)+'"><div id="meteoCard" class="meteo-card" aria-live="polite"><div class="meteo-header"><div class="meteo-icon" aria-hidden="true"><i class="fa-solid fa-cloud-sun"></i></div><div><div class="meteo-title" data-i18n="meteo.title">'+esc(t('meteo.title'))+'</div><div class="meteo-sub" id="mwCity" data-i18n="meteo.loading">'+esc(t('meteo.loading'))+'</div></div><div class="meteo-badge" id="mwBadge">--:--</div></div><div class="meteo-section"><h3><i class="fa-solid fa-temperature-half"></i> <span data-i18n="meteo.current">'+esc(t('meteo.current'))+'</span></h3><div class="m-chips" id="meteoNow"></div></div><div class="meteo-section"><div class="meteo-acc" id="meteoAcc"><div class="meteo-acc-h" id="meteoAccHead"><strong><i class="fa-solid fa-circle-info"></i> <span data-i18n="meteo.details">'+esc(t('meteo.details'))+'</span></strong><small><i id="meteoChev" class="fa-solid fa-chevron-down"></i></small></div><div class="meteo-acc-b" id="meteoAccBody"><div class="m-chips" id="meteoDet"></div></div></div></div><div class="meteo-cta"><a class="meteo-btn" href="javascript:void(0)" id="meteoWeekly"><i class="fa-solid fa-calendar-week"></i> <span data-i18n="meteo.weekly">'+esc(t('meteo.weekly'))+'</span></a></div><div class="meteo-layer" id="meteoLoader"><div class="meteo-spinner" aria-label="Caricamento"></div></div><div class="meteo-layer meteo-err" id="meteoError" role="alert"><div><i class="fa-solid fa-triangle-exclamation"></i> <span data-i18n="meteo.error">'+esc(t('meteo.error'))+'</span></div><div class="msg" id="meteoErrmsg" data-i18n="meteo.errorSub">'+esc(t('meteo.errorSub'))+'</div><a class="meteo-btn" href="#" id="meteoRetry" style="margin-top:4px"><i class="fa-solid fa-rotate-right"></i> <span data-i18n="meteo.retry">'+esc(t('meteo.retry'))+'</span></a></div></div></section>'
+    videoWidget:()=>{
+      const V=C.video;if(!V||!V.url)return '';
+      if(V.type==='embed'){
+        let embedUrl=V.url;
+        if(embedUrl.includes('youtube.com/watch')){const vid=new URL(embedUrl).searchParams.get('v');if(vid)embedUrl='https://www.youtube.com/embed/'+vid;}
+        else if(embedUrl.includes('youtu.be/')){embedUrl='https://www.youtube.com/embed/'+embedUrl.split('youtu.be/')[1].split('?')[0];}
+        else if(embedUrl.includes('vimeo.com/')&&!embedUrl.includes('player.vimeo.com')){embedUrl='https://player.vimeo.com/video/'+embedUrl.split('vimeo.com/')[1].split('?')[0];}
+        return '<section class="w-video-widget" id="videoWidget" aria-label="Video"><div class="vw-container vw-embed">'
+          +(V.titleIt?'<div class="vw-title-bar"><h2 class="vw-title" data-i18n-it="'+esc(V.titleIt)+'" data-i18n-en="'+esc(V.titleEn||V.titleIt)+'">'+esc(V.titleIt)+'</h2></div>':'')
+          +'<div class="vw-iframe-wrap"><iframe src="'+esc(embedUrl)+'" frameborder="0" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen loading="lazy" title="'+esc(V.titleIt||'Video')+'"></iframe></div>'
+          +'</div></section>';
+      }
+      const poster=V.posterUrl?(V.posterUrl.startsWith('http')?V.posterUrl:BASE+'/'+V.posterUrl):'';
+      const targetH=V.targetUrl?href(V.targetUrl):'';
+      return '<section class="w-video-widget" id="videoWidget" aria-label="Video"><div class="vw-container vw-mp4">'
+        +(targetH?'<a href="'+esc(targetH)+'" target="_blank" rel="noopener" class="vw-link" aria-label="'+esc(V.titleIt||'Apri video')+'">':'')
+        +'<video autoplay muted loop playsinline'+(poster?' poster="'+esc(poster)+'"':'')+' class="vw-video"><source src="'+esc(V.url)+'" type="video/mp4"></video>'
+        +(V.titleIt?'<div class="vw-overlay"><h2 class="vw-title" data-i18n-it="'+esc(V.titleIt)+'" data-i18n-en="'+esc(V.titleEn||V.titleIt)+'">'+esc(V.titleIt)+'</h2></div>':'')
+        +(targetH?'</a>':'')
+        +'</div></section>';
+    },
   };
+
+  // Register dynamic RSS slider renderers
+  (C.rssSliders||[]).forEach(function(sl,i){
+    widgetRenderers['rssSlider_'+i]=function(){
+      return '<section class="w-rss-slider" id="rssSlider_'+i+'" aria-label="'+esc(sl.titleIt)+'" data-rss-idx="'+i+'">'
+        +'<div class="rss-header"><h2 class="rss-title"><i class="fa-solid '+esc(sl.icon||'fa-calendar-days')+'" aria-hidden="true"></i> <span data-i18n-it="'+esc(sl.titleIt)+'" data-i18n-en="'+esc(sl.titleEn||sl.titleIt)+'">'+esc(sl.titleIt)+'</span></h2>'
+        +'<a href="'+esc(href(sl.targetUrl))+'" class="rss-view-all" target="_blank" rel="noopener"><span data-i18n-it="Tutte" data-i18n-en="All">Tutte</span> <i class="fa-solid fa-chevron-right" aria-hidden="true" style="font-size:0.7em;"></i></a></div>'
+        +'<div class="rss-slider-container" id="rssContainer_'+i+'" role="list" aria-live="polite" aria-busy="true">'
+          +'<div class="rss-msg-box"><i class="fa-solid fa-circle-notch fa-spin" aria-hidden="true"></i> <span data-i18n-it="Caricamento..." data-i18n-en="Loading...">Caricamento...</span></div>'
+        +'</div></section>';
+    };
+  });
 
   // Sort widgets by order and render enabled ones
   const enabledWidgets=(C.widgets||[]).filter(w=>w.enabled).sort((a,b)=>a.order-b.order);
@@ -1774,6 +2035,90 @@ rssapp-ticker a{margin-right:50px!important;display:inline-block!important;color
       }
     }
     document.addEventListener('visibilitychange',function(){if(document.hidden)bcPause();else if(bcPlaying&&!bcUserPaused)bcPlay();});
+  })();
+
+  /* RSS SLIDERS RUNTIME */
+  (function(){
+    var CORS_PROXIES=[
+      function(u){return 'https://api.allorigins.win/get?url='+encodeURIComponent(u);},
+      function(u){return 'https://corsproxy.io/?'+encodeURIComponent(u);},
+      function(u){return 'https://api.codetabs.com/v1/proxy?quest='+encodeURIComponent(u);}
+    ];
+    function fetchWithTimeout(url,ms){
+      var ctrl,sig;if(typeof AbortController!=='undefined'){ctrl=new AbortController();sig=ctrl.signal;}
+      var fp=fetch(url,{cache:'no-store',signal:sig}).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r;});
+      var tp=new Promise(function(_,rej){setTimeout(function(){if(ctrl)ctrl.abort();rej(new Error('timeout'));},ms);});
+      return Promise.race([fp,tp]);
+    }
+    function fetchRssText(rssUrl){
+      var bust=rssUrl+(rssUrl.indexOf('?')===-1?'?':'&')+'_t='+Date.now();
+      return fetchWithTimeout(bust,10000).then(function(r){return r.text();}).catch(function(){
+        return CORS_PROXIES.reduce(function(chain,pFn){
+          return chain.catch(function(){
+            return fetchWithTimeout(pFn(bust),10000).then(function(r){return r.json?r.json():r.text();}).then(function(d){
+              if(d&&typeof d.contents==='string')return d.contents;if(typeof d==='string')return d;throw new Error('proxy-invalid');
+            });
+          });
+        },Promise.reject(new Error('start')));
+      });
+    }
+    function parseRss(str,domainBase){
+      var xml=new DOMParser().parseFromString(str,'text/xml');if(xml.querySelector('parsererror'))return [];
+      var items=xml.querySelectorAll('item');var evts=[];
+      for(var i=0;i<items.length;i++){
+        var it=items[i];var title=(it.querySelector('title')||{}).textContent||'';title=title.trim();
+        var desc=(it.querySelector('description')||{}).textContent||'';
+        var pub=(it.querySelector('pubDate')||{}).textContent||'';
+        var imgUrl=null;
+        try{var mt=it.querySelector('media\\\\:thumbnail,thumbnail');if(mt)imgUrl=mt.getAttribute('url');}catch(e){}
+        if(!imgUrl){try{var enc=it.querySelector('enclosure');if(enc)imgUrl=enc.getAttribute('url');}catch(e){}}
+        if(!imgUrl){var tmp=document.createElement('div');tmp.innerHTML=desc;var img=tmp.querySelector('img');if(img){var s=img.getAttribute('src');if(s)imgUrl=s.charAt(0)==='/'?domainBase+s:s;}}
+        var d=new Date(pub);if(isNaN(d.getTime()))d=new Date();
+        var today=new Date();today.setHours(0,0,0,0);
+        evts.push({title:title,date:d,image:imgUrl,isNew:d.getFullYear()===today.getFullYear()&&d.getMonth()===today.getMonth()&&d.getDate()===today.getDate()});
+      }
+      evts.sort(function(a,b){return b.date-a.date;});return evts;
+    }
+    function renderSlider(container,events,targetUrl,newLabelIt,newLabelEn){
+      container.innerHTML='';container.setAttribute('aria-busy','false');
+      if(!events||!events.length){container.innerHTML='<div class="rss-msg-box" data-i18n-it="Nessun evento in programma." data-i18n-en="No events scheduled.">Nessun evento in programma.</div>';return;}
+      events.forEach(function(evt){
+        var day=evt.date.getDate();var month=evt.date.toLocaleString(LANG==='en'?'en-GB':'it-IT',{month:'short'}).toUpperCase().replace('.','');
+        var card=document.createElement('a');card.className='rss-event-card';card.href=targetUrl;card.target='_blank';card.rel='noopener';
+        card.setAttribute('role','listitem');card.setAttribute('aria-label',evt.title+', '+day+' '+month);
+        var imgCol=document.createElement('div');imgCol.className='rss-card-img';
+        if(evt.image){
+          var imgEl=document.createElement('img');imgEl.src=evt.image;imgEl.alt=evt.title;imgEl.loading='lazy';
+          var fb=document.createElement('i');fb.className='fa-regular fa-image rss-fallback-icon';fb.style.display='none';
+          imgEl.addEventListener('error',function(){imgEl.style.display='none';fb.style.display='flex';});
+          imgCol.appendChild(imgEl);imgCol.appendChild(fb);
+        }else{var ic=document.createElement('i');ic.className='fa-solid fa-calendar-days rss-fallback-icon';imgCol.appendChild(ic);}
+        if(evt.isNew){var tag=document.createElement('div');tag.className='rss-today-tag';tag.setAttribute('data-i18n-it',newLabelIt||'NUOVO');tag.setAttribute('data-i18n-en',newLabelEn||'NEW');tag.textContent=LANG==='en'?(newLabelEn||'NEW'):(newLabelIt||'NUOVO');imgCol.appendChild(tag);}
+        var body=document.createElement('div');body.className='rss-card-body';
+        var dateDiv=document.createElement('div');dateDiv.className='rss-event-date';
+        var calI=document.createElement('i');calI.className='far fa-calendar';dateDiv.appendChild(calI);dateDiv.appendChild(document.createTextNode(' '+day+' '+month));
+        var titleEl=document.createElement('h3');titleEl.className='rss-event-title';titleEl.textContent=evt.title;
+        body.appendChild(dateDiv);body.appendChild(titleEl);card.appendChild(imgCol);card.appendChild(body);container.appendChild(card);
+      });
+    }
+    (C.rssSliders||[]).forEach(function(sl,i){
+      var container=document.getElementById('rssContainer_'+i);if(!container)return;
+      var cacheKey='rss_slider_'+i+'_cache';
+      function doFetch(){
+        fetchRssText(sl.feedUrl).then(function(xml){
+          var evts=parseRss(xml,sl.domainBase||BASE);
+          renderSlider(container,evts,sl.targetUrl,sl.newLabelIt,sl.newLabelEn);
+          try{localStorage.setItem(cacheKey,JSON.stringify({ts:Date.now(),evts:evts.map(function(e){return{title:e.title,date:e.date.toISOString(),image:e.image,isNew:e.isNew};})}));}catch(e){}
+        }).catch(function(){
+          try{var c=JSON.parse(localStorage.getItem(cacheKey));if(c&&c.evts){var restored=c.evts.map(function(e){return{title:e.title,date:new Date(e.date),image:e.image,isNew:e.isNew};});renderSlider(container,restored,sl.targetUrl,sl.newLabelIt,sl.newLabelEn);return;}}catch(e){}
+          container.innerHTML='<div class="rss-msg-box" data-i18n-it="Impossibile caricare i dati." data-i18n-en="Unable to load data.">Impossibile caricare i dati.</div>';container.setAttribute('aria-busy','false');
+        });
+      }
+      try{var cached=JSON.parse(localStorage.getItem(cacheKey));if(cached&&cached.evts&&cached.evts.length){var restored=cached.evts.map(function(e){return{title:e.title,date:new Date(e.date),image:e.image,isNew:e.isNew};});renderSlider(container,restored,sl.targetUrl,sl.newLabelIt,sl.newLabelEn);}}catch(e){}
+      doFetch();
+      setInterval(function(){doFetch();},15*60*1000);
+      document.addEventListener('visibilitychange',function(){if(!document.hidden)doFetch();});
+    });
   })();
 
   /* Move static slideshow */
