@@ -475,34 +475,13 @@ window.GeneratoreHome = (function () {
     // === BOTTONI ===
     formHtml += '<div style="display:flex;gap:12px;flex-wrap:wrap;margin:24px 0 16px;">' +
       '<button type="button" id="ghBtnGenera" style="background:#145284;color:#fff;border:none;padding:14px 28px;border-radius:10px;font-weight:700;font-size:15px;cursor:pointer;font-family:\'Titillium Web\',sans-serif;box-shadow:0 4px 12px rgba(20,82,132,.3);"><i class="fas fa-download"></i> Genera HTML</button>' +
-      '<button type="button" id="ghBtnPreview" style="background:#3CA434;color:#fff;border:none;padding:14px 28px;border-radius:10px;font-weight:700;font-size:15px;cursor:pointer;font-family:\'Titillium Web\',sans-serif;box-shadow:0 4px 12px rgba(60,164,52,.3);"><i class="fas fa-external-link-alt"></i> Apri in nuova finestra</button>' +
-      '<button type="button" id="ghBtnRefreshPreview" style="background:#FF9800;color:#fff;border:none;padding:14px 28px;border-radius:10px;font-weight:700;font-size:15px;cursor:pointer;font-family:\'Titillium Web\',sans-serif;box-shadow:0 4px 12px rgba(255,152,0,.3);"><i class="fas fa-sync-alt"></i> Aggiorna Anteprima</button>' +
+      '<button type="button" id="ghBtnPreview" style="background:#3CA434;color:#fff;border:none;padding:14px 28px;border-radius:10px;font-weight:700;font-size:15px;cursor:pointer;font-family:\'Titillium Web\',sans-serif;box-shadow:0 4px 12px rgba(60,164,52,.3);"><i class="fas fa-eye"></i> Apri Anteprima Live</button>' +
+      '<span id="ghPreviewStatus" style="display:flex;align-items:center;font-size:12px;color:#9B9B9B;gap:6px;"></span>' +
     '</div>';
+    formHtml += '<p style="font-size:12px;color:#9B9B9B;margin:0 0 30px;"><i class="fas fa-info-circle"></i> Clicca "Apri Anteprima Live" per vedere la homepage in una finestra laterale. Si aggiornerà automaticamente ad ogni modifica.</p>';
 
     formHtml += '</div>'; // close form column
-
-    // COLONNA PREVIEW (live)
-    formHtml += '<div id="ghPreviewCol" style="flex:0 0 400px;position:sticky;top:20px;align-self:flex-start;">' +
-      '<div style="background:#0D3A5C;color:#fff;padding:12px 16px;border-radius:12px 12px 0 0;display:flex;align-items:center;justify-content:space-between;">' +
-        '<span style="font-weight:700;font-size:14px;"><i class="fas fa-mobile-alt"></i> Anteprima Live</span>' +
-        '<div style="display:flex;gap:8px;">' +
-          '<button type="button" id="ghPreviewPhone" title="Mobile 375px" style="background:rgba(255,255,255,.2);border:none;color:#fff;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;">375</button>' +
-          '<button type="button" id="ghPreviewTablet" title="Tablet 768px" style="background:rgba(255,255,255,.1);border:none;color:#fff;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;">768</button>' +
-        '</div>' +
-      '</div>' +
-      '<div id="ghPreviewFrame" style="background:#e0e0e0;border:1px solid #ccc;border-top:none;border-radius:0 0 12px 12px;overflow:hidden;position:relative;">' +
-        '<iframe id="ghPreviewIframe" style="width:375px;height:700px;border:none;display:block;margin:0 auto;background:#fff;transition:width .3s ease;" title="Anteprima homepage"></iframe>' +
-      '</div>' +
-      '<p style="text-align:center;font-size:11px;color:#9B9B9B;margin-top:8px;">Si aggiorna ad ogni modifica · <span id="ghPreviewStatus">Pronto</span></p>' +
-    '</div>';
-
     formHtml += '</div>'; // close main layout
-
-    // Stile responsive per il layout
-    formHtml += '<style>' +
-      '#ghMainLayout{flex-direction:row;}' +
-      '@media(max-width:1100px){#ghMainLayout{flex-direction:column;}#ghPreviewCol{flex:none;position:relative;top:0;order:-1;}#ghPreviewIframe{width:100%!important;max-width:100%;}}' +
-    '</style>';
 
     el.innerHTML = formHtml;
 
@@ -676,47 +655,90 @@ window.GeneratoreHome = (function () {
       URL.revokeObjectURL(a.href);
     });
 
-    // Preview – apri in nuova finestra
-    document.getElementById('ghBtnPreview')?.addEventListener('click', () => {
-      collectState();
-      if (!state.nomeComune) { alert('Inserisci il nome del comune!'); return; }
-      const html = generateHTML();
-      const w = window.open('', '_blank');
-      w.document.write(html);
-      w.document.close();
-    });
-
-    // === LIVE PREVIEW SYSTEM ===
-    const previewIframe = document.getElementById('ghPreviewIframe');
-    const previewStatus = document.getElementById('ghPreviewStatus');
+    // === LIVE PREVIEW SYSTEM (popup window) ===
+    let previewWin = null;
     let previewTimer = null;
+    const previewStatus = document.getElementById('ghPreviewStatus');
 
-    function updateLivePreview() {
-      if (!previewIframe) return;
+    function isPreviewOpen() {
+      return previewWin && !previewWin.closed;
+    }
+
+    function updatePreviewStatus(msg) {
+      if (previewStatus) previewStatus.textContent = msg;
+    }
+
+    function refreshPreviewContent() {
+      if (!isPreviewOpen()) {
+        updatePreviewStatus('Finestra chiusa. Clicca "Apri Anteprima Live" per riaprire.');
+        return;
+      }
       try {
         collectState();
         if (!state.nomeComune || !state.baseUrl) {
-          if (previewStatus) previewStatus.textContent = 'Inserisci nome e URL base';
+          updatePreviewStatus('Inserisci nome comune e URL base');
           return;
         }
-        if (previewStatus) previewStatus.textContent = 'Aggiornando...';
+        updatePreviewStatus('Aggiornando...');
         const html = generateHTML();
-
-        // Usa document.write sull'iframe (stesso metodo del bottone "Apri in nuova finestra")
-        const doc = previewIframe.contentDocument || previewIframe.contentWindow.document;
-        doc.open();
-        doc.write(html);
-        doc.close();
-        if (previewStatus) previewStatus.textContent = 'Aggiornato ' + new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        previewWin.document.open();
+        previewWin.document.write(html);
+        previewWin.document.close();
+        updatePreviewStatus('Aggiornato ' + new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
       } catch (e) {
-        if (previewStatus) previewStatus.textContent = 'Errore: ' + e.message;
+        updatePreviewStatus('Errore: ' + e.message);
       }
     }
 
     function schedulePreview() {
+      if (!isPreviewOpen()) return;
       clearTimeout(previewTimer);
-      previewTimer = setTimeout(updateLivePreview, 800);
+      previewTimer = setTimeout(refreshPreviewContent, 800);
     }
+
+    // Bottone "Apri Anteprima Live" — deve partire da click utente per evitare popup blocker
+    document.getElementById('ghBtnPreview')?.addEventListener('click', () => {
+      collectState();
+      if (!state.nomeComune) { alert('Inserisci il nome del comune!'); return; }
+
+      // Se la finestra è già aperta, la porta in primo piano e aggiorna
+      if (isPreviewOpen()) {
+        previewWin.focus();
+        refreshPreviewContent();
+        return;
+      }
+
+      // Apri finestra popup con dimensioni mobile-like
+      const sw = window.screen.availWidth;
+      const sh = window.screen.availHeight;
+      const pw = 420;
+      const ph = Math.min(780, sh - 40);
+      const left = sw - pw - 20;
+      const top = 20;
+      previewWin = window.open('', 'ghPreviewPopup',
+        'width=' + pw + ',height=' + ph + ',left=' + left + ',top=' + top +
+        ',resizable=yes,scrollbars=yes,menubar=no,toolbar=no,location=no,status=no');
+
+      if (!previewWin) {
+        alert('Il browser ha bloccato il popup. Abilita i popup per questo sito e riprova.');
+        return;
+      }
+
+      // Scrivi il contenuto iniziale
+      const html = generateHTML();
+      previewWin.document.open();
+      previewWin.document.write(html);
+      previewWin.document.close();
+      updatePreviewStatus('Anteprima aperta — si aggiorna automaticamente');
+
+      // Controlla periodicamente se la finestra è stata chiusa dall'utente
+      const checkClosed = setInterval(() => {
+        if (!isPreviewOpen()) {
+          clearInterval(checkClosed);
+          updatePreviewStatus('Finestra chiusa. Clicca "Apri Anteprima Live" per riaprire.');
+        }
+      }, 2000);
+    });
 
     // Auto-refresh: intercetta TUTTE le interazioni nel form
     const formCol = document.getElementById('ghFormCol');
@@ -724,7 +746,6 @@ window.GeneratoreHome = (function () {
       formCol.addEventListener('input', schedulePreview);
       formCol.addEventListener('change', schedulePreview);
       formCol.addEventListener('click', e => {
-        // Aggiorna preview su click di bottoni, checkbox, preset palette, widget up/down
         if (e.target.closest('button') || e.target.closest('[data-preset-idx]') ||
             e.target.closest('[data-widget-toggle]') || e.target.closest('[data-widget-up]') ||
             e.target.closest('[data-widget-down]') || e.target.tagName === 'INPUT') {
@@ -732,27 +753,6 @@ window.GeneratoreHome = (function () {
         }
       });
     }
-
-    // Pulsante aggiorna manuale
-    document.getElementById('ghBtnRefreshPreview')?.addEventListener('click', () => {
-      clearTimeout(previewTimer);
-      updateLivePreview();
-    });
-
-    // Pulsanti dimensioni preview
-    document.getElementById('ghPreviewPhone')?.addEventListener('click', () => {
-      if (previewIframe) previewIframe.style.width = '375px';
-      document.getElementById('ghPreviewPhone').style.background = 'rgba(255,255,255,.2)';
-      document.getElementById('ghPreviewTablet').style.background = 'rgba(255,255,255,.1)';
-    });
-    document.getElementById('ghPreviewTablet')?.addEventListener('click', () => {
-      if (previewIframe) previewIframe.style.width = '768px';
-      document.getElementById('ghPreviewTablet').style.background = 'rgba(255,255,255,.2)';
-      document.getElementById('ghPreviewPhone').style.background = 'rgba(255,255,255,.1)';
-    });
-
-    // Prima renderizzazione iniziale del preview
-    setTimeout(updateLivePreview, 500);
 
     // Firebase config handlers
     document.getElementById('ghBtnSaveConfig')?.addEventListener('click', saveConfig);
