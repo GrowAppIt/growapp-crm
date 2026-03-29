@@ -1416,27 +1416,6 @@ window.GeneratoreHome = (function () {
     const dgp = generateDarkPalette(gp, S.coloreSecondario);
     const BASE = S.baseUrl.replace(/\/+$/, '');
 
-    // Build slides HTML
-    let slidesHtml = '';
-    S.slides.forEach((sl, i) => {
-      const hrefFull = sl.href.startsWith('http') ? sl.href : BASE + '/' + sl.href;
-      const bgFull = sl.bg.startsWith('http') ? sl.bg : BASE + '/' + sl.bg;
-      slidesHtml += '    <article class="slide' + (i===0?' active':'') + '"\n' +
-        '             data-href="' + hrefFull + '"\n' +
-        '             data-bg="' + bgFull + '"\n' +
-        '             data-title-it="' + esc(sl.titleIt) + '" data-title-en="' + esc(sl.titleEn) + '"\n' +
-        '             aria-label="' + esc(sl.titleIt) + '">\n' +
-        '      <div class="slide-content"><div class="slide-textbox">\n' +
-        '        <h1 class="slide-title">' + esc(sl.titleIt) + '</h1>\n' +
-        '      </div></div>\n' +
-        '    </article>\n\n';
-    });
-
-    let dotsHtml = '';
-    S.slides.forEach((sl, i) => {
-      dotsHtml += '      <button class="slide-dot' + (i===0?' active':'') + '" data-title="' + esc(sl.titleIt) + '" role="tab" aria-selected="' + (i===0?'true':'false') + '" aria-label="' + esc(sl.titleIt) + '"></button>\n';
-    });
-
     // Build COMUNE_CONFIG
     const config = buildConfig(S, BASE);
 
@@ -1447,7 +1426,7 @@ window.GeneratoreHome = (function () {
     })), null, 6);
 
     // Assemble full HTML
-    return buildFullHTML(bp, gp, dbp, dgp, config, slidesHtml, dotsHtml, S);
+    return buildFullHTML(bp, gp, dbp, dgp, config, S);
   }
 
   /* ============================================================
@@ -1601,7 +1580,7 @@ window.GeneratoreHome = (function () {
   /* ============================================================
      BUILD FULL HTML DOCUMENT
      ============================================================ */
-  function buildFullHTML(bp, gp, dbp, dgp, configScript, slidesHtml, dotsHtml, S) {
+  function buildFullHTML(bp, gp, dbp, dgp, configScript, S) {
     const BASE = S.baseUrl.replace(/\/+$/, '');
     const terminiUrl = S.footerTerminiUrl || BASE + '/termini-e-condizioni-del-servizio';
     const privacyUrl = S.footerPrivacyUrl || BASE + '/privacy-policy';
@@ -1648,33 +1627,9 @@ ${configScript}
 
 <div class="home-wrapper" id="mainContent" role="main">
   <div id="widgetMount"></div>
-
-  <section class="w-slideshow" id="slideshowStatic" role="region" aria-roledescription="carousel" aria-label="Sezioni principali" aria-live="polite">
-${slidesHtml}
-    <div class="slide-cta">
-      <a id="ctaLink" href="#" aria-label="Apri la sezione corrente">
-        <i class="fa-solid fa-arrow-right"></i> <span id="ctaText" data-i18n="slide.cta">Apri sezione</span>
-      </a>
-    </div>
-    <div class="slide-nav" aria-hidden="true">
-      <button class="slide-arrow prev" aria-label="Slide precedente"><i class="fas fa-chevron-left"></i></button>
-      <button class="slide-arrow next" aria-label="Slide successiva"><i class="fas fa-chevron-right"></i></button>
-    </div>
-    <div class="slide-indicators" role="tablist" aria-label="Vai alla slide">
-${dotsHtml}
-    </div>
-  </section>
 </div>
 
-<footer class="w-footer" id="mainFooter" aria-label="Footer">
-  <div class="footer-inner">
-    <nav class="footer-links" aria-label="Link legali">
-      <a href="${esc(terminiUrl)}" id="footerTermini" target="_blank" rel="noopener">${esc(S.footerTerminiLabel)}</a>
-      <a href="${esc(privacyUrl)}" id="footerPrivacy" target="_blank" rel="noopener">${esc(S.footerPrivacyLabel)}</a>
-    </nav>
-    <div class="footer-copy" id="footerCopy">&copy; 2026 <a href="${esc(S.footerCopyrightUrl)}" id="footerBrand" target="_blank" rel="noopener">${esc(S.footerCopyrightText)}</a></div>
-  </div>
-</footer>
+<div id="footerMount"></div>
 
 <script src="https://widget.rss.app/v1/ticker.js" type="text/javascript" async></script>
 <div id="dpcScriptMount"></div>
@@ -2048,7 +2003,24 @@ rssapp-ticker a{margin-right:50px!important;display:inline-block!important;color
   const widgetRenderers={
     dateHeader:()=>'<header class="w-date-header" id="dateHeader" aria-label="Data odierna e meteo"><div class="date-header-inner"><div class="date-left"><span class="date-ico" aria-hidden="true"><i class="fa-solid fa-calendar-days"></i></span><div class="date-text"><span class="current-date" id="currentDate"></span><span class="special-event" id="specialEvent"></span></div></div><div class="weather-box" aria-label="Meteo attuale a '+esc(C.nomeComune)+'"><span class="weather-icon" id="weatherIcon">--</span><span class="temperature" id="temperature">--°C</span></div></div></header>',
     tickerBar:()=>'<section class="w-ticker" id="tickerBar" aria-label="Notizie in scorrimento"><div class="ticker-header"><a href="'+esc(href(C.ticker.linkUrl))+'" target="_blank" rel="noopener"><span class="news-ico" aria-hidden="true"><span style="transform:translateY(1px);display:inline-block;">\\u{1F4F0}</span></span><span class="header-title" data-i18n="ticker.title">'+esc(t('ticker.title'))+'</span><span class="arrow-link" aria-hidden="true">\\u2197</span></a></div><div class="ticker-strip"><rssapp-ticker id="'+esc(C.ticker.rssWidgetId)+'"></rssapp-ticker></div></section>',
-    slideshow:()=>'<div id="slideshowSlot"></div>',
+    slideshow:()=>{
+      const slides=C.slides||[];const hasContent=slides.some(s=>s.titleIt||s.bg);
+      if(!hasContent)return '';
+      let sh='';slides.forEach((sl,i)=>{
+        const hrefF=sl.href?(sl.href.startsWith('http')?sl.href:BASE+'/'+sl.href):'#';
+        const bgF=sl.bg?(sl.bg.startsWith('http')?sl.bg:BASE+'/'+sl.bg):'';
+        sh+='<article class="slide'+(i===0?' active':'')+'" data-href="'+esc(hrefF)+'" data-bg="'+esc(bgF)+'" data-title-it="'+esc(sl.titleIt)+'" data-title-en="'+esc(sl.titleEn)+'" aria-label="'+esc(sl.titleIt)+'"><div class="slide-content"><div class="slide-textbox"><h1 class="slide-title">'+esc(sl.titleIt)+'</h1></div></div></article>';
+      });
+      let dh='';slides.forEach((sl,i)=>{
+        dh+='<button class="slide-dot'+(i===0?' active':'')+'" data-title="'+esc(sl.titleIt)+'" role="tab" aria-selected="'+(i===0?'true':'false')+'" aria-label="'+esc(sl.titleIt)+'"></button>';
+      });
+      return '<section class="w-slideshow" id="slideshowStatic" role="region" aria-roledescription="carousel" aria-label="Sezioni principali" aria-live="polite">'
+        +sh
+        +'<div class="slide-cta"><a id="ctaLink" href="#" aria-label="Apri la sezione corrente"><i class="fa-solid fa-arrow-right"></i> <span id="ctaText" data-i18n="slide.cta">Apri sezione</span></a></div>'
+        +'<div class="slide-nav" aria-hidden="true"><button class="slide-arrow prev" aria-label="Slide precedente"><i class="fas fa-chevron-left"></i></button><button class="slide-arrow next" aria-label="Slide successiva"><i class="fas fa-chevron-right"></i></button></div>'
+        +'<div class="slide-indicators" role="tablist" aria-label="Vai alla slide">'+dh+'</div>'
+        +'</section>';
+    },
     servizi:()=>{const svcSections=C.servizi.map(sec=>{const cards=sec.items.map(it=>'<a class="svc-link" href="'+esc(href(it.href))+'" target="_blank" rel="noopener"><div class="svc-card"><div class="svc-icon-box"><i class="fa-solid '+esc(it.icon)+'"></i></div><div class="svc-label-it" data-i18n-it="'+esc(it.labelIt)+'" data-i18n-en="'+esc(it.labelEn)+'">'+esc(LANG==='en'?it.labelEn:it.labelIt)+'</div></div></a>').join('');return '<div class="svc-section"><div class="svc-section-hdr"><div class="svc-title-it" data-i18n-it="'+esc(sec.sectionIt)+'" data-i18n-en="'+esc(sec.sectionEn)+'">'+esc(LANG==='en'?sec.sectionEn:sec.sectionIt)+'</div></div><div class="svc-grid">'+cards+'</div></div>';}).join('');return '<section class="w-services" id="servicesContainer" aria-label="Servizi comunali">'+svcSections+'</section>';},
     bannerCustom:()=>{
       const items=C.bannerCustom.items||[];if(!items.length)return '';
@@ -2069,7 +2041,7 @@ rssapp-ticker a{margin-right:50px!important;display:inline-block!important;color
     bannerCIE:()=>C.bannerCie.enabled?'<section class="w-banner-cie" id="bannerCIE" role="region" aria-label="Avviso CIE"><a class="cie-link" href="'+esc(C.bannerCie.href)+'" target="_blank" rel="noopener" aria-label="'+esc(C.bannerCie.title)+'"><div class="cie-ico" aria-hidden="true"><i class="fa-solid fa-id-card"></i></div><div class="cie-txt"><p class="cie-title" data-i18n-it="'+esc(C.bannerCie.title)+'" data-i18n-en="'+esc(C.bannerCie.titleEn||C.bannerCie.title)+'">'+esc(LANG==='en'?(C.bannerCie.titleEn||C.bannerCie.title):C.bannerCie.title)+'</p><p class="cie-subtitle" data-i18n-it="'+esc(C.bannerCie.subtitle)+'" data-i18n-en="'+esc(C.bannerCie.subtitleEn||C.bannerCie.subtitle)+'">'+esc(LANG==='en'?(C.bannerCie.subtitleEn||C.bannerCie.subtitle):C.bannerCie.subtitle)+'</p></div><div class="cie-info-wrap" aria-hidden="true"><span class="cie-badge" data-i18n="cie.badge">'+esc(t('cie.badge'))+'</span><span class="cie-ring"></span><span class="cie-finger"><i class="fa-solid fa-hand-point-up"></i></span></div></a></section>':'',
     raccoltaDifferenziata:()=>'<section class="w-raccolta-wrapper" aria-label="Raccolta differenziata"><div id="raccoltaDifferenziata" class="rd-card" aria-live="polite"></div></section>',
     protezioneCivile:()=>C.protezioneCivile.enabled?'<section class="w-protezione" id="protezioneCivile" aria-label="Bollettino Protezione Civile"><div id="dpc-alerts-widget"></div></section>':'',
-    meteoCard:()=>'<section class="w-meteo-wrapper" aria-label="Meteo '+esc(C.nomeComune)+'"><div id="meteoCard" class="meteo-card" aria-live="polite"><div class="meteo-header"><div class="meteo-icon" aria-hidden="true"><i class="fa-solid fa-cloud-sun"></i></div><div><div class="meteo-title" data-i18n="meteo.title">'+esc(t('meteo.title'))+'</div><div class="meteo-sub" id="mwCity" data-i18n="meteo.loading">'+esc(t('meteo.loading'))+'</div></div><div class="meteo-badge" id="mwBadge">--:--</div></div><div class="meteo-section"><h3><i class="fa-solid fa-temperature-half"></i> <span data-i18n="meteo.current">'+esc(t('meteo.current'))+'</span></h3><div class="m-chips" id="meteoNow"></div></div><div class="meteo-section"><div class="meteo-acc" id="meteoAcc"><div class="meteo-acc-h" id="meteoAccHead"><strong><i class="fa-solid fa-circle-info"></i> <span data-i18n="meteo.details">'+esc(t('meteo.details'))+'</span></strong><small><i id="meteoChev" class="fa-solid fa-chevron-down"></i></small></div><div class="meteo-acc-b" id="meteoAccBody"><div class="m-chips" id="meteoDet"></div></div></div></div><div class="meteo-cta"><a class="meteo-btn" href="javascript:void(0)" id="meteoWeekly"><i class="fa-solid fa-calendar-week"></i> <span data-i18n="meteo.weekly">'+esc(t('meteo.weekly'))+'</span></a></div><div class="meteo-layer" id="meteoLoader"><div class="meteo-spinner" aria-label="Caricamento"></div></div><div class="meteo-layer meteo-err" id="meteoError" role="alert"><div><i class="fa-solid fa-triangle-exclamation"></i> <span data-i18n="meteo.error">'+esc(t('meteo.error'))+'</span></div><div class="msg" id="meteoErrmsg" data-i18n="meteo.errorSub">'+esc(t('meteo.errorSub'))+'</div><a class="meteo-btn" href="#" id="meteoRetry" style="margin-top:4px"><i class="fa-solid fa-rotate-right"></i> <span data-i18n="meteo.retry">'+esc(t('meteo.retry'))+'</span></a></div></div></section>'
+    meteoCard:()=>'<section class="w-meteo-wrapper" aria-label="Meteo '+esc(C.nomeComune)+'"><div id="meteoCard" class="meteo-card" aria-live="polite"><div class="meteo-header"><div class="meteo-icon" aria-hidden="true"><i class="fa-solid fa-cloud-sun"></i></div><div><div class="meteo-title" data-i18n="meteo.title">'+esc(t('meteo.title'))+'</div><div class="meteo-sub" id="mwCity" data-i18n="meteo.loading">'+esc(t('meteo.loading'))+'</div></div><div class="meteo-badge" id="mwBadge">--:--</div></div><div class="meteo-section"><h3><i class="fa-solid fa-temperature-half"></i> <span data-i18n="meteo.current">'+esc(t('meteo.current'))+'</span></h3><div class="m-chips" id="meteoNow"></div></div><div class="meteo-section"><div class="meteo-acc" id="meteoAcc"><div class="meteo-acc-h" id="meteoAccHead"><strong><i class="fa-solid fa-circle-info"></i> <span data-i18n="meteo.details">'+esc(t('meteo.details'))+'</span></strong><small><i id="meteoChev" class="fa-solid fa-chevron-down"></i></small></div><div class="meteo-acc-b" id="meteoAccBody"><div class="m-chips" id="meteoDet"></div></div></div></div><div class="meteo-cta"><a class="meteo-btn" href="javascript:void(0)" id="meteoWeekly"><i class="fa-solid fa-calendar-week"></i> <span data-i18n="meteo.weekly">'+esc(t('meteo.weekly'))+'</span></a></div><div class="meteo-layer" id="meteoLoader"><div class="meteo-spinner" aria-label="Caricamento"></div></div><div class="meteo-layer meteo-err" id="meteoError" role="alert"><div><i class="fa-solid fa-triangle-exclamation"></i> <span data-i18n="meteo.error">'+esc(t('meteo.error'))+'</span></div><div class="msg" id="meteoErrmsg" data-i18n="meteo.errorSub">'+esc(t('meteo.errorSub'))+'</div><a class="meteo-btn" href="#" id="meteoRetry" style="margin-top:4px"><i class="fa-solid fa-rotate-right"></i> <span data-i18n="meteo.retry">'+esc(t('meteo.retry'))+'</span></a></div></div></section>',
     videoWidget:()=>{
       const V=C.video;if(!V||!V.url)return '';
       if(V.type==='embed'){
@@ -2110,6 +2082,24 @@ rssapp-ticker a{margin-right:50px!important;display:inline-block!important;color
   enabledWidgets.forEach(w=>{if(widgetRenderers[w.id]){const rendered=widgetRenderers[w.id]();if(rendered)html+=rendered;}});
 
   mount.innerHTML=html;
+
+  /* FOOTER – render only if configured */
+  (function(){
+    var fm=document.getElementById('footerMount');if(!fm)return;
+    var ft=C.footer;if(!ft)return;
+    var hasFooter=ft.terminiLabel||ft.privacyLabel||ft.copyrightText;
+    if(!hasFooter){fm.innerHTML='';return;}
+    var fh='<footer class="w-footer" id="mainFooter" aria-label="Footer"><div class="footer-inner">';
+    if(ft.terminiLabel||ft.privacyLabel){
+      fh+='<nav class="footer-links" aria-label="Link legali">';
+      if(ft.terminiLabel)fh+='<a href="'+esc(ft.terminiUrl||'#')+'" id="footerTermini" target="_blank" rel="noopener">'+esc(ft.terminiLabel)+'</a>';
+      if(ft.privacyLabel)fh+='<a href="'+esc(ft.privacyUrl||'#')+'" id="footerPrivacy" target="_blank" rel="noopener">'+esc(ft.privacyLabel)+'</a>';
+      fh+='</nav>';
+    }
+    if(ft.copyrightText)fh+='<div class="footer-copy" id="footerCopy">&copy; 2026 <a href="'+esc(ft.copyrightUrl||'#')+'" id="footerBrand" target="_blank" rel="noopener">'+esc(ft.copyrightText)+'</a></div>';
+    fh+='</div></footer>';
+    fm.innerHTML=fh;
+  })();
 
   /* BANNER CUSTOM CAROUSEL */
   (function(){
