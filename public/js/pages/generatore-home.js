@@ -275,9 +275,7 @@ window.GeneratoreHome = (function () {
           { icon: 'fa-triangle-exclamation', labelIt: 'Segnala', labelEn: 'Report Issue', href: 'segnalazioni' },
         ]
       }],
-      bannerCustomItems: [
-        { icon: 'fa-bullhorn', kicker: '', titleIt: '', titleEn: '', href: '', ctaLabel: 'Apri', ctaIcon: 'fa-arrow-right', bgImage: '' }
-      ],
+      bannerGroups: [],
       // Video widget (unico)
       videoType: 'mp4',        // 'mp4' | 'embed'
       videoUrl: '',
@@ -314,12 +312,20 @@ window.GeneratoreHome = (function () {
       footerCopyrightText: 'Comune.Digital', footerCopyrightUrl: 'https://app.comune.digital',
       a11yDarkMode: true, a11yContrasto: true, a11yFontScale: true, a11yMaxFontScale: 4, a11yRispettaSistema: false,
       spotlightWidgetId: '', spotlightDurata: 2500, spotlightForzaSempre: false,
+      // Tab Bar
+      tabBarEnabled: false,
+      tabBarItems: [
+        { icon: 'fa-house', labelIt: 'Home', labelEn: 'Home', href: '', isCenter: true },
+        { icon: 'fa-building-columns', labelIt: 'Municipio', labelEn: 'Town Hall', href: 'municipio-cittadini', isCenter: false },
+        { icon: 'fa-triangle-exclamation', labelIt: 'Emergenza', labelEn: 'Emergency', href: 'emergenza', isCenter: false },
+        { icon: 'fa-heart-pulse', labelIt: 'DAE', labelEn: 'AED', href: 'dae', isCenter: false },
+        { icon: 'fa-bars', labelIt: 'Menu', labelEn: 'Menu', href: 'menu', isCenter: false },
+      ],
       widgets: [
         { id: 'dateHeader', label: 'Barra Data', enabled: true, order: 0 },
         { id: 'tickerBar', label: 'Ticker News', enabled: true, order: 1 },
         { id: 'slideshow', label: 'Slideshow', enabled: true, order: 2 },
         { id: 'servizi', label: 'Servizi', enabled: true, order: 3 },
-        { id: 'bannerCustom', label: 'Banner Personalizzabile', enabled: true, order: 4 },
         { id: 'bannerCIE', label: 'Banner CIE', enabled: true, order: 5 },
         { id: 'raccoltaDifferenziata', label: 'Raccolta Differenziata', enabled: true, order: 6 },
         { id: 'protezioneCivile', label: 'Protezione Civile', enabled: true, order: 7 },
@@ -500,12 +506,11 @@ window.GeneratoreHome = (function () {
       false
     );
 
-    // === SEZ. 8: BANNER PERSONALIZZABILE (1-4 slide) ===
-    formHtml += makeSection('fa-bullhorn', 'Banner Personalizzabile (Carousel)',
-      '<p style="font-size:12px;color:#9B9B9B;margin:0 0 12px;">Carousel con 1-4 card personalizzabili: promozioni, eventi, servizi, avvisi. Ogni card ha icona, testo e CTA.</p>' +
-      '<div id="ghBannerItemsContainer"></div>' +
-      '<button type="button" id="ghBtnAddBannerItem" style="background:#D1E2F2;color:#145284;border:2px dashed #145284;padding:10px 20px;border-radius:10px;font-weight:700;font-size:14px;cursor:pointer;width:100%;margin-top:8px;font-family:\'Titillium Web\',sans-serif;">' +
-      '<i class="fas fa-plus"></i> Aggiungi Card (max 4)</button>',
+    // === SEZ. 8: BANNER PERSONALIZZABILI (replicabili) ===
+    formHtml += makeSection('fa-bullhorn', 'Banner Personalizzabili',
+      '<p style="font-size:12px;color:#9B9B9B;margin-bottom:12px;"><i class="fas fa-info-circle"></i> Puoi aggiungere più banner carousel, ognuno con le sue card. Appariranno nella Gestione Widget per posizionarli dove vuoi. Ogni banner può avere da 1 a 4 card (anche solo immagini senza testo).</p>' +
+      '<div id="ghBannerGroupsContainer"></div>' +
+      '<button type="button" id="ghBtnAddBannerGroup" style="background:#145284;color:#fff;border:none;padding:10px 20px;border-radius:8px;font-weight:600;font-size:13px;cursor:pointer;font-family:\'Titillium Web\',sans-serif;margin-top:8px;"><i class="fas fa-plus"></i> Aggiungi Banner</button>',
       false
     );
 
@@ -634,6 +639,14 @@ window.GeneratoreHome = (function () {
       false
     );
 
+    // === SEZ. 17: TAB BAR ===
+    formHtml += makeSection('fa-ellipsis', 'Tab Bar (Navigazione)',
+      makeCheckbox('ghTabBarEnabled', 'Abilita Tab Bar', state.tabBarEnabled) +
+      '<p style="font-size:12px;color:#9B9B9B;margin:0 0 12px;"><i class="fas fa-info-circle"></i> Barra di navigazione fissa in basso con 5 pulsanti. Il pulsante centrale (Home) sarà più grande e in evidenza.</p>' +
+      '<div id="ghTabBarItemsContainer"></div>',
+      false
+    );
+
     // === BOTTONI ===
     formHtml += '<div style="display:flex;gap:12px;flex-wrap:wrap;margin:24px 0 16px;">' +
       '<button type="button" id="ghBtnGenera" style="background:#145284;color:#fff;border:none;padding:14px 28px;border-radius:10px;font-weight:700;font-size:15px;cursor:pointer;font-family:\'Titillium Web\',sans-serif;box-shadow:0 4px 12px rgba(20,82,132,.3);"><i class="fas fa-download"></i> Genera HTML</button>' +
@@ -651,10 +664,12 @@ window.GeneratoreHome = (function () {
     attachEvents();
     refreshSlides();
     refreshServizi();
-    refreshBannerItems();
+    syncBannerCustomWidgets();
+    refreshBannerGroups();
     ensureWidgetExists('videoWidget', 'Video', false);
     syncRssSliderWidgets();
     refreshRssSliders();
+    refreshTabBarItems();
     refreshWidgetList();
     updatePalettePreview();
     if (!isFirebaseAvailable()) showFirebaseWarning();
@@ -736,16 +751,16 @@ window.GeneratoreHome = (function () {
       });
     });
 
-    // Add banner custom item
-    const btnAddBanner = document.getElementById('ghBtnAddBannerItem');
-    if (btnAddBanner) btnAddBanner.addEventListener('click', () => {
-      if (state.bannerCustomItems.length < 4) {
-        collectBannerItemsFromDOM();
-        state.bannerCustomItems.push({ icon: 'fa-star', kicker: '', titleIt: '', titleEn: '', href: '', ctaLabel: 'Apri', ctaIcon: 'fa-arrow-right', bgImage: '' });
-        refreshBannerItems();
-      } else {
-        alert('Massimo 4 card nel banner carousel!');
-      }
+    // Add banner group
+    const btnAddBannerGroup = document.getElementById('ghBtnAddBannerGroup');
+    if (btnAddBannerGroup) btnAddBannerGroup.addEventListener('click', () => {
+      collectBannerGroupsFromDOM();
+      state.bannerGroups.push({
+        items: [{ icon: 'fa-bullhorn', kicker: '', titleIt: '', titleEn: '', href: '', ctaLabel: 'Apri', ctaIcon: 'fa-arrow-right', bgImage: '' }]
+      });
+      syncBannerCustomWidgets();
+      refreshBannerGroups();
+      refreshWidgetList();
     });
 
     // Add slide
@@ -1225,76 +1240,193 @@ window.GeneratoreHome = (function () {
     });
   }
 
-  function refreshBannerItems(skipCollect) {
-    const c = document.getElementById('ghBannerItemsContainer');
-    if (!c) return;
-    if (!skipCollect) collectBannerItemsFromDOM();
-    let html = '';
-    state.bannerCustomItems.forEach((item, i) => {
-      // Icon options
-      let iconOpts = '';
-      BANNER_ICONS.forEach(ic => {
-        iconOpts += '<option value="'+ic.v+'"'+(item.icon === ic.v ? ' selected' : '')+'>'+ic.l+'</option>';
-      });
-      // CTA icon options
-      let ctaOpts = '';
-      CTA_ICONS.forEach(ic => {
-        ctaOpts += '<option value="'+ic.v+'"'+(item.ctaIcon === ic.v ? ' selected' : '')+'>'+ic.l+'</option>';
-      });
-
-      html += '<div class="gh-banner-card" style="background:#f8f9fa;border:1px solid #e0e0e0;border-radius:10px;padding:16px;margin-bottom:12px;position:relative;">' +
-        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">' +
-          '<strong style="color:#145284;font-size:14px;"><i class="fas '+esc(item.icon)+'"></i> Card '+(i+1)+'</strong>' +
-          (state.bannerCustomItems.length > 1 ? '<button type="button" data-remove-banner="'+i+'" style="background:#D32F2F;color:#fff;border:none;padding:4px 10px;border-radius:6px;font-size:12px;cursor:pointer;font-weight:700;"><i class="fas fa-trash"></i></button>' : '') +
-        '</div>' +
-        // Riga 1: Icona + Kicker
-        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:8px;">' +
-          '<div><label style="font-size:12px;font-weight:600;color:#4A4A4A;">Icona</label>' +
-            '<select data-banner="'+i+'" data-bfield="icon" style="width:100%;padding:8px 10px;border:1px solid #d0d0d0;border-radius:6px;font-size:12px;font-family:\'Titillium Web\',sans-serif;">'+iconOpts+'</select></div>' +
-          '<div><label style="font-size:12px;font-weight:600;color:#4A4A4A;">Etichetta (kicker)</label>' +
-            '<input type="text" data-banner="'+i+'" data-bfield="kicker" value="'+esc(item.kicker)+'" placeholder="Es: Notizie" style="width:100%;padding:8px 10px;border:1px solid #d0d0d0;border-radius:6px;font-size:13px;box-sizing:border-box;font-family:\'Titillium Web\',sans-serif;"></div>' +
-        '</div>' +
-        // Riga 2: Titolo IT + Titolo EN
-        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:8px;">' +
-          '<div><label style="font-size:12px;font-weight:600;color:#4A4A4A;">Titolo (IT)</label>' +
-            '<input type="text" data-banner="'+i+'" data-bfield="titleIt" value="'+esc(item.titleIt)+'" placeholder="Es: News dal Comune" style="width:100%;padding:8px 10px;border:1px solid #d0d0d0;border-radius:6px;font-size:13px;box-sizing:border-box;font-family:\'Titillium Web\',sans-serif;"></div>' +
-          '<div><label style="font-size:12px;font-weight:600;color:#4A4A4A;">Titolo (EN)</label>' +
-            '<input type="text" data-banner="'+i+'" data-bfield="titleEn" value="'+esc(item.titleEn)+'" placeholder="Es: City news" style="width:100%;padding:8px 10px;border:1px solid #d0d0d0;border-radius:6px;font-size:13px;box-sizing:border-box;font-family:\'Titillium Web\',sans-serif;"></div>' +
-        '</div>' +
-        // Riga 3: Link + BG Image
-        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:8px;">' +
-          '<div><label style="font-size:12px;font-weight:600;color:#4A4A4A;">Link (href)</label>' +
-            '<input type="text" data-banner="'+i+'" data-bfield="href" value="'+esc(item.href)+'" placeholder="pagina-notizie" style="width:100%;padding:8px 10px;border:1px solid #d0d0d0;border-radius:6px;font-size:13px;box-sizing:border-box;font-family:\'Titillium Web\',sans-serif;"></div>' +
-          '<div><label style="font-size:12px;font-weight:600;color:#4A4A4A;">Immagine sfondo (opz.)</label>' +
-            '<input type="text" data-banner="'+i+'" data-bfield="bgImage" value="'+esc(item.bgImage || '')+'" placeholder="docs/banner-bg.jpg" style="width:100%;padding:8px 10px;border:1px solid #d0d0d0;border-radius:6px;font-size:13px;box-sizing:border-box;font-family:\'Titillium Web\',sans-serif;"></div>' +
-        '</div>' +
-        // Riga 4: CTA Label + CTA Icon
-        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">' +
-          '<div><label style="font-size:12px;font-weight:600;color:#4A4A4A;">Testo Pulsante</label>' +
-            '<input type="text" data-banner="'+i+'" data-bfield="ctaLabel" value="'+esc(item.ctaLabel)+'" placeholder="Apri" style="width:100%;padding:8px 10px;border:1px solid #d0d0d0;border-radius:6px;font-size:13px;box-sizing:border-box;font-family:\'Titillium Web\',sans-serif;"></div>' +
-          '<div><label style="font-size:12px;font-weight:600;color:#4A4A4A;">Icona Pulsante</label>' +
-            '<select data-banner="'+i+'" data-bfield="ctaIcon" style="width:100%;padding:8px 10px;border:1px solid #d0d0d0;border-radius:6px;font-size:12px;font-family:\'Titillium Web\',sans-serif;">'+ctaOpts+'</select></div>' +
-        '</div>' +
-      '</div>';
-    });
-    c.innerHTML = html;
-
-    // Remove banner item buttons
-    c.querySelectorAll('[data-remove-banner]').forEach(btn => {
-      btn.addEventListener('click', e => {
-        const idx = parseInt(e.currentTarget.getAttribute('data-remove-banner'));
-        collectBannerItemsFromDOM();
-        state.bannerCustomItems.splice(idx, 1);
-        refreshBannerItems();
+  function syncBannerCustomWidgets() {
+    state.widgets = state.widgets.filter(w => !w.id.startsWith('bannerCustom_'));
+    const maxOrder = state.widgets.reduce((m, w) => Math.max(m, w.order), -1);
+    state.bannerGroups.forEach((group, i) => {
+      state.widgets.push({
+        id: 'bannerCustom_' + i,
+        label: 'Banner: ' + (group.items[0]?.kicker || group.items[0]?.titleIt || 'Banner ' + (i + 1)),
+        enabled: true,
+        order: maxOrder + 1 + i
       });
     });
   }
 
-  function collectBannerItemsFromDOM() {
-    document.querySelectorAll('[data-banner]').forEach(el => {
-      const i = parseInt(el.getAttribute('data-banner'));
+  function refreshBannerGroups(skipCollect) {
+    const c = document.getElementById('ghBannerGroupsContainer');
+    if (!c) return;
+    if (!skipCollect) collectBannerGroupsFromDOM();
+    let html = '';
+    state.bannerGroups.forEach((group, gi) => {
+      html += '<div class="gh-banner-group" data-bgrp="'+gi+'" style="background:#f0f4f8;border:1px solid #d0d8e0;border-radius:10px;padding:16px;margin-bottom:16px;">';
+      html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">' +
+        '<strong style="color:#145284;font-size:14px;"><i class="fas fa-columns"></i> Banner '+(gi+1)+'</strong>' +
+        (state.bannerGroups.length > 1 ? '<button type="button" data-remove-bgrp="'+gi+'" style="background:#D32F2F;color:#fff;border:none;padding:4px 10px;border-radius:6px;font-size:12px;cursor:pointer;font-weight:700;"><i class="fas fa-trash"></i></button>' : '') +
+      '</div>';
+
+      // Items dentro il gruppo
+      group.items.forEach((item, ii) => {
+        let iconOpts = '';
+        BANNER_ICONS.forEach(ic => {
+          iconOpts += '<option value="'+ic.v+'"'+(item.icon === ic.v ? ' selected' : '')+'>'+ic.l+'</option>';
+        });
+        let ctaOpts = '';
+        CTA_ICONS.forEach(ic => {
+          ctaOpts += '<option value="'+ic.v+'"'+(item.ctaIcon === ic.v ? ' selected' : '')+'>'+ic.l+'</option>';
+        });
+
+        html += '<div class="gh-banner-card" style="background:#fff;border:1px solid #e0e0e0;border-radius:8px;padding:12px;margin-bottom:8px;position:relative;">' +
+          '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">' +
+            '<strong style="color:#145284;font-size:13px;"><i class="fas '+esc(item.icon)+'"></i> Card '+(ii+1)+'</strong>' +
+            (group.items.length > 1 ? '<button type="button" data-remove-bcard="'+gi+'-'+ii+'" style="background:#D32F2F;color:#fff;border:none;padding:4px 8px;border-radius:4px;font-size:11px;cursor:pointer;font-weight:700;"><i class="fas fa-trash"></i></button>' : '') +
+          '</div>' +
+          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:6px;">' +
+            '<div><label style="font-size:11px;font-weight:600;color:#4A4A4A;">Icona</label>' +
+              '<select data-bgi="'+gi+'" data-bii="'+ii+'" data-bfield="icon" style="width:100%;padding:6px 8px;border:1px solid #d0d0d0;border-radius:4px;font-size:11px;font-family:\'Titillium Web\',sans-serif;">'+iconOpts+'</select></div>' +
+            '<div><label style="font-size:11px;font-weight:600;color:#4A4A4A;">Etichetta</label>' +
+              '<input type="text" data-bgi="'+gi+'" data-bii="'+ii+'" data-bfield="kicker" value="'+esc(item.kicker)+'" placeholder="Es: Notizie" style="width:100%;padding:6px 8px;border:1px solid #d0d0d0;border-radius:4px;font-size:11px;box-sizing:border-box;font-family:\'Titillium Web\',sans-serif;"></div>' +
+          '</div>' +
+          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:6px;">' +
+            '<div><label style="font-size:11px;font-weight:600;color:#4A4A4A;">Titolo (IT)</label>' +
+              '<input type="text" data-bgi="'+gi+'" data-bii="'+ii+'" data-bfield="titleIt" value="'+esc(item.titleIt)+'" placeholder="Es: News dal Comune" style="width:100%;padding:6px 8px;border:1px solid #d0d0d0;border-radius:4px;font-size:11px;box-sizing:border-box;font-family:\'Titillium Web\',sans-serif;"></div>' +
+            '<div><label style="font-size:11px;font-weight:600;color:#4A4A4A;">Titolo (EN)</label>' +
+              '<input type="text" data-bgi="'+gi+'" data-bii="'+ii+'" data-bfield="titleEn" value="'+esc(item.titleEn)+'" placeholder="Es: City news" style="width:100%;padding:6px 8px;border:1px solid #d0d0d0;border-radius:4px;font-size:11px;box-sizing:border-box;font-family:\'Titillium Web\',sans-serif;"></div>' +
+          '</div>' +
+          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:6px;">' +
+            '<div><label style="font-size:11px;font-weight:600;color:#4A4A4A;">Link</label>' +
+              '<input type="text" data-bgi="'+gi+'" data-bii="'+ii+'" data-bfield="href" value="'+esc(item.href)+'" placeholder="pagina-notizie" style="width:100%;padding:6px 8px;border:1px solid #d0d0d0;border-radius:4px;font-size:11px;box-sizing:border-box;font-family:\'Titillium Web\',sans-serif;"></div>' +
+            '<div><label style="font-size:11px;font-weight:600;color:#4A4A4A;">Immagine sfondo (opz.)</label>' +
+              '<input type="text" data-bgi="'+gi+'" data-bii="'+ii+'" data-bfield="bgImage" value="'+esc(item.bgImage || '')+'" placeholder="docs/banner-bg.jpg" style="width:100%;padding:6px 8px;border:1px solid #d0d0d0;border-radius:4px;font-size:11px;box-sizing:border-box;font-family:\'Titillium Web\',sans-serif;"></div>' +
+          '</div>' +
+          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">' +
+            '<div><label style="font-size:11px;font-weight:600;color:#4A4A4A;">Testo Pulsante</label>' +
+              '<input type="text" data-bgi="'+gi+'" data-bii="'+ii+'" data-bfield="ctaLabel" value="'+esc(item.ctaLabel)+'" placeholder="Apri" style="width:100%;padding:6px 8px;border:1px solid #d0d0d0;border-radius:4px;font-size:11px;box-sizing:border-box;font-family:\'Titillium Web\',sans-serif;"></div>' +
+            '<div><label style="font-size:11px;font-weight:600;color:#4A4A4A;">Icona Pulsante</label>' +
+              '<select data-bgi="'+gi+'" data-bii="'+ii+'" data-bfield="ctaIcon" style="width:100%;padding:6px 8px;border:1px solid #d0d0d0;border-radius:4px;font-size:11px;font-family:\'Titillium Web\',sans-serif;">'+ctaOpts+'</select></div>' +
+          '</div>' +
+        '</div>';
+      });
+
+      html += '<button type="button" data-add-bcard="'+gi+'" style="background:none;color:#145284;border:1px dashed #145284;padding:6px 12px;border-radius:4px;font-size:11px;cursor:pointer;font-weight:600;margin-top:4px;font-family:\'Titillium Web\',sans-serif;"><i class="fas fa-plus"></i> Aggiungi Card (max 4)</button>';
+      html += '</div>';
+    });
+    c.innerHTML = html;
+
+    // Remove banner group buttons
+    c.querySelectorAll('[data-remove-bgrp]').forEach(btn => {
+      btn.addEventListener('click', e => {
+        const gi = parseInt(e.currentTarget.getAttribute('data-remove-bgrp'));
+        collectBannerGroupsFromDOM();
+        state.bannerGroups.splice(gi, 1);
+        syncBannerCustomWidgets();
+        refreshBannerGroups();
+        refreshWidgetList();
+      });
+    });
+
+    // Remove banner card buttons
+    c.querySelectorAll('[data-remove-bcard]').forEach(btn => {
+      btn.addEventListener('click', e => {
+        const [gi, ii] = e.currentTarget.getAttribute('data-remove-bcard').split('-').map(Number);
+        collectBannerGroupsFromDOM();
+        state.bannerGroups[gi].items.splice(ii, 1);
+        refreshBannerGroups();
+      });
+    });
+
+    // Add card buttons
+    c.querySelectorAll('[data-add-bcard]').forEach(btn => {
+      btn.addEventListener('click', e => {
+        const gi = parseInt(e.currentTarget.getAttribute('data-add-bcard'));
+        collectBannerGroupsFromDOM();
+        if (state.bannerGroups[gi].items.length < 4) {
+          state.bannerGroups[gi].items.push({ icon: 'fa-bullhorn', kicker: '', titleIt: '', titleEn: '', href: '', ctaLabel: 'Apri', ctaIcon: 'fa-arrow-right', bgImage: '' });
+          refreshBannerGroups();
+        } else {
+          alert('Massimo 4 card per banner!');
+        }
+      });
+    });
+  }
+
+  function collectBannerGroupsFromDOM() {
+    document.querySelectorAll('[data-bgi]').forEach(el => {
+      const gi = parseInt(el.getAttribute('data-bgi'));
+      const ii = parseInt(el.getAttribute('data-bii'));
       const f = el.getAttribute('data-bfield');
-      if (state.bannerCustomItems[i]) state.bannerCustomItems[i][f] = el.value;
+      if (state.bannerGroups[gi] && state.bannerGroups[gi].items[ii]) {
+        state.bannerGroups[gi].items[ii][f] = el.value || (el.options ? el.options[el.selectedIndex]?.value : el.value);
+      }
+    });
+  }
+
+  /* ============================================================
+     DYNAMIC FORM – TAB BAR
+     ============================================================ */
+  function refreshTabBarItems(skipCollect) {
+    const c = document.getElementById('ghTabBarItemsContainer');
+    if (!c) return;
+    if (!skipCollect) collectTabBarFromDOM();
+    let html = '';
+    state.tabBarItems.forEach((item, i) => {
+      html += '<div class="gh-tabbar-card" data-tabbar="'+i+'" style="background:#f0f4f8;border:1px solid #d0d8e0;border-radius:10px;padding:14px;margin-bottom:12px;">';
+      html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">' +
+        '<span style="font-size:13px;font-weight:700;color:#145284;"><i class="fas '+esc(item.icon)+'"></i> Pulsante '+(i+1)+'</span>' +
+      '</div>';
+      html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">' +
+        '<div><label style="font-size:12px;font-weight:600;color:#4A4A4A;">Icona</label>' +
+          makeIconSelect('ghTabBarIcon_'+i, item.icon) +
+          '<input type="hidden" data-tabbar="'+i+'" data-tbfield="icon" value="'+esc(item.icon)+'">' +
+        '</div>' +
+        '<div><label style="font-size:12px;font-weight:600;color:#4A4A4A;">Label IT</label>' +
+          '<input type="text" data-tabbar="'+i+'" data-tbfield="labelIt" value="'+esc(item.labelIt)+'" style="width:100%;padding:8px 10px;border:1px solid #d0d0d0;border-radius:6px;font-size:13px;box-sizing:border-box;font-family:\'Titillium Web\',sans-serif;">' +
+        '</div>' +
+      '</div>';
+      html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">' +
+        '<div><label style="font-size:12px;font-weight:600;color:#4A4A4A;">Label EN</label>' +
+          '<input type="text" data-tabbar="'+i+'" data-tbfield="labelEn" value="'+esc(item.labelEn)+'" style="width:100%;padding:8px 10px;border:1px solid #d0d0d0;border-radius:6px;font-size:13px;box-sizing:border-box;font-family:\'Titillium Web\',sans-serif;">' +
+        '</div>' +
+        '<div><label style="font-size:12px;font-weight:600;color:#4A4A4A;">Link/Href</label>' +
+          '<input type="text" data-tabbar="'+i+'" data-tbfield="href" value="'+esc(item.href)+'" placeholder="link-page" style="width:100%;padding:8px 10px;border:1px solid #d0d0d0;border-radius:6px;font-size:13px;box-sizing:border-box;font-family:\'Titillium Web\',sans-serif;">' +
+        '</div>' +
+      '</div>';
+      html += '<div style="display:flex;align-items:center;gap:10px;padding:10px;background:#fff;border-radius:6px;border:1px solid #e0e0e0;">' +
+        '<input type="radio" name="ghTabBarCenter" value="'+i+'" id="ghTabBarCenter_'+i+'" '+(item.isCenter?'checked':'')+' style="width:18px;height:18px;cursor:pointer;">' +
+        '<label for="ghTabBarCenter_'+i+'" style="flex:1;cursor:pointer;font-size:13px;font-weight:600;color:#4A4A4A;margin:0;">Pulsante Centrale (Home)</label>' +
+      '</div>';
+      html += '</div>';
+    });
+    c.innerHTML = html;
+
+    // Re-attach icon select listeners
+    state.tabBarItems.forEach((item, i) => {
+      const sel = document.getElementById('ghTabBarIcon_'+i);
+      if (sel) {
+        sel.addEventListener('change', e => {
+          const inp = document.querySelector('[data-tabbar="'+i+'"][data-tbfield="icon"]');
+          if (inp) inp.value = e.target.value;
+          state.tabBarItems[i].icon = e.target.value;
+        });
+      }
+    });
+  }
+
+  function collectTabBarFromDOM() {
+    state.tabBarItems.forEach((item, i) => {
+      const icon = document.querySelector('[data-tabbar="'+i+'"][data-tbfield="icon"]');
+      const labelIt = document.querySelector('[data-tabbar="'+i+'"][data-tbfield="labelIt"]');
+      const labelEn = document.querySelector('[data-tabbar="'+i+'"][data-tbfield="labelEn"]');
+      const href = document.querySelector('[data-tabbar="'+i+'"][data-tbfield="href"]');
+      const centerRadio = document.querySelector('input[name="ghTabBarCenter"][value="'+i+'"]');
+      if (icon) state.tabBarItems[i].icon = icon.value;
+      if (labelIt) state.tabBarItems[i].labelIt = labelIt.value;
+      if (labelEn) state.tabBarItems[i].labelEn = labelEn.value;
+      if (href) state.tabBarItems[i].href = href.value;
+      // Update all isCenter flags
+      state.tabBarItems.forEach((it, idx) => {
+        it.isCenter = (idx === i && centerRadio && centerRadio.checked);
+      });
     });
   }
 
@@ -1500,6 +1632,11 @@ window.GeneratoreHome = (function () {
       if (doc.exists) {
         const data = doc.data();
         state = Object.assign(getDefaultState(), data.config || {});
+        // Migrate old bannerCustomItems to bannerGroups
+        if (state.bannerCustomItems && !state.bannerGroups?.length) {
+          state.bannerGroups = [{ items: state.bannerCustomItems }];
+          delete state.bannerCustomItems;
+        }
         populateForm();
         alert('Configurazione caricata!');
       } else {
@@ -1583,7 +1720,7 @@ window.GeneratoreHome = (function () {
     state.tickerLinkUrl = v('ghTickerLinkUrl');
     collectSlidesFromDOM();
     collectServiziFromDOM();
-    collectBannerItemsFromDOM();
+    collectBannerGroupsFromDOM();
     collectWidgetsFromDOM();
     state.bannerCieEnabled = v('ghBannerCieEnabled');
     state.bannerCieTitle = v('ghBannerCieTitle');
@@ -1624,6 +1761,9 @@ window.GeneratoreHome = (function () {
     state.videoTitleIt = v('ghVideoTitleIt');
     state.videoTitleEn = v('ghVideoTitleEn');
     state.videoPosterUrl = v('ghVideoPosterUrl');
+    // Tab Bar
+    state.tabBarEnabled = v('ghTabBarEnabled');
+    collectTabBarFromDOM();
     // RSS Sliders
     collectRssSlidersFromDOM();
   }
@@ -1643,7 +1783,8 @@ window.GeneratoreHome = (function () {
     set('ghColoreSecondario', state.coloreSecondario);
     set('ghTickerRssId', state.tickerRssId);
     set('ghTickerLinkUrl', state.tickerLinkUrl);
-    refreshBannerItems(true); // skipCollect: lo state è già aggiornato dal load
+    syncBannerCustomWidgets();
+    refreshBannerGroups(true); // skipCollect: lo state è già aggiornato dal load
     set('ghBannerCieEnabled', state.bannerCieEnabled);
     set('ghBannerCieTitle', state.bannerCieTitle);
     set('ghBannerCieTitleEn', state.bannerCieTitleEn);
@@ -1687,6 +1828,9 @@ window.GeneratoreHome = (function () {
     if (mp4F) mp4F.style.display = state.videoType === 'mp4' ? 'block' : 'none';
     // Assicura che i widget nuovi esistano (per config salvate prima dell'aggiunta)
     ensureWidgetExists('videoWidget', 'Video', false);
+    // Tab Bar
+    set('ghTabBarEnabled', state.tabBarEnabled);
+    refreshTabBarItems(true);
     // RSS Sliders
     syncRssSliderWidgets();
     refreshRssSliders(true); // skipCollect: lo state è già aggiornato dal load
@@ -1744,10 +1888,7 @@ window.GeneratoreHome = (function () {
     },
     slides: ${JSON.stringify(S.slides, null, 4)},
     servizi: ${serviziStr},
-    bannerCustom: {
-      items: ${JSON.stringify(S.bannerCustomItems || [], null, 6)},
-      slideDuration: 5000,
-    },
+    bannerGroups: ${JSON.stringify(S.bannerGroups || [], null, 4)},
     bannerCie: {
       title:      ${q(S.bannerCieTitle)},
       titleEn:    ${q(S.bannerCieTitleEn)},
@@ -1805,6 +1946,10 @@ window.GeneratoreHome = (function () {
       widgetId: ${q(S.spotlightWidgetId)},
       durata:   ${S.spotlightDurata},
       forzaSempre: ${!!S.spotlightForzaSempre},
+    },
+    tabBar: {
+      enabled: ${!!S.tabBarEnabled},
+      items: ${JSON.stringify(S.tabBarItems || [], null, 4)},
     },
     widgets: ${JSON.stringify(S.widgets)},
     i18n: {
@@ -1922,6 +2067,7 @@ ${configScript}
 </div>
 
 <div id="footerMount"></div>
+<div id="tabBarMount"></div>
 
 <script src="https://widget.rss.app/v1/ticker.js" type="text/javascript" async></script>
 <div id="dpcScriptMount"></div>
@@ -2102,10 +2248,13 @@ rssapp-ticker a{margin-right:50px!important;display:inline-block!important;color
 .svc-ripple{position:absolute;border-radius:50%;transform:scale(0);background:rgba(var(--verde-rgb),.25);pointer-events:none;animation:svcRipple .55s linear;}
 @keyframes svcRipple{to{transform:scale(3.5);opacity:0;}}
 .w-banner-custom{width:100%;}
-.bc-container{position:relative;width:100%;border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow-md);min-height:clamp(110px,26vw,170px);isolation:isolate;background:#fff;border:1px solid rgba(0,0,0,.06);}
+.bc-container{position:relative;width:100%;overflow:hidden;box-shadow:var(--shadow-md);min-height:clamp(110px,26vw,170px);isolation:isolate;background:#fff;border:1px solid rgba(0,0,0,.06);}
 .bc-slide{position:absolute;inset:0;opacity:0;visibility:hidden;transition:opacity .5s ease,visibility .5s ease;display:grid;place-items:center start;}
 .bc-slide.active{opacity:1;visibility:visible;}
 .bc-slide::before{content:"";position:absolute;inset:0;background-image:var(--bg-image,none);background-size:cover;background-position:center;opacity:.05;z-index:0;pointer-events:none;filter:grayscale(100%);}
+.bc-slide:has(.bc-slide-img-only)::before{display:none;}
+.bc-slide-img-only{display:block;width:100%;height:100%;position:absolute;inset:0;padding:0!important;}
+.bc-slide-img-only img{width:100%;height:100%;object-fit:cover;display:block;}
 .bc-slide-link{z-index:1;color:var(--blu);text-decoration:none;display:flex;align-items:center;justify-content:space-between;gap:.8rem;padding:clamp(12px,3vw,20px) clamp(14px,4vw,24px);width:100%;height:100%;}
 .bc-text-wrap{display:flex;align-items:flex-start;min-width:0;flex:1 1 auto;}
 .bc-title-group{display:flex;flex-direction:column;gap:.25rem;min-width:0;}
@@ -2256,9 +2405,9 @@ rssapp-ticker a{margin-right:50px!important;display:inline-block!important;color
 /* === RSS SLIDER WIDGET === */
 .w-rss-slider{width:100%;max-width:1200px;margin:0 auto;padding:10px 0 20px 0;}
 .rss-header{padding:0 14px 10px 14px;display:flex;justify-content:space-between;align-items:center;}
-.rss-title{font-size:1.15rem;font-weight:700;color:var(--cd-blue-100,#fff);margin:0;display:flex;align-items:center;gap:8px;}
-.rss-view-all{font-size:0.8rem;color:rgba(255,255,255,0.9);text-decoration:none;font-weight:600;background:rgba(255,255,255,0.1);padding:4px 10px;border-radius:20px;transition:background .2s;}
-.rss-view-all:hover{background:rgba(255,255,255,0.2);}
+.rss-title{font-size:1.15rem;font-weight:700;color:var(--blu);margin:0;display:flex;align-items:center;gap:8px;}
+.rss-view-all{font-size:0.8rem;color:var(--blu);text-decoration:none;font-weight:700;background:rgba(var(--blu-rgb),0.08);padding:4px 10px;border-radius:20px;transition:background .2s;}
+.rss-view-all:hover{background:rgba(var(--blu-rgb),0.16);}
 .rss-slider-container{display:flex;gap:14px;overflow-x:auto;padding:0 14px 25px 14px;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;scrollbar-width:none;margin:0;}
 .rss-slider-container::-webkit-scrollbar{display:none;}
 .rss-event-card{flex:0 0 310px;height:130px;scroll-snap-align:start;background:#fff;border-radius:var(--radius-card,14px);box-shadow:0 6px 18px rgba(0,0,0,0.15);display:flex;overflow:hidden;text-decoration:none;position:relative;border:1px solid rgba(255,255,255,0.2);transition:transform 0.2s;}
@@ -2276,7 +2425,27 @@ rssapp-ticker a{margin-right:50px!important;display:inline-block!important;color
 [data-theme="dark"] .rss-event-title{color:var(--cd-blue-300);}
 [data-theme="dark"] .rss-event-date{color:var(--cd-green-300);}
 [data-theme="dark"] .rss-card-img{background:#2a2a2a;}
-@media(max-width:380px){.rss-event-card{flex:0 0 280px;height:120px;}.rss-card-img{width:95px;}}`;
+@media(max-width:380px){.rss-event-card{flex:0 0 280px;height:120px;}.rss-card-img{width:95px;}}
+/* TAB BAR */
+.cd-tab-bar{position:fixed;bottom:0;left:0;right:0;z-index:9999;padding:0 12px 0;pointer-events:none;display:none;}
+.cd-tab-bar.active{display:block;}
+.cd-tab-bar-inner{max-width:480px;margin:0 auto;background:rgba(255,255,255,.92);backdrop-filter:blur(20px) saturate(180%);-webkit-backdrop-filter:blur(20px) saturate(180%);border-radius:28px 28px 0 0;border:1px solid rgba(255,255,255,.6);border-bottom:none;box-shadow:0 -4px 30px rgba(0,0,0,.12),0 -1px 6px rgba(0,0,0,.06);display:flex;align-items:flex-end;justify-content:space-around;padding:6px 8px 8px;pointer-events:auto;}
+.cd-tab-btn{display:flex;flex-direction:column;align-items:center;gap:2px;text-decoration:none;color:var(--cd-gray-500);font-size:10px;font-weight:600;letter-spacing:.02em;padding:4px 6px;border-radius:14px;transition:color .2s;min-width:52px;-webkit-tap-highlight-color:transparent;position:relative;}
+.cd-tab-btn:active{color:var(--blu);}
+.cd-tab-btn .cd-tab-icon{width:28px;height:28px;display:grid;place-items:center;font-size:15px;border-radius:12px;transition:all .25s cubic-bezier(.4,0,.2,1);}
+.cd-tab-btn .cd-tab-label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:64px;line-height:1.2;}
+.cd-tab-btn.cd-tab-center{color:var(--blu);}
+.cd-tab-btn.cd-tab-center .cd-tab-icon{width:50px;height:50px;font-size:22px;border-radius:18px;background:linear-gradient(145deg,var(--blu),var(--blu-dark));color:#fff;box-shadow:0 6px 20px rgba(var(--blu-rgb),.35),0 2px 6px rgba(0,0,0,.1);margin-top:-22px;border:3px solid #fff;}
+.cd-tab-btn.cd-tab-center .cd-tab-label{font-weight:800;color:var(--blu);}
+.cd-tab-btn.cd-tab-active:not(.cd-tab-center){color:var(--blu);}
+.cd-tab-btn.cd-tab-active:not(.cd-tab-center) .cd-tab-icon{background:rgba(var(--blu-rgb),.1);color:var(--blu);}
+@supports(padding-bottom: env(safe-area-inset-bottom)){
+  .cd-tab-bar-inner{padding-bottom:calc(8px + env(safe-area-inset-bottom));}
+}
+[data-theme="dark"] .cd-tab-bar-inner{background:rgba(30,30,30,.92);border-color:rgba(255,255,255,.08);box-shadow:0 -4px 30px rgba(0,0,0,.4);}
+[data-theme="dark"] .cd-tab-btn{color:var(--cd-gray-500);}
+[data-theme="dark"] .cd-tab-btn.cd-tab-center .cd-tab-icon{border-color:rgba(30,30,30,.92);}
+body.has-tab-bar{padding-bottom:80px;}`;
   }
 
   /* ============================================================
@@ -2321,22 +2490,6 @@ rssapp-ticker a{margin-right:50px!important;display:inline-block!important;color
         +'</section>';
     },
     servizi:()=>{const svcSections=C.servizi.map(sec=>{const cards=sec.items.map(it=>'<a class="svc-link" href="'+esc(href(it.href))+'" target="_blank" rel="noopener"><div class="svc-card"><div class="svc-icon-box"><i class="fa-solid '+esc(it.icon)+'"></i></div><div class="svc-label-it" data-i18n-it="'+esc(it.labelIt)+'" data-i18n-en="'+esc(it.labelEn)+'">'+esc(LANG==='en'?it.labelEn:it.labelIt)+'</div></div></a>').join('');return '<div class="svc-section"><div class="svc-section-hdr"><div class="svc-title-it" data-i18n-it="'+esc(sec.sectionIt)+'" data-i18n-en="'+esc(sec.sectionEn)+'">'+esc(LANG==='en'?sec.sectionEn:sec.sectionIt)+'</div></div><div class="svc-grid">'+cards+'</div></div>';}).join('');return '<section class="w-services" id="servicesContainer" aria-label="Servizi comunali">'+svcSections+'</section>';},
-    bannerCustom:()=>{
-      const items=C.bannerCustom.items||[];if(!items.length)return '';
-      let slidesH='';items.forEach((it,i)=>{
-        const bg=it.bgImage?(it.bgImage.startsWith('http')?it.bgImage:BASE+'/'+it.bgImage):'';
-        slidesH+='<div class="bc-slide'+(i===0?' active':'')+'" data-title="'+esc(it.kicker||it.titleIt)+'"'+(bg?' style="--bg-image:url(\\''+esc(bg)+'\\')"':'')+'>'
-          +'<a class="bc-slide-link" href="'+esc(href(it.href))+'" target="_blank" rel="noopener" aria-label="'+esc(it.titleIt)+'">'
-          +'<div class="bc-text-wrap"><div class="bc-title-group">'
-          +'<span class="bc-kicker"><i class="fa-solid '+esc(it.icon||'fa-bullhorn')+'"></i> <span data-i18n-it="'+esc(it.kicker)+'" data-i18n-en="'+esc(it.kicker)+'">'+esc(it.kicker)+'</span></span>'
-          +'<h2 class="bc-title" data-i18n-it="'+esc(it.titleIt)+'" data-i18n-en="'+esc(it.titleEn||it.titleIt)+'">'+esc(it.titleIt)+'</h2>'
-          +'</div></div>'
-          +'<span class="bc-cta"><span class="bc-cta-label">'+esc(it.ctaLabel||'Apri')+'</span><i class="fa-solid '+esc(it.ctaIcon||'fa-arrow-right')+'"></i></span>'
-          +'</a></div>';
-      });
-      let dotsH='';if(items.length>1){dotsH='<div class="bc-dots" role="tablist" aria-label="Indicatori banner">';items.forEach((it,i)=>{dotsH+='<button class="bc-dot'+(i===0?' active':'')+'" type="button" role="tab" aria-label="Banner '+(i+1)+': '+esc(it.kicker||it.titleIt)+'"></button>';});dotsH+='</div>';}
-      return '<section class="w-banner-custom" id="bannerCustom" aria-label="Banner informativi" aria-roledescription="carousel"><div class="bc-container">'+slidesH+dotsH+'</div></section>';
-    },
     bannerCIE:()=>C.bannerCie.enabled?'<section class="w-banner-cie" id="bannerCIE" role="region" aria-label="Avviso CIE"><a class="cie-link" href="'+esc(C.bannerCie.href)+'" target="_blank" rel="noopener" aria-label="'+esc(C.bannerCie.title)+'"><div class="cie-ico" aria-hidden="true"><i class="fa-solid fa-id-card"></i></div><div class="cie-txt"><p class="cie-title" data-i18n-it="'+esc(C.bannerCie.title)+'" data-i18n-en="'+esc(C.bannerCie.titleEn||C.bannerCie.title)+'">'+esc(LANG==='en'?(C.bannerCie.titleEn||C.bannerCie.title):C.bannerCie.title)+'</p><p class="cie-subtitle" data-i18n-it="'+esc(C.bannerCie.subtitle)+'" data-i18n-en="'+esc(C.bannerCie.subtitleEn||C.bannerCie.subtitle)+'">'+esc(LANG==='en'?(C.bannerCie.subtitleEn||C.bannerCie.subtitle):C.bannerCie.subtitle)+'</p></div><div class="cie-info-wrap" aria-hidden="true"><span class="cie-badge" data-i18n="cie.badge">'+esc(t('cie.badge'))+'</span><span class="cie-ring"></span><span class="cie-finger"><i class="fa-solid fa-hand-point-up"></i></span></div></a></section>':'',
     raccoltaDifferenziata:()=>'<section class="w-raccolta-wrapper" aria-label="Raccolta differenziata"><div id="raccoltaDifferenziata" class="rd-card" aria-live="polite"></div></section>',
     protezioneCivile:()=>C.protezioneCivile.enabled?'<section class="w-protezione" id="protezioneCivile" aria-label="Bollettino Protezione Civile"><div id="dpc-alerts-widget"></div></section>':'',
@@ -2369,10 +2522,36 @@ rssapp-ticker a{margin-right:50px!important;display:inline-block!important;color
     widgetRenderers['rssSlider_'+i]=function(){
       return '<section class="w-rss-slider" id="rssSlider_'+i+'" aria-label="'+esc(sl.titleIt)+'" data-rss-idx="'+i+'">'
         +'<div class="rss-header"><h2 class="rss-title"><i class="fa-solid '+esc(sl.icon||'fa-calendar-days')+'" aria-hidden="true"></i> <span data-i18n-it="'+esc(sl.titleIt)+'" data-i18n-en="'+esc(sl.titleEn||sl.titleIt)+'">'+esc(sl.titleIt)+'</span></h2>'
-        +'<a href="'+esc(href(sl.targetUrl))+'" class="rss-view-all" target="_blank" rel="noopener"><span data-i18n-it="Tutte" data-i18n-en="All">Tutte</span> <i class="fa-solid fa-chevron-right" aria-hidden="true" style="font-size:0.7em;"></i></a></div>'
+        +'<a href="'+esc(href(sl.targetUrl))+'" class="rss-view-all" target="_blank" rel="noopener"><span data-i18n-it="Tutti" data-i18n-en="All">Tutti</span> <i class="fa-solid fa-chevron-right" aria-hidden="true" style="font-size:0.7em;"></i></a></div>'
         +'<div class="rss-slider-container" id="rssContainer_'+i+'" role="list" aria-live="polite" aria-busy="true">'
           +'<div class="rss-msg-box"><i class="fa-solid fa-circle-notch fa-spin" aria-hidden="true"></i> <span data-i18n-it="Caricamento..." data-i18n-en="Loading...">Caricamento...</span></div>'
         +'</div></section>';
+    };
+  });
+
+  // Register dynamic banner custom renderers
+  (C.bannerGroups||[]).forEach(function(group,gi){
+    widgetRenderers['bannerCustom_'+gi]=function(){
+      var items=group.items||[];if(!items.length)return '';
+      var slidesH='';items.forEach(function(it,i){
+        var bg=it.bgImage?(it.bgImage.startsWith('http')?it.bgImage:BASE+'/'+it.bgImage):'';
+        var hasText=it.kicker||it.titleIt;
+        slidesH+='<div class="bc-slide'+(i===0?' active':'')+'" data-title="'+esc(it.kicker||it.titleIt||'Banner')+'"'+(bg?' style="--bg-image:url(\\''+esc(bg)+'\\')"':'')+'>';
+        if(hasText){
+          slidesH+='<a class="bc-slide-link" href="'+esc(href(it.href))+'" target="_blank" rel="noopener" aria-label="'+esc(it.titleIt)+'">'
+            +'<div class="bc-text-wrap"><div class="bc-title-group">'
+            +'<span class="bc-kicker"><i class="fa-solid '+esc(it.icon||'fa-bullhorn')+'"></i> <span data-i18n-it="'+esc(it.kicker)+'" data-i18n-en="'+esc(it.kicker)+'">'+esc(it.kicker)+'</span></span>'
+            +'<h2 class="bc-title" data-i18n-it="'+esc(it.titleIt)+'" data-i18n-en="'+esc(it.titleEn||it.titleIt)+'">'+esc(it.titleIt)+'</h2>'
+            +'</div></div>'
+            +'<span class="bc-cta"><span class="bc-cta-label">'+esc(it.ctaLabel||'Apri')+'</span><i class="fa-solid '+esc(it.ctaIcon||'fa-arrow-right')+'"></i></span>'
+            +'</a>';
+        } else if(bg) {
+          slidesH+='<a class="bc-slide-link bc-slide-img-only" href="'+esc(href(it.href))+'" target="_blank" rel="noopener" style="padding:0;"><img src="'+esc(bg)+'" alt="'+esc(it.titleIt||'Banner')+'" style="width:100%;height:100%;object-fit:cover;display:block;"></a>';
+        }
+        slidesH+='</div>';
+      });
+      var dotsH='';if(items.length>1){dotsH='<div class="bc-dots" role="tablist" aria-label="Indicatori banner">';items.forEach(function(it,i){dotsH+='<button class="bc-dot'+(i===0?' active':'')+'" type="button" role="tab" aria-label="Banner '+(i+1)+'"></button>';});dotsH+='</div>';}
+      return '<section class="w-banner-custom" id="bannerCustom_'+gi+'" aria-label="Banner informativi" aria-roledescription="carousel"><div class="bc-container">'+slidesH+dotsH+'</div></section>';
     };
   });
 
@@ -2400,14 +2579,33 @@ rssapp-ticker a{margin-right:50px!important;display:inline-block!important;color
     fm.innerHTML=fh;
   })();
 
-  /* BANNER CUSTOM CAROUSEL */
+  /* TAB BAR */
   (function(){
-    var bcSlides=document.querySelectorAll('.bc-slide');
-    var bcDots=document.querySelectorAll('.bc-dot');
+    var tbm=document.getElementById('tabBarMount');if(!tbm)return;
+    var tb=C.tabBar;if(!tb||!tb.enabled)return;
+    document.body.classList.add('has-tab-bar');
+    var items=tb.items||[];if(!items.length)return;
+    var h='<nav class="cd-tab-bar active" id="cdTabBar" role="navigation" aria-label="Navigazione principale"><div class="cd-tab-bar-inner">';
+    items.forEach(function(it,i){
+      var isC=it.isCenter;
+      var url=it.href?(it.href.startsWith('http')?it.href:BASE+'/'+it.href):'#';
+      h+='<a href="'+esc(url)+'" class="cd-tab-btn'+(isC?' cd-tab-center':'')+(!isC&&i===0?' cd-tab-active':'')+'" data-i18n-it="'+esc(it.labelIt)+'" data-i18n-en="'+esc(it.labelEn)+'">';
+      h+='<span class="cd-tab-icon"><i class="fa-solid '+esc(it.icon||'fa-circle')+'"></i></span>';
+      h+='<span class="cd-tab-label">'+esc(LANG==='en'?(it.labelEn||it.labelIt):it.labelIt)+'</span>';
+      h+='</a>';
+    });
+    h+='</div></nav>';
+    tbm.innerHTML=h;
+  })();
+
+  /* BANNER CUSTOM CAROUSEL – per ogni gruppo */
+  document.querySelectorAll('.w-banner-custom').forEach(function(section){
+    var bcSlides=section.querySelectorAll('.bc-slide');
+    var bcDots=section.querySelectorAll('.bc-dot');
     if(!bcSlides.length||bcSlides.length<2){return;}
     var bcIdx=0,bcTimer=null,bcPlaying=true,bcUserPaused=false,bcTransitioning=false;
-    var bcDuration=(C.bannerCustom&&C.bannerCustom.slideDuration)||5000;
-    var bcContainer=document.querySelector('.bc-container');
+    var bcDuration=5000;
+    var bcContainer=section.querySelector('.bc-container');
     function bcGoTo(i){
       if(bcTransitioning||i===bcIdx)return;bcTransitioning=true;
       bcSlides[bcIdx].classList.remove('active');if(bcDots[bcIdx])bcDots[bcIdx].classList.remove('active');
@@ -2423,7 +2621,7 @@ rssapp-ticker a{margin-right:50px!important;display:inline-block!important;color
     bcDots.forEach(function(d,i){d.addEventListener('click',function(){clearInterval(bcTimer);bcGoTo(i);bcPlaying=true;if(!bcUserPaused)bcPlay();});});
     if(bcContainer){
       var bsx=0,bex=0,bsy=0,bey=0;
-      bcContainer.addEventListener('touchstart',function(e){bsx=e.touches[0].clientX;bsy=e.touches[0].clientY;},{passive:true});
+      bcContainer.addEventListener('touchstart',function(e){bsx=bex=e.touches[0].clientX;bsy=bey=e.touches[0].clientY;},{passive:true});
       bcContainer.addEventListener('touchmove',function(e){bex=e.touches[0].clientX;bey=e.touches[0].clientY;},{passive:true});
       bcContainer.addEventListener('touchend',function(){var dx=bsx-bex,dy=bsy-bey;if(Math.abs(dx)>50&&Math.abs(dx)>Math.abs(dy)){clearInterval(bcTimer);dx>0?bcNext():bcPrev();bcPlaying=true;if(!bcUserPaused)bcPlay();}bsx=bex=bsy=bey=0;},{passive:true});
       if(window.matchMedia('(min-width:769px)').matches){
@@ -2432,7 +2630,7 @@ rssapp-ticker a{margin-right:50px!important;display:inline-block!important;color
       }
     }
     document.addEventListener('visibilitychange',function(){if(document.hidden)bcPause();else if(bcPlaying&&!bcUserPaused)bcPlay();});
-  })();
+  });
 
   /* RSS SLIDERS RUNTIME */
   (function(){
@@ -2602,7 +2800,7 @@ rssapp-ticker a{margin-right:50px!important;display:inline-block!important;color
   if(sContainer){
     let sx=0,ex=0,sy=0,ey=0,ctaTouch=false;
     const ctaEl=document.querySelector('.slide-cta');
-    sContainer.addEventListener('touchstart',e=>{sx=e.touches[0].clientX;sy=e.touches[0].clientY;ctaTouch=ctaEl&&ctaEl.contains(e.target);},{passive:true});
+    sContainer.addEventListener('touchstart',e=>{sx=ex=e.touches[0].clientX;sy=ey=e.touches[0].clientY;ctaTouch=ctaEl&&ctaEl.contains(e.target);},{passive:true});
     sContainer.addEventListener('touchmove',e=>{if(!ctaTouch){ex=e.touches[0].clientX;ey=e.touches[0].clientY;}},{passive:true});
     sContainer.addEventListener('touchend',()=>{if(ctaTouch){ctaTouch=false;sx=ex=sy=ey=0;return;}const dx=sx-ex,dy=sy-ey;if(Math.abs(dx)>50&&Math.abs(dx)>Math.abs(dy)){sStop();dx>0?sNextFn():sPrevFn();sPlaying=true;sPlay();}sx=ex=sy=ey=0;ctaTouch=false;},{passive:true});
     if(window.matchMedia('(min-width:769px)').matches){sContainer.addEventListener('mouseenter',()=>{sUserPaused=true;sPause();});sContainer.addEventListener('mouseleave',()=>{sUserPaused=false;if(sPlaying)sPlay();});}
