@@ -1368,11 +1368,29 @@ window.GeneratoreHome = (function () {
     const c = document.getElementById('ghTabBarItemsContainer');
     if (!c) return;
     if (!skipCollect) collectTabBarFromDOM();
-    let html = '';
+
+    // Trova quale pulsante è il centrale
+    let centerIdx = state.tabBarItems.findIndex(it => it.isCenter);
+    if (centerIdx < 0) centerIdx = 2; // default: il terzo (posizione centrale)
+
+    // Dropdown per scegliere il pulsante centrale – PRIMA delle card
+    let html = '<div style="background:#e8f0fa;border:2px solid #145284;border-radius:10px;padding:14px 16px;margin-bottom:16px;">';
+    html += '<label style="display:block;font-size:13px;font-weight:700;color:#145284;margin-bottom:8px;"><i class="fas fa-star"></i> Quale pulsante vuoi al centro (più grande e in evidenza)?</label>';
+    html += '<select id="ghTabBarCenterSelect" style="width:100%;padding:10px 14px;border:1px solid #145284;border-radius:8px;font-family:\'Titillium Web\',sans-serif;font-size:14px;font-weight:600;color:#145284;background:#fff;">';
     state.tabBarItems.forEach((item, i) => {
-      html += '<div class="gh-tabbar-card" data-tabbar="'+i+'" style="background:#f0f4f8;border:1px solid #d0d8e0;border-radius:10px;padding:14px;margin-bottom:12px;">';
+      html += '<option value="'+i+'"'+(i === centerIdx ? ' selected' : '')+'>Pulsante '+(i+1)+' – '+esc(item.labelIt || 'Senza nome')+'</option>';
+    });
+    html += '</select></div>';
+
+    // Card per ogni pulsante
+    state.tabBarItems.forEach((item, i) => {
+      const isCenterItem = (i === centerIdx);
+      const borderColor = isCenterItem ? '#145284' : '#d0d8e0';
+      const bgColor = isCenterItem ? '#e8f4fd' : '#f0f4f8';
+      const badge = isCenterItem ? ' <span style="background:#145284;color:#fff;font-size:10px;padding:2px 8px;border-radius:10px;margin-left:6px;">CENTRALE</span>' : '';
+      html += '<div class="gh-tabbar-card" data-tabbar="'+i+'" style="background:'+bgColor+';border:2px solid '+borderColor+';border-radius:10px;padding:14px;margin-bottom:12px;">';
       html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">' +
-        '<span style="font-size:13px;font-weight:700;color:#145284;"><i class="fas '+esc(item.icon)+'"></i> Pulsante '+(i+1)+'</span>' +
+        '<span style="font-size:13px;font-weight:700;color:#145284;"><i class="fas '+esc(item.icon)+'"></i> Pulsante '+(i+1)+badge+'</span>' +
       '</div>';
       html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">' +
         '<div><label style="font-size:12px;font-weight:600;color:#4A4A4A;">Icona</label>' +
@@ -1383,7 +1401,7 @@ window.GeneratoreHome = (function () {
           '<input type="text" data-tabbar="'+i+'" data-tbfield="labelIt" value="'+esc(item.labelIt)+'" style="width:100%;padding:8px 10px;border:1px solid #d0d0d0;border-radius:6px;font-size:13px;box-sizing:border-box;font-family:\'Titillium Web\',sans-serif;">' +
         '</div>' +
       '</div>';
-      html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">' +
+      html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">' +
         '<div><label style="font-size:12px;font-weight:600;color:#4A4A4A;">Label EN</label>' +
           '<input type="text" data-tabbar="'+i+'" data-tbfield="labelEn" value="'+esc(item.labelEn)+'" style="width:100%;padding:8px 10px;border:1px solid #d0d0d0;border-radius:6px;font-size:13px;box-sizing:border-box;font-family:\'Titillium Web\',sans-serif;">' +
         '</div>' +
@@ -1391,15 +1409,21 @@ window.GeneratoreHome = (function () {
           '<input type="text" data-tabbar="'+i+'" data-tbfield="href" value="'+esc(item.href)+'" placeholder="link-page" style="width:100%;padding:8px 10px;border:1px solid #d0d0d0;border-radius:6px;font-size:13px;box-sizing:border-box;font-family:\'Titillium Web\',sans-serif;">' +
         '</div>' +
       '</div>';
-      html += '<div style="display:flex;align-items:center;gap:10px;padding:10px;background:#fff;border-radius:6px;border:1px solid #e0e0e0;">' +
-        '<input type="radio" name="ghTabBarCenter" value="'+i+'" id="ghTabBarCenter_'+i+'" '+(item.isCenter?'checked':'')+' style="width:18px;height:18px;cursor:pointer;">' +
-        '<label for="ghTabBarCenter_'+i+'" style="flex:1;cursor:pointer;font-size:13px;font-weight:600;color:#4A4A4A;margin:0;">Pulsante Centrale (Home)</label>' +
-      '</div>';
       html += '</div>';
     });
     c.innerHTML = html;
 
-    // Re-attach icon select listeners
+    // Listener sul dropdown centro: aggiorna badge e state
+    const centerSel = document.getElementById('ghTabBarCenterSelect');
+    if (centerSel) {
+      centerSel.addEventListener('change', () => {
+        const ci = parseInt(centerSel.value);
+        state.tabBarItems.forEach((it, idx) => { it.isCenter = (idx === ci); });
+        refreshTabBarItems(false); // ri-renderizza con il nuovo badge
+      });
+    }
+
+    // Listener sulle select icone
     state.tabBarItems.forEach((item, i) => {
       const sel = document.getElementById('ghTabBarIcon_'+i);
       if (sel) {
@@ -1413,7 +1437,7 @@ window.GeneratoreHome = (function () {
   }
 
   function collectTabBarFromDOM() {
-    // Prima raccogli tutti i campi testo/icona
+    // Raccogli campi testo/icona da ogni card
     state.tabBarItems.forEach((item, i) => {
       const icon = document.querySelector('[data-tabbar="'+i+'"][data-tbfield="icon"]');
       const labelIt = document.querySelector('[data-tabbar="'+i+'"][data-tbfield="labelIt"]');
@@ -1424,12 +1448,13 @@ window.GeneratoreHome = (function () {
       if (labelEn) state.tabBarItems[i].labelEn = labelEn.value;
       if (href) state.tabBarItems[i].href = href.value;
     });
-    // Poi aggiorna isCenter in un passaggio separato (quale radio è selezionata?)
-    const checkedRadio = document.querySelector('input[name="ghTabBarCenter"]:checked');
-    const centerIdx = checkedRadio ? parseInt(checkedRadio.value) : -1;
-    state.tabBarItems.forEach((it, idx) => {
-      it.isCenter = (idx === centerIdx);
-    });
+    // Leggi il dropdown per il pulsante centrale
+    const centerSel = document.getElementById('ghTabBarCenterSelect');
+    if (centerSel) {
+      const ci = parseInt(centerSel.value);
+      state.tabBarItems.forEach((it, idx) => { it.isCenter = (idx === ci); });
+    }
+    // Se non c'è il dropdown (es. form non ancora renderizzato), non toccare isCenter
   }
 
   /* ============================================================
@@ -2436,13 +2461,12 @@ rssapp-ticker a{margin-right:50px!important;display:inline-block!important;color
 .cd-tab-bar{position:fixed;bottom:12px;left:0;right:0;z-index:9998;padding:0 14px;pointer-events:none;display:none;}
 .cd-tab-bar.active{display:flex;justify-content:center;}
 .cd-tab-bar-inner{width:100%;max-width:420px;background:rgba(255,255,255,.88);backdrop-filter:blur(24px) saturate(180%);-webkit-backdrop-filter:blur(24px) saturate(180%);border-radius:26px;border:1px solid rgba(255,255,255,.7);box-shadow:0 8px 32px rgba(0,0,0,.14),0 2px 8px rgba(0,0,0,.08);display:flex;align-items:flex-end;justify-content:space-around;padding:8px 4px 10px;pointer-events:auto;}
-.cd-tab-btn{display:flex;flex-direction:column;align-items:center;gap:3px;text-decoration:none;color:var(--cd-gray-700);font-size:10px;font-weight:600;letter-spacing:.02em;padding:2px 0;min-width:56px;-webkit-tap-highlight-color:transparent;position:relative;font-family:'Titillium Web',sans-serif;}
+.cd-tab-btn{display:flex;flex-direction:column;align-items:center;gap:3px;text-decoration:none;color:var(--cd-gray-700);font-size:10px;font-weight:600;letter-spacing:.02em;padding:2px 0;min-width:56px;-webkit-tap-highlight-color:transparent;position:relative;}
 .cd-tab-btn:active{transform:scale(.92);}
-.cd-tab-btn .cd-tab-icon{width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-size:18px;border-radius:12px;transition:all .2s ease;color:inherit;}
-.cd-tab-btn .cd-tab-icon i{display:inline-block;line-height:1;font-style:normal;}
-.cd-tab-btn .cd-tab-label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:64px;line-height:1.2;font-size:10px;}
+.cd-tab-icon{width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-size:18px;border-radius:12px;transition:all .2s ease;color:var(--cd-gray-700);}
+.cd-tab-label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:64px;line-height:1.2;font-size:10px;font-family:'Titillium Web',sans-serif;}
 /* Center button — elevated, larger, gradient */
-.cd-tab-btn.cd-tab-center{margin-top:-28px;color:var(--blu);}
+.cd-tab-btn.cd-tab-center{margin-top:-28px;}
 .cd-tab-btn.cd-tab-center .cd-tab-icon{width:56px;height:56px;font-size:24px;border-radius:50%;background:linear-gradient(145deg,var(--blu),var(--blu-dark));color:#fff;box-shadow:0 6px 24px rgba(var(--blu-rgb),.4),0 2px 8px rgba(0,0,0,.12);border:4px solid #fff;transition:transform .2s ease,box-shadow .2s ease;}
 .cd-tab-btn.cd-tab-center:active .cd-tab-icon{transform:scale(.9);}
 .cd-tab-btn.cd-tab-center .cd-tab-label{font-weight:800;color:var(--blu);margin-top:2px;}
@@ -2455,9 +2479,11 @@ rssapp-ticker a{margin-right:50px!important;display:inline-block!important;color
 }
 /* Dark mode */
 [data-theme="dark"] .cd-tab-bar-inner{background:rgba(28,28,30,.88);border-color:rgba(255,255,255,.08);box-shadow:0 8px 32px rgba(0,0,0,.45);}
-[data-theme="dark"] .cd-tab-btn{color:rgba(255,255,255,.45);}
-[data-theme="dark"] .cd-tab-btn.cd-tab-center .cd-tab-icon{border-color:rgba(28,28,30,.88);}
-[data-theme="dark"] .cd-tab-btn.cd-tab-active:not(.cd-tab-center){color:var(--cd-blue-300);}
+[data-theme="dark"] .cd-tab-icon{color:rgba(255,255,255,.45);}
+[data-theme="dark"] .cd-tab-label{color:rgba(255,255,255,.45);}
+[data-theme="dark"] .cd-tab-btn.cd-tab-center .cd-tab-icon{border-color:rgba(28,28,30,.88);color:#fff;}
+[data-theme="dark"] .cd-tab-btn.cd-tab-active:not(.cd-tab-center) .cd-tab-icon{background:rgba(var(--blu-rgb),.15);color:var(--cd-blue-300);}
+[data-theme="dark"] .cd-tab-btn.cd-tab-active:not(.cd-tab-center) .cd-tab-label{color:var(--cd-blue-300);}
 /* Body padding + A11y FAB offset */
 body.has-tab-bar{padding-bottom:100px;}
 body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 90px);}`;
@@ -2604,11 +2630,11 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 90px);}`;
     var items=tb.items||[];if(!items.length)return;
     var h='<nav class="cd-tab-bar active" id="cdTabBar" role="navigation" aria-label="Navigazione principale"><div class="cd-tab-bar-inner">';
     items.forEach(function(it,i){
-      var isC=it.isCenter;
+      var isC=!!it.isCenter;
       var url=it.href?(it.href.startsWith('http')?it.href:BASE+'/'+it.href):'#';
       h+='<a href="'+esc(url)+'" class="cd-tab-btn'+(isC?' cd-tab-center':'')+(!isC&&i===0?' cd-tab-active':'')+'" data-i18n-it="'+esc(it.labelIt)+'" data-i18n-en="'+esc(it.labelEn)+'">';
-      h+='<span class="cd-tab-icon"><i class="fa-solid '+esc(it.icon||'fa-circle')+'"></i></span>';
-      h+='<span class="cd-tab-label">'+esc(LANG==='en'?(it.labelEn||it.labelIt):it.labelIt)+'</span>';
+      h+='<div class="cd-tab-icon"><i class="fas '+esc(it.icon||'fa-circle')+'"></i></div>';
+      h+='<div class="cd-tab-label">'+esc(LANG==='en'?(it.labelEn||it.labelIt):it.labelIt)+'</div>';
       h+='</a>';
     });
     h+='</div></nav>';
