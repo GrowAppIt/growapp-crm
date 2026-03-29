@@ -2632,9 +2632,9 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 90px);}`;
     items.forEach(function(it,i){
       var isC=!!it.isCenter;
       var url=it.href?(it.href.startsWith('http')?it.href:BASE+'/'+it.href):'#';
-      h+='<a href="'+esc(url)+'" class="cd-tab-btn'+(isC?' cd-tab-center':'')+(!isC&&i===0?' cd-tab-active':'')+'" data-i18n-it="'+esc(it.labelIt)+'" data-i18n-en="'+esc(it.labelEn)+'">';
+      h+='<a href="'+esc(url)+'" class="cd-tab-btn'+(isC?' cd-tab-center':'')+(!isC&&i===0?' cd-tab-active':'')+'">';
       h+='<div class="cd-tab-icon"><i class="fas '+esc(it.icon||'fa-circle')+'"></i></div>';
-      h+='<div class="cd-tab-label">'+esc(LANG==='en'?(it.labelEn||it.labelIt):it.labelIt)+'</div>';
+      h+='<div class="cd-tab-label" data-i18n-it="'+esc(it.labelIt)+'" data-i18n-en="'+esc(it.labelEn||it.labelIt)+'">'+esc(LANG==='en'?(it.labelEn||it.labelIt):it.labelIt)+'</div>';
       h+='</a>';
     });
     h+='</div></nav>';
