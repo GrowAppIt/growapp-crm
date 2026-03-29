@@ -482,6 +482,9 @@ window.GeneratoreHome = (function () {
     refreshSlides();
     refreshServizi();
     refreshBannerItems();
+    ensureWidgetExists('videoWidget', 'Video', false);
+    syncRssSliderWidgets();
+    refreshRssSliders();
     refreshWidgetList();
     updatePalettePreview();
     if (!isFirebaseAvailable()) showFirebaseWarning();
@@ -810,6 +813,13 @@ window.GeneratoreHome = (function () {
       const f = el.getAttribute('data-rfield');
       if (state.rssSliders[i]) state.rssSliders[i][f] = el.value;
     });
+  }
+
+  function ensureWidgetExists(id, label, enabled) {
+    if (!state.widgets.find(w => w.id === id)) {
+      const maxOrder = state.widgets.reduce((m, w) => Math.max(m, w.order), -1);
+      state.widgets.push({ id: id, label: label, enabled: !!enabled, order: maxOrder + 1 });
+    }
   }
 
   function syncRssSliderWidgets() {
@@ -1287,6 +1297,8 @@ window.GeneratoreHome = (function () {
     set('ghVideoPosterUrl', state.videoPosterUrl);
     const mp4F = document.getElementById('ghVideoMp4Fields');
     if (mp4F) mp4F.style.display = state.videoType === 'mp4' ? 'block' : 'none';
+    // Assicura che i widget nuovi esistano (per config salvate prima dell'aggiunta)
+    ensureWidgetExists('videoWidget', 'Video', false);
     // RSS Sliders
     syncRssSliderWidgets();
     refreshRssSliders();
