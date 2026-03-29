@@ -234,7 +234,8 @@ window.GeneratoreHome = (function () {
           '<button type="button" id="ghBtnDeleteConfig" style="background:#D32F2F;color:#fff;border:none;padding:10px 14px;border-radius:8px;font-weight:600;font-size:13px;cursor:pointer;font-family:\'Titillium Web\',sans-serif;"><i class="fas fa-trash"></i> Elimina</button>' +
         '</div>' +
       '</div>' +
-      '<button type="button" id="ghBtnSaveConfig" style="background:#145284;color:#fff;border:none;padding:12px 20px;border-radius:8px;font-weight:700;font-size:14px;cursor:pointer;font-family:\'Titillium Web\',sans-serif;width:100%;"><i class="fas fa-save"></i> Salva Configurazione</button>',
+      '<button type="button" id="ghBtnSaveConfig" style="background:#145284;color:#fff;border:none;padding:12px 20px;border-radius:8px;font-weight:700;font-size:14px;cursor:pointer;font-family:\'Titillium Web\',sans-serif;width:100%;"><i class="fas fa-save"></i> Salva Configurazione</button>' +
+      '<div style="display:flex;align-items:center;justify-content:center;gap:6px;margin-top:6px;"><i class="fas fa-sync-alt" style="font-size:10px;color:#9B9B9B;"></i><span id="ghAutoSaveStatus" style="font-size:11px;color:#9B9B9B;font-family:\'Titillium Web\',sans-serif;">Auto-save attivo</span></div>',
       false
     );
 
@@ -774,6 +775,65 @@ window.GeneratoreHome = (function () {
       const sel = document.getElementById('ghConfigSelect');
       if (sel && sel.value) deleteConfig(sel.value);
       else alert('Seleziona una configurazione');
+    });
+
+    // === AUTO-SAVE (ogni 60 secondi, silenzioso) ===
+    let autoSaveTimer = null;
+    let autoSaveDirty = false;
+    const autoSaveIndicator = document.getElementById('ghAutoSaveStatus');
+
+    function markDirty() { autoSaveDirty = true; }
+
+    async function autoSave() {
+      if (!autoSaveDirty) return;
+      if (!isFirebaseAvailable()) return;
+      collectState();
+      if (!state.nomeComune) return; // niente da salvare se non c'è il nome
+      try {
+        const db = firebase.firestore();
+        const docId = state.nomeComune.toLowerCase().replace(/\s+/g, '-');
+        const userEmail = AuthService.getUserEmail() || 'unknown';
+        await db.collection('generatore-home-configs').doc(docId).set({
+          config: state,
+          nomeComune: state.nomeComune,
+          updatedAt: new Date(),
+          createdBy: userEmail
+        });
+        autoSaveDirty = false;
+        if (autoSaveIndicator) {
+          autoSaveIndicator.textContent = 'Salvato ' + new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+          autoSaveIndicator.style.color = '#3CA434';
+        }
+      } catch (err) {
+        console.warn('Auto-save failed:', err.message);
+        if (autoSaveIndicator) {
+          autoSaveIndicator.textContent = 'Auto-save fallito';
+          autoSaveIndicator.style.color = '#D32F2F';
+        }
+      }
+    }
+
+    // Intercetta modifiche per segnare "dirty"
+    const formArea = document.getElementById('ghFormCol');
+    if (formArea) {
+      formArea.addEventListener('input', markDirty);
+      formArea.addEventListener('change', markDirty);
+    }
+
+    // Avvia timer auto-save ogni 60 secondi
+    autoSaveTimer = setInterval(autoSave, 60000);
+
+    // Salva anche quando l'utente sta per lasciare la pagina
+    window.addEventListener('beforeunload', () => {
+      if (autoSaveDirty && isFirebaseAvailable() && state.nomeComune) {
+        // Tentativo sincrono best-effort con sendBeacon
+        try {
+          collectState();
+          const docId = state.nomeComune.toLowerCase().replace(/\s+/g, '-');
+          // sendBeacon non supporta Firestore, ma facciamo l'autoSave sincrono
+          autoSave();
+        } catch(e) {}
+      }
     });
   }
 
