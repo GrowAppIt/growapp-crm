@@ -2556,10 +2556,10 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 90px);}`;
       + 'target="_blank" rel="noopener">'
       + '<span class="news-ico" aria-hidden="true">'
       + '<span style="transform:translateY(1px);display:inline-block;">'
-      + '\\uD83D\\uDCF0</span></span>'
+      + '📰</span></span>'
       + '<span class="header-title" data-i18n="ticker.title">'
       + esc(t('ticker.title')) + '</span>'
-      + '<span class="arrow-link" aria-hidden="true">\\u2197</span>'
+      + '<span class="arrow-link" aria-hidden="true">↗</span>'
       + '</a></div>'
       + '<div class="ticker-strip">'
       + '<rssapp-ticker id="' + esc(C.ticker.rssWidgetId) + '">'
@@ -3338,12 +3338,14 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 90px);}`;
                 cacheKey,
                 JSON.stringify({
                   ts: Date.now(),
-                  evts: evts.map((e) => ({
-                    title: e.title,
-                    date: e.date.toISOString(),
-                    image: e.image,
-                    isNew: e.isNew,
-                  })),
+                  evts: evts.map(function(e) {
+                    return {
+                      title: e.title,
+                      date: e.date.toISOString(),
+                      image: e.image,
+                      isNew: e.isNew
+                    };
+                  }),
                 })
               );
             } catch (e) {}
@@ -3352,12 +3354,14 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 90px);}`;
             try {
               const c = JSON.parse(localStorage.getItem(cacheKey));
               if (c && c.evts) {
-                const restored = c.evts.map((e) => ({
-                  title: e.title,
-                  date: new Date(e.date),
-                  image: e.image,
-                  isNew: e.isNew,
-                }));
+                const restored = c.evts.map(function(e) {
+                  return {
+                    title: e.title,
+                    date: new Date(e.date),
+                    image: e.image,
+                    isNew: e.isNew
+                  };
+                });
                 renderSlider(container, restored, sl.targetUrl,
                   sl.newLabelIt, sl.newLabelEn);
                 return;
@@ -3374,12 +3378,14 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 90px);}`;
       try {
         const cached = JSON.parse(localStorage.getItem(cacheKey));
         if (cached && cached.evts && cached.evts.length) {
-          const restored = cached.evts.map((e) => ({
-            title: e.title,
-            date: new Date(e.date),
-            image: e.image,
-            isNew: e.isNew,
-          }));
+          const restored = cached.evts.map(function(e) {
+            return {
+              title: e.title,
+              date: new Date(e.date),
+              image: e.image,
+              isNew: e.isNew
+            };
+          });
           renderSlider(container, restored, sl.targetUrl,
             sl.newLabelIt, sl.newLabelEn);
         }
@@ -3487,32 +3493,32 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 90px);}`;
   };
 
   const specialEvents = {
-    '1/1': '\\uD83C\\uDF89 Buon Anno!',
-    '1/6': '\\uD83E\\uDDD9 Befana!',
-    '1/27': '\\uD83D\\uDD6F Giorno della Memoria',
-    '2/14': '\\uD83D\\uDC96 San Valentino!',
-    '3/8': '\\uD83D\\uDC69 Giornata internazionale della donna',
-    '3/17': '\\uD83C\\uDDEE\\uD83C\\uDDF9 Giornata Unità Nazionale',
-    '3/19': '\\uD83D\\uDC68 Festa del papà',
-    '3/21': '\\uD83C\\uDF38 Giornata della Poesia',
-    '3/22': '\\uD83D\\uDCA7 Giornata Mondiale dell\\'acqua',
-    '4/22': '\\uD83C\\uDF0D Giornata della Terra',
-    '4/25': '\\uD83C\\uDDEE\\uD83C\\uDDF9 Festa della Liberazione',
-    '5/1': '\\uD83D\\uDEE0 Festa dei Lavoratori!',
-    '5/9': '\\uD83C\\uDDEA\\uD83C\\uDDFA Festa dell\\'Europa',
-    '6/2': '\\uD83C\\uDDEE\\uD83C\\uDDF9 Festa della Repubblica',
-    '6/5': '\\uD83C\\uDF33 Giornata dell\\'Ambiente',
-    '6/21': '\\uD83C\\uDFB6 Festa della Musica',
-    '8/15': '\\u2600\\uFE0F Ferragosto!',
+    '1/1': '🎉 Buon Anno!',
+    '1/6': '🧙 Befana!',
+    '1/27': '🕯 Giorno della Memoria',
+    '2/14': '💖 San Valentino!',
+    '3/8': '👩 Giornata internazionale della donna',
+    '3/17': '🇮🇹 Giornata Unità Nazionale',
+    '3/19': '👨 Festa del papà',
+    '3/21': '🌸 Giornata della Poesia',
+    '3/22': '💧 Giornata Mondiale dell\\'acqua',
+    '4/22': '🌍 Giornata della Terra',
+    '4/25': '🇮🇹 Festa della Liberazione',
+    '5/1': '🛠 Festa dei Lavoratori!',
+    '5/9': '🇪🇺 Festa dell\\'Europa',
+    '6/2': '🇮🇹 Festa della Repubblica',
+    '6/5': '🌳 Giornata dell\\'Ambiente',
+    '6/21': '🎶 Festa della Musica',
+    '8/15': '☀️ Ferragosto!',
     '10/4': 'San Francesco d\\'Assisi',
-    '10/31': '\\uD83C\\uDF83 Halloween!',
-    '11/1': '\\uD83D\\uDD6F Tutti i Santi',
-    '11/4': '\\uD83C\\uDF96 Giornata Unità e Forze Armate',
-    '12/8': '\\uD83D\\uDE4F Immacolata Concezione',
-    '12/24': '\\uD83C\\uDF84 Vigilia di Natale',
-    '12/25': '\\uD83C\\uDF85 Natale!',
-    '12/26': '\\uD83C\\uDF81 Santo Stefano',
-    '12/31': '\\uD83C\\uDF8A Vigilia di Capodanno',
+    '10/31': '🎃 Halloween!',
+    '11/1': '🕯 Tutti i Santi',
+    '11/4': '🎖 Giornata Unità e Forze Armate',
+    '12/8': '🙏 Immacolata Concezione',
+    '12/24': '🎄 Vigilia di Natale',
+    '12/25': '🎅 Natale!',
+    '12/26': '🎁 Santo Stefano',
+    '12/31': '🎊 Vigilia di Capodanno',
   };
 
   const updateDateWidget = () => {
@@ -3550,26 +3556,26 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 90px);}`;
 
   const miniWeatherIcon = (code) => {
     const m = {
-      0: '\\u2600\\uFE0F',
-      1: '\\uD83C\\uDF24\\uFE0F',
-      2: '\\u26C5\\uFE0F',
-      3: '\\u2601\\uFE0F',
-      45: '\\uD83C\\uDF2B\\uFE0F',
-      48: '\\uD83C\\uDF2B\\uFE0F',
-      51: '\\uD83C\\uDF26\\uFE0F',
-      53: '\\uD83C\\uDF26\\uFE0F',
-      55: '\\uD83C\\uDF27\\uFE0F',
-      61: '\\uD83C\\uDF27\\uFE0F',
-      63: '\\uD83C\\uDF27\\uFE0F',
-      65: '\\uD83C\\uDF27\\uFE0F',
-      71: '\\uD83C\\uDF28\\uFE0F',
-      73: '\\uD83C\\uDF28\\uFE0F',
-      75: '\\uD83C\\uDF28\\uFE0F',
-      80: '\\uD83C\\uDF27\\uFE0F',
-      95: '\\u26C8\\uFE0F',
-      96: '\\u26C8\\uFE0F',
+      0: '☀️',
+      1: '🌤️',
+      2: '⛅',
+      3: '☁️',
+      45: '🌫️',
+      48: '🌫️',
+      51: '🌦️',
+      53: '🌦️',
+      55: '🌧️',
+      61: '🌧️',
+      63: '🌧️',
+      65: '🌧️',
+      71: '🌨️',
+      73: '🌨️',
+      75: '🌨️',
+      80: '🌧️',
+      95: '⛈️',
+      96: '⛈️',
     };
-    return m[code] || '\\u2014';
+    return m[code] || '—';
   };
 
   const fetchMiniMeteo = () => {
@@ -3586,7 +3592,7 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 90px);}`;
           = Math.round(c.temperature_2m) + '°C';
       })
       .catch(() => {
-        document.getElementById('weatherIcon').textContent = '\\u2014';
+        document.getElementById('weatherIcon').textContent = '—';
         document.getElementById('temperature').textContent = '--°C';
       });
   };
@@ -3900,16 +3906,14 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 90px);}`;
     const parseRSS = (xml) => {
       const doc = new DOMParser().parseFromString(xml, 'text/xml');
       return Array.prototype.slice.call(doc.querySelectorAll('item'))
-        .map((it) => ({
-          title: (() => {
-            const _t = it.querySelector('title');
-            return _t && _t.textContent ? _t.textContent.trim() : '';
-          })() || '',
-          date: new Date((() => {
-            const _p = it.querySelector('pubDate');
-            return _p ? _p.textContent : '';
-          })() || ''),
-        }))
+        .map(function(it) {
+          const _t = it.querySelector('title');
+          const _p = it.querySelector('pubDate');
+          return {
+            title: (_t && _t.textContent) ? _t.textContent.trim() : '',
+            date: new Date((_p ? _p.textContent : '') || '')
+          };
+        })
         .sort((a, b) => a.date - b.date);
     };
 
@@ -4188,8 +4192,8 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 90px);}`;
           chip('<i class="fa-solid ' + ico + '"></i> ' + desc),
           chip('<i class="fa-solid fa-temperature-half"></i> '
             + temp + '°C'),
-          chip('<i class="fa-solid fa-arrow-trend-up"></i> \\u2191'
-            + tMax + '° • \\u2193' + tMin + '°C'),
+          chip('<i class="fa-solid fa-arrow-trend-up"></i> ↑'
+            + tMax + '° • ↓' + tMin + '°C'),
         ].join('');
       }
 
@@ -4289,7 +4293,7 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 90px);}`;
     const flagBtn = document.getElementById('langToggle');
     if (flagBtn) {
       const otherLang = lang === 'it' ? 'en' : 'it';
-      flagBtn.textContent = C.i18n.lingue[otherLang] || '\\uD83C\\uDF10';
+      flagBtn.textContent = C.i18n.lingue[otherLang] || '🌐';
     }
 
     document.querySelectorAll('[data-i18n]').forEach((el) => {
