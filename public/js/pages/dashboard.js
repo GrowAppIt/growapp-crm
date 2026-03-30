@@ -16,7 +16,16 @@ const Dashboard = {
             this._renderSkeleton();
 
             // Verifica automatica stati contratti (scaduti + rinnovi taciti)
-            await DataService.verificaEAggiornaStatiContratti();
+            // Lanciata in background: non blocca il rendering della dashboard
+            DataService.verificaEAggiornaStatiContratti().then(result => {
+                if (result.scaduti > 0 || result.rinnovati > 0) {
+                    console.log(`[Dashboard] Contratti aggiornati in background: ${result.scaduti} scaduti, ${result.rinnovati} rinnovati`);
+                    // Invalida cache e ricarica la dashboard per riflettere i cambiamenti
+                    DataService._cacheInvalidate('contratti:');
+                    DataService._cacheInvalidate('clienti:');
+                    this.render();
+                }
+            }).catch(e => console.warn('Verifica contratti in background fallita:', e));
 
             // OTTIMIZZAZIONE: carica le 6 collezioni base UNA sola volta, poi calcola tutto in memoria
             const _sysDash2 = SettingsService.getSystemSettingsSync();
