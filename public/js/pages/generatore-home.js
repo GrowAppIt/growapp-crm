@@ -2168,7 +2168,7 @@ rssapp-ticker{display:block!important;width:100%!important;min-height:32px!impor
 rssapp-ticker,rssapp-ticker *,rssapp-ticker div,rssapp-ticker span,rssapp-ticker a{height:auto!important;max-height:none!important;line-height:1.6!important;font-size:var(--fs-sm)!important;vertical-align:top!important;padding-top:0!important;padding-bottom:2px!important;margin-top:0!important;margin-bottom:0!important;overflow:hidden!important;white-space:nowrap!important;font-family:'Titillium Web',sans-serif!important;}
 rssapp-ticker a{margin-right:50px!important;display:inline-block!important;color:var(--blu)!important;text-decoration:none!important;}
 @media(hover:hover){rssapp-ticker a:hover{text-decoration:underline!important;}}
-.w-slideshow{position:relative;width:100%;overflow:hidden;isolation:isolate;background:var(--blu);height:clamp(220px,56vw,300px);margin-bottom:12px;}
+.w-slideshow{position:relative;width:100%;overflow:hidden;isolation:isolate;background:var(--blu);height:clamp(220px,56vw,300px);}
 .slide{position:absolute;inset:0;opacity:0;transition:opacity .6s ease-in-out;pointer-events:none;}
 .slide.active{opacity:1;pointer-events:auto;}
 .slide::before{content:"";position:absolute;inset:0;background-image:var(--bg-image);background-size:cover;background-position:center;background-repeat:no-repeat;transform:scale(1.05);transition:transform 1.2s ease-out,opacity .6s ease-in-out;}
@@ -2213,7 +2213,7 @@ rssapp-ticker a{margin-right:50px!important;display:inline-block!important;color
 .svc-label-en{font-size:var(--fs-xs);font-weight:600;color:var(--ink-sub);line-height:1.1;width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:.9;}
 .svc-ripple{position:absolute;border-radius:50%;transform:scale(0);background:rgba(var(--verde-rgb),.25);pointer-events:none;animation:svcRipple .55s linear;}
 @keyframes svcRipple{to{transform:scale(3.5);opacity:0;}}
-.w-banner-custom{width:100%;margin-bottom:12px;}
+.w-banner-custom{width:100%;padding-bottom:10px;background:var(--blu);}
 .bc-container{position:relative;width:100%;overflow:hidden;box-shadow:var(--shadow-md);min-height:clamp(110px,26vw,170px);isolation:isolate;background:#fff;border:1px solid rgba(0,0,0,.06);}
 .bc-slide{position:absolute;inset:0;opacity:0;visibility:hidden;transition:opacity .5s ease,visibility .5s ease;display:grid;place-items:center start;}
 .bc-slide.active{opacity:1;visibility:visible;}
@@ -2356,7 +2356,7 @@ rssapp-ticker a{margin-right:50px!important;display:inline-block!important;color
 .a11y-live{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden;}
 .keyboard-nav a:focus-visible,.keyboard-nav button:focus-visible,.keyboard-nav [tabindex]:focus-visible,.keyboard-nav input:focus-visible{outline:3px solid var(--blu-hover)!important;outline-offset:2px!important;}
 /* === RSS SLIDER WIDGET === */
-.w-rss-slider{width:100%;max-width:1200px;margin:0 auto 12px;padding:14px 0 16px 0;background:var(--blu);border-radius:12px;}
+.w-rss-slider{width:100%;margin:0;padding:14px 0 20px 0;background:var(--blu);border-radius:0;}
 .rss-header{padding:0 14px 10px 14px;display:flex;justify-content:space-between;align-items:center;}
 .rss-title{font-size:1.15rem;font-weight:700;color:#fff;margin:0;display:flex;align-items:center;gap:8px;}
 .rss-view-all{font-size:0.8rem;color:#fff;text-decoration:none;font-weight:700;background:rgba(255,255,255,0.2);padding:4px 10px;border-radius:20px;transition:background .2s;}
