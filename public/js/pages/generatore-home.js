@@ -2985,9 +2985,30 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
       }).join(''));
     } catch(e) { return; }
     if (!rawHtml) return;
-    const h = parseInt(cw.height) || 300;
-    const iframe = document.createElement('iframe');
-    iframe.style.cssText = 'width:100%;height:' + h + 'px;border:none;display:block;';
+    // Inietta micro-script i18n nell'HTML del widget: ascolta postMessage per cambio lingua
+    var i18nBridge = '<script>(function(){window.addEventListener("message",function(e){'
+      + 'if(e.data&&e.data.type==="cd-lang-change"&&e.data.lang){'
+      + 'var lang=e.data.lang;'
+      + 'document.querySelectorAll("[data-i18n-it]").forEach(function(el){'
+      + 'var txt=el.getAttribute("data-i18n-"+lang)||el.getAttribute("data-i18n-it");'
+      + 'if(txt)el.textContent=txt;'
+      + '});'
+      + '}'
+      + '});'
+      + '})();<\/script>';
+    // Inietta il bridge prima di </body> o alla fine
+    var htmlToWrite = rawHtml;
+    if (rawHtml.indexOf('</body>') !== -1) {
+      htmlToWrite = rawHtml.replace('</body>', i18nBridge + '</body>');
+    } else {
+      htmlToWrite = rawHtml + i18nBridge;
+    }
+    var h = parseInt(cw.height) || 300;
+    var iframe = document.createElement('iframe');
+    iframe.id = 'customWidgetIframe';
+    // touch-action:pan-y = swipe verticale scrolla la pagina, non l'iframe
+    iframe.style.cssText = 'width:100%;height:' + h + 'px;border:none;display:block;touch-action:pan-y;';
+    iframe.setAttribute('scrolling', 'no');
     iframe.setAttribute('title', cw.label || 'Widget Custom');
     iframe.setAttribute('allowfullscreen', '');
     iframe.setAttribute('allow', 'autoplay; fullscreen');
@@ -2997,13 +3018,13 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
       var iDoc = iframe.contentDocument || (iframe.contentWindow && iframe.contentWindow.document);
       if (iDoc) {
         iDoc.open();
-        iDoc.write(rawHtml);
+        iDoc.write(htmlToWrite);
         iDoc.close();
       } else {
-        iframe.srcdoc = rawHtml;
+        iframe.srcdoc = htmlToWrite;
       }
     } catch(e) {
-      iframe.srcdoc = rawHtml;
+      iframe.srcdoc = htmlToWrite;
     }
   })();
 
@@ -4386,6 +4407,11 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
     if (typeof window.reRenderMeteo === 'function') window.reRenderMeteo();
     if (typeof window.reRenderRaccolta === 'function') {
       window.reRenderRaccolta();
+    }
+    // Invia lingua al widget custom (iframe) via postMessage
+    var cwIframe = document.getElementById('customWidgetIframe');
+    if (cwIframe && cwIframe.contentWindow) {
+      try { cwIframe.contentWindow.postMessage({ type: 'cd-lang-change', lang: lang }, '*'); } catch(e) {}
     }
   };
 
