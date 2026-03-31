@@ -2,6 +2,7 @@
  * GeneratoreHome – Generatore Homepage Comune.Digital
  * Produce file HTML completi e funzionanti per le app dei comuni.
  * v3.8.6 – Rimosso widget custom, attenuate ombre barra data e ticker
+ * v3.9.0 – Aggiunto widget Slideshow Verticale (full-screen con data/meteo/pulsanti)
  * Si integra nel CRM come sezione dell'Officina Digitale.
  */
 window.GeneratoreHome = (function () {
@@ -324,6 +325,24 @@ window.GeneratoreHome = (function () {
       footerCopyrightText: 'Comune.Digital', footerCopyrightUrl: 'https://app.comune.digital',
       a11yDarkMode: true, a11yContrasto: true, a11yFontScale: true, a11yMaxFontScale: 4, a11yRispettaSistema: false,
       spotlightWidgetId: '', spotlightDurata: 2500, spotlightForzaSempre: false,
+      // Slideshow Verticale (widget full-screen)
+      slideshowVerticale: {
+        slides: [
+          { imageUrl: '', titleIt: '', titleEn: '' }
+        ],
+        buttons: [
+          { icon: 'fa-landmark', labelIt: 'Municipio', labelEn: 'Town Hall', href: 'municipio-cittadini' },
+          { icon: 'fa-toolbox', labelIt: 'Utilità', labelEn: 'Utilities', href: 'utilita' },
+          { icon: 'fa-newspaper', labelIt: 'Notizie', labelEn: 'News', href: 'social-news' },
+          { icon: 'fa-compass', labelIt: 'Visita', labelEn: 'Visit', href: 'visita' },
+          { icon: 'fa-calendar-days', labelIt: 'Eventi', labelEn: 'Events', href: 'eventi/c/0' },
+          { icon: 'fa-map-location-dot', labelIt: 'In Città', labelEn: 'In the City', href: 'citta' },
+        ],
+        scrollLabelIt: 'Scorri',
+        scrollLabelEn: 'Scroll down',
+        slideInterval: 5200,
+        homeHeight: '90',
+      },
       // Tab Bar
       tabBarItems: [
         { icon: 'fa-building-columns', labelIt: 'Municipio', labelEn: 'Town Hall', href: 'municipio-cittadini', isCenter: false },
@@ -341,7 +360,8 @@ window.GeneratoreHome = (function () {
         { id: 'raccoltaDifferenziata', label: 'Raccolta Differenziata', enabled: true, order: 5 },
         { id: 'protezioneCivile', label: 'Protezione Civile', enabled: true, order: 6 },
         { id: 'meteoCard', label: 'Meteo', enabled: true, order: 7 },
-        { id: 'tabBar', label: 'Tab Bar', enabled: false, order: 8 },
+        { id: 'slideshowVerticale', label: 'Slideshow Verticale', enabled: false, order: 8 },
+        { id: 'tabBar', label: 'Tab Bar', enabled: false, order: 9 },
       ],
     };
   }
@@ -514,6 +534,29 @@ window.GeneratoreHome = (function () {
       '<div id="ghServiziContainer"></div>' +
       '<button type="button" id="ghBtnAddSezione" style="background:#D1E2F2;color:#145284;border:2px dashed #145284;padding:10px 20px;border-radius:10px;font-weight:700;font-size:14px;cursor:pointer;width:100%;margin-top:8px;font-family:\'Titillium Web\',sans-serif;">' +
       '<i class="fas fa-plus"></i> Aggiungi Sezione Servizi</button>',
+      false
+    );
+
+    // === SEZ. 7b: SLIDESHOW VERTICALE (full-screen) ===
+    formHtml += makeSection('fa-mobile-screen', 'Slideshow Verticale (Full-Screen)',
+      '<p style="font-size:12px;color:#9B9B9B;margin-bottom:12px;"><i class="fas fa-info-circle"></i> Widget a schermo intero con slideshow di immagini, data/meteo, pulsanti servizi e invito allo scroll. Quando attivo, puoi disattivare Barra Data, Slideshow e Servizi dalla Gestione Widget.</p>' +
+      '<div style="display:flex;gap:10px;margin-bottom:14px;">' +
+        makeInput('ghSvHomeHeight', 'Altezza home (vh)', state.slideshowVerticale.homeHeight || '90', '90') +
+        makeInput('ghSvSlideInterval', 'Intervallo slide (ms)', state.slideshowVerticale.slideInterval || '5200', '5200') +
+      '</div>' +
+      '<h4 style="font-size:13px;font-weight:700;color:#145284;margin:14px 0 8px;"><i class="fas fa-images"></i> Immagini Slideshow</h4>' +
+      '<div id="ghSvSlidesContainer"></div>' +
+      '<button type="button" id="ghBtnAddSvSlide" style="background:#E2F8DE;color:#2A752F;border:2px dashed #3CA434;padding:10px 20px;border-radius:10px;font-weight:700;font-size:14px;cursor:pointer;width:100%;margin-top:8px;font-family:\'Titillium Web\',sans-serif;">' +
+      '<i class="fas fa-plus"></i> Aggiungi Immagine</button>' +
+      '<h4 style="font-size:13px;font-weight:700;color:#145284;margin:18px 0 8px;"><i class="fas fa-grip"></i> Pulsanti (max 6)</h4>' +
+      '<div id="ghSvButtonsContainer"></div>' +
+      '<button type="button" id="ghBtnAddSvButton" style="background:#D1E2F2;color:#145284;border:2px dashed #145284;padding:10px 20px;border-radius:10px;font-weight:700;font-size:14px;cursor:pointer;width:100%;margin-top:8px;font-family:\'Titillium Web\',sans-serif;">' +
+      '<i class="fas fa-plus"></i> Aggiungi Pulsante</button>' +
+      '<h4 style="font-size:13px;font-weight:700;color:#145284;margin:18px 0 8px;"><i class="fas fa-arrow-down"></i> Testo Scroll Hint</h4>' +
+      '<div style="display:flex;gap:10px;">' +
+        makeInput('ghSvScrollLabelIt', 'Label IT', state.slideshowVerticale.scrollLabelIt || 'Scorri', 'Scorri') +
+        makeInput('ghSvScrollLabelEn', 'Label EN', state.slideshowVerticale.scrollLabelEn || 'Scroll down', 'Scroll down') +
+      '</div>',
       false
     );
 
@@ -769,6 +812,22 @@ window.GeneratoreHome = (function () {
     if (btnSez) btnSez.addEventListener('click', () => {
       state.servizi.push({ sectionIt: '', sectionEn: '', items: [{ icon: 'fa-gears', labelIt: '', labelEn: '', href: '' }] });
       refreshServizi();
+    });
+
+    // Add SV slide
+    const btnAddSvSlide = document.getElementById('ghBtnAddSvSlide');
+    if (btnAddSvSlide) btnAddSvSlide.addEventListener('click', () => {
+      state.slideshowVerticale.slides.push({ imageUrl: '', titleIt: '', titleEn: '' });
+      refreshSvSlides();
+    });
+
+    // Add SV button
+    const btnAddSvBtn = document.getElementById('ghBtnAddSvButton');
+    if (btnAddSvBtn) btnAddSvBtn.addEventListener('click', () => {
+      if (state.slideshowVerticale.buttons.length < 6) {
+        state.slideshowVerticale.buttons.push({ icon: 'fa-circle-info', labelIt: '', labelEn: '', href: '' });
+        refreshSvButtons();
+      }
     });
 
     // CIE toggle
@@ -1035,6 +1094,89 @@ window.GeneratoreHome = (function () {
       const i = parseInt(input.getAttribute('data-slide'));
       const f = input.getAttribute('data-field');
       if (state.slides[i]) state.slides[i][f] = input.value;
+    });
+  }
+
+  /* ============================================================
+     DYNAMIC FORM – SLIDESHOW VERTICALE
+     ============================================================ */
+  function refreshSvSlides(skipCollect) {
+    const c = document.getElementById('ghSvSlidesContainer');
+    if (!c) return;
+    if (!skipCollect) collectSvFromDOM();
+    const sv = state.slideshowVerticale;
+    let html = '';
+    sv.slides.forEach((s, i) => {
+      html += '<div style="background:#f8f9fa;border:1px solid #e0e0e0;border-radius:10px;padding:14px;margin-bottom:10px;position:relative;">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">' +
+          '<strong style="color:#145284;font-size:13px;"><i class="fas fa-image"></i> Immagine '+(i+1)+'</strong>' +
+          (sv.slides.length > 1 ? '<button type="button" data-remove-sv-slide="'+i+'" style="background:#D32F2F;color:#fff;border:none;padding:4px 10px;border-radius:6px;font-size:12px;cursor:pointer;font-weight:700;"><i class="fas fa-trash"></i></button>' : '') +
+        '</div>' +
+        '<div style="display:grid;grid-template-columns:1fr;gap:8px;">' +
+          '<div><label style="font-size:12px;font-weight:600;color:#4A4A4A;">URL Immagine</label><input type="text" data-sv-slide="'+i+'" data-sv-slide-field="imageUrl" value="'+esc(s.imageUrl)+'" placeholder="https://nomecomune.comune.digital/docs/1.jpg" style="width:100%;padding:8px 10px;border:1px solid #d0d0d0;border-radius:6px;font-size:13px;box-sizing:border-box;font-family:\'Titillium Web\',sans-serif;"></div>' +
+        '</div>' +
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">' +
+          '<div><label style="font-size:12px;font-weight:600;color:#4A4A4A;">Titolo IT</label><input type="text" data-sv-slide="'+i+'" data-sv-slide-field="titleIt" value="'+esc(s.titleIt)+'" placeholder="Nome Luogo" style="width:100%;padding:8px 10px;border:1px solid #d0d0d0;border-radius:6px;font-size:13px;box-sizing:border-box;font-family:\'Titillium Web\',sans-serif;"></div>' +
+          '<div><label style="font-size:12px;font-weight:600;color:#4A4A4A;">Titolo EN</label><input type="text" data-sv-slide="'+i+'" data-sv-slide-field="titleEn" value="'+esc(s.titleEn)+'" placeholder="Place Name" style="width:100%;padding:8px 10px;border:1px solid #d0d0d0;border-radius:6px;font-size:13px;box-sizing:border-box;font-family:\'Titillium Web\',sans-serif;"></div>' +
+        '</div></div>';
+    });
+    c.innerHTML = html;
+    c.querySelectorAll('[data-remove-sv-slide]').forEach(btn => {
+      btn.addEventListener('click', e => {
+        const idx = parseInt(e.currentTarget.getAttribute('data-remove-sv-slide'));
+        collectSvFromDOM();
+        sv.slides.splice(idx, 1);
+        refreshSvSlides();
+      });
+    });
+  }
+
+  function refreshSvButtons(skipCollect) {
+    const c = document.getElementById('ghSvButtonsContainer');
+    if (!c) return;
+    if (!skipCollect) collectSvFromDOM();
+    const sv = state.slideshowVerticale;
+    const iconOpts = SVC_ICONS.map(ic => '<option value="'+esc(ic.v)+'">'+esc(ic.v)+' — '+esc(ic.l)+'</option>').join('');
+    let html = '';
+    sv.buttons.forEach((b, i) => {
+      html += '<div style="background:#f8f9fa;border:1px solid #e0e0e0;border-radius:10px;padding:14px;margin-bottom:10px;position:relative;">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">' +
+          '<strong style="color:#145284;font-size:13px;"><i class="fas fa-circle-dot"></i> Pulsante '+(i+1)+'</strong>' +
+          (sv.buttons.length > 1 ? '<button type="button" data-remove-sv-btn="'+i+'" style="background:#D32F2F;color:#fff;border:none;padding:4px 10px;border-radius:6px;font-size:12px;cursor:pointer;font-weight:700;"><i class="fas fa-trash"></i></button>' : '') +
+        '</div>' +
+        '<div style="margin-bottom:8px;"><label style="font-size:12px;font-weight:600;color:#4A4A4A;">Icona</label>' +
+          '<select data-sv-btn="'+i+'" data-sv-btn-field="icon" style="width:100%;padding:8px 10px;border:1px solid #d0d0d0;border-radius:6px;font-size:13px;box-sizing:border-box;font-family:\'Titillium Web\',sans-serif;">' +
+          iconOpts.replace('value="'+esc(b.icon)+'"', 'value="'+esc(b.icon)+'" selected') +
+          '</select></div>' +
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">' +
+          '<div><label style="font-size:12px;font-weight:600;color:#4A4A4A;">Label IT</label><input type="text" data-sv-btn="'+i+'" data-sv-btn-field="labelIt" value="'+esc(b.labelIt)+'" style="width:100%;padding:8px 10px;border:1px solid #d0d0d0;border-radius:6px;font-size:13px;box-sizing:border-box;font-family:\'Titillium Web\',sans-serif;"></div>' +
+          '<div><label style="font-size:12px;font-weight:600;color:#4A4A4A;">Label EN</label><input type="text" data-sv-btn="'+i+'" data-sv-btn-field="labelEn" value="'+esc(b.labelEn)+'" style="width:100%;padding:8px 10px;border:1px solid #d0d0d0;border-radius:6px;font-size:13px;box-sizing:border-box;font-family:\'Titillium Web\',sans-serif;"></div>' +
+        '</div>' +
+        '<div style="margin-top:8px;"><label style="font-size:12px;font-weight:600;color:#4A4A4A;">Link (href)</label><input type="text" data-sv-btn="'+i+'" data-sv-btn-field="href" value="'+esc(b.href)+'" placeholder="municipio-cittadini" style="width:100%;padding:8px 10px;border:1px solid #d0d0d0;border-radius:6px;font-size:13px;box-sizing:border-box;font-family:\'Titillium Web\',sans-serif;"></div>' +
+      '</div>';
+    });
+    c.innerHTML = html;
+    c.querySelectorAll('[data-remove-sv-btn]').forEach(btn => {
+      btn.addEventListener('click', e => {
+        const idx = parseInt(e.currentTarget.getAttribute('data-remove-sv-btn'));
+        collectSvFromDOM();
+        sv.buttons.splice(idx, 1);
+        refreshSvButtons();
+      });
+    });
+  }
+
+  function collectSvFromDOM() {
+    const sv = state.slideshowVerticale;
+    document.querySelectorAll('[data-sv-slide]').forEach(input => {
+      const i = parseInt(input.getAttribute('data-sv-slide'));
+      const f = input.getAttribute('data-sv-slide-field');
+      if (sv.slides[i]) sv.slides[i][f] = input.value;
+    });
+    document.querySelectorAll('[data-sv-btn]').forEach(input => {
+      const i = parseInt(input.getAttribute('data-sv-btn'));
+      const f = input.getAttribute('data-sv-btn-field');
+      if (sv.buttons[i]) sv.buttons[i][f] = input.tagName === 'SELECT' ? input.value : input.value;
     });
   }
 
@@ -1805,6 +1947,11 @@ window.GeneratoreHome = (function () {
     state.tickerLinkUrl = v('ghTickerLinkUrl');
     collectSlidesFromDOM();
     collectServiziFromDOM();
+    collectSvFromDOM();
+    state.slideshowVerticale.scrollLabelIt = v('ghSvScrollLabelIt') || 'Scorri';
+    state.slideshowVerticale.scrollLabelEn = v('ghSvScrollLabelEn') || 'Scroll down';
+    state.slideshowVerticale.homeHeight = v('ghSvHomeHeight') || '90';
+    state.slideshowVerticale.slideInterval = parseInt(v('ghSvSlideInterval')) || 5200;
     collectBannerGroupsFromDOM();
     collectWidgetsFromDOM();
     state.bannerCieEnabled = v('ghBannerCieEnabled');
@@ -1902,6 +2049,12 @@ window.GeneratoreHome = (function () {
     set('ghSpotlightWidgetId', state.spotlightWidgetId);
     set('ghSpotlightDurata', state.spotlightDurata);
     set('ghSpotlightForzaSempre', state.spotlightForzaSempre);
+    // Slideshow Verticale
+    if (!state.slideshowVerticale) state.slideshowVerticale = { slides: [{ imageUrl: '', titleIt: '', titleEn: '' }], buttons: [], scrollLabelIt: 'Scorri', scrollLabelEn: 'Scroll down', slideInterval: 5200, homeHeight: '90' };
+    set('ghSvHomeHeight', state.slideshowVerticale.homeHeight);
+    set('ghSvSlideInterval', state.slideshowVerticale.slideInterval);
+    set('ghSvScrollLabelIt', state.slideshowVerticale.scrollLabelIt);
+    set('ghSvScrollLabelEn', state.slideshowVerticale.scrollLabelEn);
     // Tab Bar
     ensureWidgetExists('tabBar', 'Tab Bar', false);
     refreshTabBarItems(true);
@@ -1910,6 +2063,8 @@ window.GeneratoreHome = (function () {
     refreshRssSliders(true); // skipCollect: lo state è già aggiornato dal load
     refreshSlides(true); // skipCollect: lo state è già aggiornato dal load
     refreshServizi(true); // skipCollect: lo state è già aggiornato dal load
+    refreshSvSlides(true); // skipCollect: lo state è già aggiornato dal load
+    refreshSvButtons(true); // skipCollect: lo state è già aggiornato dal load
     // Normalizza ordini widget: elimina gap per garantire spostamenti corretti
     state.widgets.slice().sort((a, b) => a.order - b.order).forEach((w, i) => { w.order = i; });
     refreshWidgetList(true); // skipCollect: lo state è già aggiornato dal load
@@ -2018,6 +2173,7 @@ window.GeneratoreHome = (function () {
     tabBar: {
       items: ${JSON.stringify(S.tabBarItems || [], null, 4)},
     },
+    slideshowVerticale: ${JSON.stringify(S.slideshowVerticale || {})},
     widgets: ${JSON.stringify(S.widgets)},
     i18n: {
       defaultLang: "it",
@@ -2513,7 +2669,56 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
 @supports(padding-bottom: env(safe-area-inset-bottom)){
   body.has-tab-bar{padding-bottom:calc(90px + env(safe-area-inset-bottom));}
   body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px + env(safe-area-inset-bottom));}
-}`;
+}
+/* ===================== SLIDESHOW VERTICALE ===================== */
+.sv-wrap{position:relative;width:100%;overflow:hidden;background:#0f2b3f;touch-action:pan-y;}
+.sv-wrap .sv-bg-slides{position:absolute;inset:0;z-index:0;will-change:transform;transform:translate3d(0,0,0);}
+.sv-wrap .sv-bg-slides img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0;transform:scale(1.10);transition:opacity 1.2s ease,transform 7s ease;will-change:opacity,transform;}
+.sv-wrap .sv-bg-slides img.active{opacity:1;transform:scale(1.03);}
+.sv-wrap .sv-bg-slides img.broken{display:none!important;}
+.sv-wrap .sv-bg-slides.sv-single img{transform:scale(1.0);transition:none;}
+.sv-wrap .sv-bg-slides.sv-single img.active{transform:scale(1.0);}
+.sv-overlay{position:absolute;inset:0;z-index:1;background:radial-gradient(1200px 600px at 50% 10%,rgba(255,255,255,.10),rgba(0,0,0,0) 60%),linear-gradient(180deg,rgba(0,0,0,.14),rgba(0,0,0,.45));pointer-events:none;}
+.sv-bottom-fade{position:absolute;inset:0;z-index:1;pointer-events:none;background:linear-gradient(180deg,rgba(0,0,0,0) 0%,rgba(0,0,0,0) 62%,rgba(0,0,0,.46) 100%);}
+.sv-microcopy{position:absolute;left:0;right:0;top:clamp(10px,3vw,16px);z-index:4;padding:0 14px;display:flex;justify-content:center;pointer-events:none;}
+.sv-microcopy .sv-topbar{width:100%;display:flex;justify-content:space-between;align-items:flex-start;gap:10px;}
+.sv-microcopy .sv-pill{max-width:92%;padding:0;background:transparent;color:rgba(255,255,255,.98);line-height:1.15;transform:translate3d(0,10px,0);opacity:0;transition:opacity .45s ease,transform .6s cubic-bezier(.2,.9,.2,1);}
+.sv-microcopy .sv-pill.show{transform:translate3d(0,0,0);opacity:1;}
+.sv-microcopy .sv-pill.left{text-align:left;margin-right:auto;}
+.sv-microcopy .sv-pill.right{text-align:right;margin-left:auto;display:flex;flex-direction:column;align-items:flex-end;}
+.sv-microcopy .sv-title{font-weight:700;letter-spacing:.2px;font-size:16px;text-shadow:0 2px 10px rgba(0,0,0,.55),0 6px 22px rgba(0,0,0,.35);}
+.sv-microcopy .sv-sub{margin-top:6px;font-weight:600;font-size:13px;opacity:.95;text-shadow:0 2px 10px rgba(0,0,0,.55),0 6px 22px rgba(0,0,0,.35);}
+.sv-date-sub{font-weight:400;font-size:12px;opacity:.92;letter-spacing:.1px;}
+.sv-weather-badge{margin-top:6px;display:inline-flex;align-items:center;gap:7px;padding:5px 9px;border-radius:999px;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.20);backdrop-filter:blur(12px) saturate(150%);-webkit-backdrop-filter:blur(12px) saturate(150%);box-shadow:inset 5px 5px 10px rgba(0,0,0,.14),inset -5px -5px 10px rgba(255,255,255,.30),0 10px 22px rgba(0,0,0,.22);color:rgba(255,255,255,.98);text-shadow:0 2px 10px rgba(0,0,0,.55),0 6px 22px rgba(0,0,0,.35);font-weight:600;font-size:11.5px;line-height:1;white-space:nowrap;}
+.sv-weather-badge i{font-size:12.5px;opacity:.95;}
+.sv-weather-badge .sv-w-dot{opacity:.85;margin:0 2px;}
+.sv-weather-badge .sv-w-temp{font-weight:700;letter-spacing:.1px;}
+.sv-content{position:relative;z-index:2;min-height:inherit;display:flex;flex-direction:column;justify-content:flex-start;}
+.sv-top-safe{height:clamp(110px,16vh,210px);}
+@supports(height:100svh){.sv-top-safe{height:clamp(110px,16svh,210px);}}
+.sv-button-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));justify-items:center;align-items:start;gap:clamp(18px,4.5vw,22px) clamp(14px,6.5vw,38px);margin:0!important;padding:18px 16px 10px!important;list-style:none!important;width:min(520px,100%);position:relative;left:50%;transform:translate3d(-50%,calc(-1 * clamp(26px,3.2vh,56px)),0);will-change:transform;z-index:2;}
+@supports(height:100svh){.sv-button-grid{transform:translate3d(-50%,calc(-1 * clamp(26px,3.2svh,56px)),0);}}
+.sv-button-grid::before{content:"";position:absolute;left:50%;transform:translateX(-50%);top:-18px;width:min(520px,calc(100% - 16px));height:calc(100% + 30px);border-radius:28px;background:radial-gradient(520px 240px at 50% 35%,rgba(255,255,255,.16),rgba(255,255,255,0) 70%),radial-gradient(420px 260px at 50% 85%,rgba(0,0,0,.22),rgba(0,0,0,0) 72%),linear-gradient(180deg,rgba(255,255,255,.06),rgba(0,0,0,.08));opacity:.22;backdrop-filter:blur(10px) saturate(140%);-webkit-backdrop-filter:blur(10px) saturate(140%);box-shadow:0 18px 40px rgba(0,0,0,.20),inset 0 1px 0 rgba(255,255,255,.14);pointer-events:none;z-index:0;}
+.sv-button-grid li{list-style:none;text-align:center;position:relative;z-index:1;justify-self:center;width:100%;}
+.sv-button-grid li a{position:relative;width:clamp(62px,18.5vw,75px);height:clamp(62px,18.5vw,75px);display:block;margin:0 auto;border-radius:50%;padding:6px;box-sizing:border-box;text-decoration:none;border:2px solid rgba(var(--blu-rgb),.65);background:rgba(255,255,255,.22);backdrop-filter:blur(12px) saturate(150%);-webkit-backdrop-filter:blur(12px) saturate(150%);box-shadow:inset 5px 5px 10px rgba(0,0,0,.25),inset -5px -5px 10px rgba(255,255,255,.55),0 10px 22px rgba(0,0,0,.35);transition:transform .2s ease,box-shadow .3s ease;}
+.sv-button-grid li a:active{box-shadow:inset 6px 6px 12px rgba(0,0,0,.35),inset -6px -5px 12px rgba(255,255,255,.8);transform:scale(.95);}
+.sv-button-grid li a i{width:100%;height:100%;display:block;border-radius:50%;line-height:calc(clamp(62px,18.5vw,75px) - 12px);font-size:clamp(22px,7vw,26px);color:#fff;text-shadow:0 2px 8px rgba(0,0,0,.78);text-align:center;}
+.sv-button-label{display:flex;flex-direction:column;align-items:center;justify-content:center;margin-top:8px;color:#fff;text-shadow:0 2px 10px rgba(0,0,0,.55),0 6px 22px rgba(0,0,0,.35);line-height:1.05;}
+.sv-button-label .it{font-size:clamp(12px,3.6vw,15px);font-weight:700;white-space:nowrap;}
+.sv-button-label .en{margin-top:4px;font-size:clamp(10px,3vw,11px);font-weight:600;opacity:.92;white-space:nowrap;}
+.sv-scroll-inline{position:relative;z-index:3;display:flex;justify-content:center;margin-top:calc(-1 * clamp(26px,3.2vh,56px) + 10px);padding:8px 0 10px;}
+@supports(height:100svh){.sv-scroll-inline{margin-top:calc(-1 * clamp(26px,3.2svh,56px) + 10px);}}
+.sv-scroll-hint{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;pointer-events:none;user-select:none;cursor:default;opacity:.98;text-align:center;}
+.sv-peek-it{font-weight:800;font-size:clamp(14px,3.9vw,18px);color:rgba(255,255,255,.98);text-shadow:0 2px 10px rgba(0,0,0,.55),0 6px 22px rgba(0,0,0,.35);line-height:1.05;letter-spacing:.2px;}
+.sv-peek-en{font-weight:650;font-size:clamp(12px,3.3vw,15px);opacity:.92;color:rgba(255,255,255,.98);text-shadow:0 2px 10px rgba(0,0,0,.55),0 6px 22px rgba(0,0,0,.35);line-height:1.05;margin-top:-2px;}
+.sv-chevrons{display:flex;flex-direction:column;align-items:center;gap:1px;margin-top:2px;}
+.sv-chevrons i{font-size:13px;opacity:.90;color:rgba(255,255,255,.98);text-shadow:0 2px 10px rgba(0,0,0,.55),0 6px 22px rgba(0,0,0,.35);animation:sv-micro-bounce 1.35s ease-in-out infinite;}
+@keyframes sv-micro-bounce{0%,100%{transform:translate3d(0,0,0);}50%{transform:translate3d(0,5px,0);}}
+.sv-dots{position:absolute;left:0;right:0;bottom:clamp(14px,4vw,22px);display:flex;justify-content:center;gap:8px;z-index:4;pointer-events:none;}
+.sv-dot{width:7px;height:7px;border-radius:999px;background:rgba(255,255,255,.45);box-shadow:0 8px 18px rgba(0,0,0,.35);transition:transform .25s ease,background .25s ease;}
+.sv-dot.active{background:rgba(255,255,255,.95);transform:scale(1.25);}
+@media(max-width:360px){.sv-weather-badge{font-size:11px;padding:5px 8px;gap:6px;}.sv-microcopy .sv-title{font-size:15px;}.sv-microcopy .sv-sub{font-size:12px;}}
+@media(max-height:700px){.sv-top-safe{height:clamp(90px,12vh,150px);}}`;
   }
 
   /* ============================================================
@@ -2890,6 +3095,68 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
     };
   });
 
+  // ===================== SLIDESHOW VERTICALE RENDERER =====================
+  widgetRenderers['slideshowVerticale'] = () => {
+    const sv = C.slideshowVerticale;
+    if (!sv || !sv.slides || sv.slides.length === 0) return '';
+    const validSlides = sv.slides.filter(s => s.imageUrl);
+    if (validSlides.length === 0) return '';
+    const isSingle = validSlides.length === 1;
+    const hh = parseInt(sv.homeHeight) || 90;
+    // Build slides images
+    let imgsH = '';
+    validSlides.forEach((s, i) => {
+      imgsH += '<img ' + (i === 0 ? 'class="active" ' : '')
+        + 'src="' + esc(s.imageUrl) + '" alt="Slide ' + (i+1) + '" loading="' + (i === 0 ? 'eager' : 'lazy') + '" decoding="async">';
+    });
+    // Build microcopy data
+    const microData = JSON.stringify(validSlides.map(s => ({
+      title: LANG === 'en' ? (s.titleEn || s.titleIt) : s.titleIt,
+      sub: LANG === 'en' ? (s.titleIt || s.titleEn) : (s.titleEn || '')
+    })));
+    // Build buttons
+    let btnsH = '';
+    (sv.buttons || []).forEach(b => {
+      btnsH += '<li><a href="' + esc(href(b.href)) + '" target="_blank" rel="noopener">'
+        + '<i class="fa-solid ' + esc(b.icon) + '"></i></a>'
+        + '<span class="sv-button-label">'
+        + '<span class="it" data-i18n-it="' + esc(b.labelIt) + '" data-i18n-en="' + esc(b.labelEn) + '">' + esc(LANG === 'en' ? b.labelEn : b.labelIt) + '</span>'
+        + '<span class="en">' + esc(LANG === 'en' ? b.labelIt : b.labelEn) + '</span>'
+        + '</span></li>';
+    });
+    // Dots
+    let dotsH = '';
+    if (!isSingle) {
+      dotsH = '<div class="sv-dots" id="svDots">';
+      validSlides.forEach((_, i) => { dotsH += '<div class="sv-dot' + (i === 0 ? ' active' : '') + '"></div>'; });
+      dotsH += '</div>';
+    }
+    // Scroll labels
+    const scrollIt = esc(sv.scrollLabelIt || 'Scorri');
+    const scrollEn = esc(sv.scrollLabelEn || 'Scroll down');
+    return '<section class="sv-wrap" id="svWrap" style="min-height:' + hh + 'vh;" aria-label="Slideshow Verticale">'
+      + '<div class="sv-bg-slides' + (isSingle ? ' sv-single' : '') + '" id="svBgSlides">' + imgsH + '</div>'
+      + '<div class="sv-overlay"></div>'
+      + '<div class="sv-bottom-fade"></div>'
+      + '<div class="sv-microcopy" aria-hidden="true"><div class="sv-topbar">'
+      + '<div class="sv-pill left show" id="svMicroPill"><div class="sv-title" id="svMicroTitle"></div><div class="sv-sub" id="svMicroSub"></div></div>'
+      + '<div class="sv-pill right show" id="svMetaPill"><div class="sv-title sv-date-sub" id="svDateText">\u2014</div>'
+      + '<div class="sv-weather-badge" id="svWeatherBadge" aria-label="Meteo"><i class="fa-solid fa-cloud" id="svWeatherIcon"></i>'
+      + '<span id="svWeatherText"><span class="sv-w-temp">\u2014</span></span></div>'
+      + '</div></div></div>'
+      + '<div class="sv-content" style="min-height:' + hh + 'vh;padding-bottom:clamp(92px,12vh,132px);">'
+      + '<div class="sv-top-safe"></div>'
+      + '<ul class="sv-button-grid" id="svButtonGrid">' + btnsH + '</ul>'
+      + '<div class="sv-scroll-inline"><div class="sv-scroll-hint">'
+      + '<div class="sv-peek-it" data-i18n-it="' + scrollIt + '" data-i18n-en="' + scrollEn + '">' + scrollIt + '</div>'
+      + '<div class="sv-peek-en">' + scrollEn + '</div>'
+      + '<div class="sv-chevrons"><i class="fa-solid fa-chevron-down"></i></div>'
+      + '</div></div></div>'
+      + dotsH
+      + '<script data-sv-init type="text/plain">' + microData + '</script>'
+      + '</section>';
+  };
+
   // Sort widgets by order and render enabled ones
   const enabledWidgets = (C.widgets || [])
     .filter((w) => w.enabled)
@@ -2903,6 +3170,125 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
   });
 
   mount.innerHTML = html;
+
+  /* ===================== SLIDESHOW VERTICALE – RUNTIME JS ===================== */
+  (function() {
+    var svWrap = document.getElementById('svWrap');
+    if (!svWrap) return;
+    var bgSlides = document.getElementById('svBgSlides');
+    var slides = Array.from(svWrap.querySelectorAll('.sv-bg-slides img'));
+    var dots = Array.from(svWrap.querySelectorAll('.sv-dot'));
+    var microPill = document.getElementById('svMicroPill');
+    var microTitle = document.getElementById('svMicroTitle');
+    var microSub = document.getElementById('svMicroSub');
+    var dateText = document.getElementById('svDateText');
+    var weatherBadge = document.getElementById('svWeatherBadge');
+    var weatherText = document.getElementById('svWeatherText');
+    var weatherIcon = document.getElementById('svWeatherIcon');
+    // Read micro data
+    var microDataEl = svWrap.querySelector('script[data-sv-init]');
+    var microBySlide = [];
+    try { microBySlide = JSON.parse(microDataEl ? microDataEl.textContent : '[]'); } catch(e) {}
+    var isSingle = slides.length <= 1;
+    var current = 0;
+    var autoTimer = null;
+    var interval = parseInt(C.slideshowVerticale.slideInterval) || 5200;
+    // Broken image handling
+    slides.forEach(function(img) {
+      img.addEventListener('error', function() {
+        img.classList.add('broken');
+        if (img.classList.contains('active')) nextAvailable();
+      });
+    });
+    function getAvail() {
+      var idx = [];
+      slides.forEach(function(s, i) { if (!s.classList.contains('broken')) idx.push(i); });
+      return idx;
+    }
+    function show(i) {
+      if (slides[i] && slides[i].classList.contains('broken')) return nextAvailable(i);
+      if (slides[current]) slides[current].classList.remove('active');
+      if (dots[current]) dots[current].classList.remove('active');
+      current = i;
+      if (slides[current]) slides[current].classList.add('active');
+      if (dots[current]) dots[current].classList.add('active');
+      if (microPill) {
+        microPill.classList.remove('show');
+        setTimeout(function() {
+          var m = microBySlide[current] || {};
+          if (microTitle) microTitle.textContent = m.title || '';
+          if (microSub) microSub.textContent = m.sub || '';
+          microPill.classList.add('show');
+        }, 180);
+      }
+    }
+    function next() { show((current + 1) % slides.length); }
+    function nextAvailable(from) {
+      var avail = getAvail();
+      if (avail.length === 0) return;
+      var start = (typeof from === 'number') ? from : current;
+      for (var step = 1; step <= slides.length; step++) {
+        var c = (start + step) % slides.length;
+        if (!slides[c].classList.contains('broken')) return show(c);
+      }
+    }
+    function startAuto() { stopAuto(); if (!isSingle) autoTimer = setInterval(next, interval); }
+    function stopAuto() { if (autoTimer) clearInterval(autoTimer); autoTimer = null; }
+    // Date
+    function capFirst(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
+    function updateDate() {
+      var now = new Date();
+      var f = now.toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+      if (dateText) dateText.textContent = capFirst(f.replace(/\\./g, ''));
+    }
+    // Weather
+    var wLat = C.lat || 0;
+    var wLon = C.lon || 0;
+    function mapWCode(code) {
+      var c = Number(code);
+      if (c === 0) return { l: 'Sereno', i: 'fa-sun' };
+      if ([1,2,3].indexOf(c) !== -1) return { l: 'Poco nuvoloso', i: 'fa-cloud-sun' };
+      if ([45,48].indexOf(c) !== -1) return { l: 'Nebbia', i: 'fa-smog' };
+      if ([51,53,55].indexOf(c) !== -1) return { l: 'Pioviggine', i: 'fa-cloud-rain' };
+      if ([61,63,65,80,81,82].indexOf(c) !== -1) return { l: 'Pioggia', i: 'fa-cloud-showers-heavy' };
+      if ([71,73,75,77,85,86].indexOf(c) !== -1) return { l: 'Neve', i: 'fa-snowflake' };
+      if ([95,96,99].indexOf(c) !== -1) return { l: 'Temporale', i: 'fa-bolt' };
+      return { l: 'Variabile', i: 'fa-cloud' };
+    }
+    function updateWeather() {
+      if (!wLat || !wLon) return;
+      var url = 'https://api.open-meteo.com/v1/forecast?latitude=' + wLat + '&longitude=' + wLon + '&current=temperature_2m,weather_code&timezone=Europe%2FRome';
+      fetch(url, { cache: 'no-store' }).then(function(r) { return r.json(); }).then(function(data) {
+        var temp = data && data.current ? data.current.temperature_2m : null;
+        var code = data && data.current ? data.current.weather_code : null;
+        if (temp == null || code == null) throw new Error('no data');
+        var t = Math.round(Number(temp));
+        var ui = mapWCode(code);
+        if (weatherText) weatherText.innerHTML = ui.l + ' <span class="sv-w-dot">&middot;</span> <span class="sv-w-temp">' + t + '&deg;</span>';
+        if (weatherIcon) weatherIcon.className = 'fa-solid ' + ui.i;
+        if (weatherBadge) weatherBadge.setAttribute('aria-label', 'Meteo: ' + ui.l + ', ' + t + ' gradi');
+      }).catch(function() {
+        if (weatherText) weatherText.innerHTML = 'Meteo <span class="sv-w-dot">&middot;</span> <span class="sv-w-temp">&mdash;</span>';
+      });
+    }
+    // Init
+    if (microBySlide[0]) {
+      if (microTitle) microTitle.textContent = microBySlide[0].title || '';
+      if (microSub) microSub.textContent = microBySlide[0].sub || '';
+    }
+    updateDate();
+    updateWeather();
+    setInterval(updateDate, 60000);
+    setInterval(updateWeather, 900000);
+    if (!isSingle) startAuto();
+    // Tap to change slide
+    svWrap.addEventListener('click', function(e) {
+      if (e.target.closest('.sv-button-grid')) return;
+      if (isSingle) return;
+      next();
+      startAuto();
+    });
+  })();
 
   /* FOOTER – render only if configured */
   (() => {
