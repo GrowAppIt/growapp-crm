@@ -1984,11 +1984,24 @@ window.GeneratoreHome = (function () {
      ============================================================ */
   function buildConfig(S, BASE) {
     const q = s => JSON.stringify(s);
+    // Rende una stringa sicura dentro template literal (escapa backtick e ${)
+    const BT = String.fromCharCode(96); // backtick
+    const tplSafe = function(s) { return s.split(BT).join('\\' + BT).split('${').join('\\${'); };
     const serviziStr = JSON.stringify(S.servizi.map(sec => ({
       sectionIt: sec.sectionIt, sectionEn: sec.sectionEn,
       items: sec.items.map(it => ({ icon: it.icon, labelIt: it.labelIt, labelEn: it.labelEn, href: it.href }))
     })), null, 4);
     const tipsStr = JSON.stringify(S.raccoltaEcoTips, null, 6);
+    // Serializza customWidget come JSON e rendilo safe per template literal e <script> tag
+    const cwJson = JSON.stringify({
+      enabled: !!S.customWidget.enabled,
+      height: parseInt(S.customWidget.height) || 300,
+      label: S.customWidget.label || 'Widget Custom',
+      htmlCode: S.customWidget.htmlCode || ''
+    });
+    // 1) Spezza </script> per evitare che il parser HTML chiuda il tag prematuramente
+    // 2) Escapa backtick e ${ per sicurezza nella template literal
+    const customWidgetStr = tplSafe(cwJson.replace(/<\/script>/gi, '<\\/script>'));
 
     return `  window.COMUNE_CONFIG = {
     nomeComune:     ${q(S.nomeComune)},
@@ -2056,12 +2069,7 @@ window.GeneratoreHome = (function () {
     tabBar: {
       items: ${JSON.stringify(S.tabBarItems || [], null, 4)},
     },
-    customWidget: {
-      enabled: ${!!S.customWidget.enabled},
-      height:  ${parseInt(S.customWidget.height) || 300},
-      label:   ${q(S.customWidget.label || 'Widget Custom')},
-      htmlCode: ${q(S.customWidget.htmlCode || '')},
-    },
+    customWidget: ${customWidgetStr},
     widgets: ${JSON.stringify(S.widgets)},
     i18n: {
       defaultLang: "it",
@@ -2938,19 +2946,12 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
   widgetRenderers['customWidget'] = () => {
     const cw = C.customWidget;
     if (!cw || !cw.enabled || !cw.htmlCode) return '';
-    // Encode HTML per srcdoc: converti " e & per attributo HTML
-    const encodedHtml = cw.htmlCode
-      .replace(/&/g, '&amp;')
-      .replace(/"/g, '&quot;');
+    // Genera un placeholder; l'iframe viene creato via JS sotto per evitare problemi di encoding srcdoc
     return '<section class="w-custom-widget" id="customWidgetSection" '
       + 'aria-label="' + esc(cw.label || 'Widget Custom') + '" '
       + 'style="width:100%;overflow:hidden;">'
-      + '<iframe srcdoc="' + encodedHtml + '" '
-      + 'style="width:100%;height:' + (parseInt(cw.height) || 300) + 'px;border:none;display:block;" '
-      + 'sandbox="allow-scripts allow-same-origin allow-popups" '
-      + 'loading="lazy" '
-      + 'title="' + esc(cw.label || 'Widget Custom') + '">'
-      + '</iframe></section>';
+      + '<div id="customWidgetIframeMount" style="width:100%;height:' + (parseInt(cw.height) || 300) + 'px;"></div>'
+      + '</section>';
   };
 
   // Sort widgets by order and render enabled ones
@@ -2966,6 +2967,21 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
   });
 
   mount.innerHTML = html;
+
+  /* CUSTOM WIDGET – inject iframe via JS to avoid srcdoc encoding issues */
+  (() => {
+    const cw = C.customWidget;
+    if (!cw || !cw.enabled || !cw.htmlCode) return;
+    const mountEl = document.getElementById('customWidgetIframeMount');
+    if (!mountEl) return;
+    const iframe = document.createElement('iframe');
+    iframe.style.cssText = 'width:100%;height:' + (parseInt(cw.height) || 300) + 'px;border:none;display:block;';
+    iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-popups');
+    iframe.setAttribute('loading', 'lazy');
+    iframe.setAttribute('title', cw.label || 'Widget Custom');
+    mountEl.appendChild(iframe);
+    iframe.srcdoc = cw.htmlCode;
+  })();
 
   /* FOOTER – render only if configured */
   (() => {
