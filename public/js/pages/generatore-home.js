@@ -1,6 +1,7 @@
 /**
  * GeneratoreHome – Generatore Homepage Comune.Digital
  * Produce file HTML completi e funzionanti per le app dei comuni.
+ * v3.8.6 – Rimosso widget custom, attenuate ombre barra data e ticker
  * Si integra nel CRM come sezione dell'Officina Digitale.
  */
 window.GeneratoreHome = (function () {
