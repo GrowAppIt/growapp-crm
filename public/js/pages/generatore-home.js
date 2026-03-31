@@ -2986,7 +2986,7 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
     } catch(e) { return; }
     if (!rawHtml) return;
     // Inietta micro-script i18n nell'HTML del widget: ascolta postMessage per cambio lingua
-    var i18nBridge = '<scr' + 'ipt>(function(){window.addEventListener("message",function(e){'
+    var i18nBridge = '\\x3cscript>(function(){window.addEventListener("message",function(e){'
       + 'if(e.data&&e.data.type==="cd-lang-change"&&e.data.lang){'
       + 'var lang=e.data.lang;'
       + 'document.querySelectorAll("[data-i18n-it]").forEach(function(el){'
@@ -2995,11 +2995,11 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
       + '});'
       + '}'
       + '});'
-      + '})();</scr' + 'ipt>';
+      + '})();\\x3c/script>';
     // Inietta il bridge prima di </body> o alla fine
     var htmlToWrite = rawHtml;
-    if (rawHtml.indexOf('</body>') !== -1) {
-      htmlToWrite = rawHtml.replace('</body>', i18nBridge + '</body>');
+    if (rawHtml.indexOf('\\x3c/body>') !== -1) {
+      htmlToWrite = rawHtml.replace('\\x3c/body>', i18nBridge + '\\x3c/body>');
     } else {
       htmlToWrite = rawHtml + i18nBridge;
     }
