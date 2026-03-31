@@ -331,13 +331,6 @@ window.GeneratoreHome = (function () {
         { icon: 'fa-heart-pulse', labelIt: 'DAE', labelEn: 'AED', href: 'dae', isCenter: false },
         { icon: 'fa-bars', labelIt: 'Menu', labelEn: 'Menu', href: 'menu', isCenter: false },
       ],
-      // Widget Custom (iframe isolato)
-      customWidget: {
-        enabled: false,
-        height: 300,
-        label: 'Widget Custom',
-        htmlCode: '',
-      },
       widgets: [
         { id: 'dateHeader', label: 'Barra Data', enabled: true, order: 0 },
         { id: 'tickerBar', label: 'Ticker News', enabled: true, order: 1 },
@@ -347,8 +340,7 @@ window.GeneratoreHome = (function () {
         { id: 'raccoltaDifferenziata', label: 'Raccolta Differenziata', enabled: true, order: 5 },
         { id: 'protezioneCivile', label: 'Protezione Civile', enabled: true, order: 6 },
         { id: 'meteoCard', label: 'Meteo', enabled: true, order: 7 },
-        { id: 'customWidget', label: 'Widget Custom', enabled: false, order: 8 },
-        { id: 'tabBar', label: 'Tab Bar', enabled: false, order: 9 },
+        { id: 'tabBar', label: 'Tab Bar', enabled: false, order: 8 },
       ],
     };
   }
@@ -441,23 +433,6 @@ window.GeneratoreHome = (function () {
     // === SEZ. 2: GESTIONE WIDGET ===
     formHtml += makeSection('fa-puzzle-piece', 'Gestione Widget',
       '<div id="ghWidgetList" style="max-height:400px;overflow-y:auto;"></div>',
-      false
-    );
-
-    // === SEZ. 2b: WIDGET CUSTOM (iframe isolato) ===
-    formHtml += makeSection('fa-code', 'Widget Custom (HTML)',
-      '<p style="font-size:12px;color:#9B9B9B;margin:0 0 12px;">Inserisci un blocco HTML completo (video, slideshow, ecc.). Verrà isolato in un iframe: nessun conflitto CSS/JS con la homepage. Attivalo/disattivalo dalla Gestione Widget.</p>' +
-      makeInput('ghCustomWidgetLabel', 'Etichetta widget', state.customWidget.label, 'Video promozionale') +
-      makeInput('ghCustomWidgetHeight', 'Altezza (px)', state.customWidget.height, '300', 'number') +
-      '<div style="margin-bottom:16px;">' +
-        '<label style="display:block;font-weight:600;color:#4A4A4A;margin-bottom:6px;font-size:13px;">Codice HTML completo</label>' +
-        '<textarea id="ghCustomWidgetCode" rows="12" placeholder="<!DOCTYPE html>&#10;<html>&#10;<head>...</head>&#10;<body>...</body>&#10;</html>" style="width:100%;padding:10px 14px;border:1px solid #d0d0d0;border-radius:8px;font-family:monospace;font-size:13px;box-sizing:border-box;resize:vertical;line-height:1.4;tab-size:2;">' + esc(state.customWidget.htmlCode) + '</textarea>' +
-      '</div>' +
-      '<div style="background:#D1E2F2;border-radius:8px;padding:12px 16px;font-size:12px;color:#0D3A5C;">' +
-        '<i class="fas fa-info-circle"></i> <strong>Come funziona:</strong> Il codice viene incapsulato in un <code>&lt;iframe srcdoc&gt;</code>. ' +
-        'CSS e JavaScript del widget non possono interferire con la homepage e viceversa. ' +
-        'Se disattivi il widget dalla Gestione Widget, il codice generato resta identico a prima.' +
-      '</div>',
       false
     );
 
@@ -1863,15 +1838,6 @@ window.GeneratoreHome = (function () {
     state.spotlightWidgetId = v('ghSpotlightWidgetId');
     state.spotlightDurata = parseInt(v('ghSpotlightDurata')) || 2500;
     state.spotlightForzaSempre = v('ghSpotlightForzaSempre');
-    // Widget Custom
-    state.customWidget.label = v('ghCustomWidgetLabel') || 'Widget Custom';
-    state.customWidget.height = parseInt(v('ghCustomWidgetHeight')) || 300;
-    state.customWidget.htmlCode = v('ghCustomWidgetCode') || '';
-    // enabled è gestito dalla lista widget (customWidget toggle)
-    const cwWidget = state.widgets.find(w => w.id === 'customWidget');
-    state.customWidget.enabled = cwWidget ? cwWidget.enabled : false;
-    // Sincronizza la label nella lista widget
-    if (cwWidget) cwWidget.label = state.customWidget.label;
     // Tab Bar
     collectTabBarFromDOM();
     // RSS Sliders
@@ -1935,13 +1901,6 @@ window.GeneratoreHome = (function () {
     set('ghSpotlightWidgetId', state.spotlightWidgetId);
     set('ghSpotlightDurata', state.spotlightDurata);
     set('ghSpotlightForzaSempre', state.spotlightForzaSempre);
-    // Widget Custom
-    if (!state.customWidget) state.customWidget = { enabled: false, height: 300, label: 'Widget Custom', htmlCode: '' };
-    set('ghCustomWidgetLabel', state.customWidget.label);
-    set('ghCustomWidgetHeight', state.customWidget.height);
-    const cwCodeEl = document.getElementById('ghCustomWidgetCode');
-    if (cwCodeEl) cwCodeEl.value = state.customWidget.htmlCode || '';
-    ensureWidgetExists('customWidget', state.customWidget.label || 'Widget Custom', !!state.customWidget.enabled);
     // Tab Bar
     ensureWidgetExists('tabBar', 'Tab Bar', false);
     refreshTabBarItems(true);
@@ -1984,13 +1943,6 @@ window.GeneratoreHome = (function () {
   /* ============================================================
      BUILD CONFIG OBJECT (as JS string)
      ============================================================ */
-  // Codifica UTF-8 → base64 (sicura per qualsiasi contesto: niente <, >, `, ${, </script>)
-  function utf8ToBase64(str) {
-    return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, function(m, p) {
-      return String.fromCharCode(parseInt(p, 16));
-    }));
-  }
-
   function buildConfig(S, BASE) {
     const q = s => JSON.stringify(s);
     const serviziStr = JSON.stringify(S.servizi.map(sec => ({
@@ -1998,8 +1950,6 @@ window.GeneratoreHome = (function () {
       items: sec.items.map(it => ({ icon: it.icon, labelIt: it.labelIt, labelEn: it.labelEn, href: it.href }))
     })), null, 4);
     const tipsStr = JSON.stringify(S.raccoltaEcoTips, null, 6);
-    // Codifica il codice HTML del widget custom in base64 — 100% sicuro, nessun carattere speciale
-    const cwHtmlB64 = (S.customWidget && S.customWidget.htmlCode) ? utf8ToBase64(S.customWidget.htmlCode) : '';
 
     return `  window.COMUNE_CONFIG = {
     nomeComune:     ${q(S.nomeComune)},
@@ -2066,12 +2016,6 @@ window.GeneratoreHome = (function () {
     },
     tabBar: {
       items: ${JSON.stringify(S.tabBarItems || [], null, 4)},
-    },
-    customWidget: {
-      enabled: ${!!S.customWidget.enabled},
-      height:  ${parseInt(S.customWidget.height) || 300},
-      label:   ${q(S.customWidget.label || 'Widget Custom')},
-      htmlCodeB64: "${cwHtmlB64}",
     },
     widgets: ${JSON.stringify(S.widgets)},
     i18n: {
@@ -2945,17 +2889,6 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
     };
   });
 
-  ${state.customWidget && state.customWidget.enabled && state.customWidget.htmlCode ? `// Register custom widget renderer (iframe isolato)
-  widgetRenderers['customWidget'] = () => {
-    const cw = C.customWidget;
-    if (!cw || !cw.enabled || !cw.htmlCodeB64) return '';
-    return '<section class="w-custom-widget" id="customWidgetSection" '
-      + 'aria-label="' + esc(cw.label || 'Widget Custom') + '" '
-      + 'style="width:100%;overflow:hidden;">'
-      + '<div id="customWidgetIframeMount" style="width:100%;height:' + (parseInt(cw.height) || 300) + 'px;"></div>'
-      + '</section>';
-  };` : ''}
-
   // Sort widgets by order and render enabled ones
   const enabledWidgets = (C.widgets || [])
     .filter((w) => w.enabled)
@@ -2969,59 +2902,6 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
   });
 
   mount.innerHTML = html;
-
-  ${state.customWidget && state.customWidget.enabled && state.customWidget.htmlCode ? `/* CUSTOM WIDGET – decode base64 HTML and inject via iframe + document.write */
-  (function() {
-    var cw = C.customWidget;
-    if (!cw || !cw.enabled || !cw.htmlCodeB64) return;
-    var mountEl = document.getElementById('customWidgetIframeMount');
-    if (!mountEl) return;
-    var rawHtml;
-    try {
-      rawHtml = decodeURIComponent(atob(cw.htmlCodeB64).split('').map(function(c) {
-        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-      }).join(''));
-    } catch(e) { return; }
-    if (!rawHtml) return;
-    var i18nBridge = String.fromCharCode(60) + 'script>(function(){window.addEventListener("message",function(e){'
-      + 'if(e.data&&e.data.type==="cd-lang-change"&&e.data.lang){'
-      + 'var lang=e.data.lang;'
-      + 'document.querySelectorAll("[data-i18n-it]").forEach(function(el){'
-      + 'var txt=el.getAttribute("data-i18n-"+lang)||el.getAttribute("data-i18n-it");'
-      + 'if(txt)el.textContent=txt;'
-      + '});'
-      + '}'
-      + '});'
-      + '})();' + String.fromCharCode(60) + '/script>';
-    var htmlToWrite = rawHtml;
-    var bodyEnd = String.fromCharCode(60) + '/body>';
-    if (rawHtml.indexOf(bodyEnd) !== -1) {
-      htmlToWrite = rawHtml.replace(bodyEnd, i18nBridge + bodyEnd);
-    } else {
-      htmlToWrite = rawHtml + i18nBridge;
-    }
-    var h = parseInt(cw.height) || 300;
-    var iframe = document.createElement('iframe');
-    iframe.id = 'customWidgetIframe';
-    iframe.style.cssText = 'width:100%;height:' + h + 'px;border:none;display:block;touch-action:pan-y;';
-    iframe.setAttribute('scrolling', 'no');
-    iframe.setAttribute('title', cw.label || 'Widget Custom');
-    iframe.setAttribute('allowfullscreen', '');
-    iframe.setAttribute('allow', 'autoplay; fullscreen');
-    mountEl.appendChild(iframe);
-    try {
-      var iDoc = iframe.contentDocument || (iframe.contentWindow && iframe.contentWindow.document);
-      if (iDoc) {
-        iDoc.open();
-        iDoc.write(htmlToWrite);
-        iDoc.close();
-      } else {
-        iframe.srcdoc = htmlToWrite;
-      }
-    } catch(e) {
-      iframe.srcdoc = htmlToWrite;
-    }
-  })();` : ''}
 
   /* FOOTER – render only if configured */
   (() => {
@@ -4403,11 +4283,6 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
     if (typeof window.reRenderRaccolta === 'function') {
       window.reRenderRaccolta();
     }
-    ${state.customWidget && state.customWidget.enabled && state.customWidget.htmlCode ? `// Invia lingua al widget custom (iframe) via postMessage
-    var cwIframe = document.getElementById('customWidgetIframe');
-    if (cwIframe && cwIframe.contentWindow) {
-      try { cwIframe.contentWindow.postMessage({ type: 'cd-lang-change', lang: lang }, '*'); } catch(e) {}
-    }` : ''}
   };
 
   const langBtn = document.getElementById('langToggle');
