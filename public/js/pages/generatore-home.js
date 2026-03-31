@@ -342,6 +342,7 @@ window.GeneratoreHome = (function () {
         scrollLabelEn: 'Scroll down',
         slideInterval: 5200,
         homeHeight: '90',
+        overlayOpacity: 100,
       },
       // Tab Bar
       tabBarItems: [
@@ -544,6 +545,8 @@ window.GeneratoreHome = (function () {
         makeInput('ghSvHomeHeight', 'Altezza home (vh)', state.slideshowVerticale.homeHeight || '90', '90') +
         makeInput('ghSvSlideInterval', 'Intervallo slide (ms)', state.slideshowVerticale.slideInterval || '5200', '5200') +
       '</div>' +
+      '<div style="margin-bottom:14px;"><label style="font-size:12px;font-weight:600;color:#4A4A4A;">Overlay scuro sulle immagini: <strong id="ghSvOverlayVal">' + (state.slideshowVerticale.overlayOpacity != null ? state.slideshowVerticale.overlayOpacity : 100) + '%</strong></label>' +
+      '<input type="range" id="ghSvOverlayOpacity" min="0" max="100" step="5" value="' + (state.slideshowVerticale.overlayOpacity != null ? state.slideshowVerticale.overlayOpacity : 100) + '" style="width:100%;margin-top:4px;accent-color:#145284;"></div>' +
       '<h4 style="font-size:13px;font-weight:700;color:#145284;margin:14px 0 8px;"><i class="fas fa-images"></i> Immagini Slideshow</h4>' +
       '<div id="ghSvSlidesContainer"></div>' +
       '<button type="button" id="ghBtnAddSvSlide" style="background:#E2F8DE;color:#2A752F;border:2px dashed #3CA434;padding:10px 20px;border-radius:10px;font-weight:700;font-size:14px;cursor:pointer;width:100%;margin-top:8px;font-family:\'Titillium Web\',sans-serif;">' +
@@ -829,6 +832,11 @@ window.GeneratoreHome = (function () {
         refreshSvButtons();
       }
     });
+
+    // SV overlay slider live label
+    const svOverlaySlider = document.getElementById('ghSvOverlayOpacity');
+    const svOverlayVal = document.getElementById('ghSvOverlayVal');
+    if (svOverlaySlider && svOverlayVal) svOverlaySlider.addEventListener('input', () => { svOverlayVal.textContent = svOverlaySlider.value + '%'; });
 
     // CIE toggle
     const cieCheck = document.getElementById('ghBannerCieEnabled');
@@ -1952,6 +1960,8 @@ window.GeneratoreHome = (function () {
     state.slideshowVerticale.scrollLabelEn = v('ghSvScrollLabelEn') || 'Scroll down';
     state.slideshowVerticale.homeHeight = v('ghSvHomeHeight') || '90';
     state.slideshowVerticale.slideInterval = parseInt(v('ghSvSlideInterval')) || 5200;
+    state.slideshowVerticale.overlayOpacity = parseInt(v('ghSvOverlayOpacity'));
+    if (isNaN(state.slideshowVerticale.overlayOpacity)) state.slideshowVerticale.overlayOpacity = 100;
     collectBannerGroupsFromDOM();
     collectWidgetsFromDOM();
     state.bannerCieEnabled = v('ghBannerCieEnabled');
@@ -2055,6 +2065,9 @@ window.GeneratoreHome = (function () {
     set('ghSvSlideInterval', state.slideshowVerticale.slideInterval);
     set('ghSvScrollLabelIt', state.slideshowVerticale.scrollLabelIt);
     set('ghSvScrollLabelEn', state.slideshowVerticale.scrollLabelEn);
+    set('ghSvOverlayOpacity', state.slideshowVerticale.overlayOpacity != null ? state.slideshowVerticale.overlayOpacity : 100);
+    const svOvLabel = document.getElementById('ghSvOverlayVal');
+    if (svOvLabel) svOvLabel.textContent = (state.slideshowVerticale.overlayOpacity != null ? state.slideshowVerticale.overlayOpacity : 100) + '%';
     // Tab Bar
     ensureWidgetExists('tabBar', 'Tab Bar', false);
     refreshTabBarItems(true);
@@ -2391,7 +2404,7 @@ body{font-family:'Titillium Web',system-ui,-apple-system,Segoe UI,Roboto,Arial,s
 .ios-device .w-main-header{padding-top:72px;}
 .main-header-inner{display:flex;align-items:center;gap:0;}
 .main-header-stemma{height:clamp(52px,14vw,72px);width:auto;flex-shrink:0;filter:drop-shadow(0 2px 6px rgba(0,0,0,.35));align-self:center;margin-bottom:-8px;}
-.main-header-name{flex:1;min-width:0;font-weight:700;font-size:clamp(28px,8vw,42px);letter-spacing:.5px;text-shadow:0 1px 0 rgba(0,0,0,.35),0 6px 12px rgba(0,0,0,.25);line-height:1.1;white-space:nowrap;overflow:hidden;text-align:left!important;}
+.main-header-name{flex:1;min-width:0;font-weight:700;font-size:clamp(18px,6vw,36px);letter-spacing:.5px;text-shadow:0 1px 0 rgba(0,0,0,.35),0 6px 12px rgba(0,0,0,.25);line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:left!important;}
 .lang-toggle{flex-shrink:0;align-self:center;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.30);border-radius:8px;padding:4px 14px;font-size:22px;line-height:1;cursor:pointer;color:#fff;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);transition:background .15s ease,transform .15s ease;-webkit-tap-highlight-color:transparent;min-width:44px;min-height:32px;display:flex;align-items:center;justify-content:center;}
 .lang-toggle:active{transform:scale(.92);}
 .w-footer{background:var(--blu-dark);padding:clamp(12px,3vw,18px);padding-bottom:max(env(safe-area-inset-bottom,0px),clamp(12px,3vw,18px));text-align:center;}
@@ -2704,8 +2717,7 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
 .sv-button-grid li a:active{box-shadow:inset 6px 6px 12px rgba(0,0,0,.35),inset -6px -5px 12px rgba(255,255,255,.8);transform:scale(.95);}
 .sv-button-grid li a i{width:100%;height:100%;display:block;border-radius:50%;line-height:calc(clamp(62px,18.5vw,75px) - 12px);font-size:clamp(22px,7vw,26px);color:#fff;text-shadow:0 2px 8px rgba(0,0,0,.78);text-align:center;}
 .sv-button-label{display:flex;flex-direction:column;align-items:center;justify-content:center;margin-top:8px;color:#fff;text-shadow:0 2px 10px rgba(0,0,0,.55),0 6px 22px rgba(0,0,0,.35);line-height:1.05;}
-.sv-button-label .it{font-size:clamp(12px,3.6vw,15px);font-weight:700;white-space:nowrap;}
-.sv-button-label .en{margin-top:4px;font-size:clamp(10px,3vw,11px);font-weight:600;opacity:.92;white-space:nowrap;}
+.sv-button-label span{font-size:clamp(12px,3.6vw,15px);font-weight:700;white-space:nowrap;}
 .sv-scroll-inline{position:relative;z-index:3;display:flex;justify-content:center;margin-top:calc(-1 * clamp(26px,3.2vh,56px) + 10px);padding:8px 0 10px;}
 @supports(height:100svh){.sv-scroll-inline{margin-top:calc(-1 * clamp(26px,3.2svh,56px) + 10px);}}
 .sv-scroll-hint{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;pointer-events:none;user-select:none;cursor:default;opacity:.98;text-align:center;}
@@ -3103,6 +3115,7 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
     if (validSlides.length === 0) return '';
     const isSingle = validSlides.length === 1;
     const hh = parseInt(sv.homeHeight) || 90;
+    const ovOp = sv.overlayOpacity != null ? parseInt(sv.overlayOpacity) : 100;
     // Build slides images
     let imgsH = '';
     validSlides.forEach((s, i) => {
@@ -3120,8 +3133,7 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
       btnsH += '<li><a href="' + esc(href(b.href)) + '" target="_blank" rel="noopener">'
         + '<i class="fa-solid ' + esc(b.icon) + '"></i></a>'
         + '<span class="sv-button-label">'
-        + '<span class="it" data-i18n-it="' + esc(b.labelIt) + '" data-i18n-en="' + esc(b.labelEn) + '">' + esc(LANG === 'en' ? b.labelEn : b.labelIt) + '</span>'
-        + '<span class="en">' + esc(LANG === 'en' ? b.labelIt : b.labelEn) + '</span>'
+        + '<span data-i18n-it="' + esc(b.labelIt) + '" data-i18n-en="' + esc(b.labelEn) + '">' + esc(LANG === 'en' ? b.labelEn : b.labelIt) + '</span>'
         + '</span></li>';
     });
     // Dots
@@ -3136,8 +3148,8 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
     const scrollEn = esc(sv.scrollLabelEn || 'Scroll down');
     return '<section class="sv-wrap" id="svWrap" style="min-height:' + hh + 'vh;" aria-label="Slideshow Verticale">'
       + '<div class="sv-bg-slides' + (isSingle ? ' sv-single' : '') + '" id="svBgSlides">' + imgsH + '</div>'
-      + '<div class="sv-overlay"></div>'
-      + '<div class="sv-bottom-fade"></div>'
+      + '<div class="sv-overlay"' + (ovOp < 100 ? ' style="opacity:' + (ovOp / 100) + '"' : '') + '></div>'
+      + '<div class="sv-bottom-fade"' + (ovOp < 100 ? ' style="opacity:' + (ovOp / 100) + '"' : '') + '></div>'
       + '<div class="sv-microcopy" aria-hidden="true"><div class="sv-topbar">'
       + '<div class="sv-pill left show" id="svMicroPill"><div class="sv-title" id="svMicroTitle"></div><div class="sv-sub" id="svMicroSub"></div></div>'
       + '<div class="sv-pill right show" id="svMetaPill"><div class="sv-title sv-date-sub" id="svDateText">\u2014</div>'
