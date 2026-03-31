@@ -2945,17 +2945,16 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
     };
   });
 
-  // Register custom widget renderer (iframe isolato)
+  ${state.customWidget && state.customWidget.enabled && state.customWidget.htmlCode ? `// Register custom widget renderer (iframe isolato)
   widgetRenderers['customWidget'] = () => {
     const cw = C.customWidget;
     if (!cw || !cw.enabled || !cw.htmlCodeB64) return '';
-    // Genera un placeholder; l'iframe viene creato via JS sotto per evitare problemi di encoding srcdoc
     return '<section class="w-custom-widget" id="customWidgetSection" '
       + 'aria-label="' + esc(cw.label || 'Widget Custom') + '" '
       + 'style="width:100%;overflow:hidden;">'
       + '<div id="customWidgetIframeMount" style="width:100%;height:' + (parseInt(cw.height) || 300) + 'px;"></div>'
       + '</section>';
-  };
+  };` : ''}
 
   // Sort widgets by order and render enabled ones
   const enabledWidgets = (C.widgets || [])
@@ -2971,13 +2970,12 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
 
   mount.innerHTML = html;
 
-  /* CUSTOM WIDGET – decode base64 HTML and inject via iframe + document.write */
-  (() => {
-    const cw = C.customWidget;
+  ${state.customWidget && state.customWidget.enabled && state.customWidget.htmlCode ? `/* CUSTOM WIDGET – decode base64 HTML and inject via iframe + document.write */
+  (function() {
+    var cw = C.customWidget;
     if (!cw || !cw.enabled || !cw.htmlCodeB64) return;
-    const mountEl = document.getElementById('customWidgetIframeMount');
+    var mountEl = document.getElementById('customWidgetIframeMount');
     if (!mountEl) return;
-    // Decodifica base64 → UTF-8
     var rawHtml;
     try {
       rawHtml = decodeURIComponent(atob(cw.htmlCodeB64).split('').map(function(c) {
@@ -2985,8 +2983,7 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
       }).join(''));
     } catch(e) { return; }
     if (!rawHtml) return;
-    // Inietta micro-script i18n nell'HTML del widget: ascolta postMessage per cambio lingua
-    var i18nBridge = '\\x3cscript>(function(){window.addEventListener("message",function(e){'
+    var i18nBridge = String.fromCharCode(60) + 'script>(function(){window.addEventListener("message",function(e){'
       + 'if(e.data&&e.data.type==="cd-lang-change"&&e.data.lang){'
       + 'var lang=e.data.lang;'
       + 'document.querySelectorAll("[data-i18n-it]").forEach(function(el){'
@@ -2995,25 +2992,23 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
       + '});'
       + '}'
       + '});'
-      + '})();\\x3c/script>';
-    // Inietta il bridge prima di </body> o alla fine
+      + '})();' + String.fromCharCode(60) + '/script>';
     var htmlToWrite = rawHtml;
-    if (rawHtml.indexOf('\\x3c/body>') !== -1) {
-      htmlToWrite = rawHtml.replace('\\x3c/body>', i18nBridge + '\\x3c/body>');
+    var bodyEnd = String.fromCharCode(60) + '/body>';
+    if (rawHtml.indexOf(bodyEnd) !== -1) {
+      htmlToWrite = rawHtml.replace(bodyEnd, i18nBridge + bodyEnd);
     } else {
       htmlToWrite = rawHtml + i18nBridge;
     }
     var h = parseInt(cw.height) || 300;
     var iframe = document.createElement('iframe');
     iframe.id = 'customWidgetIframe';
-    // touch-action:pan-y = swipe verticale scrolla la pagina, non l'iframe
     iframe.style.cssText = 'width:100%;height:' + h + 'px;border:none;display:block;touch-action:pan-y;';
     iframe.setAttribute('scrolling', 'no');
     iframe.setAttribute('title', cw.label || 'Widget Custom');
     iframe.setAttribute('allowfullscreen', '');
     iframe.setAttribute('allow', 'autoplay; fullscreen');
     mountEl.appendChild(iframe);
-    // document.write per massima compatibilità WebView (GoodBarber, etc.)
     try {
       var iDoc = iframe.contentDocument || (iframe.contentWindow && iframe.contentWindow.document);
       if (iDoc) {
@@ -3026,7 +3021,7 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
     } catch(e) {
       iframe.srcdoc = htmlToWrite;
     }
-  })();
+  })();` : ''}
 
   /* FOOTER – render only if configured */
   (() => {
@@ -4408,11 +4403,11 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
     if (typeof window.reRenderRaccolta === 'function') {
       window.reRenderRaccolta();
     }
-    // Invia lingua al widget custom (iframe) via postMessage
+    ${state.customWidget && state.customWidget.enabled && state.customWidget.htmlCode ? `// Invia lingua al widget custom (iframe) via postMessage
     var cwIframe = document.getElementById('customWidgetIframe');
     if (cwIframe && cwIframe.contentWindow) {
       try { cwIframe.contentWindow.postMessage({ type: 'cd-lang-change', lang: lang }, '*'); } catch(e) {}
-    }
+    }` : ''}
   };
 
   const langBtn = document.getElementById('langToggle');
