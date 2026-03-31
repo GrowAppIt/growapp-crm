@@ -343,12 +343,12 @@ window.GeneratoreHome = (function () {
         { id: 'tickerBar', label: 'Ticker News', enabled: true, order: 1 },
         { id: 'slideshow', label: 'Slideshow', enabled: true, order: 2 },
         { id: 'servizi', label: 'Servizi', enabled: true, order: 3 },
-        { id: 'bannerCIE', label: 'Banner CIE', enabled: true, order: 5 },
-        { id: 'raccoltaDifferenziata', label: 'Raccolta Differenziata', enabled: true, order: 6 },
-        { id: 'protezioneCivile', label: 'Protezione Civile', enabled: true, order: 7 },
-        { id: 'meteoCard', label: 'Meteo', enabled: true, order: 8 },
-        { id: 'customWidget', label: 'Widget Custom', enabled: false, order: 9 },
-        { id: 'tabBar', label: 'Tab Bar', enabled: false, order: 10 },
+        { id: 'bannerCIE', label: 'Banner CIE', enabled: true, order: 4 },
+        { id: 'raccoltaDifferenziata', label: 'Raccolta Differenziata', enabled: true, order: 5 },
+        { id: 'protezioneCivile', label: 'Protezione Civile', enabled: true, order: 6 },
+        { id: 'meteoCard', label: 'Meteo', enabled: true, order: 7 },
+        { id: 'customWidget', label: 'Widget Custom', enabled: false, order: 8 },
+        { id: 'tabBar', label: 'Tab Bar', enabled: false, order: 9 },
       ],
     };
   }
@@ -1950,6 +1950,8 @@ window.GeneratoreHome = (function () {
     refreshRssSliders(true); // skipCollect: lo state è già aggiornato dal load
     refreshSlides(true); // skipCollect: lo state è già aggiornato dal load
     refreshServizi(true); // skipCollect: lo state è già aggiornato dal load
+    // Normalizza ordini widget: elimina gap per garantire spostamenti corretti
+    state.widgets.slice().sort((a, b) => a.order - b.order).forEach((w, i) => { w.order = i; });
     refreshWidgetList(true); // skipCollect: lo state è già aggiornato dal load
     updatePalettePreview();
   }
@@ -2968,19 +2970,33 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
 
   mount.innerHTML = html;
 
-  /* CUSTOM WIDGET – inject iframe via JS to avoid srcdoc encoding issues */
+  /* CUSTOM WIDGET – inject iframe via document.write for max WebView compatibility */
   (() => {
     const cw = C.customWidget;
     if (!cw || !cw.enabled || !cw.htmlCode) return;
     const mountEl = document.getElementById('customWidgetIframeMount');
     if (!mountEl) return;
+    const h = parseInt(cw.height) || 300;
     const iframe = document.createElement('iframe');
-    iframe.style.cssText = 'width:100%;height:' + (parseInt(cw.height) || 300) + 'px;border:none;display:block;';
-    iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-popups');
-    iframe.setAttribute('loading', 'lazy');
+    iframe.style.cssText = 'width:100%;height:' + h + 'px;border:none;display:block;';
     iframe.setAttribute('title', cw.label || 'Widget Custom');
+    iframe.setAttribute('allowfullscreen', '');
+    iframe.setAttribute('allow', 'autoplay; fullscreen');
     mountEl.appendChild(iframe);
-    iframe.srcdoc = cw.htmlCode;
+    // document.write è il metodo più compatibile con WebView (GoodBarber, etc.)
+    try {
+      var iDoc = iframe.contentDocument || (iframe.contentWindow && iframe.contentWindow.document);
+      if (iDoc) {
+        iDoc.open();
+        iDoc.write(cw.htmlCode);
+        iDoc.close();
+      } else {
+        iframe.srcdoc = cw.htmlCode;
+      }
+    } catch(e) {
+      // Fallback se cross-origin block
+      iframe.srcdoc = cw.htmlCode;
+    }
   })();
 
   /* FOOTER – render only if configured */
