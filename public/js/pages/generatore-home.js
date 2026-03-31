@@ -3861,13 +3861,16 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
 
   /* DPC script */
   if (C.protezioneCivile.enabled) {
-    const s = document.createElement('script');
-    s.src = 'https://growapp-dpc-alerts-widget.vercel.app/render.js';
-    s.setAttribute('data-api-key', C.protezioneCivile.apiKey);
-    s.setAttribute('data-code', C.protezioneCivile.codiceRegione);
-    s.setAttribute('data-comune', C.protezioneCivile.nomeComune);
-    s.setAttribute('data-url-regione', C.protezioneCivile.urlRegione);
-    document.getElementById('dpcScriptMount').appendChild(s);
+    const dpcMount = document.getElementById('dpcScriptMount');
+    if (dpcMount) {
+      const s = document.createElement('script');
+      s.src = 'https://growapp-dpc-alerts-widget.vercel.app/render.js';
+      s.setAttribute('data-api-key', C.protezioneCivile.apiKey);
+      s.setAttribute('data-code', C.protezioneCivile.codiceRegione);
+      s.setAttribute('data-comune', C.protezioneCivile.nomeComune);
+      s.setAttribute('data-url-regione', C.protezioneCivile.urlRegione);
+      dpcMount.appendChild(s);
+    }
   }
 
   /* DATE WIDGET */
@@ -3914,13 +3917,13 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
     const formatted = weekday.charAt(0).toUpperCase() + weekday.slice(1);
     const month = now.toLocaleDateString(locale,
       { month: 'long', year: 'numeric' });
-    document.getElementById('currentDate').textContent
-      = formatted + ' ' + now.getDate() + ' ' + month;
+    const cdEl = document.getElementById('currentDate');
+    if (cdEl) cdEl.textContent = formatted + ' ' + now.getDate() + ' ' + month;
 
     const key = (now.getMonth() + 1) + '/' + now.getDate();
     const dayNum = dayOfYear(now);
-    document.getElementById('specialEvent').textContent
-      = specialEvents[key] || (dayNum + '° ' + t('date.dayOfYear'));
+    const seEl = document.getElementById('specialEvent');
+    if (seEl) seEl.textContent = specialEvents[key] || (dayNum + '° ' + t('date.dayOfYear'));
   };
 
   updateDateWidget();
@@ -3965,6 +3968,9 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
   };
 
   const fetchMiniMeteo = () => {
+    const wiEl = document.getElementById('weatherIcon');
+    const tpEl = document.getElementById('temperature');
+    if (!wiEl && !tpEl) return;
     fetch(miniMeteoUrl)
       .then((res) => {
         if (!res.ok) throw new Error();
@@ -3972,14 +3978,12 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
       })
       .then((data) => {
         const c = data.current;
-        document.getElementById('weatherIcon').textContent
-          = miniWeatherIcon(c.weather_code);
-        document.getElementById('temperature').textContent
-          = Math.round(c.temperature_2m) + '°C';
+        if (wiEl) wiEl.textContent = miniWeatherIcon(c.weather_code);
+        if (tpEl) tpEl.textContent = Math.round(c.temperature_2m) + '°C';
       })
       .catch(() => {
-        document.getElementById('weatherIcon').textContent = '—';
-        document.getElementById('temperature').textContent = '--°C';
+        if (wiEl) wiEl.textContent = '—';
+        if (tpEl) tpEl.textContent = '--°C';
       });
   };
 
