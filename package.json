@@ -1,7 +1,7 @@
 {
   "name": "crm-comune-digital",
-  "version": "3.9.0",
-  "description": "Sistema di gestione completo per amministrare clienti, contratti, app e fatture dei Comuni",
+  "version": "4.0.0",
+  "description": "CRM Comune.Digital – Gestione completa clienti, contratti, app, fatture e homepage generator",
   "main": "index.html",
   "scripts": {
     "dev": "python3 -m http.server 8080",
