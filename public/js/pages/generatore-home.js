@@ -1146,7 +1146,7 @@ window.GeneratoreHome = (function () {
     if (!c) return;
     if (!skipCollect) collectSvFromDOM();
     const sv = state.slideshowVerticale;
-    const iconOpts = SVC_ICONS.map(ic => '<option value="'+esc(ic.v)+'">'+esc(ic.v)+' — '+esc(ic.l)+'</option>').join('');
+    const iconOpts = FA_ICONS.map(ic => '<option value="'+esc(ic.v)+'">'+esc(ic.v)+' — '+esc(ic.l)+'</option>').join('');
     let html = '';
     sv.buttons.forEach((b, i) => {
       html += '<div style="background:#f8f9fa;border:1px solid #e0e0e0;border-radius:10px;padding:14px;margin-bottom:10px;position:relative;">' +
