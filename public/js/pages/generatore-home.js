@@ -3153,7 +3153,7 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
       + '<div class="sv-chevrons"><i class="fa-solid fa-chevron-down"></i></div>'
       + '</div></div></div>'
       + dotsH
-      + '<script data-sv-init type="text/plain">' + microData + '</script>'
+      + '<div class="sv-micro-data" style="display:none" data-micro="' + esc(microData) + '"></div>'
       + '</section>';
   };
 
@@ -3186,9 +3186,9 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
     var weatherText = document.getElementById('svWeatherText');
     var weatherIcon = document.getElementById('svWeatherIcon');
     // Read micro data
-    var microDataEl = svWrap.querySelector('script[data-sv-init]');
+    var microDataEl = svWrap.querySelector('.sv-micro-data');
     var microBySlide = [];
-    try { microBySlide = JSON.parse(microDataEl ? microDataEl.textContent : '[]'); } catch(e) {}
+    try { microBySlide = JSON.parse(microDataEl ? microDataEl.getAttribute('data-micro') : '[]'); } catch(e) {}
     var isSingle = slides.length <= 1;
     var current = 0;
     var autoTimer = null;
