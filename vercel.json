@@ -22,10 +22,6 @@
       "destination": "/img/$1"
     },
     {
-      "source": "/(.*\\.(ico|png|jpg|jpeg|gif|svg|webp))",
-      "destination": "/$1"
-    },
-    {
       "source": "/firebase-messaging-sw.js",
       "destination": "/firebase-messaging-sw.js"
     },
