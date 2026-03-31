@@ -63,6 +63,21 @@ window.GeneratoreHome = (function () {
     };
   }
 
+  /**
+   * Applica gli override manuali dell'utente a una palette auto-generata.
+   * overrides è un oggetto { '900': '#xxx', '500': '', ... } — le chiavi vuote restano auto.
+   */
+  function applyPaletteOverrides(palette, overrides) {
+    if (!overrides) return palette;
+    const result = { ...palette };
+    ['900','500','300','100'].forEach(k => {
+      if (overrides[k] && /^#[0-9a-fA-F]{3,6}$/.test(overrides[k])) {
+        result[k] = overrides[k];
+      }
+    });
+    return result;
+  }
+
   /* ============================================================
      PRESET COLOR PALETTES
      ============================================================ */
@@ -265,6 +280,9 @@ window.GeneratoreHome = (function () {
       nomeComune: '', baseUrl: '', pageTitle: '', stemmaUrl: '',
       lat: '', lon: '',
       colorePrimario: '#145284', coloreSecondario: '#3CA434',
+      // Override manuali palette (vuoto = auto-calcolato)
+      palettePrimarioOverride: { '900': '', '500': '', '300': '', '100': '' },
+      paletteSecondarioOverride: { '900': '', '500': '', '300': '', '100': '' },
       tickerRssId: '', tickerLinkUrl: 'social',
       slides: [{ titleIt: '', titleEn: '', href: '', bg: '' }],
       servizi: [{
@@ -712,6 +730,9 @@ window.GeneratoreHome = (function () {
         if (!preset) return;
         state.colorePrimario = preset.primary;
         state.coloreSecondario = preset.secondary;
+        // Reset override manuali quando si sceglie un preset
+        state.palettePrimarioOverride = { '900': '', '500': '', '300': '', '100': '' };
+        state.paletteSecondarioOverride = { '900': '', '500': '', '300': '', '100': '' };
         if (cp) cp.value = preset.primary;
         if (cs) cs.value = preset.secondary;
         if (cpHex) cpHex.value = preset.primary;
@@ -1662,17 +1683,75 @@ window.GeneratoreHome = (function () {
   function updatePalettePreview() {
     const el = document.getElementById('ghPalettePreview');
     if (!el) return;
-    const p = generatePalette(state.colorePrimario);
-    const g = generatePalette(state.coloreSecondario);
-    const box = (color, label) => '<div style="text-align:center;"><div style="width:40px;height:40px;border-radius:10px;background:'+color+';border:1px solid rgba(0,0,0,.1);margin:0 auto 4px;"></div><div style="font-size:10px;color:#4A4A4A;">'+label+'</div></div>';
-    el.innerHTML = '<div style="margin-bottom:8px;font-size:12px;font-weight:700;color:'+state.colorePrimario+';width:100%;">Primario</div>' +
-      '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">' +
-        box(p['900'],'900') + box(p['700'],'700') + box(p['500'],'500') + box(p['300'],'300') + box(p['100'],'100') +
+    const pAuto = generatePalette(state.colorePrimario);
+    const gAuto = generatePalette(state.coloreSecondario);
+    const p = applyPaletteOverrides(pAuto, state.palettePrimarioOverride);
+    const g = applyPaletteOverrides(gAuto, state.paletteSecondarioOverride);
+
+    // Box editabile: la sfumatura 700 è il colore base (già editabile sopra), le altre hanno un color picker
+    const editableBox = (color, autoColor, shade, group) => {
+      const isBase = shade === '700';
+      const isOverridden = !isBase && color !== autoColor;
+      const inputId = 'ghPal_' + group + '_' + shade;
+      if (isBase) {
+        // 700 = colore base, non editabile qui (si cambia sopra)
+        return '<div style="text-align:center;">'
+          + '<div style="width:44px;height:44px;border-radius:10px;background:'+color+';border:2px solid '+color+';margin:0 auto 4px;box-shadow:0 2px 6px rgba(0,0,0,.15);"></div>'
+          + '<div style="font-size:10px;font-weight:700;color:'+color+';">'+shade+'</div>'
+          + '<div style="font-size:9px;color:#9B9B9B;">base</div>'
+        + '</div>';
+      }
+      return '<div style="text-align:center;position:relative;">'
+        + '<label for="'+inputId+'" style="cursor:pointer;display:block;">'
+        + '<div style="width:44px;height:44px;border-radius:10px;background:'+color+';border:2px solid '+(isOverridden ? '#e88a1a' : 'rgba(0,0,0,.1)')+';margin:0 auto 4px;position:relative;transition:border-color .2s;">'
+        + (isOverridden ? '<div style="position:absolute;top:-4px;right:-4px;background:#e88a1a;color:#fff;width:14px;height:14px;border-radius:50%;font-size:8px;display:flex;align-items:center;justify-content:center;"><i class="fas fa-pen"></i></div>' : '')
+        + '</div></label>'
+        + '<input type="color" id="'+inputId+'" value="'+color+'" style="position:absolute;top:0;left:50%;transform:translateX(-50%);width:44px;height:44px;opacity:0;cursor:pointer;">'
+        + '<div style="font-size:10px;color:#4A4A4A;">'+shade+'</div>'
+        + (isOverridden
+          ? '<div style="cursor:pointer;font-size:9px;color:#e88a1a;text-decoration:underline;" onclick="document.getElementById(\''+inputId+'\').dataset.reset=\'1\';document.getElementById(\''+inputId+'\').dispatchEvent(new Event(\'change\'));">reset</div>'
+          : '<div style="font-size:9px;color:#9B9B9B;">auto</div>')
+      + '</div>';
+    };
+
+    const shades = ['900','700','500','300','100'];
+
+    el.innerHTML = '<div style="margin-bottom:8px;font-size:12px;font-weight:700;color:'+state.colorePrimario+';width:100%;"><i class="fas fa-palette"></i> Primario — clicca una sfumatura per modificarla</div>' +
+      '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;">' +
+        shades.map(s => editableBox(p[s], pAuto[s], s, 'pri')).join('') +
       '</div>' +
-      '<div style="margin-bottom:8px;font-size:12px;font-weight:700;color:'+state.coloreSecondario+';width:100%;">Secondario</div>' +
-      '<div style="display:flex;gap:8px;flex-wrap:wrap;">' +
-        box(g['900'],'900') + box(g['700'],'700') + box(g['500'],'500') + box(g['300'],'300') + box(g['100'],'100') +
+      '<div style="margin-bottom:8px;font-size:12px;font-weight:700;color:'+state.coloreSecondario+';width:100%;"><i class="fas fa-palette"></i> Secondario — clicca una sfumatura per modificarla</div>' +
+      '<div style="display:flex;gap:10px;flex-wrap:wrap;">' +
+        shades.map(s => editableBox(g[s], gAuto[s], s, 'sec')).join('') +
       '</div>';
+
+    // Attach color picker events
+    shades.filter(s => s !== '700').forEach(shade => {
+      const priInput = document.getElementById('ghPal_pri_' + shade);
+      const secInput = document.getElementById('ghPal_sec_' + shade);
+      if (priInput) priInput.addEventListener('change', e => {
+        if (e.target.dataset.reset === '1') {
+          delete e.target.dataset.reset;
+          if (!state.palettePrimarioOverride) state.palettePrimarioOverride = {};
+          state.palettePrimarioOverride[shade] = '';
+        } else {
+          if (!state.palettePrimarioOverride) state.palettePrimarioOverride = {};
+          state.palettePrimarioOverride[shade] = e.target.value;
+        }
+        updatePalettePreview();
+      });
+      if (secInput) secInput.addEventListener('change', e => {
+        if (e.target.dataset.reset === '1') {
+          delete e.target.dataset.reset;
+          if (!state.paletteSecondarioOverride) state.paletteSecondarioOverride = {};
+          state.paletteSecondarioOverride[shade] = '';
+        } else {
+          if (!state.paletteSecondarioOverride) state.paletteSecondarioOverride = {};
+          state.paletteSecondarioOverride[shade] = e.target.value;
+        }
+        updatePalettePreview();
+      });
+    });
   }
 
   function updatePresetHighlight() {
@@ -1710,6 +1789,17 @@ window.GeneratoreHome = (function () {
     state.lon = v('ghLon');
     state.colorePrimario = v('ghColorePrimario');
     state.coloreSecondario = v('ghColoreSecondario');
+    // Override palette: leggi dai color picker nella preview (se esistono)
+    ['900','500','300','100'].forEach(shade => {
+      const priEl = document.getElementById('ghPal_pri_' + shade);
+      const secEl = document.getElementById('ghPal_sec_' + shade);
+      if (priEl && state.palettePrimarioOverride && state.palettePrimarioOverride[shade]) {
+        state.palettePrimarioOverride[shade] = priEl.value;
+      }
+      if (secEl && state.paletteSecondarioOverride && state.paletteSecondarioOverride[shade]) {
+        state.paletteSecondarioOverride[shade] = secEl.value;
+      }
+    });
     state.tickerRssId = v('ghTickerRssId');
     state.tickerLinkUrl = v('ghTickerLinkUrl');
     collectSlidesFromDOM();
@@ -1767,6 +1857,14 @@ window.GeneratoreHome = (function () {
     set('ghLon', state.lon);
     set('ghColorePrimario', state.colorePrimario);
     set('ghColoreSecondario', state.coloreSecondario);
+    // Assicura che gli override palette esistano (compatibilità configurazioni vecchie)
+    if (!state.palettePrimarioOverride) state.palettePrimarioOverride = { '900': '', '500': '', '300': '', '100': '' };
+    if (!state.paletteSecondarioOverride) state.paletteSecondarioOverride = { '900': '', '500': '', '300': '', '100': '' };
+    // Aggiorna anche gli hex input
+    const cpHex = document.getElementById('ghColorePrimarioHex');
+    const csHex = document.getElementById('ghColoreSecondarioHex');
+    if (cpHex) cpHex.value = state.colorePrimario;
+    if (csHex) csHex.value = state.coloreSecondario;
     set('ghTickerRssId', state.tickerRssId);
     set('ghTickerLinkUrl', state.tickerLinkUrl);
     syncBannerCustomWidgets();
@@ -1821,8 +1919,8 @@ window.GeneratoreHome = (function () {
   function generateHTML() {
     collectState();
     const S = state;
-    const bp = generatePalette(S.colorePrimario);
-    const gp = generatePalette(S.coloreSecondario);
+    const bp = applyPaletteOverrides(generatePalette(S.colorePrimario), S.palettePrimarioOverride);
+    const gp = applyPaletteOverrides(generatePalette(S.coloreSecondario), S.paletteSecondarioOverride);
     const dbp = generateDarkPalette(bp, S.colorePrimario);
     const dgp = generateDarkPalette(gp, S.coloreSecondario);
     const BASE = S.baseUrl.replace(/\/+$/, '');
