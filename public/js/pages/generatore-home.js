@@ -2948,7 +2948,7 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
   // Register custom widget renderer (iframe isolato)
   widgetRenderers['customWidget'] = () => {
     const cw = C.customWidget;
-    if (!cw || !cw.enabled || !cw.htmlCode) return '';
+    if (!cw || !cw.enabled || !cw.htmlCodeB64) return '';
     // Genera un placeholder; l'iframe viene creato via JS sotto per evitare problemi di encoding srcdoc
     return '<section class="w-custom-widget" id="customWidgetSection" '
       + 'aria-label="' + esc(cw.label || 'Widget Custom') + '" '
