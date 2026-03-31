@@ -1984,26 +1984,22 @@ window.GeneratoreHome = (function () {
   /* ============================================================
      BUILD CONFIG OBJECT (as JS string)
      ============================================================ */
+  // Codifica UTF-8 → base64 (sicura per qualsiasi contesto: niente <, >, `, ${, </script>)
+  function utf8ToBase64(str) {
+    return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, function(m, p) {
+      return String.fromCharCode(parseInt(p, 16));
+    }));
+  }
+
   function buildConfig(S, BASE) {
     const q = s => JSON.stringify(s);
-    // Rende una stringa sicura dentro template literal (escapa backtick e ${)
-    const BT = String.fromCharCode(96); // backtick
-    const tplSafe = function(s) { return s.split(BT).join('\\' + BT).split('${').join('\\${'); };
     const serviziStr = JSON.stringify(S.servizi.map(sec => ({
       sectionIt: sec.sectionIt, sectionEn: sec.sectionEn,
       items: sec.items.map(it => ({ icon: it.icon, labelIt: it.labelIt, labelEn: it.labelEn, href: it.href }))
     })), null, 4);
     const tipsStr = JSON.stringify(S.raccoltaEcoTips, null, 6);
-    // Serializza customWidget come JSON e rendilo safe per template literal e <script> tag
-    const cwJson = JSON.stringify({
-      enabled: !!S.customWidget.enabled,
-      height: parseInt(S.customWidget.height) || 300,
-      label: S.customWidget.label || 'Widget Custom',
-      htmlCode: S.customWidget.htmlCode || ''
-    });
-    // 1) Spezza </script> per evitare che il parser HTML chiuda il tag prematuramente
-    // 2) Escapa backtick e ${ per sicurezza nella template literal
-    const customWidgetStr = tplSafe(cwJson.replace(/<\/script>/gi, '<\\/script>'));
+    // Codifica il codice HTML del widget custom in base64 — 100% sicuro, nessun carattere speciale
+    const cwHtmlB64 = (S.customWidget && S.customWidget.htmlCode) ? utf8ToBase64(S.customWidget.htmlCode) : '';
 
     return `  window.COMUNE_CONFIG = {
     nomeComune:     ${q(S.nomeComune)},
@@ -2071,7 +2067,12 @@ window.GeneratoreHome = (function () {
     tabBar: {
       items: ${JSON.stringify(S.tabBarItems || [], null, 4)},
     },
-    customWidget: ${customWidgetStr},
+    customWidget: {
+      enabled: ${!!S.customWidget.enabled},
+      height:  ${parseInt(S.customWidget.height) || 300},
+      label:   ${q(S.customWidget.label || 'Widget Custom')},
+      htmlCodeB64: "${cwHtmlB64}",
+    },
     widgets: ${JSON.stringify(S.widgets)},
     i18n: {
       defaultLang: "it",
@@ -2970,12 +2971,20 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
 
   mount.innerHTML = html;
 
-  /* CUSTOM WIDGET – inject iframe via document.write for max WebView compatibility */
+  /* CUSTOM WIDGET – decode base64 HTML and inject via iframe + document.write */
   (() => {
     const cw = C.customWidget;
-    if (!cw || !cw.enabled || !cw.htmlCode) return;
+    if (!cw || !cw.enabled || !cw.htmlCodeB64) return;
     const mountEl = document.getElementById('customWidgetIframeMount');
     if (!mountEl) return;
+    // Decodifica base64 → UTF-8
+    var rawHtml;
+    try {
+      rawHtml = decodeURIComponent(atob(cw.htmlCodeB64).split('').map(function(c) {
+        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+      }).join(''));
+    } catch(e) { return; }
+    if (!rawHtml) return;
     const h = parseInt(cw.height) || 300;
     const iframe = document.createElement('iframe');
     iframe.style.cssText = 'width:100%;height:' + h + 'px;border:none;display:block;';
@@ -2983,19 +2992,18 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
     iframe.setAttribute('allowfullscreen', '');
     iframe.setAttribute('allow', 'autoplay; fullscreen');
     mountEl.appendChild(iframe);
-    // document.write è il metodo più compatibile con WebView (GoodBarber, etc.)
+    // document.write per massima compatibilità WebView (GoodBarber, etc.)
     try {
       var iDoc = iframe.contentDocument || (iframe.contentWindow && iframe.contentWindow.document);
       if (iDoc) {
         iDoc.open();
-        iDoc.write(cw.htmlCode);
+        iDoc.write(rawHtml);
         iDoc.close();
       } else {
-        iframe.srcdoc = cw.htmlCode;
+        iframe.srcdoc = rawHtml;
       }
     } catch(e) {
-      // Fallback se cross-origin block
-      iframe.srcdoc = cw.htmlCode;
+      iframe.srcdoc = rawHtml;
     }
   })();
 
