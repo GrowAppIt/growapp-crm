@@ -3,7 +3,7 @@
  * Produce file HTML completi e funzionanti per le app dei comuni.
  * v3.8.6 – Rimosso widget custom, attenuate ombre barra data e ticker
  * v4.0.1 – Aggiunto widget Slideshow Verticale (full-screen con data/meteo/pulsanti) + bugfix i18n, form, icons
- * v4.2.0 – Fix crash quando dateHeader disabilitato (null-check su currentDate, specialEvent, weatherIcon, temperature, dpcScriptMount)
+ * v4.2.0 – Fix crash quando dateHeader disabilitato (null-check su currentDate, specialEvent, weatherIcon, temperature, dpcScriptMount) – build 2
  * Si integra nel CRM come sezione dell'Officina Digitale.
  */
 window.GeneratoreHome = (function () {
