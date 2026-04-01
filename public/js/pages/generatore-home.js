@@ -346,6 +346,7 @@ window.GeneratoreHome = (function () {
         overlayOpacity: 100,
       },
       // Tab Bar
+      tabBarTheme: 'light',
       tabBarItems: [
         { icon: 'fa-building-columns', labelIt: 'Municipio', labelEn: 'Town Hall', href: 'municipio-cittadini', isCenter: false },
         { icon: 'fa-triangle-exclamation', labelIt: 'Emergenza', labelEn: 'Emergency', href: 'emergenza', isCenter: false },
@@ -679,6 +680,11 @@ window.GeneratoreHome = (function () {
     // === SEZ. 17: TAB BAR ===
     formHtml += makeSection('fa-ellipsis', 'Tab Bar (Navigazione)',
       '<p style="font-size:12px;color:#9B9B9B;margin:0 0 12px;"><i class="fas fa-info-circle"></i> Barra di navigazione flottante in basso con 5 pulsanti. Attiva/disattiva dalla <strong>Gestione Widget</strong>. Il pulsante centrale sarà più grande e in evidenza.</p>' +
+      '<label style="font-weight:600;font-size:13px;color:#145284;margin-bottom:4px;display:block;">Tema Tab Bar</label>' +
+      '<select id="ghTabBarTheme" style="width:100%;padding:10px 14px;border:1px solid #d0d0d0;border-radius:8px;font-family:\'Titillium Web\',sans-serif;font-size:14px;margin-bottom:16px;">' +
+      '<option value="light">Chiaro (sfondo bianco, icone grigie, centrale blu)</option>' +
+      '<option value="dark">Scuro (sfondo blu, icone chiare, centrale bianco)</option>' +
+      '</select>' +
       '<div id="ghTabBarItemsContainer"></div>',
       false
     );
@@ -2009,6 +2015,7 @@ window.GeneratoreHome = (function () {
     state.spotlightDurata = parseInt(v('ghSpotlightDurata')) || 2500;
     state.spotlightForzaSempre = v('ghSpotlightForzaSempre');
     // Tab Bar
+    state.tabBarTheme = v('ghTabBarTheme') || 'light';
     collectTabBarFromDOM();
     // RSS Sliders
     collectRssSlidersFromDOM();
@@ -2082,6 +2089,7 @@ window.GeneratoreHome = (function () {
     if (svOvLabel) svOvLabel.textContent = (state.slideshowVerticale.overlayOpacity != null ? state.slideshowVerticale.overlayOpacity : 100) + '%';
     // Tab Bar
     ensureWidgetExists('tabBar', 'Tab Bar', false);
+    set('ghTabBarTheme', state.tabBarTheme || 'light');
     refreshTabBarItems(true);
     // RSS Sliders
     syncRssSliderWidgets();
@@ -2197,6 +2205,7 @@ window.GeneratoreHome = (function () {
     },
     tabBar: {
       items: ${JSON.stringify(S.tabBarItems || [], null, 4)},
+      theme: ${q(S.tabBarTheme || 'light')},
     },
     slideshowVerticale: ${JSON.stringify(S.slideshowVerticale || {})},
     widgets: ${JSON.stringify(S.widgets)},
@@ -2416,7 +2425,7 @@ body{font-family:'Titillium Web',system-ui,-apple-system,Segoe UI,Roboto,Arial,s
 .ios-device .w-main-header{padding-top:72px;}
 .main-header-inner{display:flex;align-items:center;gap:0;}
 .main-header-stemma{height:clamp(52px,14vw,72px);width:auto;flex-shrink:0;filter:drop-shadow(0 2px 6px rgba(0,0,0,.35));align-self:center;margin-bottom:-8px;}
-.main-header-name{flex:1;min-width:0;font-weight:700;font-size:clamp(18px,6vw,36px);letter-spacing:.5px;text-shadow:0 1px 0 rgba(0,0,0,.35),0 6px 12px rgba(0,0,0,.25);line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:left!important;}
+.main-header-name{flex:1;min-width:0;font-family:'Titillium Web',sans-serif;font-weight:700;font-size:clamp(26px,7.5vw,42px);letter-spacing:.5px;text-shadow:0 1px 0 rgba(0,0,0,.35),0 6px 12px rgba(0,0,0,.25);line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:left!important;}
 .lang-toggle{flex-shrink:0;align-self:center;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.30);border-radius:8px;padding:4px 14px;font-size:22px;line-height:1;cursor:pointer;color:#fff;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);transition:background .15s ease,transform .15s ease;-webkit-tap-highlight-color:transparent;min-width:44px;min-height:32px;display:flex;align-items:center;justify-content:center;}
 .lang-toggle:active{transform:scale(.92);}
 .w-footer{background:var(--blu-dark);padding:clamp(12px,3vw,18px);padding-bottom:max(env(safe-area-inset-bottom,0px),clamp(12px,3vw,18px));text-align:center;}
@@ -2688,6 +2697,15 @@ rssapp-ticker a{margin-right:50px!important;display:inline-block!important;color
 [data-theme="dark"] .cd-tab-btn.cd-tab-center .cd-tab-icon{border-color:rgba(28,28,30,.88);color:#fff;}
 [data-theme="dark"] .cd-tab-btn.cd-tab-active:not(.cd-tab-center) .cd-tab-icon{background:rgba(var(--blu-rgb),.15);color:var(--cd-blue-300);}
 [data-theme="dark"] .cd-tab-btn.cd-tab-active:not(.cd-tab-center) .cd-tab-label{color:var(--cd-blue-300);}
+/* Tab bar tema scuro (negativo) */
+.cd-tab-bar.cd-tab-dark .cd-tab-bar-inner{background:var(--blu);border-top:1px solid rgba(255,255,255,.15);box-shadow:0 -4px 16px rgba(0,0,0,.25);}
+.cd-tab-dark .cd-tab-btn{color:rgba(255,255,255,.6);}
+.cd-tab-dark .cd-tab-icon{color:rgba(255,255,255,.6);}
+.cd-tab-dark .cd-tab-label{color:rgba(255,255,255,.6);}
+.cd-tab-dark .cd-tab-btn.cd-tab-center .cd-tab-icon{background:#fff;color:var(--blu);border-color:rgba(255,255,255,.3);box-shadow:0 4px 12px rgba(0,0,0,.25),0 2px 4px rgba(0,0,0,.15);}
+.cd-tab-dark .cd-tab-btn.cd-tab-center .cd-tab-label{color:#fff;}
+.cd-tab-dark .cd-tab-btn.cd-tab-active:not(.cd-tab-center) .cd-tab-icon{background:rgba(255,255,255,.15);color:#fff;}
+.cd-tab-dark .cd-tab-btn.cd-tab-active:not(.cd-tab-center) .cd-tab-label{color:#fff;font-weight:700;}
 /* Body padding + A11y FAB offset */
 body.has-tab-bar{padding-bottom:90px;}
 body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
@@ -2696,7 +2714,7 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
   body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px + env(safe-area-inset-bottom));}
 }
 /* ===================== SLIDESHOW VERTICALE ===================== */
-.sv-wrap{position:relative;width:100%;overflow:hidden;background:#0f2b3f;touch-action:pan-y;}
+.sv-wrap{position:relative;width:100%;overflow:hidden;background:#0f2b3f;touch-action:pan-y;max-height:100vh;max-height:100svh;}
 .sv-wrap .sv-bg-slides{position:absolute;inset:0;z-index:0;will-change:transform;transform:translate3d(0,0,0);}
 .sv-wrap .sv-bg-slides img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0;transform:scale(1.10);transition:opacity 1.2s ease,transform 7s ease;will-change:opacity,transform;}
 .sv-wrap .sv-bg-slides img.active{opacity:1;transform:scale(1.03);}
@@ -2718,7 +2736,7 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
 .sv-weather-badge i{font-size:12.5px;opacity:.95;}
 .sv-weather-badge .sv-w-dot{opacity:.85;margin:0 2px;}
 .sv-weather-badge .sv-w-temp{font-weight:700;letter-spacing:.1px;}
-.sv-content{position:relative;z-index:2;min-height:inherit;display:flex;flex-direction:column;justify-content:flex-start;}
+.sv-content{position:relative;z-index:2;height:inherit;display:flex;flex-direction:column;justify-content:flex-start;overflow:hidden;}
 .sv-top-safe{height:clamp(110px,16vh,210px);}
 @supports(height:100svh){.sv-top-safe{height:clamp(110px,16svh,210px);}}
 .sv-button-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));justify-items:center;align-items:start;gap:clamp(18px,4.5vw,22px) clamp(14px,6.5vw,38px);margin:0!important;padding:18px 16px 10px!important;list-style:none!important;width:min(520px,100%);position:relative;left:50%;transform:translate3d(-50%,calc(-1 * clamp(26px,3.2vh,56px)),0);will-change:transform;z-index:2;}
@@ -3158,7 +3176,7 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
     // Scroll labels
     const scrollIt = esc(sv.scrollLabelIt || 'Scorri');
     const scrollEn = esc(sv.scrollLabelEn || 'Scroll down');
-    return '<section class="sv-wrap" id="svWrap" style="min-height:' + hh + 'vh;" aria-label="Slideshow Verticale">'
+    return '<section class="sv-wrap" id="svWrap" style="height:' + hh + 'vh;" aria-label="Slideshow Verticale">'
       + '<div class="sv-bg-slides' + (isSingle ? ' sv-single' : '') + '" id="svBgSlides">' + imgsH + '</div>'
       + '<div class="sv-overlay"' + (ovOp < 100 ? ' style="opacity:' + (ovOp / 100) + '"' : '') + '></div>'
       + '<div class="sv-bottom-fade"' + (ovOp < 100 ? ' style="opacity:' + (ovOp / 100) + '"' : '') + '></div>'
@@ -3168,7 +3186,7 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
       + '<div class="sv-weather-badge" id="svWeatherBadge" aria-label="Meteo"><i class="fa-solid fa-cloud" id="svWeatherIcon"></i>'
       + '<span id="svWeatherText"><span class="sv-w-temp">\u2014</span></span></div>'
       + '</div></div></div>'
-      + '<div class="sv-content" style="min-height:' + hh + 'vh;padding-bottom:clamp(92px,12vh,132px);">'
+      + '<div class="sv-content" style="height:' + hh + 'vh;padding-bottom:clamp(92px,12vh,132px);">'
       + '<div class="sv-top-safe"></div>'
       + '<ul class="sv-button-grid" id="svButtonGrid">' + btnsH + '</ul>'
       + '<div class="sv-scroll-inline"><div class="sv-scroll-hint">'
@@ -3221,8 +3239,7 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
     function getMicroText(m) {
       var lang = (typeof LANG !== 'undefined') ? LANG : 'it';
       var title = lang === 'en' ? (m.titleEn || m.titleIt) : (m.titleIt || m.titleEn);
-      var sub = lang === 'en' ? (m.titleIt || '') : (m.titleEn || '');
-      return { title: title || '', sub: sub || '' };
+      return { title: title || '', sub: '' };
     }
     // Broken image handling
     slides.forEach(function(img) {
@@ -3388,7 +3405,8 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
       ordered.splice(midPos, 0, cItem);
     }
 
-    let h = '<nav class="cd-tab-bar active" id="cdTabBar" '
+    const tbTheme = tb.theme === 'dark' ? ' cd-tab-dark' : '';
+    let h = '<nav class="cd-tab-bar active' + tbTheme + '" id="cdTabBar" '
       + 'role="navigation" aria-label="Navigazione principale">'
       + '<div class="cd-tab-bar-inner">';
     ordered.forEach((it, i) => {
