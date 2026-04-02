@@ -4,6 +4,7 @@
  * v3.8.6 – Rimosso widget custom, attenuate ombre barra data e ticker
  * v4.0.1 – Aggiunto widget Slideshow Verticale (full-screen con data/meteo/pulsanti) + bugfix i18n, form, icons
  * v4.2.0 – Fix crash quando dateHeader disabilitato (null-check su currentDate, specialEvent, weatherIcon, temperature, dpcScriptMount) – build 2
+ * v4.3.0 – Tema Tab Bar chiaro/scuro, fix SV height, fix SV microcopy, fix header font, appendLang su tutti gli href interni
  * Si integra nel CRM come sezione dell'Officina Digitale.
  */
 window.GeneratoreHome = (function () {
@@ -2777,9 +2778,17 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
   const C = window.COMUNE_CONFIG;
   const BASE = C.baseUrl.replace(new RegExp('[/]+$'), '');
 
+  /* Append ?lang= to internal URLs so child pages inherit current language */
+  const appendLang = (url) => {
+    if (!url || url === '#') return url;
+    if (url.startsWith('http') && url.indexOf(BASE) !== 0) return url; /* external link → don't touch */
+    const sep = url.indexOf('?') === -1 ? '?' : '&';
+    try { return url + sep + 'lang=' + LANG; } catch(e) { return url + sep + 'lang=it'; }
+  };
+
   const href = (path) => {
     const url = path.startsWith('http') ? path : BASE + '/' + path;
-    return encodeURI(decodeURI(url));
+    return appendLang(encodeURI(decodeURI(url)));
   };
 
   document.title = C.pageTitle || 'Home – ' + C.nomeComune + ' – Comune.Digital';
@@ -2846,7 +2855,7 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
       let sh = '';
       slides.forEach((sl, i) => {
         const hrefF = sl.href
-          ? (sl.href.startsWith('http') ? sl.href : BASE + '/' + sl.href)
+          ? appendLang(sl.href.startsWith('http') ? sl.href : BASE + '/' + sl.href)
           : '#';
         const bgF = sl.bg
           ? (sl.bg.startsWith('http') ? sl.bg : BASE + '/' + sl.bg)
@@ -3412,7 +3421,7 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
     ordered.forEach((it, i) => {
       const isC = !!it.isCenter;
       const url = it.href
-        ? (it.href.startsWith('http') ? it.href : BASE + '/' + it.href)
+        ? appendLang(it.href.startsWith('http') ? it.href : BASE + '/' + it.href)
         : '#';
       h += '<a href="' + esc(url) + '" class="cd-tab-btn'
         + (isC ? ' cd-tab-center' : '') + '">';
@@ -4733,6 +4742,13 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
       window.reRenderRaccolta();
     }
     if (typeof window.svUpdateLang === 'function') window.svUpdateLang();
+
+    /* Update ?lang= parameter in all internal links */
+    document.querySelectorAll('a[href]').forEach((a) => {
+      const h = a.getAttribute('href');
+      if (!h || h === '#') return;
+      a.setAttribute('href', h.replace(/([?&])lang=(it|en)/, '$1lang=' + lang));
+    });
   };
 
   const langBtn = document.getElementById('langToggle');
