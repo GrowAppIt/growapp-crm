@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Menù – Comune.Digital</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Titillium+Web:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<style>
+/* ============================================================
+   CSS RESET & VARIABLES
+   ============================================================ */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --blu-900:#0D3A5C;--blu-700:#145284;--blu-500:#2E6DA8;--blu-300:#7BA7CE;--blu-100:#D1E2F2;
+  --verde-900:#2A752F;--verde-700:#3CA434;--verde-500:#59C64D;--verde-300:#A4E89A;--verde-100:#E2F8DE;
+  --grigio-900:#1E1E1E;--grigio-700:#4A4A4A;--grigio-500:#9B9B9B;--grigio-300:#D9D9D9;--grigio-100:#F5F5F5;
+  --giallo:#FFCC00;--rosso:#D32F2F;--azzurro:#0288D1;
+  --blu:var(--blu-700);
+}
+html{-webkit-tap-highlight-color:transparent;}
+body{
+  font-family:'Titillium Web',sans-serif;
+  background:var(--grigio-100);
+  color:var(--grigio-900);
+  min-height:100vh;min-height:100svh;
+  overflow-x:hidden;
+}
+/* ============================================================
+   HEADER
+   ============================================================ */
+.menu-header{
+  position:sticky;top:0;z-index:100;
+  background:var(--blu);
+  padding:0 20px;
+  height:60px;
+  display:flex;align-items:center;justify-content:space-between;
+  box-shadow:0 2px 12px rgba(0,0,0,.18);
+}
+.menu-header-title{
+  font-family:'Titillium Web',sans-serif;
+  font-weight:700;font-size:26px;
+  color:#fff;letter-spacing:.5px;
+  display:flex;align-items:center;gap:10px;
+}
+.menu-header-title i{font-size:20px;opacity:.85;}
+/* Language toggle — stile identico alla homepage */
+.lang-toggle{
+  flex-shrink:0;align-self:center;
+  background:rgba(255,255,255,.18);
+  border:1px solid rgba(255,255,255,.30);
+  border-radius:8px;
+  padding:4px 14px;
+  font-size:22px;line-height:1;
+  cursor:pointer;color:#fff;
+  backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+  transition:background .15s ease,transform .15s ease;
+  -webkit-tap-highlight-color:transparent;
+  min-width:44px;min-height:32px;
+  display:flex;align-items:center;justify-content:center;
+}
+.lang-toggle:active{transform:scale(.92);}
+/* ============================================================
+   DECORATIVE TOP WAVE
+   ============================================================ */
+.menu-wave{
+  position:relative;width:100%;overflow:hidden;
+  height:32px;margin-top:-1px;
+  background:var(--blu);
+}
+.menu-wave svg{
+  display:block;width:100%;height:100%;
+}
+/* ============================================================
+   MAIN CONTENT
+   ============================================================ */
+.menu-body{
+  padding:20px 16px 40px;
+  max-width:480px;margin:0 auto;
+}
+/* Greeting */
+.menu-greeting{
+  text-align:center;
+  margin-bottom:24px;
+  animation:fadeInDown .6s ease-out both;
+}
+.menu-greeting h2{
+  font-family:'Titillium Web',sans-serif;
+  font-weight:700;font-size:20px;
+  color:var(--blu);
+  margin-bottom:4px;
+}
+.menu-greeting p{
+  font-weight:400;font-size:14px;
+  color:var(--grigio-500);
+}
+/* ============================================================
+   MENU ITEMS
+   ============================================================ */
+.menu-list{
+  display:flex;flex-direction:column;gap:14px;
+}
+.menu-item{
+  display:flex;align-items:center;gap:16px;
+  background:#fff;
+  border-radius:16px;
+  padding:18px 20px;
+  text-decoration:none;color:inherit;
+  box-shadow:0 2px 8px rgba(0,0,0,.06);
+  border:1px solid rgba(0,0,0,.04);
+  transition:transform .28s cubic-bezier(.34,1.56,.64,1),box-shadow .28s,border-color .28s;
+  position:relative;overflow:hidden;
+  /* stagger animation */
+  opacity:0;animation:slideUp .5s ease-out forwards;
+}
+.menu-item:nth-child(1){animation-delay:.1s;}
+.menu-item:nth-child(2){animation-delay:.2s;}
+.menu-item:nth-child(3){animation-delay:.3s;}
+.menu-item:nth-child(4){animation-delay:.4s;}
+.menu-item:nth-child(5){animation-delay:.5s;}
+.menu-item:active{transform:scale(.97);box-shadow:0 1px 4px rgba(0,0,0,.08);}
+@media(hover:hover){
+  .menu-item:hover{transform:translateY(-3px);box-shadow:0 6px 20px rgba(20,82,132,.14);border-color:var(--blu-300);}
+  .menu-item:hover .menu-icon{transform:scale(1.08);}
+  .menu-item:hover .menu-arrow{transform:translateX(4px);color:var(--blu);}
+}
+/* Ripple effect */
+.menu-item::after{
+  content:'';position:absolute;inset:0;
+  background:radial-gradient(circle at var(--rx,50%) var(--ry,50%),rgba(20,82,132,.10) 0%,transparent 60%);
+  opacity:0;transition:opacity .4s;pointer-events:none;
+}
+.menu-item:active::after{opacity:1;}
+/* Shine sweep on hover */
+.menu-item::before{
+  content:'';position:absolute;top:0;left:-75%;
+  width:50%;height:100%;
+  background:linear-gradient(105deg,transparent 40%,rgba(255,255,255,.5) 50%,transparent 60%);
+  transition:none;pointer-events:none;
+}
+@media(hover:hover){
+  .menu-item:hover::before{
+    animation:shine .6s ease-out;
+  }
+}
+@keyframes shine{
+  to{left:125%;}
+}
+/* Icon circle — TUTTI BLU PRIMARIO */
+.menu-icon{
+  flex-shrink:0;width:52px;height:52px;
+  border-radius:14px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:22px;color:#fff;
+  background:linear-gradient(135deg,var(--blu-700),var(--blu-500));
+  transition:transform .3s;
+  box-shadow:0 3px 10px rgba(20,82,132,.25);
+}
+/* Text block */
+.menu-text{flex:1;min-width:0;}
+.menu-text-title{
+  font-family:'Titillium Web',sans-serif;
+  font-weight:700;font-size:16px;
+  color:var(--grigio-900);
+  line-height:1.2;
+}
+.menu-text-sub{
+  font-weight:400;font-size:13px;
+  color:var(--grigio-500);
+  margin-top:2px;line-height:1.3;
+}
+/* Arrow */
+.menu-arrow{
+  flex-shrink:0;
+  font-size:14px;color:var(--grigio-300);
+  transition:transform .25s,color .25s;
+}
+/* ============================================================
+   FOOTER
+   ============================================================ */
+.menu-footer{
+  text-align:center;
+  padding:32px 16px 28px;
+  animation:fadeInDown .7s ease-out .55s both;
+}
+.menu-footer-line{
+  width:40px;height:3px;border-radius:2px;
+  background:var(--blu-300);
+  margin:0 auto 12px;
+}
+.menu-footer .footer-comune{
+  font-family:'Titillium Web',sans-serif;
+  font-size:14px;font-weight:700;
+  color:var(--blu);
+  letter-spacing:.3px;
+}
+/* ============================================================
+   SCROLL INDICATOR — pallini decorativi
+   ============================================================ */
+.scroll-dots{
+  display:flex;justify-content:center;gap:6px;
+  margin-top:8px;
+  animation:fadeInDown .7s ease-out .65s both;
+}
+.scroll-dots span{
+  width:6px;height:6px;border-radius:50%;
+  background:var(--blu-300);opacity:.5;
+}
+.scroll-dots span.active{opacity:1;background:var(--blu);}
+/* ============================================================
+   ANIMATIONS
+   ============================================================ */
+@keyframes slideUp{
+  from{opacity:0;transform:translateY(28px);}
+  to{opacity:1;transform:translateY(0);}
+}
+@keyframes fadeInDown{
+  from{opacity:0;transform:translateY(-12px);}
+  to{opacity:1;transform:translateY(0);}
+}
+/* Pulse sottile sull'icona al primo caricamento */
+@keyframes iconPulse{
+  0%{box-shadow:0 3px 10px rgba(20,82,132,.25);}
+  50%{box-shadow:0 3px 18px rgba(20,82,132,.45);}
+  100%{box-shadow:0 3px 10px rgba(20,82,132,.25);}
+}
+.menu-item:nth-child(1) .menu-icon{animation:iconPulse 2s ease-in-out 1s 1;}
+.menu-item:nth-child(3) .menu-icon{animation:iconPulse 2s ease-in-out 1.4s 1;}
+</style>
+</head>
+<body>
+<!-- ============================================================
+     HEADER
+     ============================================================ -->
+<header class="menu-header">
+  <div class="menu-header-title">
+    <i class="fas fa-bars"></i>
+    <span data-i18n-it="Menù" data-i18n-en="Menu">Menù</span>
+  </div>
+  <button class="lang-toggle" id="langToggle" aria-label="Cambia lingua"></button>
+</header>
+<!-- Onda decorativa sotto l'header -->
+<div class="menu-wave">
+  <svg viewBox="0 0 1440 48" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M0,0 L1440,0 L1440,16 Q1080,48 720,16 Q360,-16 0,16 Z" fill="#145284"/>
+    <path d="M0,16 Q360,-16 720,16 Q1080,48 1440,16 L1440,48 L0,48 Z" fill="#F5F5F5"/>
+  </svg>
+</div>
+<!-- ============================================================
+     BODY
+     ============================================================ -->
+<main class="menu-body">
+  <div class="menu-greeting">
+    <h2 data-i18n-it="Esplora i servizi" data-i18n-en="Explore services">Esplora i servizi</h2>
+    <p data-i18n-it="Scegli una sezione per continuare" data-i18n-en="Choose a section to continue">Scegli una sezione per continuare</p>
+  </div>
+  <nav class="menu-list" id="menuList">
+    <!-- 1. Municipio & Cittadini -->
+    <a href="municipio-cittadini" class="menu-item">
+      <div class="menu-icon"><i class="fas fa-building-columns"></i></div>
+      <div class="menu-text">
+        <div class="menu-text-title" data-i18n-it="Municipio &amp; Cittadini" data-i18n-en="Town Hall &amp; Citizens">Municipio &amp; Cittadini</div>
+        <div class="menu-text-sub" data-i18n-it="Servizi comunali, uffici e documenti" data-i18n-en="Municipal services, offices and documents">Servizi comunali, uffici e documenti</div>
+      </div>
+      <span class="menu-arrow"><i class="fas fa-chevron-right"></i></span>
+    </a>
+    <!-- 2. Utilità -->
+    <a href="utilita-servizi" class="menu-item">
+      <div class="menu-icon"><i class="fas fa-toolbox"></i></div>
+      <div class="menu-text">
+        <div class="menu-text-title" data-i18n-it="Utilità" data-i18n-en="Utilities">Utilità</div>
+        <div class="menu-text-sub" data-i18n-it="Strumenti utili per la vita quotidiana" data-i18n-en="Useful tools for everyday life">Strumenti utili per la vita quotidiana</div>
+      </div>
+      <span class="menu-arrow"><i class="fas fa-chevron-right"></i></span>
+    </a>
+    <!-- 3. In Città -->
+    <a href="citta-tempo-libero" class="menu-item">
+      <div class="menu-icon"><i class="fas fa-map-location-dot"></i></div>
+      <div class="menu-text">
+        <div class="menu-text-title" data-i18n-it="In Città" data-i18n-en="Around Town">In Città</div>
+        <div class="menu-text-sub" data-i18n-it="Eventi e Mostre, Shopping e Attività" data-i18n-en="Events &amp; Exhibitions, Shopping &amp; Activities">Eventi e Mostre, Shopping e Attività</div>
+      </div>
+      <span class="menu-arrow"><i class="fas fa-chevron-right"></i></span>
+    </a>
+    <!-- 4. Visit -->
+    <a href="visit-taormina" class="menu-item">
+      <div class="menu-icon"><i class="fas fa-camera-retro"></i></div>
+      <div class="menu-text">
+        <div class="menu-text-title">Visit</div>
+        <div class="menu-text-sub" data-i18n-it="Scopri il territorio e le sue bellezze" data-i18n-en="Discover the area and its beauty">Scopri il territorio e le sue bellezze</div>
+      </div>
+      <span class="menu-arrow"><i class="fas fa-chevron-right"></i></span>
+    </a>
+    <!-- 5. Infoapp -->
+    <a href="login-settings" class="menu-item">
+      <div class="menu-icon"><i class="fas fa-circle-info"></i></div>
+      <div class="menu-text">
+        <div class="menu-text-title">Infoapp</div>
+        <div class="menu-text-sub" data-i18n-it="Informazioni e impostazioni dell'app" data-i18n-en="App information and settings">Informazioni e impostazioni dell'app</div>
+      </div>
+      <span class="menu-arrow"><i class="fas fa-chevron-right"></i></span>
+    </a>
+  </nav>
+</main>
+<!-- ============================================================
+     FOOTER
+     ============================================================ -->
+<footer class="menu-footer">
+  <div class="menu-footer-line"></div>
+  <div class="footer-comune">Comune di Taormina</div>
+  <div class="scroll-dots">
+    <span class="active"></span>
+  </div>
+</footer>
+<!-- ============================================================
+     JAVASCRIPT
+     ============================================================ -->
+<script>
+(function(){
+  'use strict';
+  /* ---------- Emoji flags (identico alla homepage) ---------- */
+  var FLAGS = { it: '\u{1F1EE}\u{1F1F9}', en: '\u{1F1EC}\u{1F1E7}' };
+
+  /* ---------- Read language from cookie (shared across all webviews) ---------- */
+  function getCookieLang() {
+    try {
+      var match = document.cookie.match(/(?:^|;\s*)cd_lang=(it|en)/);
+      if (match) return match[1];
+    } catch(e) {}
+    return null;
+  }
+
+  /* ---------- Read ?lang= from URL (fallback) ---------- */
+  function getUrlLang() {
+    try {
+      var params = new URLSearchParams(window.location.search);
+      var l = params.get('lang');
+      if (l === 'it' || l === 'en') return l;
+    } catch(e) {}
+    return null;
+  }
+
+  /* Priority: 1) cookie (condiviso tra webview)  2) ?lang= URL  3) localStorage  4) default 'it' */
+  var LANG = getCookieLang() || getUrlLang() || localStorage.getItem('cd_lang') || 'it';
+
+  function applyLang(lang) {
+    LANG = lang;
+    localStorage.setItem('cd_lang', lang);
+    document.cookie = 'cd_lang=' + lang + ';path=/;max-age=31536000;SameSite=Lax';
+    document.documentElement.lang = lang;
+    /* Mostra la bandiera dell'ALTRA lingua (click per passare a quella) */
+    var flagBtn = document.getElementById('langToggle');
+    if (flagBtn) {
+      var otherLang = lang === 'it' ? 'en' : 'it';
+      flagBtn.textContent = FLAGS[otherLang] || '\u{1F310}';
+    }
+    /* Traduci tutti gli elementi con data-i18n-it / data-i18n-en */
+    document.querySelectorAll('[data-i18n-it]').forEach(function(el) {
+      var txt = el.getAttribute('data-i18n-' + lang)
+             || el.getAttribute('data-i18n-it');
+      if (txt) el.textContent = txt;
+    });
+  }
+
+  /* Toggle button */
+  document.getElementById('langToggle').addEventListener('click', function() {
+    applyLang(LANG === 'it' ? 'en' : 'it');
+    /* Micro-animazione rimbalzo sulla bandierina */
+    var btn = this;
+    btn.style.transform = 'scale(1.2)';
+    setTimeout(function(){ btn.style.transform = ''; }, 180);
+  });
+
+  /* ---------- Quando la pagina torna visibile, rileggi il cookie ----------
+     Se l'utente era sulla homepage e ha cambiato lingua, il cookie si è
+     aggiornato. Quando torna su questa pagina il cookie ha il valore nuovo. */
+  document.addEventListener('visibilitychange', function() {
+    if (document.visibilityState === 'visible') {
+      var fresh = getCookieLang();
+      if (fresh && fresh !== LANG) {
+        applyLang(fresh);
+      }
+    }
+  });
+  window.addEventListener('pageshow', function() {
+    var fresh = getCookieLang();
+    if (fresh && fresh !== LANG) {
+      applyLang(fresh);
+    }
+  });
+
+  /* Init */
+  applyLang(LANG);
+  /* ---------- Ripple position ---------- */
+  document.querySelectorAll('.menu-item').forEach(function(item) {
+    item.addEventListener('pointerdown', function(e) {
+      var rect = item.getBoundingClientRect();
+      item.style.setProperty('--rx', ((e.clientX - rect.left) / rect.width * 100) + '%');
+      item.style.setProperty('--ry', ((e.clientY - rect.top) / rect.height * 100) + '%');
+    });
+  });
+  /* ---------- IntersectionObserver per re-trigger animazione allo scroll ---------- */
+  if ('IntersectionObserver' in window) {
+    var observer = new IntersectionObserver(function(entries) {
+      entries.forEach(function(entry) {
+        if (entry.isIntersecting) {
+          entry.target.style.animation = 'none';
+          void entry.target.offsetHeight; /* trigger reflow */
+          entry.target.style.animation = '';
+        }
+      });
+    }, { threshold: 0.15 });
+    document.querySelectorAll('.menu-item').forEach(function(item) {
+      observer.observe(item);
+    });
+  }
+})();
+</script>
+</body>
+</html>
