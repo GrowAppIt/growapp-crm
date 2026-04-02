@@ -4708,6 +4708,7 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
   const applyLang = (lang) => {
     LANG = lang;
     localStorage.setItem('cd_lang', lang);
+    document.cookie = 'cd_lang=' + lang + ';path=/;max-age=31536000;SameSite=Lax';
     const flagBtn = document.getElementById('langToggle');
     if (flagBtn) {
       const otherLang = lang === 'it' ? 'en' : 'it';

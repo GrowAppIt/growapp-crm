@@ -1033,7 +1033,7 @@ const FormsManager = {
             async () => {
                 const data = this.getFormData();
 
-                // Rimuovi campi temporanei
+                // Rimuovi campi temporanei del form che non devono finire su Firestore
                 delete data[''];
                 delete data['clienteRagioneSociale_display'];
                 delete data['numeroProgressivo'];
@@ -1042,6 +1042,17 @@ const FormsManager = {
                 const tipoClienteEl = document.getElementById('tipoClienteSelezionato');
                 if (tipoClienteEl) {
                     data.tipoCliente = tipoClienteEl.value === 'PA' ? 'PA' : 'PR';
+                }
+
+                // Validazione campi obbligatori
+                if (!data.clienteId) {
+                    throw new Error('Seleziona un cliente');
+                }
+                if (!data.numeroFatturaCompleto) {
+                    throw new Error('Il numero fattura non è stato generato. Compila il campo Numero Progressivo.');
+                }
+                if (!data.importoTotale && data.importoTotale !== 0) {
+                    throw new Error('Inserisci l\'importo totale della fattura');
                 }
 
                 // Calcola automaticamente IVA e totale se mancanti
@@ -1068,8 +1079,23 @@ const FormsManager = {
                     }];
                 }
 
+                // Rimuovi campi del form acconto che non servono come dati fattura
+                delete data.importoAcconto;
+                delete data.dataAcconto;
+
                 // Converti creditoSospeso in boolean (getFormData lo salva come stringa)
                 data.creditoSospeso = (data.creditoSospeso === 'true' || data.creditoSospeso === true);
+
+                // Pulizia finale: rimuovi qualsiasi valore undefined o NaN
+                // (Firestore li rifiuta e lancia errore)
+                Object.keys(data).forEach(key => {
+                    if (data[key] === undefined) {
+                        delete data[key];
+                    }
+                    if (typeof data[key] === 'number' && isNaN(data[key])) {
+                        data[key] = null;
+                    }
+                });
 
                 const newId = await DataService.createFattura(data);
                 UI.showSuccess('Fattura creata con successo!');

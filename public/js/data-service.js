@@ -1735,8 +1735,17 @@ const DataService = {
 
     async createFattura(data) {
         try {
+            // Sanitizza i dati: rimuovi undefined e NaN (Firestore li rifiuta)
+            const cleanData = {};
+            for (const [key, val] of Object.entries(data)) {
+                if (val === undefined) continue;                       // Firestore rifiuta undefined
+                if (typeof val === 'number' && isNaN(val)) continue;  // Firestore rifiuta NaN
+                if (key.startsWith('_')) continue;                     // Rimuovi campi interni/temporanei
+                cleanData[key] = val;
+            }
+
             // Usa transaction atomica per il numero progressivo
-            const anno = data.anno || new Date().getFullYear();
+            const anno = cleanData.anno || new Date().getFullYear();
             const contatoreRef = db.collection('contatori').doc('fatture');
             const auditFields = this._getAuditFields();
 
@@ -1746,24 +1755,15 @@ const DataService = {
                 const annoKey = String(anno);
                 const nuovoProgressivo = (contatori[annoKey] || 0) + 1;
 
-                // Aggiorna contatore
-                transaction.set(contatoreRef, { ...contatori, [annoKey]: nuovoProgressivo }, { merge: true });
-
-                // Se il numero fattura non è stato già assegnato, genera quello atomico
-                if (!data._numeroConfermato) {
-                    const _sys = typeof SettingsService !== 'undefined' ? SettingsService.getSystemSettingsSync() : {};
-                    const _pad = _sys.paddingNumeroFattura || 3;
-                    const numPadded = String(nuovoProgressivo).padStart(_pad, '0');
-                    // Ricomponi il numero solo se il progressivo nel form coincide con quello atomico
-                    // Altrimenti usa il numero che l'utente ha inserito nel form
-                }
+                // Aggiorna contatore (solo il campo anno, non rispread tutto il doc)
+                transaction.set(contatoreRef, { [annoKey]: nuovoProgressivo }, { merge: true });
 
                 // Crea la fattura
                 const newDocRef = db.collection('fatture').doc();
                 transaction.set(newDocRef, {
-                    ...data,
+                    ...cleanData,
                     dataCreazione: new Date().toISOString(),
-                    statoPagamento: data.statoPagamento || 'NON_PAGATA',
+                    statoPagamento: cleanData.statoPagamento || 'NON_PAGATA',
                     progressivoAtomico: nuovoProgressivo,
                     ...auditFields
                 });
@@ -1772,10 +1772,15 @@ const DataService = {
             });
 
             this._cacheInvalidate('fatture:');
-            this._logAudit('CREATE', 'fatture', result, { numero: data.numeroFatturaCompleto || '', importo: data.importoTotale || 0 });
+            this._logAudit('CREATE', 'fatture', result, { numero: cleanData.numeroFatturaCompleto || '', importo: cleanData.importoTotale || 0 });
             return result;
         } catch (error) {
             console.error('Errore creazione fattura:', error);
+            console.error('Dettagli errore:', JSON.stringify({
+                code: error.code || 'N/A',
+                message: error.message || 'N/A',
+                dataKeys: Object.keys(data)
+            }));
             throw error;
         }
     },
