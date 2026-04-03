@@ -136,8 +136,8 @@
             max-width: 600px;
             margin: 0 auto;
             display: flex;
+            justify-content: center;
             gap: 8px;
-            min-width: max-content;
         }
 
         .filter-chip {
@@ -443,10 +443,21 @@
         /* ============================================================
            Footer / Powered By
            ============================================================ */
+        .page-wrap {
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        .page-content {
+            flex: 1 1 auto;
+        }
+
         .footer {
             background: var(--blu-700);
             color: var(--bianco);
             padding: 16px 20px;
+            flex-shrink: 0;
         }
 
         .footer-inner {
@@ -454,42 +465,78 @@
             margin: 0 auto;
             display: flex;
             flex-direction: column;
-            gap: 8px;
+            gap: 6px;
+            text-align: center;
         }
 
         .footer-powered {
-            font-size: clamp(0.75rem, 3vw, 0.85rem);
+            font-size: clamp(0.8rem, 3.2vw, 0.9rem);
             font-weight: 400;
-            opacity: 0.85;
         }
 
         .footer-powered a {
             color: var(--bianco);
-            text-decoration: none;
+            text-decoration: underline;
+            text-decoration-thickness: 1px;
+            text-underline-offset: 2px;
             font-weight: 700;
         }
 
+        .footer-powered a:focus-visible {
+            outline: 2px solid var(--bianco);
+            outline-offset: 2px;
+            border-radius: 2px;
+        }
+
         .footer-info {
-            font-size: clamp(0.72rem, 2.8vw, 0.82rem);
-            font-weight: 300;
-            opacity: 0.7;
+            font-size: clamp(0.75rem, 3vw, 0.85rem);
+            font-weight: 400;
+            opacity: 0.85;
             line-height: 1.4;
         }
 
         .footer-info strong {
-            font-weight: 600;
+            font-weight: 700;
         }
 
         /* ============================================================
-           Responsive
+           Accessibilità
            ============================================================ */
-        /* Con clamp() non servono media query per i font */
+        /* Focus visibile per navigazione da tastiera */
+        *:focus-visible {
+            outline: 3px solid var(--blu-500);
+            outline-offset: 2px;
+            border-radius: 4px;
+        }
+
+        /* Riduce animazioni per chi ha impostazioni di accessibilità */
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                animation-duration: 0.01ms !important;
+                transition-duration: 0.01ms !important;
+            }
+        }
+
+        /* Alto contrasto */
+        @media (prefers-contrast: high) {
+            .notification-card {
+                border-left-width: 6px;
+                box-shadow: 0 0 0 1px var(--grigio-700);
+            }
+            .filter-chip {
+                border-width: 2px;
+            }
+            .footer-info {
+                opacity: 1;
+            }
+        }
     </style>
 </head>
 <body>
+<div class="page-wrap">
 
     <!-- Header -->
-    <div class="header">
+    <header class="header" role="banner">
         <div class="header-inner">
             <div class="header-icon">
                 <i class="fas fa-bell"></i>
@@ -501,7 +548,9 @@
             <!-- IMMAGINE: Stemma del comune, formato quadrato ~36x36px, sfondo bianco -->
             <img class="header-stemma" id="header-stemma" src="" alt="Stemma">
         </div>
-    </div>
+    </header>
+
+    <main class="page-content" role="main">
 
     <!-- Stats Bar -->
     <div class="stats-bar" id="stats-bar" style="display:none;">
@@ -522,42 +571,46 @@
     </div>
 
     <!-- Filtri -->
-    <div class="filters">
-        <div class="filters-inner">
-            <button class="filter-chip active" data-filter="all">
-                <i class="fas fa-list"></i> Tutte
+    <nav class="filters" role="navigation" aria-label="Filtra notifiche per categoria">
+        <div class="filters-inner" role="group" aria-label="Categorie">
+            <button class="filter-chip active" data-filter="all" aria-pressed="true" aria-label="Mostra tutte le notifiche">
+                <i class="fas fa-list" aria-hidden="true"></i> Tutte
             </button>
-            <button class="filter-chip" data-filter="notizie">
-                <i class="fas fa-newspaper"></i> Notizie
+            <button class="filter-chip" data-filter="notizie" aria-pressed="false" aria-label="Mostra solo notizie">
+                <i class="fas fa-newspaper" aria-hidden="true"></i> Notizie
             </button>
-            <button class="filter-chip" data-filter="in_agenda">
-                <i class="fas fa-calendar-alt"></i> In agenda
+            <button class="filter-chip" data-filter="in_agenda" aria-pressed="false" aria-label="Mostra solo eventi in agenda">
+                <i class="fas fa-calendar-alt" aria-hidden="true"></i> In agenda
             </button>
-            <button class="filter-chip" data-filter="avvisi">
-                <i class="fas fa-bullhorn"></i> Avvisi
+            <button class="filter-chip" data-filter="avvisi" aria-pressed="false" aria-label="Mostra solo avvisi">
+                <i class="fas fa-bullhorn" aria-hidden="true"></i> Avvisi
             </button>
         </div>
-    </div>
+    </nav>
 
     <!-- Lista Notifiche -->
-    <div class="notifications-container" id="notifications-container">
+    <section class="notifications-container" id="notifications-container" role="feed" aria-label="Lista notifiche ricevute">
         <div class="loading" id="loading-state">
             <div class="loading-spinner"></div>
             <div class="loading-text">Caricamento notifiche...</div>
         </div>
     </div>
 
+    </main>
+
     <!-- Footer -->
-    <div class="footer">
+    <footer class="footer" role="contentinfo" aria-label="Informazioni e crediti">
         <div class="footer-inner">
             <div class="footer-powered">
-                Powered by <a href="https://www.comunedigital.it" target="_blank">Comune.Digital</a>
+                Powered by <a href="https://app.comune.digital" target="_blank" rel="noopener noreferrer" aria-label="Vai al sito Comune.Digital">Comune.Digital</a>
             </div>
-            <div class="footer-info">
+            <div class="footer-info" aria-label="Suggerimento per attivare le notifiche">
                 Per attivare le notifiche push o scegliere quali ricevere vai alla sezione <strong>InfoApp</strong>
             </div>
         </div>
-    </div>
+    </footer>
+
+</div><!-- /page-wrap -->
 
     <script>
     // ============================================================
@@ -827,17 +880,17 @@
             const timeStr = formatTime(sentAt);
 
             html += `
-                <div class="notification-card source-${source}">
+                <article class="notification-card source-${source}" role="article" aria-label="${escapeHtml(notif.title || sourceLabel)} - ${timeStr}">
                     <div class="notif-header">
-                        <span class="notif-source-badge badge-${source}">
-                            <i class="fas ${sourceIcon}"></i> ${sourceLabel}
+                        <span class="notif-source-badge badge-${source}" aria-label="Categoria: ${sourceLabel}">
+                            <i class="fas ${sourceIcon}" aria-hidden="true"></i> ${sourceLabel}
                         </span>
-                        <span class="notif-time">${timeStr}</span>
+                        <time class="notif-time" datetime="${sentAt.toISOString()}">${timeStr}</time>
                     </div>
-                    ${notif.title ? `<div class="notif-title">${escapeHtml(notif.title)}</div>` : ''}
-                    <div class="notif-body">${escapeHtml(notif.message || notif.fullMessage || '')}</div>
-                    ${notif.gbUrl ? `<a class="notif-link" href="${escapeHtml(notif.gbUrl)}" target="_blank"><i class="fas fa-external-link-alt"></i> Vedi dettaglio</a>` : ''}
-                </div>
+                    ${notif.title ? `<h3 class="notif-title">${escapeHtml(notif.title)}</h3>` : ''}
+                    <p class="notif-body">${escapeHtml(notif.message || notif.fullMessage || '')}</p>
+                    ${notif.gbUrl ? `<a class="notif-link" href="${escapeHtml(notif.gbUrl)}" target="_blank" rel="noopener" aria-label="Apri dettaglio: ${escapeHtml(notif.title || 'notifica')}"><i class="fas fa-external-link-alt" aria-hidden="true"></i> Vedi dettaglio</a>` : ''}
+                </article>
             `;
         });
 
@@ -936,8 +989,12 @@
 
     document.querySelectorAll('.filter-chip').forEach(chip => {
         chip.addEventListener('click', () => {
-            document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+            document.querySelectorAll('.filter-chip').forEach(c => {
+                c.classList.remove('active');
+                c.setAttribute('aria-pressed', 'false');
+            });
             chip.classList.add('active');
+            chip.setAttribute('aria-pressed', 'true');
             state.activeFilter = chip.dataset.filter;
             loadNotifications(false);
         });
