@@ -17,12 +17,6 @@
             background: #F5F5F5;
             font-family: 'Titillium Web', -apple-system, BlinkMacSystemFont, sans-serif;
         }
-        iframe {
-            width: 100%;
-            height: 100%;
-            border: none;
-            display: block;
-        }
         /* Messaggio di errore */
         .error-msg {
             display: flex;
@@ -53,27 +47,31 @@
 <body>
     <script>
         /**
-         * Archivio Notifiche — Embed Wrapper
+         * Archivio Notifiche — Embed Redirect
          *
-         * Questa pagina va embeddata nell'app GoodBarber tramite sezione HTML.
-         * Carica la pagina completa delle notifiche in un iframe nascondendo l'URL.
+         * Questa pagina va usata nelle app GoodBarber tramite sezione HTML.
+         * Fa un redirect diretto alla pagina notifiche (NO iframe annidato).
+         * Questo è necessario perché le app native iOS (WKWebView) non
+         * supportano bene gli iframe annidati.
          *
          * USO:
          *   embed.html?app=locri
          *   embed.html?app=acisantantonio
          *
          * INTEGRAZIONE GOODBARBER:
-         *   Nella sezione HTML custom dell'app, inserisci l'iframe
-         *   usando il dominio custom (NON growapp-crm.vercel.app):
+         *   Nella sezione HTML custom dell'app, inserisci:
          *
          *   <iframe src="https://crm.comune.digital/storico-notifiche/embed.html?app=NOME_COMUNE"
          *           style="width:100%;height:100vh;border:none;"
          *           allow="fullscreen">
          *   </iframe>
          *
-         * NOTA: Il dominio growapp-crm.vercel.app è protetto da Vercel
-         * Standard Protection e NON funziona negli iframe.
-         * Usare sempre il dominio custom crm.comune.digital.
+         *   Oppure punta direttamente alla pagina (senza embed.html):
+         *
+         *   <iframe src="https://crm.comune.digital/storico-notifiche/?app=NOME_COMUNE"
+         *           style="width:100%;height:100vh;border:none;"
+         *           allow="fullscreen">
+         *   </iframe>
          */
 
         // Leggi il parametro ?app= dall'URL
@@ -90,17 +88,10 @@
                 </div>
             `;
         } else {
-            // Costruisci URL della pagina notifiche completa
+            // Redirect diretto alla pagina notifiche (no iframe annidato)
             const baseUrl = window.location.origin + '/storico-notifiche/';
             const fullUrl = baseUrl + '?app=' + encodeURIComponent(appSlug);
-
-            // Crea iframe
-            const iframe = document.createElement('iframe');
-            iframe.src = fullUrl;
-            iframe.setAttribute('allow', 'fullscreen');
-            iframe.setAttribute('loading', 'eager');
-            iframe.setAttribute('title', 'Archivio Notifiche');
-            document.body.appendChild(iframe);
+            window.location.replace(fullUrl);
         }
     </script>
 </body>
