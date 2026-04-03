@@ -580,23 +580,31 @@ const StoricoPush = {
         }).join('');
 
         const modalHtml = `
-            <div class="modal-overlay" id="sp-config-modal" onclick="StoricoPush.closeConfig(event)">
-                <div class="modal-content" style="max-width:700px;max-height:80vh;overflow-y:auto;" onclick="event.stopPropagation()">
-                    <div class="modal-header">
-                        <h3><i class="fas fa-cog"></i> Configurazione Monitoraggio Push</h3>
-                        <button class="modal-close" onclick="StoricoPush.closeConfig()">
+            <div id="sp-config-modal" onclick="StoricoPush.closeConfig(event)" style="
+                position:fixed;top:0;left:0;right:0;bottom:0;
+                background:rgba(0,0,0,0.5);
+                display:flex;align-items:center;justify-content:center;
+                z-index:9999;padding:1rem;">
+                <div onclick="event.stopPropagation()" style="
+                    background:white;border-radius:12px;
+                    max-width:750px;width:100%;max-height:85vh;
+                    overflow:hidden;display:flex;flex-direction:column;
+                    box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+                    <div style="padding:1rem 1.5rem;border-bottom:1px solid #d9d9d9;display:flex;align-items:center;justify-content:space-between;">
+                        <h3 style="margin:0;font-size:1.1rem;color:#145284;"><i class="fas fa-cog"></i> Configurazione Monitoraggio Push</h3>
+                        <button onclick="StoricoPush.closeConfig()" style="background:none;border:none;font-size:1.2rem;cursor:pointer;color:#9B9B9B;padding:4px 8px;">
                             <i class="fas fa-times"></i>
                         </button>
                     </div>
-                    <div class="modal-body">
-                        <p style="margin-bottom:12px;font-size:0.85rem;color:var(--grigio-500);">
+                    <div style="padding:1rem 1.5rem;overflow-y:auto;flex:1;">
+                        <p style="margin-bottom:12px;font-size:0.85rem;color:#9B9B9B;">
                             Per ogni app, inserisci il <strong>User ID</strong> dell'utente fantasma creato su GoodBarber
                             e attiva il monitoraggio. L'API
                             <code>pushapi/history</code> verrà interrogata periodicamente per ogni app attiva.
                         </p>
                         <table style="width:100%;border-collapse:collapse;font-size:0.85rem;">
                             <thead>
-                                <tr style="border-bottom:2px solid var(--grigio-300);text-align:left;">
+                                <tr style="border-bottom:2px solid #d9d9d9;text-align:left;">
                                     <th style="padding:8px 4px;">Comune</th>
                                     <th style="padding:8px 4px;">Webzine ID</th>
                                     <th style="padding:8px 4px;">Monitor User ID</th>
@@ -608,7 +616,7 @@ const StoricoPush = {
                             </tbody>
                         </table>
                     </div>
-                    <div class="modal-footer" style="display:flex;gap:8px;justify-content:flex-end;padding:12px 16px;border-top:1px solid var(--grigio-300);">
+                    <div style="display:flex;gap:8px;justify-content:flex-end;padding:12px 1.5rem;border-top:1px solid #d9d9d9;background:white;">
                         <button class="btn btn-outline" onclick="StoricoPush.closeConfig()">Annulla</button>
                         <button class="btn btn-primary" onclick="StoricoPush.saveConfig()">
                             <i class="fas fa-save"></i> Salva Configurazione
