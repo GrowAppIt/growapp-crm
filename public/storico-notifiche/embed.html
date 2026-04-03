@@ -63,11 +63,17 @@
          *   embed.html?app=acisantantonio
          *
          * INTEGRAZIONE GOODBARBER:
-         *   Nella sezione HTML custom dell'app, inserisci:
-         *   <iframe src="https://growapp-crm.vercel.app/storico-notifiche/embed.html?app=NOME_COMUNE&x-vercel-protection-bypass=qQg6u7DB4CKAJXjNcpjDzkDvjOvPM5fo"
+         *   Nella sezione HTML custom dell'app, inserisci l'iframe
+         *   usando il dominio custom (NON growapp-crm.vercel.app):
+         *
+         *   <iframe src="https://crm.comune.digital/storico-notifiche/embed.html?app=NOME_COMUNE"
          *           style="width:100%;height:100vh;border:none;"
          *           allow="fullscreen">
          *   </iframe>
+         *
+         * NOTA: Il dominio growapp-crm.vercel.app è protetto da Vercel
+         * Standard Protection e NON funziona negli iframe.
+         * Usare sempre il dominio custom crm.comune.digital.
          */
 
         // Leggi il parametro ?app= dall'URL
@@ -86,8 +92,7 @@
         } else {
             // Costruisci URL della pagina notifiche completa
             const baseUrl = window.location.origin + '/storico-notifiche/';
-            const bypassKey = 'qQg6u7DB4CKAJXjNcpjDzkDvjOvPM5fo';
-            const fullUrl = baseUrl + '?app=' + encodeURIComponent(appSlug) + '&x-vercel-protection-bypass=' + bypassKey;
+            const fullUrl = baseUrl + '?app=' + encodeURIComponent(appSlug);
 
             // Crea iframe
             const iframe = document.createElement('iframe');
