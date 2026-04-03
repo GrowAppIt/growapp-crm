@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Archivio Notifiche</title>
+    <style>
+        *, *::before, *::after {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: #F5F5F5;
+            font-family: 'Titillium Web', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+        iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+            display: block;
+        }
+        /* Messaggio di errore */
+        .error-msg {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            text-align: center;
+            padding: 2rem;
+            color: #4A4A4A;
+        }
+        .error-msg i {
+            font-size: 2.5rem;
+            color: #D32F2F;
+            margin-bottom: 1rem;
+        }
+        .error-msg h3 {
+            font-size: 1.1rem;
+            margin-bottom: 0.5rem;
+        }
+        .error-msg p {
+            font-size: 0.9rem;
+            color: #9B9B9B;
+        }
+    </style>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+</head>
+<body>
+    <script>
+        /**
+         * Archivio Notifiche — Embed Wrapper
+         *
+         * Questa pagina va embeddata nell'app GoodBarber tramite sezione HTML.
+         * Carica la pagina completa delle notifiche in un iframe nascondendo l'URL.
+         *
+         * USO:
+         *   embed.html?app=locri
+         *   embed.html?app=acisantantonio
+         *
+         * INTEGRAZIONE GOODBARBER:
+         *   Nella sezione HTML custom dell'app, inserisci:
+         *   <iframe src="https://growapp-crm.vercel.app/storico-notifiche/embed.html?app=NOME_COMUNE"
+         *           style="width:100%;height:100vh;border:none;"
+         *           allow="fullscreen">
+         *   </iframe>
+         */
+
+        // Leggi il parametro ?app= dall'URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const appSlug = urlParams.get('app') || urlParams.get('comune') || '';
+
+        if (!appSlug) {
+            // Nessun comune specificato → messaggio errore
+            document.body.innerHTML = `
+                <div class="error-msg">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <h3>Errore nel caricamento</h3>
+                    <p>Impossibile caricare l'archivio notifiche.</p>
+                </div>
+            `;
+        } else {
+            // Costruisci URL della pagina notifiche completa
+            const baseUrl = window.location.origin + '/storico-notifiche/';
+            const fullUrl = baseUrl + '?app=' + encodeURIComponent(appSlug);
+
+            // Crea iframe
+            const iframe = document.createElement('iframe');
+            iframe.src = fullUrl;
+            iframe.setAttribute('allow', 'fullscreen');
+            iframe.setAttribute('loading', 'eager');
+            iframe.setAttribute('title', 'Archivio Notifiche');
+            document.body.appendChild(iframe);
+        }
+    </script>
+</body>
+</html>

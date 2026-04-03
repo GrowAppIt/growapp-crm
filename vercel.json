@@ -36,11 +36,11 @@
       "destination": "/firebase-messaging-sw.js"
     },
     {
-      "source": "/storico-notifiche",
-      "destination": "/storico-notifiche/index.html"
+      "source": "/storico-notifiche/embed.html",
+      "destination": "/storico-notifiche/embed.html"
     },
     {
-      "source": "/storico-notifiche/(.*)",
+      "source": "/storico-notifiche",
       "destination": "/storico-notifiche/index.html"
     },
     {

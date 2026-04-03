@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Storico Notifiche Push</title>
+    <title>Archivio Notifiche</title>
 
     <!-- Titillium Web -->
     <link href="https://fonts.googleapis.com/css2?family=Titillium+Web:wght@300;400;600;700;900&display=swap" rel="stylesheet">
@@ -96,7 +96,7 @@
 
         .header-text h1 {
             font-size: 18px;
-            font-weight: 900;
+            font-weight: 700;
             line-height: 1.2;
         }
 
@@ -467,7 +467,7 @@
                 <i class="fas fa-bell"></i>
             </div>
             <div class="header-text">
-                <h1 id="page-title">Storico Notifiche</h1>
+                <h1 id="page-title">Archivio Notifiche</h1>
                 <div class="subtitle" id="page-subtitle">Tutte le comunicazioni push</div>
             </div>
             <!-- IMMAGINE: Stemma del comune, formato quadrato ~36x36px, sfondo bianco -->
@@ -901,9 +901,9 @@
     // ============================================================
 
     function setComune(nome) {
-        document.getElementById('page-title').textContent = `Notifiche ${nome}`;
-        document.getElementById('page-subtitle').textContent = `Storico comunicazioni push`;
-        document.title = `Storico Notifiche — ${nome}`;
+        document.getElementById('page-title').textContent = `Archivio Notifiche`;
+        document.getElementById('page-subtitle').textContent = `${nome}`;
+        document.title = `Archivio Notifiche — ${nome}`;
     }
 
     // ============================================================
@@ -913,13 +913,7 @@
     async function init() {
         // Verifica appSlug
         if (!CONFIG.appSlug) {
-            document.getElementById('notifications-container').innerHTML = `
-                <div class="error-state">
-                    <i class="fas fa-question-circle"></i>
-                    <h3>Comune non specificato</h3>
-                    <p>Aggiungi <strong>?app=nomecomune</strong> all'URL per visualizzare le notifiche.</p>
-                </div>
-            `;
+            alert('Errore nel caricamento dell\'archivio notifiche. Parametro comune mancante.');
             return;
         }
 
