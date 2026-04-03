@@ -1,0 +1,958 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Storico Notifiche Push</title>
+
+    <!-- Titillium Web -->
+    <link href="https://fonts.googleapis.com/css2?family=Titillium+Web:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+
+    <!-- Font Awesome Free -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+
+    <style>
+        /* ============================================================
+           CSS Variables — Palette Comune.Digital
+           ============================================================ */
+        :root {
+            --blu-700: #145284;
+            --blu-500: #2E6DA8;
+            --blu-300: #7BA7CE;
+            --blu-100: #D1E2F2;
+            --verde-700: #3CA434;
+            --verde-500: #59C64D;
+            --verde-300: #A4E89A;
+            --verde-100: #E2F8DE;
+            --grigio-700: #4A4A4A;
+            --grigio-500: #9B9B9B;
+            --grigio-300: #D9D9D9;
+            --grigio-100: #F5F5F5;
+            --giallo: #FFCC00;
+            --rosso: #D32F2F;
+            --azzurro: #0288D1;
+            --bianco: #FFFFFF;
+        }
+
+        /* ============================================================
+           Reset & Base
+           ============================================================ */
+        *, *::before, *::after {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html {
+            font-size: 16px;
+            -webkit-text-size-adjust: 100%;
+        }
+
+        body {
+            font-family: 'Titillium Web', sans-serif;
+            font-weight: 400;
+            color: var(--grigio-700);
+            background: var(--grigio-100);
+            min-height: 100vh;
+            line-height: 1.5;
+        }
+
+        /* ============================================================
+           Header
+           ============================================================ */
+        .header {
+            background: var(--blu-700);
+            color: var(--bianco);
+            padding: 16px 20px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+
+        .header-inner {
+            max-width: 600px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .header-icon {
+            width: 40px;
+            height: 40px;
+            background: rgba(255,255,255,0.15);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            flex-shrink: 0;
+        }
+
+        .header-text h1 {
+            font-size: 18px;
+            font-weight: 900;
+            line-height: 1.2;
+        }
+
+        .header-text .subtitle {
+            font-size: 12px;
+            font-weight: 300;
+            opacity: 0.8;
+        }
+
+        /* Stemma comune (opzionale - sostituire src con URL reale) */
+        .header-stemma {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            object-fit: contain;
+            background: var(--bianco);
+            padding: 2px;
+            margin-left: auto;
+            display: none; /* Mostra quando c'è stemma */
+        }
+
+        /* ============================================================
+           Filtri
+           ============================================================ */
+        .filters {
+            background: var(--bianco);
+            padding: 12px 20px;
+            border-bottom: 1px solid var(--grigio-300);
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .filters-inner {
+            max-width: 600px;
+            margin: 0 auto;
+            display: flex;
+            gap: 8px;
+            min-width: max-content;
+        }
+
+        .filter-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 14px;
+            border-radius: 20px;
+            border: 1.5px solid var(--grigio-300);
+            background: var(--bianco);
+            color: var(--grigio-700);
+            font-family: 'Titillium Web', sans-serif;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: all 0.2s ease;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .filter-chip:hover {
+            border-color: var(--blu-500);
+            color: var(--blu-500);
+        }
+
+        .filter-chip.active {
+            background: var(--blu-700);
+            color: var(--bianco);
+            border-color: var(--blu-700);
+        }
+
+        .filter-chip i {
+            font-size: 12px;
+        }
+
+        /* ============================================================
+           Lista Notifiche
+           ============================================================ */
+        .notifications-container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 12px 16px 80px 16px;
+        }
+
+        .date-separator {
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--blu-700);
+            padding: 16px 4px 8px 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .notification-card {
+            background: var(--bianco);
+            border-radius: 12px;
+            padding: 14px 16px;
+            margin-bottom: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+            border-left: 4px solid var(--blu-300);
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
+            cursor: default;
+        }
+
+        .notification-card:active {
+            transform: scale(0.98);
+        }
+
+        .notification-card.source-rss_auto {
+            border-left-color: var(--verde-700);
+        }
+
+        .notification-card.source-calendar_auto {
+            border-left-color: var(--giallo);
+        }
+
+        .notification-card.source-meteo_alert {
+            border-left-color: var(--rosso);
+        }
+
+        .notification-card.source-crm_broadcast {
+            border-left-color: var(--blu-700);
+        }
+
+        .notification-card.source-manual {
+            border-left-color: var(--grigio-500);
+        }
+
+        .notif-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 6px;
+        }
+
+        .notif-source-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        .badge-rss_auto {
+            background: var(--verde-100);
+            color: var(--verde-700);
+        }
+
+        .badge-calendar_auto {
+            background: #FFF8E1;
+            color: #F57F17;
+        }
+
+        .badge-meteo_alert {
+            background: #FFEBEE;
+            color: var(--rosso);
+        }
+
+        .badge-crm_broadcast,
+        .badge-crm_api {
+            background: var(--blu-100);
+            color: var(--blu-700);
+        }
+
+        .badge-manual {
+            background: var(--grigio-100);
+            color: var(--grigio-700);
+        }
+
+        .notif-time {
+            font-size: 12px;
+            color: var(--grigio-500);
+            margin-left: auto;
+            white-space: nowrap;
+        }
+
+        .notif-title {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--grigio-700);
+            margin-bottom: 2px;
+        }
+
+        .notif-body {
+            font-size: 14px;
+            font-weight: 400;
+            color: var(--grigio-700);
+            line-height: 1.45;
+            word-wrap: break-word;
+        }
+
+        .notif-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            margin-top: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--blu-500);
+            text-decoration: none;
+        }
+
+        .notif-link:hover {
+            color: var(--blu-700);
+        }
+
+        /* ============================================================
+           Loading & Empty States
+           ============================================================ */
+        .loading {
+            text-align: center;
+            padding: 60px 20px;
+        }
+
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid var(--grigio-300);
+            border-top-color: var(--blu-700);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto 16px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .loading-text {
+            font-size: 14px;
+            color: var(--grigio-500);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+        }
+
+        .empty-state i {
+            font-size: 48px;
+            color: var(--grigio-300);
+            margin-bottom: 16px;
+        }
+
+        .empty-state h3 {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--grigio-700);
+            margin-bottom: 4px;
+        }
+
+        .empty-state p {
+            font-size: 14px;
+            color: var(--grigio-500);
+        }
+
+        .error-state {
+            text-align: center;
+            padding: 40px 20px;
+            background: #FFEBEE;
+            border-radius: 12px;
+            margin: 20px 16px;
+        }
+
+        .error-state i {
+            font-size: 36px;
+            color: var(--rosso);
+            margin-bottom: 12px;
+        }
+
+        /* ============================================================
+           Load More Button
+           ============================================================ */
+        .load-more {
+            display: block;
+            width: 100%;
+            max-width: 300px;
+            margin: 16px auto;
+            padding: 12px;
+            background: var(--bianco);
+            color: var(--blu-700);
+            border: 2px solid var(--blu-700);
+            border-radius: 10px;
+            font-family: 'Titillium Web', sans-serif;
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .load-more:hover {
+            background: var(--blu-700);
+            color: var(--bianco);
+        }
+
+        .load-more:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* ============================================================
+           Stats Bar
+           ============================================================ */
+        .stats-bar {
+            background: var(--bianco);
+            padding: 10px 20px;
+            border-bottom: 1px solid var(--grigio-300);
+        }
+
+        .stats-inner {
+            max-width: 600px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-around;
+            gap: 12px;
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 20px;
+            font-weight: 900;
+            color: var(--blu-700);
+        }
+
+        .stat-label {
+            font-size: 11px;
+            color: var(--grigio-500);
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        /* ============================================================
+           Footer / Powered By
+           ============================================================ */
+        .powered-by {
+            text-align: center;
+            padding: 20px;
+            font-size: 11px;
+            color: var(--grigio-500);
+        }
+
+        .powered-by a {
+            color: var(--blu-500);
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        /* ============================================================
+           Responsive
+           ============================================================ */
+        @media (max-width: 380px) {
+            .header-text h1 { font-size: 16px; }
+            .notification-card { padding: 12px 14px; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Header -->
+    <div class="header">
+        <div class="header-inner">
+            <div class="header-icon">
+                <i class="fas fa-bell"></i>
+            </div>
+            <div class="header-text">
+                <h1 id="page-title">Storico Notifiche</h1>
+                <div class="subtitle" id="page-subtitle">Tutte le comunicazioni push</div>
+            </div>
+            <!-- IMMAGINE: Stemma del comune, formato quadrato ~36x36px, sfondo bianco -->
+            <img class="header-stemma" id="header-stemma" src="" alt="Stemma">
+        </div>
+    </div>
+
+    <!-- Stats Bar -->
+    <div class="stats-bar" id="stats-bar" style="display:none;">
+        <div class="stats-inner">
+            <div class="stat-item">
+                <div class="stat-value" id="stat-total">—</div>
+                <div class="stat-label">Totali</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="stat-month">—</div>
+                <div class="stat-label">Questo mese</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="stat-today">—</div>
+                <div class="stat-label">Oggi</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filtri -->
+    <div class="filters">
+        <div class="filters-inner">
+            <button class="filter-chip active" data-filter="all">
+                <i class="fas fa-list"></i> Tutte
+            </button>
+            <button class="filter-chip" data-filter="rss_auto">
+                <i class="fas fa-rss"></i> News
+            </button>
+            <button class="filter-chip" data-filter="calendar_auto">
+                <i class="fas fa-calendar-alt"></i> Eventi
+            </button>
+            <button class="filter-chip" data-filter="meteo_alert">
+                <i class="fas fa-cloud-sun-rain"></i> Allerte
+            </button>
+            <button class="filter-chip" data-filter="crm_broadcast">
+                <i class="fas fa-bullhorn"></i> Comunicazioni
+            </button>
+            <button class="filter-chip" data-filter="manual">
+                <i class="fas fa-bell"></i> Altro
+            </button>
+        </div>
+    </div>
+
+    <!-- Lista Notifiche -->
+    <div class="notifications-container" id="notifications-container">
+        <div class="loading" id="loading-state">
+            <div class="loading-spinner"></div>
+            <div class="loading-text">Caricamento notifiche...</div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="powered-by">
+        Powered by <a href="https://comune.digital" target="_blank">Comune.Digital</a>
+    </div>
+
+    <script>
+    // ============================================================
+    // Configurazione — DA PERSONALIZZARE PER OGNI COMUNE
+    // ============================================================
+    const CONFIG = {
+        // Slug dell'app (es: "locri", "taormina")
+        // Viene letto dall'URL: ?app=locri oppure dal path /storico-notifiche/locri
+        appSlug: '',
+
+        // Firebase Config del CRM GrowApp (centralizzato)
+        firebase: {
+            apiKey: '',           // Compilare con le credenziali CRM
+            authDomain: '',
+            projectId: '',
+            storageBucket: '',
+            messagingSenderId: '',
+            appId: ''
+        },
+
+        // Notifiche per caricamento
+        pageSize: 20,
+
+        // URL base dell'app comune (per link "Vedi dettaglio")
+        appBaseUrl: ''
+    };
+
+    // ============================================================
+    // Inizializzazione
+    // ============================================================
+
+    // Leggi appSlug dall'URL
+    const urlParams = new URLSearchParams(window.location.search);
+    CONFIG.appSlug = urlParams.get('app') || urlParams.get('comune') || '';
+
+    // Se la pagina è embeddata in un iframe, prova a leggere la config dal parent
+    if (!CONFIG.appSlug && window.parent !== window) {
+        try {
+            CONFIG.appSlug = window.parent.STORICO_NOTIFICHE_CONFIG?.appSlug || '';
+        } catch (e) { /* cross-origin, ignora */ }
+    }
+
+    // Stato dell'app
+    let state = {
+        notifications: [],
+        lastDoc: null,
+        hasMore: true,
+        loading: false,
+        activeFilter: 'all',
+        totalCount: 0,
+        monthCount: 0,
+        todayCount: 0,
+        db: null
+    };
+
+    // ============================================================
+    // Firebase Init
+    // ============================================================
+
+    function initFirebase() {
+        // Se la config è vuota, prova a leggerla dal parent (iframe nel CRM)
+        if (!CONFIG.firebase.apiKey && window.parent !== window) {
+            try {
+                if (window.parent.firebase && window.parent.db) {
+                    state.db = window.parent.db;
+                    console.log('[Storico] Usando Firestore dal parent (CRM)');
+                    return true;
+                }
+            } catch (e) { /* cross-origin */ }
+        }
+
+        // Se abbiamo la config, inizializza Firebase
+        if (CONFIG.firebase.apiKey) {
+            const app = firebase.initializeApp(CONFIG.firebase, 'storico-notifiche');
+            state.db = firebase.firestore(app);
+            console.log('[Storico] Firebase inizializzato standalone');
+            return true;
+        }
+
+        // Ultimo tentativo: usa il Firebase globale (se la pagina è caricata nel CRM)
+        if (typeof db !== 'undefined') {
+            state.db = db;
+            console.log('[Storico] Usando db globale');
+            return true;
+        }
+
+        return false;
+    }
+
+    // ============================================================
+    // Caricamento Notifiche
+    // ============================================================
+
+    async function loadNotifications(append = false) {
+        if (state.loading || (!state.hasMore && append)) return;
+        state.loading = true;
+
+        const container = document.getElementById('notifications-container');
+
+        if (!append) {
+            container.innerHTML = `
+                <div class="loading" id="loading-state">
+                    <div class="loading-spinner"></div>
+                    <div class="loading-text">Caricamento notifiche...</div>
+                </div>
+            `;
+            state.notifications = [];
+            state.lastDoc = null;
+            state.hasMore = true;
+        }
+
+        try {
+            let query = state.db.collection('push_history')
+                .where('appSlug', '==', CONFIG.appSlug)
+                .where('status', '==', 'sent');
+
+            // Filtro per sorgente
+            if (state.activeFilter !== 'all') {
+                // Gruppo "crm_broadcast" include anche "crm_api"
+                if (state.activeFilter === 'crm_broadcast') {
+                    query = query.where('source', 'in', ['crm_broadcast', 'crm_api']);
+                } else {
+                    query = query.where('source', '==', state.activeFilter);
+                }
+            }
+
+            query = query.orderBy('sentAt', 'desc').limit(CONFIG.pageSize);
+
+            if (state.lastDoc) {
+                query = query.startAfter(state.lastDoc);
+            }
+
+            const snapshot = await query.get();
+            const newNotifications = [];
+
+            snapshot.forEach(doc => {
+                newNotifications.push({ id: doc.id, ...doc.data(), _doc: doc });
+                state.lastDoc = doc;
+            });
+
+            state.notifications = append
+                ? [...state.notifications, ...newNotifications]
+                : newNotifications;
+
+            state.hasMore = newNotifications.length >= CONFIG.pageSize;
+
+            renderNotifications();
+
+        } catch (error) {
+            console.error('[Storico] Errore caricamento:', error);
+
+            // Fallback: prova senza orderBy (indice composito mancante)
+            try {
+                let fallbackQuery = state.db.collection('push_history')
+                    .where('appSlug', '==', CONFIG.appSlug)
+                    .where('status', '==', 'sent')
+                    .limit(CONFIG.pageSize * 3);
+
+                const fallbackSnap = await fallbackQuery.get();
+                const all = [];
+                fallbackSnap.forEach(doc => all.push({ id: doc.id, ...doc.data() }));
+
+                // Ordina e filtra manualmente
+                all.sort((a, b) => {
+                    const da = a.sentAt?.toDate ? a.sentAt.toDate() : new Date(a.sentAt || 0);
+                    const db2 = b.sentAt?.toDate ? b.sentAt.toDate() : new Date(b.sentAt || 0);
+                    return db2 - da;
+                });
+
+                if (state.activeFilter !== 'all') {
+                    state.notifications = all.filter(n =>
+                        state.activeFilter === 'crm_broadcast'
+                            ? ['crm_broadcast', 'crm_api'].includes(n.source)
+                            : n.source === state.activeFilter
+                    );
+                } else {
+                    state.notifications = all;
+                }
+
+                state.hasMore = false;
+                renderNotifications();
+
+            } catch (fallbackErr) {
+                container.innerHTML = `
+                    <div class="error-state">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <h3>Errore di caricamento</h3>
+                        <p>Non è possibile caricare le notifiche. Riprova più tardi.</p>
+                    </div>
+                `;
+            }
+        }
+
+        state.loading = false;
+    }
+
+    // ============================================================
+    // Statistiche
+    // ============================================================
+
+    async function loadStats() {
+        try {
+            const snapshot = await state.db.collection('push_history')
+                .where('appSlug', '==', CONFIG.appSlug)
+                .where('status', '==', 'sent')
+                .get();
+
+            const now = new Date();
+            const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+            const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+            let total = 0, month = 0, today = 0;
+
+            snapshot.forEach(doc => {
+                total++;
+                const sentAt = doc.data().sentAt;
+                const date = sentAt?.toDate ? sentAt.toDate() : new Date(sentAt || 0);
+                if (date >= startOfMonth) month++;
+                if (date >= startOfDay) today++;
+            });
+
+            document.getElementById('stat-total').textContent = total;
+            document.getElementById('stat-month').textContent = month;
+            document.getElementById('stat-today').textContent = today;
+            document.getElementById('stats-bar').style.display = 'block';
+        } catch (e) {
+            console.warn('[Storico] Errore caricamento stats:', e);
+        }
+    }
+
+    // ============================================================
+    // Rendering
+    // ============================================================
+
+    function renderNotifications() {
+        const container = document.getElementById('notifications-container');
+
+        if (state.notifications.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-bell-slash"></i>
+                    <h3>Nessuna notifica</h3>
+                    <p>Non ci sono notifiche da visualizzare${state.activeFilter !== 'all' ? ' per questo filtro' : ''}.</p>
+                </div>
+            `;
+            return;
+        }
+
+        let html = '';
+        let lastDateStr = '';
+
+        state.notifications.forEach(notif => {
+            const sentAt = notif.sentAt?.toDate ? notif.sentAt.toDate() : new Date(notif.sentAt || 0);
+            const dateStr = formatDateGroup(sentAt);
+
+            // Separatore data
+            if (dateStr !== lastDateStr) {
+                html += `<div class="date-separator">${dateStr}</div>`;
+                lastDateStr = dateStr;
+            }
+
+            const source = notif.source || 'manual';
+            const sourceLabel = getSourceLabel(source);
+            const sourceIcon = getSourceIcon(source);
+            const timeStr = formatTime(sentAt);
+
+            html += `
+                <div class="notification-card source-${source}">
+                    <div class="notif-header">
+                        <span class="notif-source-badge badge-${source}">
+                            <i class="fas ${sourceIcon}"></i> ${sourceLabel}
+                        </span>
+                        <span class="notif-time">${timeStr}</span>
+                    </div>
+                    ${notif.title ? `<div class="notif-title">${escapeHtml(notif.title)}</div>` : ''}
+                    <div class="notif-body">${escapeHtml(notif.message || notif.fullMessage || '')}</div>
+                    ${notif.gbUrl ? `<a class="notif-link" href="${escapeHtml(notif.gbUrl)}" target="_blank"><i class="fas fa-external-link-alt"></i> Vedi dettaglio</a>` : ''}
+                </div>
+            `;
+        });
+
+        // Pulsante carica altro
+        if (state.hasMore) {
+            html += `<button class="load-more" onclick="loadNotifications(true)">
+                <i class="fas fa-chevron-down"></i> Carica altre notifiche
+            </button>`;
+        }
+
+        container.innerHTML = html;
+    }
+
+    // ============================================================
+    // Utility
+    // ============================================================
+
+    function formatDateGroup(date) {
+        const now = new Date();
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const yesterday = new Date(today);
+        yesterday.setDate(yesterday.getDate() - 1);
+        const dateOnly = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+
+        if (dateOnly.getTime() === today.getTime()) return 'Oggi';
+        if (dateOnly.getTime() === yesterday.getTime()) return 'Ieri';
+
+        return date.toLocaleDateString('it-IT', {
+            weekday: 'long',
+            day: 'numeric',
+            month: 'long',
+            year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined
+        });
+    }
+
+    function formatTime(date) {
+        const now = new Date();
+        const diff = Math.floor((now - date) / 1000);
+
+        if (diff < 3600) return `${Math.floor(diff / 60)} min fa`;
+        if (diff < 86400) return `${Math.floor(diff / 3600)} ore fa`;
+
+        return date.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+    }
+
+    function getSourceLabel(source) {
+        const labels = {
+            'rss_auto': 'News',
+            'calendar_auto': 'Evento',
+            'meteo_alert': 'Allerta',
+            'crm_broadcast': 'Comunicazione',
+            'crm_api': 'Comunicazione',
+            'manual': 'Avviso'
+        };
+        return labels[source] || 'Notifica';
+    }
+
+    function getSourceIcon(source) {
+        const icons = {
+            'rss_auto': 'fa-rss',
+            'calendar_auto': 'fa-calendar-alt',
+            'meteo_alert': 'fa-cloud-sun-rain',
+            'crm_broadcast': 'fa-bullhorn',
+            'crm_api': 'fa-code',
+            'manual': 'fa-bell'
+        };
+        return icons[source] || 'fa-bell';
+    }
+
+    function escapeHtml(str) {
+        if (!str) return '';
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+    }
+
+    // ============================================================
+    // Filtri — Event Listeners
+    // ============================================================
+
+    document.querySelectorAll('.filter-chip').forEach(chip => {
+        chip.addEventListener('click', () => {
+            document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+            chip.classList.add('active');
+            state.activeFilter = chip.dataset.filter;
+            loadNotifications(false);
+        });
+    });
+
+    // ============================================================
+    // Personalizzazione per comune
+    // ============================================================
+
+    function setComune(nome) {
+        document.getElementById('page-title').textContent = `Notifiche ${nome}`;
+        document.getElementById('page-subtitle').textContent = `Storico comunicazioni push`;
+        document.title = `Storico Notifiche — ${nome}`;
+    }
+
+    // ============================================================
+    // Avvio
+    // ============================================================
+
+    async function init() {
+        // Verifica appSlug
+        if (!CONFIG.appSlug) {
+            document.getElementById('notifications-container').innerHTML = `
+                <div class="error-state">
+                    <i class="fas fa-question-circle"></i>
+                    <h3>Comune non specificato</h3>
+                    <p>Aggiungi <strong>?app=nomecomune</strong> all'URL per visualizzare le notifiche.</p>
+                </div>
+            `;
+            return;
+        }
+
+        // Inizializza Firebase
+        if (!initFirebase()) {
+            document.getElementById('notifications-container').innerHTML = `
+                <div class="error-state">
+                    <i class="fas fa-database"></i>
+                    <h3>Configurazione mancante</h3>
+                    <p>Impossibile connettersi al database. Verifica la configurazione Firebase.</p>
+                </div>
+            `;
+            return;
+        }
+
+        // Personalizza per il comune
+        const comuneNome = CONFIG.appSlug.charAt(0).toUpperCase() + CONFIG.appSlug.slice(1);
+        setComune(comuneNome);
+        CONFIG.appBaseUrl = `https://${CONFIG.appSlug}.comune.digital`;
+
+        // Carica dati
+        await Promise.all([
+            loadNotifications(),
+            loadStats()
+        ]);
+    }
+
+    // Avvia quando il DOM è pronto
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+    } else {
+        init();
+    }
+    </script>
+</body>
+</html>

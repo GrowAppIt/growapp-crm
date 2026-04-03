@@ -6,8 +6,18 @@
     "api/ai-chat.js": {
       "maxDuration": 30,
       "memory": 1024
+    },
+    "api/sync-push-history.js": {
+      "maxDuration": 60,
+      "memory": 512
     }
   },
+  "crons": [
+    {
+      "path": "/api/sync-push-history",
+      "schedule": "*/15 * * * *"
+    }
+  ],
   "rewrites": [
     {
       "source": "/css/(.*)",
@@ -24,6 +34,18 @@
     {
       "source": "/firebase-messaging-sw.js",
       "destination": "/firebase-messaging-sw.js"
+    },
+    {
+      "source": "/storico-notifiche",
+      "destination": "/storico-notifiche/index.html"
+    },
+    {
+      "source": "/storico-notifiche/(.*)",
+      "destination": "/storico-notifiche/index.html"
+    },
+    {
+      "source": "/rss-monitor/(.*)",
+      "destination": "/rss-monitor/$1"
     },
     {
       "source": "/(.*)",
