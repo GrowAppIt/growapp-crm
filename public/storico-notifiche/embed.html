@@ -64,7 +64,7 @@
          *
          * INTEGRAZIONE GOODBARBER:
          *   Nella sezione HTML custom dell'app, inserisci:
-         *   <iframe src="https://growapp-crm.vercel.app/storico-notifiche/embed.html?app=NOME_COMUNE"
+         *   <iframe src="https://growapp-crm.vercel.app/storico-notifiche/embed.html?app=NOME_COMUNE&x-vercel-protection-bypass=qQg6u7DB4CKAJXjNcpjDzkDvjOvPM5fo"
          *           style="width:100%;height:100vh;border:none;"
          *           allow="fullscreen">
          *   </iframe>
@@ -86,7 +86,8 @@
         } else {
             // Costruisci URL della pagina notifiche completa
             const baseUrl = window.location.origin + '/storico-notifiche/';
-            const fullUrl = baseUrl + '?app=' + encodeURIComponent(appSlug);
+            const bypassKey = 'qQg6u7DB4CKAJXjNcpjDzkDvjOvPM5fo';
+            const fullUrl = baseUrl + '?app=' + encodeURIComponent(appSlug) + '&x-vercel-protection-bypass=' + bypassKey;
 
             // Crea iframe
             const iframe = document.createElement('iframe');
