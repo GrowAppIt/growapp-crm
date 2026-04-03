@@ -310,7 +310,7 @@ const App = {
         const validPages = [
             'dashboard', 'scadenzario', 'clienti', 'mappa', 'app', 'task',
             'contratti', 'fatture', 'report', 'promemoria', 'impostazioni', 'messaggi',
-            'report-app', 'push-broadcast', 'aggiorna-push', 'monitor-rss', 'generatore-webapp', 'officina-digitale',
+            'report-app', 'push-broadcast', 'aggiorna-push', 'monitor-rss', 'generatore-webapp', 'storico-push', 'officina-digitale',
             'dettaglio-cliente', 'dettaglio-contratto', 'dettaglio-app',
             'dettaglio-fattura', 'dettaglio-scadenza'
         ];

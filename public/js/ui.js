@@ -140,6 +140,9 @@ const UI = {
             case 'generatore-webapp':
                 GeneratoreWebapp.render();
                 break;
+            case 'storico-push':
+                StoricoPush.render();
+                break;
             case 'officina-digitale':
                 OfficinaDigitale.render();
                 break;
