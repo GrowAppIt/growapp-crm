@@ -6,7 +6,7 @@
     <title>Archivio Notifiche</title>
 
     <!-- Titillium Web -->
-    <link href="https://fonts.googleapis.com/css2?family=Titillium+Web:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Titillium+Web:wght@300;400;600;700&display=swap" rel="stylesheet">
 
     <!-- Font Awesome Free -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
@@ -98,14 +98,14 @@
         }
 
         .header-text h1 {
-            font-size: 18px;
+            font-size: clamp(1.1rem, 4.5vw, 1.35rem);
             font-weight: 700;
             line-height: 1.2;
         }
 
         .header-text .subtitle {
-            font-size: 12px;
-            font-weight: 300;
+            font-size: clamp(0.8rem, 3vw, 0.9rem);
+            font-weight: 400;
             opacity: 0.8;
         }
 
@@ -144,13 +144,13 @@
             display: inline-flex;
             align-items: center;
             gap: 6px;
-            padding: 6px 14px;
+            padding: 8px 16px;
             border-radius: 20px;
             border: 1.5px solid var(--grigio-300);
             background: var(--bianco);
             color: var(--grigio-700);
             font-family: 'Titillium Web', sans-serif;
-            font-size: 13px;
+            font-size: clamp(0.85rem, 3.5vw, 0.95rem);
             font-weight: 600;
             cursor: pointer;
             white-space: nowrap;
@@ -170,7 +170,7 @@
         }
 
         .filter-chip i {
-            font-size: 12px;
+            font-size: clamp(0.75rem, 3vw, 0.85rem);
         }
 
         /* ============================================================
@@ -179,11 +179,11 @@
         .notifications-container {
             max-width: 600px;
             margin: 0 auto;
-            padding: 12px 16px 80px 16px;
+            padding: 12px 16px 20px 16px;
         }
 
         .date-separator {
-            font-size: 13px;
+            font-size: clamp(0.85rem, 3.5vw, 0.95rem);
             font-weight: 700;
             color: var(--blu-700);
             padding: 16px 4px 8px 4px;
@@ -223,7 +223,11 @@
         }
 
         .notification-card.source-manual {
-            border-left-color: var(--grigio-500);
+            border-left-color: var(--blu-500);
+        }
+
+        .notification-card.source-crm_api {
+            border-left-color: var(--blu-700);
         }
 
         .notif-header {
@@ -237,10 +241,10 @@
             display: inline-flex;
             align-items: center;
             gap: 4px;
-            padding: 2px 8px;
+            padding: 3px 10px;
             border-radius: 10px;
-            font-size: 11px;
-            font-weight: 700;
+            font-size: clamp(0.7rem, 2.8vw, 0.8rem);
+            font-weight: 600;
             text-transform: uppercase;
             letter-spacing: 0.3px;
         }
@@ -267,26 +271,26 @@
         }
 
         .badge-manual {
-            background: var(--grigio-100);
-            color: var(--grigio-700);
+            background: var(--blu-100);
+            color: var(--blu-700);
         }
 
         .notif-time {
-            font-size: 12px;
+            font-size: clamp(0.75rem, 3vw, 0.85rem);
             color: var(--grigio-500);
             margin-left: auto;
             white-space: nowrap;
         }
 
         .notif-title {
-            font-size: 14px;
+            font-size: clamp(0.95rem, 4vw, 1.1rem);
             font-weight: 700;
             color: var(--grigio-700);
             margin-bottom: 2px;
         }
 
         .notif-body {
-            font-size: 14px;
+            font-size: clamp(0.9rem, 3.8vw, 1rem);
             font-weight: 400;
             color: var(--grigio-700);
             line-height: 1.45;
@@ -298,7 +302,7 @@
             align-items: center;
             gap: 4px;
             margin-top: 8px;
-            font-size: 13px;
+            font-size: clamp(0.85rem, 3.5vw, 0.95rem);
             font-weight: 600;
             color: var(--blu-500);
             text-decoration: none;
@@ -331,7 +335,7 @@
         }
 
         .loading-text {
-            font-size: 14px;
+            font-size: clamp(0.9rem, 3.5vw, 1rem);
             color: var(--grigio-500);
         }
 
@@ -347,14 +351,14 @@
         }
 
         .empty-state h3 {
-            font-size: 16px;
+            font-size: clamp(1rem, 4vw, 1.2rem);
             font-weight: 700;
             color: var(--grigio-700);
             margin-bottom: 4px;
         }
 
         .empty-state p {
-            font-size: 14px;
+            font-size: clamp(0.9rem, 3.5vw, 1rem);
             color: var(--grigio-500);
         }
 
@@ -386,8 +390,8 @@
             border: 2px solid var(--blu-700);
             border-radius: 10px;
             font-family: 'Titillium Web', sans-serif;
-            font-size: 14px;
-            font-weight: 700;
+            font-size: clamp(0.9rem, 3.5vw, 1rem);
+            font-weight: 600;
             cursor: pointer;
             transition: all 0.2s ease;
         }
@@ -424,13 +428,13 @@
         }
 
         .stat-value {
-            font-size: 20px;
-            font-weight: 900;
+            font-size: clamp(1.2rem, 5vw, 1.5rem);
+            font-weight: 700;
             color: var(--blu-700);
         }
 
         .stat-label {
-            font-size: 11px;
+            font-size: clamp(0.7rem, 2.8vw, 0.8rem);
             color: var(--grigio-500);
             font-weight: 600;
             text-transform: uppercase;
@@ -439,26 +443,47 @@
         /* ============================================================
            Footer / Powered By
            ============================================================ */
-        .powered-by {
-            text-align: center;
-            padding: 20px;
-            font-size: 11px;
-            color: var(--grigio-500);
+        .footer {
+            background: var(--blu-700);
+            color: var(--bianco);
+            padding: 16px 20px;
         }
 
-        .powered-by a {
-            color: var(--blu-500);
+        .footer-inner {
+            max-width: 600px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .footer-powered {
+            font-size: clamp(0.75rem, 3vw, 0.85rem);
+            font-weight: 400;
+            opacity: 0.85;
+        }
+
+        .footer-powered a {
+            color: var(--bianco);
             text-decoration: none;
+            font-weight: 700;
+        }
+
+        .footer-info {
+            font-size: clamp(0.72rem, 2.8vw, 0.82rem);
+            font-weight: 300;
+            opacity: 0.7;
+            line-height: 1.4;
+        }
+
+        .footer-info strong {
             font-weight: 600;
         }
 
         /* ============================================================
            Responsive
            ============================================================ */
-        @media (max-width: 380px) {
-            .header-text h1 { font-size: 16px; }
-            .notification-card { padding: 12px 14px; }
-        }
+        /* Con clamp() non servono media query per i font */
     </style>
 </head>
 <body>
@@ -502,20 +527,14 @@
             <button class="filter-chip active" data-filter="all">
                 <i class="fas fa-list"></i> Tutte
             </button>
-            <button class="filter-chip" data-filter="rss_auto">
-                <i class="fas fa-rss"></i> News
+            <button class="filter-chip" data-filter="notizie">
+                <i class="fas fa-newspaper"></i> Notizie
             </button>
-            <button class="filter-chip" data-filter="calendar_auto">
-                <i class="fas fa-calendar-alt"></i> Eventi
+            <button class="filter-chip" data-filter="in_agenda">
+                <i class="fas fa-calendar-alt"></i> In agenda
             </button>
-            <button class="filter-chip" data-filter="meteo_alert">
-                <i class="fas fa-cloud-sun-rain"></i> Allerte
-            </button>
-            <button class="filter-chip" data-filter="crm_broadcast">
-                <i class="fas fa-bullhorn"></i> Comunicazioni
-            </button>
-            <button class="filter-chip" data-filter="manual">
-                <i class="fas fa-bell"></i> Altro
+            <button class="filter-chip" data-filter="avvisi">
+                <i class="fas fa-bullhorn"></i> Avvisi
             </button>
         </div>
     </div>
@@ -529,8 +548,15 @@
     </div>
 
     <!-- Footer -->
-    <div class="powered-by">
-        Powered by <a href="https://comune.digital" target="_blank">Comune.Digital</a>
+    <div class="footer">
+        <div class="footer-inner">
+            <div class="footer-powered">
+                Powered by <a href="https://www.comunedigital.it" target="_blank">Comune.Digital</a>
+            </div>
+            <div class="footer-info">
+                Per attivare le notifiche push o scegliere quali ricevere vai alla sezione <strong>InfoApp</strong>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -649,14 +675,13 @@
                 .where('appSlug', '==', CONFIG.appSlug)
                 .where('status', '==', 'sent');
 
-            // Filtro per sorgente
-            if (state.activeFilter !== 'all') {
-                // Gruppo "crm_broadcast" include anche "crm_api"
-                if (state.activeFilter === 'crm_broadcast') {
-                    query = query.where('source', 'in', ['crm_broadcast', 'crm_api']);
-                } else {
-                    query = query.where('source', '==', state.activeFilter);
-                }
+            // Filtro per gruppo sorgente
+            if (state.activeFilter === 'notizie') {
+                query = query.where('source', '==', 'rss_auto');
+            } else if (state.activeFilter === 'in_agenda') {
+                query = query.where('source', '==', 'calendar_auto');
+            } else if (state.activeFilter === 'avvisi') {
+                query = query.where('source', 'in', ['meteo_alert', 'crm_broadcast', 'crm_api', 'manual']);
             }
 
             query = query.orderBy('sentAt', 'desc').limit(CONFIG.pageSize);
@@ -669,7 +694,10 @@
             const newNotifications = [];
 
             snapshot.forEach(doc => {
-                newNotifications.push({ id: doc.id, ...doc.data(), _doc: doc });
+                const data = { id: doc.id, ...doc.data(), _doc: doc };
+                if (!shouldHideNotification(data)) {
+                    newNotifications.push(data);
+                }
                 state.lastDoc = doc;
             });
 
@@ -693,7 +721,10 @@
 
                 const fallbackSnap = await fallbackQuery.get();
                 const all = [];
-                fallbackSnap.forEach(doc => all.push({ id: doc.id, ...doc.data() }));
+                fallbackSnap.forEach(doc => {
+                    const data = { id: doc.id, ...doc.data() };
+                    if (!shouldHideNotification(data)) all.push(data);
+                });
 
                 // Ordina e filtra manualmente
                 all.sort((a, b) => {
@@ -703,11 +734,7 @@
                 });
 
                 if (state.activeFilter !== 'all') {
-                    state.notifications = all.filter(n =>
-                        state.activeFilter === 'crm_broadcast'
-                            ? ['crm_broadcast', 'crm_api'].includes(n.source)
-                            : n.source === state.activeFilter
-                    );
+                    state.notifications = all.filter(n => matchesFilter(n.source, state.activeFilter));
                 } else {
                     state.notifications = all;
                 }
@@ -775,7 +802,7 @@
                 <div class="empty-state">
                     <i class="fas fa-bell-slash"></i>
                     <h3>Nessuna notifica</h3>
-                    <p>Non ci sono notifiche da visualizzare${state.activeFilter !== 'all' ? ' per questo filtro' : ''}.</p>
+                    <p>${state.activeFilter !== 'all' ? 'Non ci sono notifiche per questo filtro.' : 'Da questo momento qui troverai tutte le notifiche ricevute dall\'App.'}</p>
                 </div>
             `;
             return;
@@ -858,11 +885,11 @@
 
     function getSourceLabel(source) {
         const labels = {
-            'rss_auto': 'News',
-            'calendar_auto': 'Evento',
+            'rss_auto': 'Notizia',
+            'calendar_auto': 'In agenda',
             'meteo_alert': 'Allerta',
-            'crm_broadcast': 'Comunicazione',
-            'crm_api': 'Comunicazione',
+            'crm_broadcast': 'Avviso',
+            'crm_api': 'Avviso',
             'manual': 'Avviso'
         };
         return labels[source] || 'Notifica';
@@ -870,14 +897,30 @@
 
     function getSourceIcon(source) {
         const icons = {
-            'rss_auto': 'fa-rss',
+            'rss_auto': 'fa-newspaper',
             'calendar_auto': 'fa-calendar-alt',
-            'meteo_alert': 'fa-cloud-sun-rain',
+            'meteo_alert': 'fa-exclamation-triangle',
             'crm_broadcast': 'fa-bullhorn',
-            'crm_api': 'fa-code',
+            'crm_api': 'fa-bullhorn',
             'manual': 'fa-bell'
         };
         return icons[source] || 'fa-bell';
+    }
+
+    // Mappa filtro UI → sorgenti Firestore
+    function matchesFilter(source, filter) {
+        if (filter === 'all') return true;
+        if (filter === 'notizie') return source === 'rss_auto';
+        if (filter === 'in_agenda') return source === 'calendar_auto';
+        if (filter === 'avvisi') return ['meteo_alert', 'crm_broadcast', 'crm_api', 'manual'].includes(source);
+        return true;
+    }
+
+    // Filtra notifiche ripetitive (Differenziata/Rifiuti quotidiani)
+    function shouldHideNotification(notif) {
+        const title = (notif.title || '').trim();
+        if (title.startsWith('Differenziata:') || title.startsWith('Rifiuti:')) return true;
+        return false;
     }
 
     function escapeHtml(str) {
