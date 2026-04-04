@@ -29,6 +29,17 @@
       ],
       "destination": "https://crm.comune.digital/:path",
       "permanent": true
+    },
+    {
+      "source": "/((?!storico-notifiche)(?!api/)(?!js/)(?!css/).*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "notifiche.comune.digital"
+        }
+      ],
+      "destination": "https://notifiche.comune.digital/storico-notifiche/landing.html",
+      "permanent": false
     }
   ],
   "rewrites": [
@@ -83,7 +94,7 @@
         },
         {
           "key": "Content-Security-Policy",
-          "value": "frame-ancestors 'self' https://crm.comune.digital https://*.comune.digital https://*.goodbarber.com https://*.goodbarber.app"
+          "value": "frame-ancestors 'self' https://notifiche.comune.digital https://crm.comune.digital https://*.comune.digital https://*.goodbarber.com https://*.goodbarber.app"
         }
       ]
     },
