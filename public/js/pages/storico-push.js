@@ -43,6 +43,9 @@ const StoricoPush = {
             this.renderContent();
             await this.loadNotifications();
 
+            // Carica alert monitoraggio (in parallelo, non blocca la pagina)
+            this.loadMonitorAlerts();
+
         } catch (error) {
             console.error('[StoricoPush] Errore render:', error);
             UI.hideLoading();
@@ -133,6 +136,9 @@ const StoricoPush = {
                         <div class="sp-stat-label">App Monitorate</div>
                     </div>
                 </div>
+
+                <!-- Alert Monitoraggio -->
+                <div class="sp-monitor-alerts" id="sp-monitor-alerts" style="display:none;"></div>
 
                 <!-- Filtri -->
                 <div class="sp-filters">
@@ -338,6 +344,83 @@ const StoricoPush = {
                     font-size: 48px;
                     color: var(--grigio-300);
                     margin-bottom: 12px;
+                }
+
+                /* Alert Monitoraggio */
+                .sp-monitor-alerts {
+                    margin-bottom: 16px;
+                }
+                .sp-alert-header {
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    margin-bottom: 10px;
+                }
+                .sp-alert-title {
+                    font-size: 0.85rem;
+                    font-weight: 700;
+                    color: #D32F2F;
+                    text-transform: uppercase;
+                    letter-spacing: 0.3px;
+                    display: flex;
+                    align-items: center;
+                    gap: 6px;
+                }
+                .sp-alert-toggle {
+                    font-size: 0.75rem;
+                    color: var(--grigio-500);
+                    cursor: pointer;
+                    border: none;
+                    background: none;
+                    font-family: 'Titillium Web', sans-serif;
+                    font-weight: 600;
+                    text-decoration: underline;
+                }
+                .sp-alert-card {
+                    display: flex;
+                    align-items: flex-start;
+                    gap: 12px;
+                    padding: 12px 16px;
+                    border-radius: 10px;
+                    margin-bottom: 6px;
+                    font-size: 0.85rem;
+                }
+                .sp-alert-card.alert-error {
+                    background: #FFEBEE;
+                    border-left: 4px solid #D32F2F;
+                }
+                .sp-alert-card.alert-warn {
+                    background: #FFF8E1;
+                    border-left: 4px solid #FFCC00;
+                }
+                .sp-alert-card .alert-icon {
+                    font-size: 18px;
+                    flex-shrink: 0;
+                    margin-top: 1px;
+                }
+                .sp-alert-card.alert-error .alert-icon { color: #D32F2F; }
+                .sp-alert-card.alert-warn .alert-icon { color: #F57F17; }
+                .sp-alert-card .alert-body { flex: 1; }
+                .sp-alert-card .alert-app-name {
+                    font-weight: 700;
+                    color: var(--grigio-700);
+                }
+                .sp-alert-card .alert-message {
+                    color: var(--grigio-700);
+                    margin-top: 2px;
+                    line-height: 1.4;
+                }
+                .sp-alert-card .alert-details {
+                    display: flex;
+                    gap: 12px;
+                    margin-top: 4px;
+                    font-size: 0.75rem;
+                    color: var(--grigio-500);
+                }
+                .sp-alert-card .alert-details span {
+                    display: flex;
+                    align-items: center;
+                    gap: 3px;
                 }
 
                 @media (max-width: 768px) {
@@ -697,6 +780,170 @@ const StoricoPush = {
             UI.hideLoading();
             UI.showError('Errore nel salvataggio: ' + error.message);
         }
+    },
+
+    // ================================================================
+    // Alert Monitoraggio
+    // ================================================================
+
+    async loadMonitorAlerts() {
+        const container = document.getElementById('sp-monitor-alerts');
+        if (!container) return;
+
+        try {
+            // Soglie (in giorni)
+            const WARN_DAYS = 3;
+            const ERROR_DAYS = 7;
+            const now = new Date();
+
+            // Carica tutte le app (non solo monitorate)
+            const allAppsSnap = await db.collection('app').get();
+            const allApps = [];
+            allAppsSnap.forEach(doc => allApps.push({ id: doc.id, ...doc.data() }));
+
+            const alerts = [];
+
+            // 1) App attive senza monitoraggio push abilitato
+            const attiveSenzaMonitor = allApps.filter(a =>
+                a.statoApp === 'ATTIVA' && !a.pushMonitorEnabled
+            );
+            for (const app of attiveSenzaMonitor) {
+                alerts.push({
+                    type: 'warn',
+                    appName: app.comune || app.nome || app.appSlug || app.id,
+                    message: 'App attiva ma monitoraggio push non abilitato. Configurare account fantasma.',
+                    details: null
+                });
+            }
+
+            // 2) App con monitoraggio abilitato: controlla ultima notifica
+            const monitorate = allApps.filter(a => a.pushMonitorEnabled === true && a.appSlug);
+
+            for (const app of monitorate) {
+                let lastNotifDate = null;
+                let totalNotifs = 0;
+
+                try {
+                    const lastSnap = await db.collection('push_history')
+                        .where('appSlug', '==', app.appSlug)
+                        .where('status', '==', 'sent')
+                        .orderBy('sentAt', 'desc')
+                        .limit(1)
+                        .get();
+
+                    if (!lastSnap.empty) {
+                        const data = lastSnap.docs[0].data();
+                        lastNotifDate = data.sentAt?.toDate ? data.sentAt.toDate() : null;
+                    }
+
+                    const countSnap = await db.collection('push_history')
+                        .where('appSlug', '==', app.appSlug)
+                        .where('status', '==', 'sent')
+                        .get();
+                    totalNotifs = countSnap.size;
+                } catch (e) {
+                    console.warn(`[monitor] Query error for ${app.appSlug}:`, e.message);
+                }
+
+                if (totalNotifs === 0) {
+                    alerts.push({
+                        type: 'error',
+                        appName: app.comune || app.appSlug,
+                        message: 'Nessuna notifica ricevuta. Account fantasma non attivo o non ha mai aperto l\'app.',
+                        details: { lastSync: app.lastPushSync?.toDate ? app.lastPushSync.toDate() : null }
+                    });
+                } else if (lastNotifDate) {
+                    const daysSince = Math.floor((now - lastNotifDate) / (1000 * 60 * 60 * 24));
+                    if (daysSince >= ERROR_DAYS) {
+                        alerts.push({
+                            type: 'error',
+                            appName: app.comune || app.appSlug,
+                            message: `Nessuna notifica da ${daysSince} giorni. Possibile token push scaduto o app sospesa dal dispositivo.`,
+                            details: { lastNotif: lastNotifDate, totalNotifs }
+                        });
+                    } else if (daysSince >= WARN_DAYS) {
+                        alerts.push({
+                            type: 'warn',
+                            appName: app.comune || app.appSlug,
+                            message: `Ultima notifica ricevuta ${daysSince} giorni fa. Verificare che l'app sia ancora attiva sul dispositivo.`,
+                            details: { lastNotif: lastNotifDate, totalNotifs }
+                        });
+                    }
+                }
+            }
+
+            // Se non ci sono alert, nascondi la sezione
+            if (alerts.length === 0) {
+                container.style.display = 'none';
+                return;
+            }
+
+            // Ordina: errori prima, poi warning
+            alerts.sort((a, b) => (a.type === 'error' ? 0 : 1) - (b.type === 'error' ? 0 : 1));
+
+            // Render
+            const errCount = alerts.filter(a => a.type === 'error').length;
+            const warnCount = alerts.filter(a => a.type === 'warn').length;
+
+            let html = `
+                <div class="sp-alert-header">
+                    <span class="sp-alert-title">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        ${alerts.length} ${alerts.length === 1 ? 'problema rilevato' : 'problemi rilevati'}
+                        ${errCount > 0 ? `(${errCount} ${errCount === 1 ? 'critico' : 'critici'})` : ''}
+                    </span>
+                </div>
+            `;
+
+            alerts.forEach(alert => {
+                const iconClass = alert.type === 'error' ? 'fa-times-circle' : 'fa-exclamation-triangle';
+                let detailsHtml = '';
+
+                if (alert.details) {
+                    detailsHtml = '<div class="alert-details">';
+                    if (alert.details.lastNotif) {
+                        detailsHtml += `<span><i class="fas fa-clock"></i> Ultima: ${this.formatDate(alert.details.lastNotif)}</span>`;
+                    }
+                    if (alert.details.totalNotifs !== undefined) {
+                        detailsHtml += `<span><i class="fas fa-bell"></i> ${alert.details.totalNotifs} totali</span>`;
+                    }
+                    if (alert.details.lastSync) {
+                        detailsHtml += `<span><i class="fas fa-sync-alt"></i> Sync: ${this.formatDate(alert.details.lastSync)}</span>`;
+                    }
+                    detailsHtml += '</div>';
+                }
+
+                html += `
+                    <div class="sp-alert-card alert-${alert.type}">
+                        <div class="alert-icon"><i class="fas ${iconClass}"></i></div>
+                        <div class="alert-body">
+                            <div class="alert-app-name">${this.escapeHtml(alert.appName)}</div>
+                            <div class="alert-message">${this.escapeHtml(alert.message)}</div>
+                            ${detailsHtml}
+                        </div>
+                    </div>
+                `;
+            });
+
+            container.innerHTML = html;
+            container.style.display = 'block';
+
+        } catch (error) {
+            console.warn('[StoricoPush] Errore caricamento alert:', error);
+            container.style.display = 'none';
+        }
+    },
+
+    formatDate(date) {
+        if (!date) return '—';
+        const now = new Date();
+        const diffMs = now - date;
+        const diffDays = Math.floor(diffMs / 86400000);
+
+        if (diffDays === 0) return 'Oggi ' + date.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+        if (diffDays === 1) return 'Ieri';
+        if (diffDays < 30) return `${diffDays} giorni fa`;
+        return date.toLocaleDateString('it-IT', { day: 'numeric', month: 'short' });
     },
 
     // ================================================================
