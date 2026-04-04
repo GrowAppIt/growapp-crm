@@ -165,8 +165,19 @@ function detectNotificationSource(message) {
         };
     }
 
-    // Pattern: contiene "allerta" o "meteo" → Allerta meteo
-    if (message.toLowerCase().includes('allerta') || message.toLowerCase().includes('meteo')) {
+    // Pattern: contiene "allerta meteo", "allerta gialla/arancione/rossa",
+    // oppure inizia con "Allerta:" → Allerta meteo
+    // NB: la parola "meteo" da sola NON basta (es: "widget Meteo" non è un'allerta)
+    const msgLower = message.toLowerCase();
+    if (
+        msgLower.includes('allerta meteo') ||
+        msgLower.includes('allerta gialla') ||
+        msgLower.includes('allerta arancione') ||
+        msgLower.includes('allerta rossa') ||
+        msgLower.includes('allerta verde') ||
+        message.startsWith('Allerta:') ||
+        /\ballerta\b.*\b(protezione civile|temporali|pioggia|neve|vento|frane|esondazione|idrogeologico)\b/i.test(message)
+    ) {
         return {
             source: 'meteo_alert',
             title: 'Allerta',
