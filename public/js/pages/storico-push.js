@@ -57,16 +57,35 @@ const StoricoPush = {
     renderContent() {
         const mainContent = document.getElementById('mainContent');
 
-        // Opzioni filtro app
-        const appOptions = this.apps
+        // Opzioni filtro app — divise in configurate e non configurate
+        const allApps = this.apps
             .filter(a => a.appSlug || a.comune || a.nome)
-            .sort((a, b) => (a.comune || a.nome || '').localeCompare(b.comune || b.nome || '', 'it'))
-            .map(a => {
+            .sort((a, b) => (a.comune || a.nome || '').localeCompare(b.comune || b.nome || '', 'it'));
+
+        const configurate = allApps.filter(a => a.pushMonitorEnabled);
+        const nonConfigurate = allApps.filter(a => !a.pushMonitorEnabled);
+
+        let appOptions = '';
+
+        if (configurate.length > 0) {
+            appOptions += `<optgroup label="✅ Configurate (${configurate.length})">`;
+            appOptions += configurate.map(a => {
                 const slug = a.appSlug || (a.comune || a.nome || '').toLowerCase().replace(/\s+/g, '');
                 const label = a.comune || a.nome || slug;
-                return `<option value="${this.escapeHtml(slug)}">${this.escapeHtml(label)}</option>`;
-            })
-            .join('');
+                return `<option value="${this.escapeHtml(slug)}">✅ ${this.escapeHtml(label)}</option>`;
+            }).join('');
+            appOptions += `</optgroup>`;
+        }
+
+        if (nonConfigurate.length > 0) {
+            appOptions += `<optgroup label="⏳ Da configurare (${nonConfigurate.length})">`;
+            appOptions += nonConfigurate.map(a => {
+                const slug = a.appSlug || (a.comune || a.nome || '').toLowerCase().replace(/\s+/g, '');
+                const label = a.comune || a.nome || slug;
+                return `<option value="${this.escapeHtml(slug)}" disabled>⏳ ${this.escapeHtml(label)}</option>`;
+            }).join('');
+            appOptions += `</optgroup>`;
+        }
 
         mainContent.innerHTML = `
             <div class="storico-push-page">
