@@ -1021,8 +1021,20 @@
             return;
         }
 
-        // Personalizza per il comune
-        const comuneNome = CONFIG.appSlug.charAt(0).toUpperCase() + CONFIG.appSlug.slice(1);
+        // Personalizza per il comune — legge il nome reale da Firestore
+        let comuneNome = CONFIG.appSlug.charAt(0).toUpperCase() + CONFIG.appSlug.slice(1);
+        try {
+            const appSnap = await state.db.collection('app')
+                .where('appSlug', '==', CONFIG.appSlug)
+                .limit(1)
+                .get();
+            if (!appSnap.empty) {
+                const appData = appSnap.docs[0].data();
+                comuneNome = appData.comune || appData.nome || appData.nomeComune || comuneNome;
+            }
+        } catch (e) {
+            console.warn('[Storico] Errore lettura nome comune da Firestore:', e);
+        }
         setComune(comuneNome);
         CONFIG.appBaseUrl = `https://${CONFIG.appSlug}.comune.digital`;
 

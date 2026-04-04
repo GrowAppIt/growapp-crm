@@ -887,29 +887,41 @@ const StoricoPush = {
                 }
             }
 
-            // Se non ci sono alert, nascondi la sezione
-            if (alerts.length === 0) {
-                container.style.display = 'none';
-                return;
-            }
-
             // Ordina: errori prima, poi warning
             alerts.sort((a, b) => (a.type === 'error' ? 0 : 1) - (b.type === 'error' ? 0 : 1));
 
-            // Render
             const errCount = alerts.filter(a => a.type === 'error').length;
             const warnCount = alerts.filter(a => a.type === 'warn').length;
+            const okCount = monitorate.length - errCount - warnCount;
+
+            // Header — mostra sempre il riepilogo
+            let headerBg = '#E2F8DE'; // verde chiaro
+            let headerColor = '#3CA434';
+            let headerIcon = 'fa-check-circle';
+            let headerText = `Monitoraggio attivo — ${monitorate.length} app tutte OK`;
+
+            if (errCount > 0) {
+                headerBg = '#FFEBEE';
+                headerColor = '#D32F2F';
+                headerIcon = 'fa-exclamation-triangle';
+                headerText = `${errCount} ${errCount === 1 ? 'problema critico' : 'problemi critici'}${warnCount > 0 ? `, ${warnCount} avvisi` : ''} — ${okCount} OK su ${monitorate.length}`;
+            } else if (warnCount > 0) {
+                headerBg = '#FFF8E1';
+                headerColor = '#F57F17';
+                headerIcon = 'fa-exclamation-triangle';
+                headerText = `${warnCount} ${warnCount === 1 ? 'avviso' : 'avvisi'} — ${okCount} OK su ${monitorate.length}`;
+            }
 
             let html = `
-                <div class="sp-alert-header">
+                <div class="sp-alert-header" style="background:${headerBg}; color:${headerColor};">
                     <span class="sp-alert-title">
-                        <i class="fas fa-exclamation-triangle"></i>
-                        ${alerts.length} ${alerts.length === 1 ? 'problema rilevato' : 'problemi rilevati'}
-                        ${errCount > 0 ? `(${errCount} ${errCount === 1 ? 'critico' : 'critici'})` : ''}
+                        <i class="fas ${headerIcon}"></i>
+                        ${headerText}
                     </span>
                 </div>
             `;
 
+            // Card per ogni app con problemi
             alerts.forEach(alert => {
                 const iconClass = alert.type === 'error' ? 'fa-times-circle' : 'fa-exclamation-triangle';
                 let detailsHtml = '';
@@ -939,6 +951,24 @@ const StoricoPush = {
                     </div>
                 `;
             });
+
+            // Se tutto OK, mostra lista compatta delle app monitorate
+            if (alerts.length === 0) {
+                const nomiOk = monitorate
+                    .map(a => a.comune || a.nome || a.appSlug)
+                    .sort((a, b) => a.localeCompare(b, 'it'))
+                    .join(', ');
+
+                html += `
+                    <div class="sp-alert-card" style="border-left:4px solid #3CA434; background:#E2F8DE;">
+                        <div class="alert-icon" style="color:#3CA434;"><i class="fas fa-check-circle"></i></div>
+                        <div class="alert-body">
+                            <div class="alert-app-name" style="color:#3CA434;">Tutte le app funzionano correttamente</div>
+                            <div class="alert-message" style="color:#4A4A4A;">${this.escapeHtml(nomiOk)}</div>
+                        </div>
+                    </div>
+                `;
+            }
 
             container.innerHTML = html;
             container.style.display = 'block';
