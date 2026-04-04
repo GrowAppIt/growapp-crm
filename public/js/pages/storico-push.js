@@ -355,11 +355,13 @@ const StoricoPush = {
                     align-items: center;
                     justify-content: space-between;
                     margin-bottom: 10px;
+                    padding: 10px 14px;
+                    border-radius: 8px;
                 }
                 .sp-alert-title {
                     font-size: 0.85rem;
                     font-weight: 700;
-                    color: #D32F2F;
+                    color: inherit;
                     text-transform: uppercase;
                     letter-spacing: 0.3px;
                     display: flex;
@@ -759,11 +761,26 @@ const StoricoPush = {
                 const enabledInput = document.querySelector(`.sp-config-enabled[data-app-id="${appId}"]`);
                 const enabled = enabledInput ? enabledInput.checked : false;
 
-                const docRef = db.collection('app').doc(appId);
-                batch.update(docRef, {
+                // Se si sta abilitando il monitoraggio, verifica che appSlug esista
+                const appData = this.apps.find(a => a.id === appId);
+                const updateData = {
                     monitorPushUserId: userId,
                     pushMonitorEnabled: enabled
-                });
+                };
+
+                // Se l'app non ha appSlug, lo genera dal nome del comune
+                if (enabled && appData && !appData.appSlug) {
+                    const nome = appData.comune || appData.nome || '';
+                    if (nome) {
+                        updateData.appSlug = nome.toLowerCase()
+                            .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // rimuove accenti
+                            .replace(/[^a-z0-9]/g, ''); // rimuove spazi, apostrofi, trattini
+                        console.log(`[Config] Generato appSlug "${updateData.appSlug}" per ${nome}`);
+                    }
+                }
+
+                const docRef = db.collection('app').doc(appId);
+                batch.update(docRef, updateData);
             });
 
             await batch.commit();
@@ -799,7 +816,7 @@ const StoricoPush = {
             const alerts = [];
 
             // Solo app con monitoraggio abilitato: controlla ultima notifica
-            const monitorate = this.apps.filter(a => a.pushMonitorEnabled === true && a.appSlug);
+            const monitorate = this.apps.filter(a => !!a.pushMonitorEnabled && a.appSlug);
 
             if (monitorate.length === 0) {
                 container.style.display = 'none';
