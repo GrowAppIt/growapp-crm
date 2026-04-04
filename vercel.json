@@ -18,6 +18,19 @@
       "schedule": "*/15 * * * *"
     }
   ],
+  "redirects": [
+    {
+      "source": "/:path((?!api/).*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "growapp-crm.vercel.app"
+        }
+      ],
+      "destination": "https://crm.comune.digital/:path",
+      "permanent": true
+    }
+  ],
   "rewrites": [
     {
       "source": "/css/(.*)",
@@ -70,7 +83,7 @@
         },
         {
           "key": "Content-Security-Policy",
-          "value": "frame-ancestors 'self' https://growapp-crm.vercel.app https://*.comune.digital https://*.goodbarber.com https://*.goodbarber.app"
+          "value": "frame-ancestors 'self' https://crm.comune.digital https://*.comune.digital https://*.goodbarber.com https://*.goodbarber.app"
         }
       ]
     },
