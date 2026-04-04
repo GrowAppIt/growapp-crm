@@ -671,9 +671,21 @@ const StoricoPush = {
         const appRows = this.apps.map(a => {
             const enabled = a.pushMonitorEnabled ? 'checked' : '';
             const userId = a.monitorPushUserId || '';
+            const currentSlug = a.appSlug || '';
+            // Suggerimento slug: dal nome comune, minuscolo, senza accenti/spazi/speciali
+            const suggestedSlug = (a.comune || a.nome || '').toLowerCase()
+                .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+                .replace(/[^a-z0-9]/g, '');
             return `
                 <tr>
                     <td><strong>${this.escapeHtml(a.comune || a.nome)}</strong></td>
+                    <td>
+                        <input type="text" class="sp-config-slug"
+                               data-app-id="${a.id}"
+                               value="${this.escapeHtml(currentSlug)}"
+                               placeholder="${this.escapeHtml(suggestedSlug)}"
+                               style="width:140px;padding:4px 8px;border:1px solid #ddd;border-radius:4px;font-size:0.85rem;font-family:monospace;">
+                    </td>
                     <td><code>${a.goodbarberWebzineId || '—'}</code></td>
                     <td>
                         <input type="number" class="sp-config-userid"
@@ -698,7 +710,7 @@ const StoricoPush = {
                 z-index:9999;padding:1rem;">
                 <div onclick="event.stopPropagation()" style="
                     background:white;border-radius:12px;
-                    max-width:750px;width:100%;max-height:85vh;
+                    max-width:900px;width:100%;max-height:85vh;
                     overflow:hidden;display:flex;flex-direction:column;
                     box-shadow:0 20px 60px rgba(0,0,0,0.3);">
                     <div style="padding:1rem 1.5rem;border-bottom:1px solid #d9d9d9;display:flex;align-items:center;justify-content:space-between;">
@@ -709,14 +721,14 @@ const StoricoPush = {
                     </div>
                     <div style="padding:1rem 1.5rem;overflow-y:auto;flex:1;">
                         <p style="margin-bottom:12px;font-size:0.85rem;color:#9B9B9B;">
-                            Per ogni app, inserisci il <strong>User ID</strong> dell'utente fantasma creato su GoodBarber
-                            e attiva il monitoraggio. L'API
-                            <code>pushapi/history</code> verrà interrogata periodicamente per ogni app attiva.
+                            Per ogni app: inserisci l'<strong>App Slug</strong> (nome dell'app su GoodBarber, tutto minuscolo senza spazi — es: "appartinico", "comunedicefalu"),
+                            il <strong>User ID</strong> dell'utente fantasma e attiva il monitoraggio.
                         </p>
                         <table style="width:100%;border-collapse:collapse;font-size:0.85rem;">
                             <thead>
                                 <tr style="border-bottom:2px solid #d9d9d9;text-align:left;">
                                     <th style="padding:8px 4px;">Comune</th>
+                                    <th style="padding:8px 4px;">App Slug</th>
                                     <th style="padding:8px 4px;">Webzine ID</th>
                                     <th style="padding:8px 4px;">Monitor User ID</th>
                                     <th style="padding:8px 4px;text-align:center;">Attivo</th>
@@ -760,23 +772,21 @@ const StoricoPush = {
                 const userId = parseInt(input.value) || 0;
                 const enabledInput = document.querySelector(`.sp-config-enabled[data-app-id="${appId}"]`);
                 const enabled = enabledInput ? enabledInput.checked : false;
+                const slugInput = document.querySelector(`.sp-config-slug[data-app-id="${appId}"]`);
+                const slugValue = slugInput ? slugInput.value.trim().toLowerCase().replace(/[^a-z0-9]/g, '') : '';
 
-                // Se si sta abilitando il monitoraggio, verifica che appSlug esista
-                const appData = this.apps.find(a => a.id === appId);
                 const updateData = {
                     monitorPushUserId: userId,
                     pushMonitorEnabled: enabled
                 };
 
-                // Se l'app non ha appSlug, lo genera dal nome del comune
-                if (enabled && appData && !appData.appSlug) {
-                    const nome = appData.comune || appData.nome || '';
-                    if (nome) {
-                        updateData.appSlug = nome.toLowerCase()
-                            .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // rimuove accenti
-                            .replace(/[^a-z0-9]/g, ''); // rimuove spazi, apostrofi, trattini
-                        console.log(`[Config] Generato appSlug "${updateData.appSlug}" per ${nome}`);
-                    }
+                // Salva appSlug se compilato (o usa il placeholder come fallback)
+                if (slugValue) {
+                    updateData.appSlug = slugValue;
+                } else if (enabled && slugInput && slugInput.placeholder) {
+                    // Se attivo ma slug vuoto, usa il suggerimento dal placeholder
+                    updateData.appSlug = slugInput.placeholder;
+                    console.log(`[Config] Usato slug suggerito "${updateData.appSlug}" per app ${appId}`);
                 }
 
                 const docRef = db.collection('app').doc(appId);
