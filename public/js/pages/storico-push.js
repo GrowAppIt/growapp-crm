@@ -796,34 +796,23 @@ const StoricoPush = {
             const ERROR_DAYS = 7;
             const now = new Date();
 
-            // Carica tutte le app (non solo monitorate)
-            const allAppsSnap = await db.collection('app').get();
-            const allApps = [];
-            allAppsSnap.forEach(doc => allApps.push({ id: doc.id, ...doc.data() }));
-
             const alerts = [];
 
-            // 1) App attive senza monitoraggio push abilitato
-            const attiveSenzaMonitor = allApps.filter(a =>
-                a.statoApp === 'ATTIVA' && !a.pushMonitorEnabled
-            );
-            for (const app of attiveSenzaMonitor) {
-                alerts.push({
-                    type: 'warn',
-                    appName: app.comune || app.nome || app.appSlug || app.id,
-                    message: 'App attiva ma monitoraggio push non abilitato. Configurare account fantasma.',
-                    details: null
-                });
-            }
+            // Solo app con monitoraggio abilitato: controlla ultima notifica
+            const monitorate = this.apps.filter(a => a.pushMonitorEnabled === true && a.appSlug);
 
-            // 2) App con monitoraggio abilitato: controlla ultima notifica
-            const monitorate = allApps.filter(a => a.pushMonitorEnabled === true && a.appSlug);
+            if (monitorate.length === 0) {
+                container.style.display = 'none';
+                return;
+            }
 
             for (const app of monitorate) {
                 let lastNotifDate = null;
                 let totalNotifs = 0;
+                let queryOk = false;
 
                 try {
+                    // Prima prova con orderBy (richiede indice composito)
                     const lastSnap = await db.collection('push_history')
                         .where('appSlug', '==', app.appSlug)
                         .where('status', '==', 'sent')
@@ -831,6 +820,7 @@ const StoricoPush = {
                         .limit(1)
                         .get();
 
+                    queryOk = true;
                     if (!lastSnap.empty) {
                         const data = lastSnap.docs[0].data();
                         lastNotifDate = data.sentAt?.toDate ? data.sentAt.toDate() : null;
@@ -841,9 +831,34 @@ const StoricoPush = {
                         .where('status', '==', 'sent')
                         .get();
                     totalNotifs = countSnap.size;
+
                 } catch (e) {
-                    console.warn(`[monitor] Query error for ${app.appSlug}:`, e.message);
+                    // Fallback: query senza orderBy (non serve indice composito)
+                    console.warn(`[monitor] Indice mancante per ${app.appSlug}, uso fallback senza orderBy`);
+                    try {
+                        const fallbackSnap = await db.collection('push_history')
+                            .where('appSlug', '==', app.appSlug)
+                            .where('status', '==', 'sent')
+                            .get();
+
+                        totalNotifs = fallbackSnap.size;
+                        queryOk = true;
+
+                        // Trova la data più recente manualmente
+                        fallbackSnap.forEach(doc => {
+                            const d = doc.data();
+                            const sentAt = d.sentAt?.toDate ? d.sentAt.toDate() : null;
+                            if (sentAt && (!lastNotifDate || sentAt > lastNotifDate)) {
+                                lastNotifDate = sentAt;
+                            }
+                        });
+                    } catch (e2) {
+                        console.warn(`[monitor] Anche il fallback fallito per ${app.appSlug}:`, e2.message);
+                    }
                 }
+
+                // Se la query non è riuscita neanche col fallback, salta questa app
+                if (!queryOk) continue;
 
                 if (totalNotifs === 0) {
                     alerts.push({
