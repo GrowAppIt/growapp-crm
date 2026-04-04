@@ -29,9 +29,9 @@ const StoricoPush = {
         try {
             UI.showLoading();
 
-            // Carica lista app per filtri
+            // Carica lista app per filtri (tutte le app con pushMonitorEnabled O attive)
             const tutteLeApp = await DataService.getApps();
-            this.apps = tutteLeApp.filter(a => a.statoApp === 'ATTIVA');
+            this.apps = tutteLeApp.filter(a => a.pushMonitorEnabled || a.statoApp === 'ATTIVA');
 
             // Reset stato
             this.notifications = [];
@@ -59,9 +59,13 @@ const StoricoPush = {
 
         // Opzioni filtro app
         const appOptions = this.apps
-            .filter(a => a.appSlug)
-            .sort((a, b) => (a.comune || '').localeCompare(b.comune || ''))
-            .map(a => `<option value="${this.escapeHtml(a.appSlug)}">${this.escapeHtml(a.comune || a.nome)}</option>`)
+            .filter(a => a.appSlug || a.comune || a.nome)
+            .sort((a, b) => (a.comune || a.nome || '').localeCompare(b.comune || b.nome || '', 'it'))
+            .map(a => {
+                const slug = a.appSlug || (a.comune || a.nome || '').toLowerCase().replace(/\s+/g, '');
+                const label = a.comune || a.nome || slug;
+                return `<option value="${this.escapeHtml(slug)}">${this.escapeHtml(label)}</option>`;
+            })
             .join('');
 
         mainContent.innerHTML = `
@@ -90,19 +94,19 @@ const StoricoPush = {
                         <div class="sp-stat-label">Totali</div>
                     </div>
                     <div class="sp-stat-card">
-                        <i class="fas fa-rss"></i>
+                        <i class="fas fa-newspaper"></i>
                         <div class="sp-stat-value" id="sp-stat-rss">—</div>
-                        <div class="sp-stat-label">News RSS</div>
+                        <div class="sp-stat-label">Notizie</div>
                     </div>
                     <div class="sp-stat-card">
                         <i class="fas fa-calendar-alt"></i>
                         <div class="sp-stat-value" id="sp-stat-events">—</div>
-                        <div class="sp-stat-label">Eventi</div>
+                        <div class="sp-stat-label">In agenda</div>
                     </div>
                     <div class="sp-stat-card">
                         <i class="fas fa-bullhorn"></i>
                         <div class="sp-stat-value" id="sp-stat-broadcast">—</div>
-                        <div class="sp-stat-label">Broadcast</div>
+                        <div class="sp-stat-label">Avvisi</div>
                     </div>
                     <div class="sp-stat-card">
                         <i class="fas fa-mobile-alt"></i>
@@ -124,12 +128,9 @@ const StoricoPush = {
                         <label>Tipo</label>
                         <select id="sp-filter-source" onchange="StoricoPush.applyFilters()">
                             <option value="">Tutti i tipi</option>
-                            <option value="rss_auto">News RSS</option>
-                            <option value="calendar_auto">Eventi / Calendario</option>
-                            <option value="meteo_alert">Allerte Meteo</option>
-                            <option value="crm_broadcast">Broadcast CRM</option>
-                            <option value="crm_api">API CRM</option>
-                            <option value="manual">Manuali</option>
+                            <option value="notizie">Notizie</option>
+                            <option value="in_agenda">In agenda</option>
+                            <option value="avvisi">Avvisi</option>
                         </select>
                     </div>
                     <button class="btn btn-sm btn-outline" onclick="StoricoPush.resetFilters()">
@@ -351,7 +352,13 @@ const StoricoPush = {
                 query = query.where('appSlug', '==', this.filters.appSlug);
             }
             if (this.filters.source) {
-                query = query.where('source', '==', this.filters.source);
+                if (this.filters.source === 'notizie') {
+                    query = query.where('source', '==', 'rss_auto');
+                } else if (this.filters.source === 'in_agenda') {
+                    query = query.where('source', '==', 'calendar_auto');
+                } else if (this.filters.source === 'avvisi') {
+                    query = query.where('source', 'in', ['meteo_alert', 'crm_broadcast', 'crm_api', 'manual']);
+                }
             }
 
             query = query.orderBy('sentAt', 'desc').limit(this.filters.limit);
@@ -409,7 +416,7 @@ const StoricoPush = {
                 total: db.collection('push_history').where('status', '==', 'sent'),
                 rss: db.collection('push_history').where('source', '==', 'rss_auto'),
                 events: db.collection('push_history').where('source', '==', 'calendar_auto'),
-                broadcast: db.collection('push_history').where('source', 'in', ['crm_broadcast', 'crm_api'])
+                broadcast: db.collection('push_history').where('source', 'in', ['meteo_alert', 'crm_broadcast', 'crm_api', 'manual'])
             };
 
             // Esegui in parallelo
@@ -460,12 +467,12 @@ const StoricoPush = {
         };
 
         const sourceLabels = {
-            'rss_auto': 'News',
-            'calendar_auto': 'Evento',
+            'rss_auto': 'Notizia',
+            'calendar_auto': 'In agenda',
             'meteo_alert': 'Allerta',
-            'crm_broadcast': 'Broadcast',
-            'crm_api': 'API',
-            'manual': 'Manuale'
+            'crm_broadcast': 'Avviso',
+            'crm_api': 'Avviso',
+            'manual': 'Avviso'
         };
 
         container.innerHTML = this.notifications.map(n => {
