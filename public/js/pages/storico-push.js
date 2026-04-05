@@ -123,7 +123,7 @@ const StoricoPush = {
                     <div class="sp-stat-card">
                         <i class="fas fa-calendar-alt"></i>
                         <div class="sp-stat-value" id="sp-stat-events">—</div>
-                        <div class="sp-stat-label">In agenda</div>
+                        <div class="sp-stat-label">Agenda</div>
                     </div>
                     <div class="sp-stat-card">
                         <i class="fas fa-bullhorn"></i>
@@ -154,7 +154,7 @@ const StoricoPush = {
                         <select id="sp-filter-source" onchange="StoricoPush.applyFilters()">
                             <option value="">Tutti i tipi</option>
                             <option value="notizie">Notizie</option>
-                            <option value="in_agenda">In agenda</option>
+                            <option value="in_agenda">Agenda</option>
                             <option value="avvisi">Avvisi</option>
                         </select>
                     </div>
@@ -572,7 +572,7 @@ const StoricoPush = {
 
         const sourceLabels = {
             'rss_auto': 'Notizia',
-            'calendar_auto': 'In agenda',
+            'calendar_auto': 'Agenda',
             'meteo_alert': 'Allerta',
             'crm_broadcast': 'Avviso',
             'crm_api': 'Avviso',
