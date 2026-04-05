@@ -64,6 +64,81 @@ const DELAY_BETWEEN_REQUESTS = 200; // ms tra richieste API per non sovraccarica
 // ============================================================================
 
 /**
+ * Genera uno slug URL-friendly dal testo (per URL articoli GoodBarber)
+ */
+function slugify(text) {
+    if (!text) return '';
+    return text
+        .toLowerCase()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // rimuove accenti
+        .replace(/[^a-z0-9\s-]/g, '')  // rimuove caratteri speciali
+        .replace(/\s+/g, '-')           // spazi → trattini
+        .replace(/-+/g, '-')            // trattini multipli → singolo
+        .replace(/^-|-$/g, '')          // rimuove trattini iniziali/finali
+        .substring(0, 120);             // limita lunghezza
+}
+
+/**
+ * Recupera la mappa sezioni (section_id → slug) dall'app GoodBarber.
+ * Prova diversi endpoint noti dell'API GoodBarber per trovare le sezioni.
+ * Restituisce una Map: section_id (string) → { slug, name }
+ */
+async function fetchAppSections(appDomain) {
+    // Prova diversi endpoint noti di GoodBarber per le sezioni
+    const endpoints = [
+        `https://${appDomain}/jsonapi/v1/categories/`,
+        `https://${appDomain}/jsonapi/v4/sections/`,
+        `https://${appDomain}/jsonapi/v2/sections/`,
+        `https://${appDomain}/jsonapi/v1/sections/`,
+    ];
+
+    for (const url of endpoints) {
+        try {
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 8000);
+
+            const resp = await fetch(url, {
+                headers: { 'Accept': 'application/json' },
+                signal: controller.signal
+            });
+            clearTimeout(timeout);
+
+            if (!resp.ok) continue;
+            const data = await resp.json();
+
+            // GoodBarber può restituire in diversi formati
+            const sections = data.result || data.sections || data.categories || data.data || [];
+            if (!Array.isArray(sections) || sections.length === 0) continue;
+
+            const map = new Map();
+            for (const s of sections) {
+                const id = s.id || s.section_id || s.sectionId;
+                // Lo slug URL può essere in vari campi
+                const slug = s.url_slug || s.slug || s.urlSlug || s.nameSlug || s.name_slug
+                    || (s.url ? s.url.replace(/^\/|\/$/g, '') : '')
+                    || (s.name ? slugify(s.name) : '');
+                const name = s.name || s.title || s.label || '';
+
+                if (id) {
+                    map.set(String(id), { slug, name });
+                }
+            }
+
+            if (map.size > 0) {
+                console.log(`[sync] Sezioni caricate per ${appDomain}: ${map.size} sezioni da ${url}`);
+                return map;
+            }
+        } catch (e) {
+            // Prova il prossimo endpoint
+            continue;
+        }
+    }
+
+    console.warn(`[sync] Impossibile caricare sezioni per ${appDomain}`);
+    return new Map();
+}
+
+/**
  * Recupera le app configurate per il monitoraggio push da Firestore.
  * Ogni app deve avere nel documento Firestore (collezione 'app'):
  *   - appSlug: string (es: "locri")
@@ -195,8 +270,11 @@ function detectNotificationSource(message) {
 
 /**
  * Salva un batch di notifiche su Firestore
+ * @param {Array} notifications - notifiche dal push API
+ * @param {Object} appData - dati dell'app
+ * @param {Map} sectionMap - mappa section_id → { slug, name } (opzionale)
  */
-async function saveNotifications(notifications, appData) {
+async function saveNotifications(notifications, appData, sectionMap = new Map()) {
     if (!notifications || notifications.length === 0) return 0;
 
     const BATCH_SIZE = 450;
@@ -213,6 +291,12 @@ async function saveNotifications(notifications, appData) {
             // per evitare duplicati
             const docId = `gb_${appData.appSlug}_${notif.id}`;
             const docRef = db.collection('push_history').doc(docId);
+
+            // Risolvi slug sezione da mappa sezioni GoodBarber
+            const sectionInfo = notif.section_id ? sectionMap.get(String(notif.section_id)) : null;
+            const gbSectionSlug = sectionInfo ? sectionInfo.slug : '';
+            // Genera slug titolo dal body della notifica (per URL articolo)
+            const gbTitleSlug = (source === 'rss_auto') ? slugify(body) : '';
 
             batch.set(docRef, {
                 appId: appData.id,
@@ -231,6 +315,8 @@ async function saveNotifications(notifications, appData) {
                 gbPushId: notif.id,
                 gbItemId: notif.item_id || null,
                 gbSectionId: notif.section_id || null,
+                gbSectionSlug: gbSectionSlug,
+                gbTitleSlug: gbTitleSlug,
                 gbUrl: notif.url || null,
                 syncedAt: admin.firestore.FieldValue.serverTimestamp(),
                 metadata: {
@@ -258,6 +344,10 @@ async function syncApp(appData, fullSync = false) {
     let reachedExisting = false;
 
     console.log(`[sync] ${appData.comune} (${appData.appSlug}) — lastSyncedId: ${lastSyncedId}, fullSync: ${fullSync}`);
+
+    // Carica mappa sezioni GoodBarber (una volta per app, per risolvere section_id → slug URL)
+    const appDomain = `${appData.appSlug}.comune.digital`;
+    const sectionMap = await fetchAppSections(appDomain);
 
     while (page <= maxPages && !reachedExisting) {
         try {
@@ -292,8 +382,8 @@ async function syncApp(appData, fullSync = false) {
         }
     }
 
-    // Salva le nuove notifiche su Firestore
-    const savedCount = await saveNotifications(allNewNotifications, appData);
+    // Salva le nuove notifiche su Firestore (con mappa sezioni per slug URL)
+    const savedCount = await saveNotifications(allNewNotifications, appData, sectionMap);
 
     // Aggiorna il timestamp dell'ultima sincronizzazione
     await db.collection('app').doc(appData.id).update({

@@ -638,6 +638,7 @@
         // Slug dell'app (es: "locri", "taormina")
         // Viene letto dall'URL: ?app=locri oppure dal path /storico-notifiche/locri
         appSlug: '',
+        newsSectionSlug: 'news', // slug sezione notizie GoodBarber (override da Firestore)
 
         // Firebase Config del CRM GrowApp (centralizzato)
         // Viene letto automaticamente da /js/env.js (stesso dominio)
@@ -897,13 +898,19 @@
             const sourceIcon = getSourceIcon(source);
             const timeStr = formatTime(sentAt);
 
-            // Link "Leggi la notizia" solo per notizie RSS con item_id disponibile
+            // Link "Leggi la notizia" solo per notizie RSS con item_id E section slug disponibili
             // Apre l'articolo direttamente nell'app GoodBarber del comune
+            // URL pattern GoodBarber: /{sectionSlug}/i/{itemId}/{titleSlug}
             let linkHtml = '';
-            if (source === 'rss_auto' && notif.gbItemId) {
+            if (source === 'rss_auto' && notif.gbItemId && notif.gbSectionSlug) {
                 const appUrl = `https://${CONFIG.appSlug}.comune.digital`;
+                const sectionSlug = notif.gbSectionSlug;
+                const titleSlug = notif.gbTitleSlug || slugify(notif.message || '');
+                const articlePath = titleSlug
+                    ? `/${sectionSlug}/i/${encodeURIComponent(notif.gbItemId)}/${titleSlug}`
+                    : `/${sectionSlug}/i/${encodeURIComponent(notif.gbItemId)}`;
                 linkHtml = `
-                    <a class="notif-link" href="${appUrl}/i/${escapeHtml(notif.gbItemId)}" target="_blank" rel="noopener noreferrer" aria-label="Leggi la notizia completa">
+                    <a class="notif-link" href="${appUrl}${articlePath}" target="_blank" rel="noopener noreferrer" aria-label="Leggi la notizia completa">
                         <i class="fas fa-newspaper" aria-hidden="true"></i> Leggi la notizia
                     </a>`;
             }
@@ -1012,6 +1019,21 @@
         return div.innerHTML;
     }
 
+    /**
+     * Genera uno slug URL-friendly dal testo (per URL articoli GoodBarber)
+     */
+    function slugify(text) {
+        if (!text) return '';
+        return text
+            .toLowerCase()
+            .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // rimuove accenti
+            .replace(/[^a-z0-9\s-]/g, '')  // rimuove caratteri speciali
+            .replace(/\s+/g, '-')           // spazi → trattini
+            .replace(/-+/g, '-')            // trattini multipli → singolo
+            .replace(/^-|-$/g, '')          // rimuove trattini iniziali/finali
+            .substring(0, 120);             // limita lunghezza
+    }
+
     // ============================================================
     // Filtri — Event Listeners
     // ============================================================
@@ -1072,6 +1094,8 @@
             if (!appSnap.empty) {
                 const appData = appSnap.docs[0].data();
                 comuneNome = appData.comune || appData.nome || appData.nomeComune || comuneNome;
+                // Legge lo slug della sezione notizie per costruire URL articoli
+                CONFIG.newsSectionSlug = appData.newsSectionSlug || 'news';
             }
         } catch (e) {
             console.warn('[Storico] Errore lettura nome comune da Firestore:', e);
