@@ -57,6 +57,9 @@
             padding: 6px 10px;
             border-radius: 6px;
             transition: background 0.2s;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
         }
 
         .article-header .back-btn:hover {
@@ -269,9 +272,9 @@
 
     <!-- Header -->
     <header class="article-header">
-        <button class="back-btn" id="back-btn" aria-label="Torna indietro">
+        <a class="back-btn" id="back-btn" href="/storico-notifiche/landing.html" aria-label="Torna indietro">
             <i class="fas fa-arrow-left"></i>
-        </button>
+        </a>
         <span class="header-title" id="header-title">Caricamento...</span>
         <span class="header-logo"><i class="fas fa-city"></i> Comune.Digital</span>
     </header>
@@ -332,14 +335,8 @@
             ? '/storico-notifiche/?app=' + encodeURIComponent(appSlug)
             : '/storico-notifiche/landing.html';
 
-        // Pulsante back nell'header: se c'è cronologia torna indietro, altrimenti vai all'archivio
-        document.getElementById('back-btn').addEventListener('click', function() {
-            if (window.history.length > 1) {
-                window.history.back();
-            } else {
-                window.location.href = archiveUrl;
-            }
-        });
+        // Pulsante back nell'header: naviga sempre all'archivio del comune
+        document.getElementById('back-btn').href = archiveUrl;
 
         // Pulsante "Torna all'archivio" in fondo alla pagina
         document.getElementById('back-bottom-link').href = archiveUrl;

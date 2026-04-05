@@ -156,6 +156,16 @@ function detectNotificationSource(message) {
         };
     }
 
+    // Pattern: "In Programma: testo..." o "In programma: testo..." → Calendario automatico
+    if (/^In [Pp]rogramma[:\s]/i.test(message)) {
+        const body = message.replace(/^In [Pp]rogramma[:\s-]*/i, '').trim();
+        return {
+            source: 'calendar_auto',
+            title: 'In Programma',
+            body: body
+        };
+    }
+
     // Pattern: "Differenziata: testo..." → Calendario/automatico
     if (message.startsWith('Differenziata:')) {
         return {
