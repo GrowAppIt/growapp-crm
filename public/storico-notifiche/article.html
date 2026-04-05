@@ -143,13 +143,6 @@
             background: white;
         }
 
-        .article-hero {
-            width: 100%;
-            aspect-ratio: 16/9;
-            object-fit: cover;
-            display: block;
-        }
-
         .article-body {
             padding: 20px 16px 32px;
         }
@@ -298,7 +291,6 @@
 
     <!-- Article Content -->
     <article class="article-container hidden" id="state-article">
-        <img class="article-hero hidden" id="article-hero" alt="" loading="lazy">
         <div class="article-body">
             <div class="article-meta">
                 <span class="meta-badge"><i class="fas fa-newspaper"></i> Notizia</span>
@@ -388,14 +380,6 @@
             document.getElementById('article-title').textContent = title;
             document.getElementById('header-title').textContent = comuneNome || title;
             document.title = title + ' — Comune.Digital';
-
-            // Immagine hero
-            if (article.thumbnail) {
-                const heroImg = document.getElementById('article-hero');
-                heroImg.src = article.thumbnail;
-                heroImg.alt = title;
-                heroImg.classList.remove('hidden');
-            }
 
             // Meta info
             if (article.author) {
