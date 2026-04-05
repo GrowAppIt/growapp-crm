@@ -882,8 +882,17 @@
         let html = '';
         let lastDateStr = '';
 
+        const now24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
         state.notifications.forEach(notif => {
             const sentAt = notif.sentAt?.toDate ? notif.sentAt.toDate() : new Date(notif.sentAt || 0);
+
+            // Nascondi notifiche Differenziata/Rifiuti più vecchie di 24 ore
+            const titleLower = (notif.title || '').toLowerCase();
+            if ((titleLower === 'differenziata' || titleLower === 'rifiuti') && sentAt < now24h) {
+                return; // salta questa notifica
+            }
+
             const dateStr = formatDateGroup(sentAt);
 
             // Separatore data
@@ -922,6 +931,18 @@
                 </article>
             `;
         });
+
+        // Se tutte le notifiche sono state filtrate (es. solo Differenziata/Rifiuti scadute)
+        if (!html) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-bell-slash"></i>
+                    <h3>Nessuna notifica</h3>
+                    <p>${state.activeFilter !== 'all' ? 'Non ci sono notifiche per questo filtro.' : 'Da questo momento qui troverai tutte le notifiche ricevute dall\'App.'}</p>
+                </div>
+            `;
+            return;
+        }
 
         // Pulsante carica altro
         if (state.hasMore) {

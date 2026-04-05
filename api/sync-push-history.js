@@ -175,6 +175,15 @@ function detectNotificationSource(message) {
         };
     }
 
+    // Pattern: "Rifiuti: testo..." → Calendario/automatico
+    if (message.startsWith('Rifiuti:')) {
+        return {
+            source: 'calendar_auto',
+            title: 'Rifiuti',
+            body: message.substring(8).trim()
+        };
+    }
+
     // Pattern: contiene "allerta meteo", "allerta gialla/arancione/rossa",
     // oppure inizia con "Allerta:" → Allerta meteo
     // NB: la parola "meteo" da sola NON basta (es: "widget Meteo" non è un'allerta)
