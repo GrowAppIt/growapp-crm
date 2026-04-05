@@ -8,7 +8,7 @@
       "memory": 1024
     },
     "api/sync-push-history.js": {
-      "maxDuration": 60,
+      "maxDuration": 300,
       "memory": 512
     }
   },

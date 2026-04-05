@@ -636,26 +636,60 @@ const StoricoPush = {
 
     async syncNow() {
         const appSlug = this.filters.appSlug || '';
-        const label = appSlug ? `Sincronizzazione ${appSlug}...` : 'Sincronizzazione tutte le app...';
 
-        UI.showLoading(label);
+        // Se filtrato per una singola app, sync diretto senza chunk
+        if (appSlug) {
+            UI.showLoading(`Sincronizzazione ${appSlug}...`);
+            try {
+                const response = await fetch(`/api/sync-push-history?appSlug=${encodeURIComponent(appSlug)}`);
+                const data = await response.json();
+                UI.hideLoading();
+                if (data.success) {
+                    UI.showSuccess(`Sync completato: ${data.totalNewNotifications} nuove notifiche`);
+                    await this.loadNotifications(false);
+                    this.loadMonitorAlerts();
+                } else {
+                    UI.showError('Errore: ' + (data.error || 'Errore sconosciuto'));
+                }
+            } catch (error) {
+                UI.hideLoading();
+                UI.showError('Errore di connessione: ' + error.message);
+            }
+            return;
+        }
+
+        // Sync tutte le app: processa a chunk per evitare timeout
+        const CHUNK_SIZE = 30;
+        let chunk = 0;
+        let totalNew = 0;
+        let totalApps = 0;
+        let hasMore = true;
+
+        UI.showLoading('Sincronizzazione tutte le app (chunk 1)...');
 
         try {
-            const params = new URLSearchParams();
-            if (appSlug) params.set('appSlug', appSlug);
+            while (hasMore) {
+                UI.showLoading(`Sincronizzazione in corso... (blocco ${chunk + 1})`);
 
-            const response = await fetch(`/api/sync-push-history?${params.toString()}`);
-            const data = await response.json();
+                const response = await fetch(`/api/sync-push-history?chunk=${chunk}&chunkSize=${CHUNK_SIZE}`);
+                const data = await response.json();
+
+                if (!data.success) {
+                    UI.hideLoading();
+                    UI.showError('Errore nel blocco ' + (chunk + 1) + ': ' + (data.error || 'Errore'));
+                    return;
+                }
+
+                totalNew += data.totalNewNotifications || 0;
+                totalApps += data.totalApps || 0;
+                hasMore = data.chunk ? data.chunk.hasMore : false;
+                chunk++;
+            }
 
             UI.hideLoading();
-
-            if (data.success) {
-                UI.showSuccess(`Sincronizzazione completata: ${data.totalNewNotifications} nuove notifiche da ${data.totalApps} app`);
-                // Ricarica la lista
-                await this.loadNotifications(false);
-            } else {
-                UI.showError('Errore nella sincronizzazione: ' + (data.error || 'Errore sconosciuto'));
-            }
+            UI.showSuccess(`Sync completato: ${totalNew} nuove notifiche da ${totalApps} app`);
+            await this.loadNotifications(false);
+            this.loadMonitorAlerts();
         } catch (error) {
             UI.hideLoading();
             UI.showError('Errore di connessione: ' + error.message);

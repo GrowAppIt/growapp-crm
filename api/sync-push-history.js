@@ -359,25 +359,52 @@ module.exports = async function handler(req, res) {
             });
         }
 
-        console.log(`[sync] Inizio sincronizzazione per ${apps.length} app (fullSync: ${fullSync})`);
+        // Supporto chunk: ?chunk=0&chunkSize=30 per processare a blocchi
+        const chunkIndex = parseInt(req.query.chunk) || 0;
+        const chunkSize = parseInt(req.query.chunkSize) || 0; // 0 = tutte
 
+        let appsToSync = apps;
+        if (chunkSize > 0) {
+            const start = chunkIndex * chunkSize;
+            appsToSync = apps.slice(start, start + chunkSize);
+            console.log(`[sync] Chunk ${chunkIndex}: app ${start + 1}-${start + appsToSync.length} di ${apps.length} (fullSync: ${fullSync})`);
+        } else {
+            console.log(`[sync] Inizio sincronizzazione per ${apps.length} app (fullSync: ${fullSync})`);
+        }
+
+        if (appsToSync.length === 0) {
+            return res.status(200).json({
+                success: true,
+                totalApps: 0,
+                totalNewNotifications: 0,
+                message: `Chunk ${chunkIndex}: nessuna app da sincronizzare (totale app: ${apps.length}).`,
+                results: []
+            });
+        }
+
+        // Processa le app in parallelo (batch da CONCURRENCY alla volta)
+        const CONCURRENCY = 10;
         const results = [];
-        for (const app of apps) {
-            try {
-                const result = await syncApp(app, fullSync);
-                results.push(result);
-            } catch (error) {
-                console.error(`[sync] Errore per ${app.comune}:`, error.message);
-                results.push({
-                    app: app.comune,
-                    appSlug: app.appSlug,
-                    error: error.message
+
+        for (let i = 0; i < appsToSync.length; i += CONCURRENCY) {
+            const batch = appsToSync.slice(i, i + CONCURRENCY);
+            const batchResults = await Promise.allSettled(
+                batch.map(app => syncApp(app, fullSync).catch(error => {
+                    console.error(`[sync] Errore per ${app.comune}:`, error.message);
+                    return { app: app.comune, appSlug: app.appSlug, error: error.message };
+                }))
+            );
+
+            for (const r of batchResults) {
+                results.push(r.status === 'fulfilled' ? r.value : {
+                    app: 'unknown',
+                    error: r.reason?.message || 'Errore sconosciuto'
                 });
             }
 
-            // Delay tra app diverse
-            if (apps.indexOf(app) < apps.length - 1) {
-                await new Promise(r => setTimeout(r, 500));
+            // Breve pausa tra batch paralleli per non sovraccaricare GoodBarber
+            if (i + CONCURRENCY < appsToSync.length) {
+                await new Promise(r => setTimeout(r, 300));
             }
         }
 
@@ -385,8 +412,10 @@ module.exports = async function handler(req, res) {
 
         return res.status(200).json({
             success: true,
-            totalApps: apps.length,
+            totalApps: appsToSync.length,
+            totalAppsTotal: apps.length,
             totalNewNotifications: totalNew,
+            chunk: chunkSize > 0 ? { index: chunkIndex, size: chunkSize, hasMore: (chunkIndex + 1) * chunkSize < apps.length } : null,
             results: results
         });
     } catch (error) {
