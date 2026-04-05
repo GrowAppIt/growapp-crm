@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+    <title>Notizia — Comune.Digital</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Titillium+Web:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        :root {
+            --blu-700: #145284;
+            --blu-500: #2E6DA8;
+            --blu-300: #7BA7CE;
+            --blu-100: #D1E2F2;
+            --verde-700: #3CA434;
+            --verde-500: #59C64D;
+            --verde-100: #E2F8DE;
+            --grigio-700: #4A4A4A;
+            --grigio-500: #9B9B9B;
+            --grigio-300: #D9D9D9;
+            --grigio-100: #F5F5F5;
+            --rosso: #D32F2F;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Titillium Web', sans-serif;
+            background: var(--grigio-100);
+            color: var(--grigio-700);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Header */
+        .article-header {
+            background: var(--blu-700);
+            color: white;
+            padding: 12px 16px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+
+        .article-header .back-btn {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 1.1rem;
+            cursor: pointer;
+            padding: 6px 10px;
+            border-radius: 6px;
+            transition: background 0.2s;
+        }
+
+        .article-header .back-btn:hover {
+            background: rgba(255,255,255,0.15);
+        }
+
+        .article-header .header-title {
+            font-size: 0.95rem;
+            font-weight: 600;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .article-header .header-logo {
+            margin-left: auto;
+            font-size: 0.75rem;
+            opacity: 0.8;
+            white-space: nowrap;
+        }
+
+        /* Loading */
+        .article-loading {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+            padding: 40px 20px;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid var(--blu-100);
+            border-top-color: var(--blu-700);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .article-loading p {
+            color: var(--grigio-500);
+            font-size: 0.9rem;
+        }
+
+        /* Error */
+        .article-error {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+            padding: 40px 20px;
+            text-align: center;
+        }
+
+        .article-error i {
+            font-size: 2.5rem;
+            color: var(--rosso);
+        }
+
+        .article-error h2 {
+            font-size: 1.1rem;
+            color: var(--grigio-700);
+        }
+
+        .article-error p {
+            color: var(--grigio-500);
+            font-size: 0.9rem;
+            max-width: 320px;
+        }
+
+        /* Article Content */
+        .article-container {
+            flex: 1;
+            max-width: 720px;
+            width: 100%;
+            margin: 0 auto;
+            padding: 0;
+            background: white;
+        }
+
+        .article-hero {
+            width: 100%;
+            aspect-ratio: 16/9;
+            object-fit: cover;
+            display: block;
+        }
+
+        .article-body {
+            padding: 20px 16px 32px;
+        }
+
+        .article-meta {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 12px;
+            font-size: 0.8rem;
+            color: var(--grigio-500);
+            flex-wrap: wrap;
+        }
+
+        .article-meta .meta-badge {
+            background: var(--verde-100);
+            color: var(--verde-700);
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-weight: 600;
+            font-size: 0.75rem;
+        }
+
+        .article-title {
+            font-size: 1.35rem;
+            font-weight: 900;
+            color: var(--blu-700);
+            line-height: 1.3;
+            margin-bottom: 16px;
+        }
+
+        .article-content {
+            font-size: 1rem;
+            line-height: 1.7;
+            color: var(--grigio-700);
+            font-weight: 400;
+        }
+
+        .article-content img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 8px;
+            margin: 12px 0;
+        }
+
+        .article-content a {
+            color: var(--blu-500);
+            text-decoration: underline;
+        }
+
+        /* Source link */
+        .article-source {
+            margin-top: 24px;
+            padding-top: 16px;
+            border-top: 1px solid var(--grigio-300);
+        }
+
+        .article-source a {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--blu-100);
+            color: var(--blu-700);
+            padding: 10px 16px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-size: 0.85rem;
+            font-weight: 600;
+            transition: background 0.2s;
+        }
+
+        .article-source a:hover {
+            background: var(--blu-300);
+        }
+
+        /* Back to archive button */
+        .article-back-bottom {
+            margin-top: 24px;
+            padding-top: 16px;
+            border-top: 1px solid var(--grigio-300);
+            text-align: center;
+        }
+
+        .article-back-bottom a {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--blu-700);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-size: 0.9rem;
+            font-weight: 600;
+            transition: background 0.2s;
+        }
+
+        .article-back-bottom a:hover {
+            background: var(--blu-500);
+        }
+
+        /* Footer */
+        .article-footer {
+            background: var(--blu-700);
+            color: white;
+            text-align: center;
+            padding: 16px;
+            font-size: 0.75rem;
+            opacity: 0.9;
+            margin-top: auto;
+        }
+
+        /* Mobile adjustments */
+        @media (max-width: 480px) {
+            .article-title { font-size: 1.2rem; }
+            .article-body { padding: 16px 14px 28px; }
+        }
+
+        /* Nasconde stato iniziale */
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+    <!-- Header -->
+    <header class="article-header">
+        <button class="back-btn" id="back-btn" aria-label="Torna indietro">
+            <i class="fas fa-arrow-left"></i>
+        </button>
+        <span class="header-title" id="header-title">Caricamento...</span>
+        <span class="header-logo"><i class="fas fa-city"></i> Comune.Digital</span>
+    </header>
+
+    <!-- Loading State -->
+    <div class="article-loading" id="state-loading">
+        <div class="spinner"></div>
+        <p>Caricamento notizia...</p>
+    </div>
+
+    <!-- Error State -->
+    <div class="article-error hidden" id="state-error">
+        <i class="fas fa-exclamation-circle"></i>
+        <h2>Impossibile caricare la notizia</h2>
+        <p id="error-message">Si è verificato un errore durante il caricamento.</p>
+    </div>
+
+    <!-- Article Content -->
+    <article class="article-container hidden" id="state-article">
+        <img class="article-hero hidden" id="article-hero" alt="" loading="lazy">
+        <div class="article-body">
+            <div class="article-meta">
+                <span class="meta-badge"><i class="fas fa-newspaper"></i> Notizia</span>
+                <span id="article-author"></span>
+                <span id="article-date"></span>
+            </div>
+            <h1 class="article-title" id="article-title"></h1>
+            <div class="article-content" id="article-content"></div>
+            <div class="article-source hidden" id="article-source">
+                <a href="#" id="source-link" target="_blank" rel="noopener noreferrer">
+                    <i class="fas fa-external-link-alt"></i> Vai alla fonte originale
+                </a>
+            </div>
+            <div class="article-back-bottom" id="back-bottom">
+                <a href="#" id="back-bottom-link">
+                    <i class="fas fa-arrow-left"></i> Torna all'archivio notifiche
+                </a>
+            </div>
+        </div>
+    </article>
+
+    <!-- Footer -->
+    <footer class="article-footer">
+        Archivio Notifiche — Comune.Digital
+    </footer>
+
+    <script>
+    (function() {
+        'use strict';
+
+        // Leggi parametri URL
+        const params = new URLSearchParams(window.location.search);
+        const gbUrl = params.get('src');
+        const comuneNome = params.get('comune') || '';
+        const appSlug = params.get('app') || '';
+
+        // Costruisci URL archivio per il pulsante "torna"
+        const archiveUrl = appSlug
+            ? '/storico-notifiche/?app=' + encodeURIComponent(appSlug)
+            : '/storico-notifiche/landing.html';
+
+        // Pulsante back nell'header: se c'è cronologia torna indietro, altrimenti vai all'archivio
+        document.getElementById('back-btn').addEventListener('click', function() {
+            if (window.history.length > 1) {
+                window.history.back();
+            } else {
+                window.location.href = archiveUrl;
+            }
+        });
+
+        // Pulsante "Torna all'archivio" in fondo alla pagina
+        document.getElementById('back-bottom-link').href = archiveUrl;
+
+        if (comuneNome) {
+            document.getElementById('header-title').textContent = comuneNome;
+        }
+
+        if (!gbUrl) {
+            showError('Nessun articolo specificato. Parametro "src" mancante.');
+            return;
+        }
+
+        // Carica l'articolo tramite il nostro proxy API
+        loadArticle(gbUrl);
+
+        async function loadArticle(url) {
+            try {
+                const proxyUrl = '/api/article-proxy?url=' + encodeURIComponent(url);
+                const resp = await fetch(proxyUrl);
+                const data = await resp.json();
+
+                if (!data.ok || !data.article) {
+                    showError(data.error || 'Articolo non disponibile.');
+                    return;
+                }
+
+                renderArticle(data.article);
+            } catch (e) {
+                console.error('[Article Reader] Errore:', e);
+                showError('Errore di rete. Verifica la connessione e riprova.');
+            }
+        }
+
+        function renderArticle(article) {
+            // Titolo
+            const title = article.title || 'Notizia';
+            document.getElementById('article-title').textContent = title;
+            document.getElementById('header-title').textContent = comuneNome || title;
+            document.title = title + ' — Comune.Digital';
+
+            // Immagine hero
+            if (article.thumbnail) {
+                const heroImg = document.getElementById('article-hero');
+                heroImg.src = article.thumbnail;
+                heroImg.alt = title;
+                heroImg.classList.remove('hidden');
+            }
+
+            // Meta info
+            if (article.author) {
+                document.getElementById('article-author').innerHTML = '<i class="fas fa-user"></i> ' + escapeHtml(article.author);
+            }
+            if (article.date) {
+                const d = new Date(article.date);
+                if (!isNaN(d)) {
+                    document.getElementById('article-date').innerHTML = '<i class="fas fa-calendar"></i> ' + d.toLocaleDateString('it-IT', {
+                        day: 'numeric', month: 'long', year: 'numeric'
+                    });
+                }
+            }
+
+            // Contenuto
+            const contentEl = document.getElementById('article-content');
+            if (article.content) {
+                // Il contenuto da GoodBarber è HTML già formattato
+                contentEl.innerHTML = article.content;
+            } else if (article.summary) {
+                contentEl.textContent = article.summary;
+            } else {
+                contentEl.innerHTML = '<p style="color:var(--grigio-500);font-style:italic;">Contenuto non disponibile.</p>';
+            }
+
+            // Link alla fonte
+            if (article.sourceUrl) {
+                const sourceDiv = document.getElementById('article-source');
+                document.getElementById('source-link').href = article.sourceUrl;
+                sourceDiv.classList.remove('hidden');
+            }
+
+            // Mostra articolo, nascondi loading
+            document.getElementById('state-loading').classList.add('hidden');
+            document.getElementById('state-article').classList.remove('hidden');
+        }
+
+        function showError(message) {
+            document.getElementById('error-message').textContent = message;
+            document.getElementById('state-loading').classList.add('hidden');
+            document.getElementById('state-error').classList.remove('hidden');
+            document.getElementById('header-title').textContent = 'Errore';
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+    })();
+    </script>
+</body>
+</html>
