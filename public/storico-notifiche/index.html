@@ -897,12 +897,14 @@
             const sourceIcon = getSourceIcon(source);
             const timeStr = formatTime(sentAt);
 
-            // Link "Leggi la notizia" solo per notizie RSS con URL disponibile
+            // Link "Leggi la notizia" solo per notizie RSS con item_id disponibile
+            // Apre l'articolo direttamente nell'app GoodBarber del comune
             let linkHtml = '';
-            if (source === 'rss_auto' && notif.gbUrl) {
+            if (source === 'rss_auto' && notif.gbItemId) {
+                const appUrl = `https://${CONFIG.appSlug}.comune.digital`;
                 linkHtml = `
-                    <a class="notif-link" href="${escapeHtml(notif.gbUrl)}" target="_blank" rel="noopener noreferrer" aria-label="Leggi la notizia completa">
-                        <i class="fas fa-external-link-alt" aria-hidden="true"></i> Leggi la notizia
+                    <a class="notif-link" href="${appUrl}/i/${escapeHtml(notif.gbItemId)}" target="_blank" rel="noopener noreferrer" aria-label="Leggi la notizia completa">
+                        <i class="fas fa-newspaper" aria-hidden="true"></i> Leggi la notizia
                     </a>`;
             }
 
