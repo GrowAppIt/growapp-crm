@@ -297,6 +297,35 @@
             word-wrap: break-word;
         }
 
+        .notif-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 8px;
+            padding: 6px 14px;
+            background: var(--verde-100);
+            color: var(--verde-700);
+            border-radius: 8px;
+            font-size: clamp(0.8rem, 3.2vw, 0.9rem);
+            font-weight: 600;
+            text-decoration: none;
+            transition: background 0.2s ease, color 0.2s ease;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .notif-link:hover {
+            background: var(--verde-300);
+            color: #1a6e14;
+        }
+
+        .notif-link:active {
+            transform: scale(0.97);
+        }
+
+        .notif-link i {
+            font-size: clamp(0.7rem, 2.8vw, 0.8rem);
+        }
+
 
         /* ============================================================
            Loading & Empty States
@@ -868,6 +897,15 @@
             const sourceIcon = getSourceIcon(source);
             const timeStr = formatTime(sentAt);
 
+            // Link "Leggi la notizia" solo per notizie RSS con URL disponibile
+            let linkHtml = '';
+            if (source === 'rss_auto' && notif.gbUrl) {
+                linkHtml = `
+                    <a class="notif-link" href="${escapeHtml(notif.gbUrl)}" target="_blank" rel="noopener noreferrer" aria-label="Leggi la notizia completa">
+                        <i class="fas fa-external-link-alt" aria-hidden="true"></i> Leggi la notizia
+                    </a>`;
+            }
+
             html += `
                 <article class="notification-card source-${source}" role="article" aria-label="${escapeHtml(notif.title || sourceLabel)} - ${timeStr}">
                     <div class="notif-header">
@@ -878,7 +916,8 @@
                     </div>
                     ${notif.title ? `<h3 class="notif-title">${escapeHtml(notif.title)}</h3>` : ''}
                     <p class="notif-body">${escapeHtml(notif.message || notif.fullMessage || '') || '<span style="color:var(--grigio-500);font-style:italic">Notifica senza contenuto testuale</span>'}</p>
-                                    </article>
+                    ${linkHtml}
+                </article>
             `;
         });
 
