@@ -903,7 +903,7 @@
             if (source === 'rss_auto' && notif.gbUrl) {
                 const readerUrl = `/storico-notifiche/article.html?src=${encodeURIComponent(notif.gbUrl)}&comune=${encodeURIComponent(state.comuneNome || CONFIG.appSlug)}&app=${encodeURIComponent(CONFIG.appSlug)}`;
                 linkHtml = `
-                    <a class="notif-link" href="${readerUrl}" target="_blank" rel="noopener noreferrer" aria-label="Leggi la notizia completa">
+                    <a class="notif-link" href="${readerUrl}" aria-label="Leggi la notizia completa">
                         <i class="fas fa-newspaper" aria-hidden="true"></i> Leggi la notizia
                     </a>`;
             }

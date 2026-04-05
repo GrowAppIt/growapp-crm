@@ -888,11 +888,16 @@ const StoricoPush = {
                 if (!queryOk) continue;
 
                 if (totalNotifs === 0) {
+                    // Distingui tra app appena configurata e app con problemi reali
+                    const lastSync = app.lastPushSync?.toDate ? app.lastPushSync.toDate() : null;
+                    const configuredRecently = lastSync && (now - lastSync) < (3 * 24 * 60 * 60 * 1000); // meno di 3 giorni
                     alerts.push({
-                        type: 'error',
+                        type: configuredRecently ? 'warn' : 'error',
                         appName: app.comune || app.appSlug,
-                        message: 'Nessuna notifica ricevuta. Account fantasma non attivo o non ha mai aperto l\'app.',
-                        details: { lastSync: app.lastPushSync?.toDate ? app.lastPushSync.toDate() : null }
+                        message: configuredRecently
+                            ? 'Nessuna notifica ancora ricevuta. Account configurato di recente — invia una notifica di test e rilancia il sync.'
+                            : 'Nessuna notifica ricevuta. Verificare che l\'account fantasma abbia aperto l\'app e accettato le notifiche push.',
+                        details: { lastSync }
                     });
                 } else if (lastNotifDate) {
                     const daysSince = Math.floor((now - lastNotifDate) / (1000 * 60 * 60 * 24));
