@@ -147,6 +147,33 @@ function detectNotificationSource(message) {
         };
     }
 
+    // Pattern: "Social News: testo..." → RSS automatica (deve stare PRIMA di "Social:")
+    if (message.startsWith('Social News:')) {
+        return {
+            source: 'rss_auto',
+            title: 'Social News',
+            body: message.substring(12).trim()
+        };
+    }
+
+    // Pattern: "Social: testo..." → RSS automatica
+    if (message.startsWith('Social:')) {
+        return {
+            source: 'rss_auto',
+            title: 'Social',
+            body: message.substring(7).trim()
+        };
+    }
+
+    // Pattern: "Facebook: testo..." → RSS automatica
+    if (message.startsWith('Facebook:')) {
+        return {
+            source: 'rss_auto',
+            title: 'Facebook',
+            body: message.substring(9).trim()
+        };
+    }
+
     // Pattern: "Evento: testo..." → Calendario automatico
     if (message.startsWith('Evento:')) {
         return {
