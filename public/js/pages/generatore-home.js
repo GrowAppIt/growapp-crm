@@ -287,6 +287,8 @@ window.GeneratoreHome = (function () {
       bannerGroups: [],
       // RSS Sliders (replicabili)
       rssSliders: [],
+      bannerNotificheEnabled: false,
+      bannerNotificheSlug: '',  // se vuoto usa lo slug derivato da nomeComune
       bannerCieEnabled: true,
       bannerCieIcon: 'fa-id-card',
       bannerCieTitle: "Stop alla carta d'identità cartacea",
@@ -348,12 +350,13 @@ window.GeneratoreHome = (function () {
         { id: 'tickerBar', label: 'Ticker News', enabled: true, order: 1 },
         { id: 'slideshow', label: 'Slideshow', enabled: true, order: 2 },
         { id: 'servizi', label: 'Servizi', enabled: true, order: 3 },
-        { id: 'bannerCIE', label: 'Banner CIE', enabled: true, order: 4 },
-        { id: 'raccoltaDifferenziata', label: 'Raccolta Differenziata', enabled: true, order: 5 },
-        { id: 'protezioneCivile', label: 'Protezione Civile', enabled: true, order: 6 },
-        { id: 'meteoCard', label: 'Meteo', enabled: true, order: 7 },
-        { id: 'slideshowVerticale', label: 'Slideshow Verticale', enabled: false, order: 8 },
-        { id: 'tabBar', label: 'Tab Bar', enabled: false, order: 9 },
+        { id: 'bannerNotifiche', label: 'Banner Notifiche', enabled: false, order: 4 },
+        { id: 'bannerCIE', label: 'Banner CIE', enabled: true, order: 5 },
+        { id: 'raccoltaDifferenziata', label: 'Raccolta Differenziata', enabled: true, order: 6 },
+        { id: 'protezioneCivile', label: 'Protezione Civile', enabled: true, order: 7 },
+        { id: 'meteoCard', label: 'Meteo', enabled: true, order: 8 },
+        { id: 'slideshowVerticale', label: 'Slideshow Verticale', enabled: false, order: 9 },
+        { id: 'tabBar', label: 'Tab Bar', enabled: false, order: 10 },
       ],
     };
   }
@@ -559,6 +562,20 @@ window.GeneratoreHome = (function () {
       '<p style="font-size:12px;color:#9B9B9B;margin-bottom:12px;"><i class="fas fa-info-circle"></i> Puoi aggiungere più banner carousel, ognuno con le sue card. Appariranno nella Gestione Widget per posizionarli dove vuoi. Ogni banner può avere da 1 a 4 card (anche solo immagini senza testo).</p>' +
       '<div id="ghBannerGroupsContainer"></div>' +
       '<button type="button" id="ghBtnAddBannerGroup" style="background:#145284;color:#fff;border:none;padding:10px 20px;border-radius:8px;font-weight:600;font-size:13px;cursor:pointer;font-family:\'Titillium Web\',sans-serif;margin-top:8px;"><i class="fas fa-plus"></i> Aggiungi Banner</button>',
+      false
+    );
+
+    // === SEZ. 8b: BANNER NOTIFICHE ===
+    const bnSlugDefault = (state.bannerNotificheSlug || state.nomeComune || '').toLowerCase().replace(/\s+/g, '');
+    const bnUrlPreview = 'https://' + (bnSlugDefault || 'slug') + '.comune.digital/archivionotifiche';
+    formHtml += makeSection('fa-bell', 'Banner Notifiche',
+      makeCheckbox('ghBannerNotificheEnabled','Abilita Banner Notifiche',state.bannerNotificheEnabled) +
+      '<div id="ghBannerNotificheFields">' +
+      '<p style="font-size:12px;color:#777;margin:0 0 8px;">Banner sottile che invita a leggere le notifiche. Lo slug viene usato per costruire l\'URL dell\'archivio notifiche.</p>' +
+      makeInput('ghBannerNotificheSlug','Slug App (se diverso dal nome comune)',state.bannerNotificheSlug || '', bnSlugDefault || 'es: appartinico') +
+      '<div id="ghBannerNotificheUrlPreview" style="font-size:12px;color:#145284;margin-top:-4px;margin-bottom:8px;word-break:break-all;">' +
+      '<i class="fas fa-link" style="margin-right:4px;"></i> <span>' + bnUrlPreview + '</span></div>' +
+      '</div>',
       false
     );
 
@@ -801,6 +818,16 @@ window.GeneratoreHome = (function () {
       refreshBannerGroups();
       refreshWidgetList();
     });
+
+    // Banner Notifiche: aggiorna preview URL in tempo reale
+    const bnSlugInput = document.getElementById('ghBannerNotificheSlug');
+    if (bnSlugInput) {
+      bnSlugInput.addEventListener('input', () => {
+        const slug = (bnSlugInput.value || state.nomeComune || '').toLowerCase().replace(/\s+/g, '');
+        const preview = document.querySelector('#ghBannerNotificheUrlPreview span');
+        if (preview) preview.textContent = 'https://' + (slug || 'slug') + '.comune.digital/archivionotifiche';
+      });
+    }
 
     // Add slide
     const btnAdd = document.getElementById('ghBtnAddSlide');
@@ -1977,6 +2004,8 @@ window.GeneratoreHome = (function () {
     if (isNaN(state.slideshowVerticale.overlayOpacity)) state.slideshowVerticale.overlayOpacity = 100;
     collectBannerGroupsFromDOM();
     collectWidgetsFromDOM();
+    state.bannerNotificheEnabled = v('ghBannerNotificheEnabled');
+    state.bannerNotificheSlug = v('ghBannerNotificheSlug') || '';
     state.bannerCieEnabled = v('ghBannerCieEnabled');
     state.bannerCieIcon = v('ghBannerCieIcon') || 'fa-id-card';
     state.bannerCieTitle = v('ghBannerCieTitle');
@@ -2042,6 +2071,8 @@ window.GeneratoreHome = (function () {
     set('ghTickerLinkUrl', state.tickerLinkUrl);
     syncBannerCustomWidgets();
     refreshBannerGroups(true); // skipCollect: lo state è già aggiornato dal load
+    set('ghBannerNotificheEnabled', state.bannerNotificheEnabled);
+    set('ghBannerNotificheSlug', state.bannerNotificheSlug);
     set('ghBannerCieEnabled', state.bannerCieEnabled);
     set('ghBannerCieIcon', state.bannerCieIcon || 'fa-id-card');
     set('ghBannerCieTitle', state.bannerCieTitle);
@@ -2150,6 +2181,10 @@ window.GeneratoreHome = (function () {
     slides: ${JSON.stringify(S.slides, null, 4)},
     servizi: ${serviziStr},
     bannerGroups: ${JSON.stringify(S.bannerGroups || [], null, 4)},
+    bannerNotifiche: {
+      enabled:    ${!!S.bannerNotificheEnabled},
+      slug:       ${q(S.bannerNotificheSlug || S.nomeComune.toLowerCase().replace(/\s+/g, ''))},
+    },
     bannerCie: {
       icon:       ${q(S.bannerCieIcon || 'fa-id-card')},
       title:      ${q(S.bannerCieTitle)},
@@ -2540,6 +2575,16 @@ rssapp-ticker a{margin-right:50px!important;display:inline-block!important;color
 [data-theme="dark"] .bc-title{color:var(--cd-blue-500);text-shadow:none;}
 
 [data-theme="dark"] .bc-dots{background:rgba(30,30,30,.6);border-color:rgba(255,255,255,.1);}
+.w-banner-notifiche{width:100%;max-width:900px;margin:0 auto;}
+.bn-link{display:flex;align-items:center;justify-content:center;gap:10px;padding:10px 16px;background:var(--blu);color:#fff;text-decoration:none;transition:filter .2s ease;-webkit-tap-highlight-color:transparent;}
+.bn-link:active{filter:brightness(.85);}
+.bn-icon{font-size:15px;flex-shrink:0;animation:bnRing 3s ease-in-out 2s infinite;}
+.bn-text{font-size:14px;font-weight:600;letter-spacing:.3px;white-space:nowrap;}
+.bn-arrow{font-size:12px;flex-shrink:0;color:rgba(255,255,255,.7);transition:transform .2s ease;}
+.bn-link:active .bn-arrow{transform:translateX(3px);}
+@keyframes bnRing{0%,100%{transform:rotate(0)}3%{transform:rotate(12deg)}6%{transform:rotate(-10deg)}9%{transform:rotate(8deg)}12%{transform:rotate(-6deg)}15%{transform:rotate(0)}}
+[data-theme="dark"] .bn-link{background:var(--cd-blue-700);}
+[data-contrast="high"] .w-banner-notifiche{border:2px solid #fff!important;}
 .w-banner-cie{width:100%;max-width:900px;margin:0 auto;background:linear-gradient(180deg,rgba(var(--blu-rgb),.96),rgba(var(--blu-dark-rgb),.96));border:1px solid rgba(255,255,255,.12);box-shadow:var(--shadow-md);position:relative;overflow:hidden;}
 .w-banner-cie::before{content:"";position:absolute;inset:-2px;background:radial-gradient(900px 220px at 18% 0%,rgba(255,255,255,.22),transparent 55%),radial-gradient(780px 220px at 92% 30%,rgba(255,255,255,.10),transparent 60%),radial-gradient(520px 260px at 40% 140%,rgba(var(--verde-rgb),.14),transparent 65%);pointer-events:none;mix-blend-mode:overlay;}
 .cie-link{position:relative;display:flex;align-items:center;gap:clamp(8px,2.5vw,12px);padding:clamp(10px,2.5vw,14px);color:#fff;text-decoration:none;min-height:clamp(62px,16vw,80px);}
@@ -2957,6 +3002,22 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
         + 'aria-label="Servizi comunali">'
         + svcSections + '</section>';
     },
+    bannerNotifiche: () => {
+      if (!C.bannerNotifiche || !C.bannerNotifiche.enabled) return '';
+      const slug = C.bannerNotifiche.slug || C.nomeComune.toLowerCase().replace(/\s+/g, '');
+      const href = 'https://' + slug + '.comune.digital/archivionotifiche';
+      return '<section class="w-banner-notifiche" id="bannerNotifiche" '
+        + 'role="region" aria-label="Archivio Notifiche">'
+        + '<a class="bn-link" href="' + esc(href) + '">'
+        + '<i class="fa-solid fa-bell bn-icon"></i>'
+        + '<span class="bn-text" data-i18n-it="Leggi le ultime notifiche" '
+        + 'data-i18n-en="Read the latest notifications">'
+        + esc(LANG === 'en' ? 'Read the latest notifications' : 'Leggi le ultime notifiche')
+        + '</span>'
+        + '<i class="fa-solid fa-chevron-right bn-arrow"></i>'
+        + '</a></section>';
+    },
+
     bannerCIE: () => {
       if (!C.bannerCie.enabled) return '';
       const titleText = LANG === 'en'
