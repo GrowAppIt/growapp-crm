@@ -213,6 +213,32 @@ function detectNotificationSource(message) {
         };
     }
 
+    // Pattern: "Raccolta Differenziata..." (case-insensitive) → Calendario/automatico
+    if (/^raccolta\s+differenziata[:\s]/i.test(message)) {
+        const body = message.replace(/^raccolta\s+differenziata[:\s-]*/i, '').trim();
+        return {
+            source: 'calendar_auto',
+            title: 'Differenziata',
+            body: body || message
+        };
+    }
+
+    // Pattern: "Raccolta:" SOLO se seguito da parole chiave rifiuti/differenziata
+    // (es: "Raccolta: Stasera esporre...", "Raccolta: domani plastica...")
+    // NON matcha "Raccolta fondi", "Raccolta firme" ecc.
+    if (/^raccolta\s*:/i.test(message)) {
+        const afterPrefix = message.replace(/^raccolta\s*:\s*/i, '');
+        const lowerAfter = afterPrefix.toLowerCase();
+        // Verifica che il contenuto sia legato a rifiuti/differenziata
+        if (/stasera|domani|esporre|ritiro|organico|plastica|carta|vetro|secco|umido|indifferenziat|sfalci|ingombranti|raee|bidone|cassonett/i.test(lowerAfter)) {
+            return {
+                source: 'calendar_auto',
+                title: 'Differenziata',
+                body: afterPrefix.trim() || message
+            };
+        }
+    }
+
     // Pattern: "Stasera esporre..." → Calendario/automatico (raccolta differenziata)
     // NB: "Stasera" da solo NON matcha (potrebbe essere una notizia social)
     if (/^stasera\s+esporre/i.test(message)) {
