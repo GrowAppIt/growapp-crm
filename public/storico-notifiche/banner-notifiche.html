@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Titillium+Web:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+    font-family: 'Titillium Web', sans-serif;
+    background: transparent;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.banner-notifiche {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 10px 16px;
+    background: var(--banner-color, #145284);
+    text-decoration: none;
+    cursor: pointer;
+    transition: filter 0.2s ease;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+.banner-notifiche:active {
+    filter: brightness(0.85);
+}
+
+.banner-icon {
+    color: #FFFFFF;
+    font-size: 15px;
+    flex-shrink: 0;
+    animation: ring 3s ease-in-out infinite;
+    animation-delay: 2s;
+}
+
+@keyframes ring {
+    0%, 100% { transform: rotate(0deg); }
+    3% { transform: rotate(12deg); }
+    6% { transform: rotate(-10deg); }
+    9% { transform: rotate(8deg); }
+    12% { transform: rotate(-6deg); }
+    15% { transform: rotate(0deg); }
+}
+
+.banner-text {
+    color: #FFFFFF;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    white-space: nowrap;
+}
+
+.banner-arrow {
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 12px;
+    flex-shrink: 0;
+    transition: transform 0.2s ease;
+}
+
+.banner-notifiche:active .banner-arrow {
+    transform: translateX(3px);
+}
+</style>
+</head>
+<body>
+
+<script>
+/* ============================================
+   CONFIGURAZIONE - Modifica solo qui lo slug
+   ============================================ */
+var SLUG = 'piraino';
+var COLORE = '145284';
+/* ============================================ */
+
+document.write(
+    '<a class="banner-notifiche" href="https://' + SLUG + '.comune.digital/archivionotifiche" style="--banner-color:#' + COLORE.replace('#','') + '">' +
+        '<i class="fas fa-bell banner-icon"></i>' +
+        '<span class="banner-text">Leggi le ultime notifiche</span>' +
+        '<i class="fas fa-chevron-right banner-arrow"></i>' +
+    '</a>'
+);
+</script>
+
+</body>
+</html>

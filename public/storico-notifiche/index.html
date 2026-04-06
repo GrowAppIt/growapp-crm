@@ -109,6 +109,27 @@
             opacity: 0.8;
         }
 
+        /* Pulsante Home nell'header */
+        .header-home {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            flex-shrink: 0;
+            color: var(--bianco);
+            background: rgba(255,255,255,0.15);
+            text-decoration: none;
+            transition: background 0.2s ease;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .header-home:active {
+            background: rgba(255,255,255,0.3);
+        }
+
         /* Stemma comune (opzionale - sostituire src con URL reale) */
         .header-stemma {
             width: 36px;
@@ -556,6 +577,9 @@
     <!-- Header -->
     <header class="header" role="banner">
         <div class="header-inner">
+            <a class="header-home" id="headerHomeBtn" href="#" aria-label="Torna alla Home">
+                <i class="fas fa-chevron-left"></i>
+            </a>
             <div class="header-icon">
                 <i class="fas fa-bell"></i>
             </div>
@@ -1058,6 +1082,12 @@
         document.getElementById('page-title').textContent = `Archivio Notifiche`;
         document.getElementById('page-subtitle').textContent = `${nome}`;
         document.title = `Archivio Notifiche — ${nome}`;
+
+        // Imposta link "Torna alla Home" nell'header
+        var homeBtn = document.getElementById('headerHomeBtn');
+        if (homeBtn && CONFIG.appSlug) {
+            homeBtn.href = 'https://' + CONFIG.appSlug + '.comune.digital';
+        }
     }
 
     // ============================================================
