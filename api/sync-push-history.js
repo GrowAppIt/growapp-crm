@@ -193,21 +193,33 @@ function detectNotificationSource(message) {
         };
     }
 
-    // Pattern: "Differenziata: testo..." → Calendario/automatico
-    if (message.startsWith('Differenziata:')) {
+    // Pattern: "Differenziata: testo..." (case-insensitive) → Calendario/automatico
+    if (/^differenziata[:\s]/i.test(message)) {
+        const body = message.replace(/^differenziata[:\s-]*/i, '').trim();
         return {
             source: 'calendar_auto',
             title: 'Differenziata',
-            body: message.substring(14).trim()
+            body: body
         };
     }
 
-    // Pattern: "Rifiuti: testo..." → Calendario/automatico
-    if (message.startsWith('Rifiuti:')) {
+    // Pattern: "Rifiuti: testo..." (case-insensitive) → Calendario/automatico
+    if (/^rifiuti[:\s]/i.test(message)) {
+        const body = message.replace(/^rifiuti[:\s-]*/i, '').trim();
         return {
             source: 'calendar_auto',
             title: 'Rifiuti',
-            body: message.substring(8).trim()
+            body: body
+        };
+    }
+
+    // Pattern: "Stasera esporre..." → Calendario/automatico (raccolta differenziata)
+    // NB: "Stasera" da solo NON matcha (potrebbe essere una notizia social)
+    if (/^stasera\s+esporre/i.test(message)) {
+        return {
+            source: 'calendar_auto',
+            title: 'Differenziata',
+            body: message
         };
     }
 
