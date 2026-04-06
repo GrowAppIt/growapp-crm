@@ -347,10 +347,10 @@ window.GeneratoreHome = (function () {
       ],
       widgets: [
         { id: 'dateHeader', label: 'Barra Data', enabled: true, order: 0 },
-        { id: 'tickerBar', label: 'Ticker News', enabled: true, order: 1 },
-        { id: 'slideshow', label: 'Slideshow', enabled: true, order: 2 },
-        { id: 'servizi', label: 'Servizi', enabled: true, order: 3 },
-        { id: 'bannerNotifiche', label: 'Banner Notifiche', enabled: false, order: 4 },
+        { id: 'bannerNotifiche', label: 'Banner Notifiche', enabled: false, order: 1 },
+        { id: 'tickerBar', label: 'Ticker News', enabled: true, order: 2 },
+        { id: 'slideshow', label: 'Slideshow', enabled: true, order: 3 },
+        { id: 'servizi', label: 'Servizi', enabled: true, order: 4 },
         { id: 'bannerCIE', label: 'Banner CIE', enabled: true, order: 5 },
         { id: 'raccoltaDifferenziata', label: 'Raccolta Differenziata', enabled: true, order: 6 },
         { id: 'protezioneCivile', label: 'Protezione Civile', enabled: true, order: 7 },
@@ -516,6 +516,20 @@ window.GeneratoreHome = (function () {
       false
     );
 
+    // === SEZ. 5b: BANNER NOTIFICHE ===
+    const bnSlugDefault = (state.bannerNotificheSlug || state.nomeComune || '').toLowerCase().replace(/\s+/g, '');
+    const bnUrlPreview = 'https://' + (bnSlugDefault || 'slug') + '.comune.digital/archivionotifiche';
+    formHtml += makeSection('fa-bell', 'Banner Notifiche',
+      makeCheckbox('ghBannerNotificheEnabled','Abilita Banner Notifiche',state.bannerNotificheEnabled) +
+      '<div id="ghBannerNotificheFields">' +
+      '<p style="font-size:12px;color:#777;margin:0 0 8px;">Banner sottile che invita a leggere le notifiche. Lo slug viene usato per costruire l\'URL dell\'archivio notifiche.</p>' +
+      makeInput('ghBannerNotificheSlug','Slug App (se diverso dal nome comune)',state.bannerNotificheSlug || '', bnSlugDefault || 'es: appartinico') +
+      '<div id="ghBannerNotificheUrlPreview" style="font-size:12px;color:#145284;margin-top:-4px;margin-bottom:8px;word-break:break-all;">' +
+      '<i class="fas fa-link" style="margin-right:4px;"></i> <span>' + bnUrlPreview + '</span></div>' +
+      '</div>',
+      false
+    );
+
     // === SEZ. 6: SLIDESHOW ===
     formHtml += makeSection('fa-images', 'Slideshow (1-8 slide)',
       '<div id="ghSlidesContainer"></div>' +
@@ -562,20 +576,6 @@ window.GeneratoreHome = (function () {
       '<p style="font-size:12px;color:#9B9B9B;margin-bottom:12px;"><i class="fas fa-info-circle"></i> Puoi aggiungere più banner carousel, ognuno con le sue card. Appariranno nella Gestione Widget per posizionarli dove vuoi. Ogni banner può avere da 1 a 4 card (anche solo immagini senza testo).</p>' +
       '<div id="ghBannerGroupsContainer"></div>' +
       '<button type="button" id="ghBtnAddBannerGroup" style="background:#145284;color:#fff;border:none;padding:10px 20px;border-radius:8px;font-weight:600;font-size:13px;cursor:pointer;font-family:\'Titillium Web\',sans-serif;margin-top:8px;"><i class="fas fa-plus"></i> Aggiungi Banner</button>',
-      false
-    );
-
-    // === SEZ. 8b: BANNER NOTIFICHE ===
-    const bnSlugDefault = (state.bannerNotificheSlug || state.nomeComune || '').toLowerCase().replace(/\s+/g, '');
-    const bnUrlPreview = 'https://' + (bnSlugDefault || 'slug') + '.comune.digital/archivionotifiche';
-    formHtml += makeSection('fa-bell', 'Banner Notifiche',
-      makeCheckbox('ghBannerNotificheEnabled','Abilita Banner Notifiche',state.bannerNotificheEnabled) +
-      '<div id="ghBannerNotificheFields">' +
-      '<p style="font-size:12px;color:#777;margin:0 0 8px;">Banner sottile che invita a leggere le notifiche. Lo slug viene usato per costruire l\'URL dell\'archivio notifiche.</p>' +
-      makeInput('ghBannerNotificheSlug','Slug App (se diverso dal nome comune)',state.bannerNotificheSlug || '', bnSlugDefault || 'es: appartinico') +
-      '<div id="ghBannerNotificheUrlPreview" style="font-size:12px;color:#145284;margin-top:-4px;margin-bottom:8px;word-break:break-all;">' +
-      '<i class="fas fa-link" style="margin-right:4px;"></i> <span>' + bnUrlPreview + '</span></div>' +
-      '</div>',
       false
     );
 
@@ -719,6 +719,7 @@ window.GeneratoreHome = (function () {
     refreshSvButtons();
     syncBannerCustomWidgets();
     refreshBannerGroups();
+    ensureWidgetExists('bannerNotifiche', 'Banner Notifiche', false);
     ensureWidgetExists('tabBar', 'Tab Bar', false);
     syncRssSliderWidgets();
     refreshRssSliders();
@@ -2115,6 +2116,10 @@ window.GeneratoreHome = (function () {
     set('ghSvOverlayOpacity', state.slideshowVerticale.overlayOpacity != null ? state.slideshowVerticale.overlayOpacity : 100);
     const svOvLabel = document.getElementById('ghSvOverlayVal');
     if (svOvLabel) svOvLabel.textContent = (state.slideshowVerticale.overlayOpacity != null ? state.slideshowVerticale.overlayOpacity : 100) + '%';
+    // Banner Notifiche
+    ensureWidgetExists('bannerNotifiche', 'Banner Notifiche', false);
+    set('ghBannerNotificheEnabled', state.bannerNotificheEnabled);
+    set('ghBannerNotificheSlug', state.bannerNotificheSlug);
     // Tab Bar
     ensureWidgetExists('tabBar', 'Tab Bar', false);
     set('ghTabBarTheme', state.tabBarTheme || 'light');
