@@ -55,7 +55,9 @@ const db = admin.firestore();
 
 const GOODBARBER_PUSH_API = 'https://api.goodbarber.net/pushapi/history/';
 const NOTIFICATIONS_PER_PAGE = 20;
-const MAX_PAGES_PER_SYNC = 5;      // In modalità incrementale, max pagine da scorrere
+// Aumentato da 5 a 15 (→ 300 notifiche massime per sync) per evitare di perdere
+// notifiche nei comuni grandi (es. Catania) quando il sync non gira per qualche giorno.
+const MAX_PAGES_PER_SYNC = 15;
 const MAX_PAGES_FULL_SYNC = 100;   // In modalità full, max pagine
 const DELAY_BETWEEN_REQUESTS = 200; // ms tra richieste API per non sovraccaricare
 
@@ -102,16 +104,43 @@ async function getMonitoredApps(filterSlug = null) {
 /**
  * Recupera l'ultimo push_id sincronizzato per una specifica app.
  * Serve per la sincronizzazione incrementale.
+ *
+ * Prima prova con orderBy (più veloce, richiede indice composito su
+ * appSlug+gbPushId). Se l'indice manca, fa un fallback scansionando
+ * tutti i documenti dell'app e calcolando il massimo in memoria.
+ * In questo modo il sync non salta mai per mancanza di indice.
  */
 async function getLastSyncedPushId(appSlug) {
-    const snapshot = await db.collection('push_history')
-        .where('appSlug', '==', appSlug)
-        .orderBy('gbPushId', 'desc')
-        .limit(1)
-        .get();
+    try {
+        const snapshot = await db.collection('push_history')
+            .where('appSlug', '==', appSlug)
+            .orderBy('gbPushId', 'desc')
+            .limit(1)
+            .get();
 
-    if (snapshot.empty) return 0;
-    return snapshot.docs[0].data().gbPushId || 0;
+        if (snapshot.empty) return 0;
+        return snapshot.docs[0].data().gbPushId || 0;
+    } catch (e) {
+        console.warn(`[sync] getLastSyncedPushId: indice mancante per ${appSlug}, uso fallback. ${e.message}`);
+        try {
+            // Fallback: carica tutti e trova il max manualmente.
+            // Costoso ma affidabile; evita di perdere sync per mancanza di indice.
+            const snap = await db.collection('push_history')
+                .where('appSlug', '==', appSlug)
+                .get();
+            let maxId = 0;
+            snap.forEach(doc => {
+                const gid = doc.data().gbPushId || 0;
+                if (gid > maxId) maxId = gid;
+            });
+            return maxId;
+        } catch (e2) {
+            console.error(`[sync] getLastSyncedPushId fallback fallito per ${appSlug}:`, e2.message);
+            // Se anche il fallback fallisce, restituiamo 0 → comportamento "prima sync",
+            // quindi importa tutto quello che trova (meglio avere duplicati che niente).
+            return 0;
+        }
+    }
 }
 
 /**
@@ -171,6 +200,38 @@ function detectNotificationSource(message) {
             source: 'rss_auto',
             title: 'Facebook',
             body: message.substring(9).trim()
+        };
+    }
+
+    // Pattern: "Comunicato:" / "Comunicati:" (case-insensitive, con o senza "s") → Notizie
+    // Copre: "Comunicato: ...", "Comunicati: ...", "COMUNICATO STAMPA: ..."
+    if (/^comunicat[oi]\b/i.test(message)) {
+        const body = message.replace(/^comunicat[oi][^:]*:\s*/i, '').trim();
+        return {
+            source: 'rss_auto',
+            title: 'Comunicato',
+            body: body || message
+        };
+    }
+
+    // Pattern: "Avviso:" / "Avvisi:" (case-insensitive) → Notizie
+    // Molti comuni usano questo prefisso per comunicazioni istituzionali che sono di fatto news
+    if (/^avvis[oi]\s*:/i.test(message)) {
+        const body = message.replace(/^avvis[oi]\s*:\s*/i, '').trim();
+        return {
+            source: 'rss_auto',
+            title: 'Avviso',
+            body: body || message
+        };
+    }
+
+    // Pattern: "Notizia:" / "Notizie:" (case-insensitive) → Notizie
+    if (/^notizi[ae]\s*:/i.test(message)) {
+        const body = message.replace(/^notizi[ae]\s*:\s*/i, '').trim();
+        return {
+            source: 'rss_auto',
+            title: 'Notizia',
+            body: body || message
         };
     }
 
@@ -269,9 +330,12 @@ function detectNotificationSource(message) {
         };
     }
 
-    // Default: manuale o broadcast
+    // Default: se nessun pattern matcha, trattiamo come Notizia (rss_auto)
+    // Scelta voluta: la maggior parte dei messaggi non classificati sono comunicati
+    // istituzionali / notizie dai comuni. Solo i broadcast generati esplicitamente dal
+    // CRM (crm_broadcast / crm_api) e le allerte meteo restano nella categoria "Avvisi".
     return {
-        source: 'manual',
+        source: 'rss_auto',
         title: '',
         body: message
     };
@@ -340,6 +404,8 @@ async function syncApp(appData, fullSync = false) {
     let allNewNotifications = [];
     let page = 1;
     let reachedExisting = false;
+    let reachedLastPage = false;
+    let apiErrors = [];
 
     console.log(`[sync] ${appData.comune} (${appData.appSlug}) — lastSyncedId: ${lastSyncedId}, fullSync: ${fullSync}`);
 
@@ -348,6 +414,7 @@ async function syncApp(appData, fullSync = false) {
             const data = await fetchPushHistory(appData.webzineId, appData.monitorUserId, page);
 
             if (!data.result || data.result.length === 0) {
+                reachedLastPage = true;
                 break; // Nessun'altra notifica
             }
 
@@ -361,6 +428,7 @@ async function syncApp(appData, fullSync = false) {
 
             // Se siamo all'ultima pagina, usciamo
             if (page >= (data.last_page_index || page)) {
+                reachedLastPage = true;
                 break;
             }
 
@@ -372,25 +440,56 @@ async function syncApp(appData, fullSync = false) {
             }
         } catch (error) {
             console.error(`[sync] Errore pagina ${page} per ${appData.comune}:`, error.message);
+            apiErrors.push(`page ${page}: ${error.message}`);
             break;
         }
+    }
+
+    // Safety net: se abbiamo raggiunto il limite pagine SENZA trovare lastSyncedId
+    // e SENZA toccare l'ultima pagina dell'API, significa che ci sono buchi.
+    // Lo segnaliamo come warning nel doc app per poter lanciare un full sync manuale.
+    const syncWarning = (
+        !fullSync &&
+        !reachedExisting &&
+        !reachedLastPage &&
+        page > maxPages &&
+        lastSyncedId > 0
+    )
+        ? `Limite pagine raggiunto (${maxPages}) senza trovare lastSyncedId ${lastSyncedId}. Possibile gap — considera un full sync.`
+        : null;
+
+    if (syncWarning) {
+        console.warn(`[sync] ⚠️  ${appData.comune}: ${syncWarning}`);
     }
 
     // Salva le nuove notifiche su Firestore
     const savedCount = await saveNotifications(allNewNotifications, appData);
 
-    // Aggiorna il timestamp dell'ultima sincronizzazione
-    await db.collection('app').doc(appData.id).update({
+    // Aggiorna il timestamp dell'ultima sincronizzazione + diagnostica
+    const updateData = {
         lastPushSync: admin.firestore.FieldValue.serverTimestamp(),
-        lastPushSyncCount: savedCount
-    });
+        lastPushSyncCount: savedCount,
+        lastPushSyncPagesScanned: page,
+        lastPushSyncStatus: apiErrors.length > 0 ? 'error' : (syncWarning ? 'warning' : 'ok'),
+        lastPushSyncWarning: syncWarning || null,
+        lastPushSyncError: apiErrors.length > 0 ? apiErrors.join('; ') : null
+    };
+    try {
+        await db.collection('app').doc(appData.id).update(updateData);
+    } catch (e) {
+        console.error(`[sync] Impossibile aggiornare doc app ${appData.id}:`, e.message);
+    }
 
     return {
         app: appData.comune,
         appSlug: appData.appSlug,
         newNotifications: savedCount,
         pagesScanned: page,
-        fullSync: fullSync
+        fullSync: fullSync,
+        reachedExisting: reachedExisting,
+        reachedLastPage: reachedLastPage,
+        warning: syncWarning,
+        errors: apiErrors.length > 0 ? apiErrors : null
     };
 }
 

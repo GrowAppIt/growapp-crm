@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Guida — Attivazione Archivio Notifiche per nuovo Comune</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Titillium+Web:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<style>
+:root {
+    --blu-700: #145284;
+    --blu-500: #2E6DA8;
+    --blu-300: #7BA7CE;
+    --blu-100: #D1E2F2;
+    --verde-700: #3CA434;
+    --verde-500: #59C64D;
+    --verde-300: #A4E89A;
+    --verde-100: #E2F8DE;
+    --grigio-700: #4A4A4A;
+    --grigio-500: #9B9B9B;
+    --grigio-300: #D9D9D9;
+    --grigio-100: #F5F5F5;
+    --giallo: #FFCC00;
+    --rosso: #D32F2F;
+    --azzurro: #0288D1;
+    --bianco: #FFFFFF;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+    font-family: 'Titillium Web', sans-serif;
+    font-weight: 400;
+    line-height: 1.6;
+    color: var(--grigio-700);
+    background: var(--grigio-100);
+    padding: 0;
+}
+
+.container {
+    max-width: 900px;
+    margin: 0 auto;
+    background: var(--bianco);
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+}
+
+header {
+    background: var(--blu-700);
+    color: var(--bianco);
+    padding: 32px 40px;
+    text-align: center;
+}
+
+header h1 {
+    font-weight: 900;
+    font-size: 1.8rem;
+    margin-bottom: 8px;
+}
+
+header .subtitle {
+    font-weight: 300;
+    font-size: 1.05rem;
+    opacity: 0.92;
+}
+
+main {
+    padding: 32px 40px 48px;
+}
+
+h2 {
+    font-weight: 700;
+    color: var(--blu-700);
+    font-size: 1.35rem;
+    margin: 32px 0 12px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--blu-100);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+h2 i {
+    color: var(--verde-700);
+    font-size: 1.1rem;
+}
+
+h3 {
+    font-weight: 700;
+    color: var(--blu-500);
+    font-size: 1.08rem;
+    margin: 20px 0 8px;
+}
+
+p {
+    margin-bottom: 12px;
+}
+
+.intro {
+    background: var(--blu-100);
+    border-left: 4px solid var(--blu-700);
+    padding: 16px 20px;
+    margin: 20px 0;
+    border-radius: 4px;
+}
+
+.intro p { margin: 0; }
+
+.step {
+    background: var(--bianco);
+    border: 1px solid var(--grigio-300);
+    border-radius: 10px;
+    padding: 20px 24px;
+    margin: 16px 0;
+    position: relative;
+    padding-left: 70px;
+}
+
+.step-number {
+    position: absolute;
+    left: 16px;
+    top: 18px;
+    width: 40px;
+    height: 40px;
+    background: var(--blu-700);
+    color: var(--bianco);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 900;
+    font-size: 1.1rem;
+}
+
+.step h3 {
+    margin-top: 0;
+    color: var(--blu-700);
+}
+
+ul, ol {
+    margin: 8px 0 12px 20px;
+    padding-left: 16px;
+}
+
+li {
+    margin-bottom: 6px;
+}
+
+code {
+    background: var(--grigio-100);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: 'Courier New', monospace;
+    font-size: 0.92em;
+    color: var(--blu-700);
+    border: 1px solid var(--grigio-300);
+    word-break: break-all;
+}
+
+.note {
+    background: var(--verde-100);
+    border-left: 4px solid var(--verde-700);
+    padding: 12px 16px;
+    margin: 12px 0;
+    border-radius: 4px;
+    font-size: 0.95em;
+}
+
+.note strong { color: var(--verde-700); }
+
+.warning {
+    background: #FFF8E1;
+    border-left: 4px solid var(--giallo);
+    padding: 12px 16px;
+    margin: 12px 0;
+    border-radius: 4px;
+    font-size: 0.95em;
+}
+
+.warning strong { color: #B38600; }
+
+.error {
+    background: #FFEBEE;
+    border-left: 4px solid var(--rosso);
+    padding: 12px 16px;
+    margin: 12px 0;
+    border-radius: 4px;
+    font-size: 0.95em;
+}
+
+.error strong { color: var(--rosso); }
+
+.path {
+    background: var(--grigio-100);
+    padding: 10px 14px;
+    border-radius: 6px;
+    font-family: 'Courier New', monospace;
+    font-size: 0.92em;
+    margin: 8px 0;
+    border: 1px solid var(--grigio-300);
+    overflow-x: auto;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 16px 0;
+    font-size: 0.95em;
+}
+
+th {
+    background: var(--blu-700);
+    color: var(--bianco);
+    padding: 10px 12px;
+    text-align: left;
+    font-weight: 600;
+}
+
+td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--grigio-300);
+}
+
+tr:nth-child(even) td { background: var(--grigio-100); }
+
+.checklist {
+    background: var(--blu-100);
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin: 20px 0;
+}
+
+.checklist h3 {
+    color: var(--blu-700);
+    margin-top: 0;
+}
+
+.checklist ul {
+    list-style: none;
+    margin-left: 0;
+    padding-left: 0;
+}
+
+.checklist li::before {
+    content: "\f0c8";
+    font-family: "Font Awesome 6 Free";
+    color: var(--blu-700);
+    margin-right: 8px;
+}
+
+footer {
+    background: var(--grigio-100);
+    padding: 20px 40px;
+    text-align: center;
+    color: var(--grigio-500);
+    font-size: 0.85em;
+    border-top: 1px solid var(--grigio-300);
+}
+
+@media (max-width: 600px) {
+    main, header, footer { padding-left: 20px; padding-right: 20px; }
+    .step { padding-left: 60px; }
+    header h1 { font-size: 1.4rem; }
+    h2 { font-size: 1.15rem; }
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+
+<header>
+    <h1><i class="fas fa-bell"></i> Attivazione Archivio Notifiche</h1>
+    <div class="subtitle">Guida operativa per sviluppatori — Comune.Digital</div>
+</header>
+
+<main>
+
+<div class="intro">
+    <p>Questa guida spiega passo passo come attivare il sistema "Archivio Notifiche" per un nuovo comune. Il processo coinvolge tre ambienti diversi: la <strong>dashboard GoodBarber</strong> dell'app del comune, il <strong>CRM Comune.Digital</strong>, e uno <strong>smartphone</strong> dove installare l'app del comune. Segui i passaggi nell'ordine indicato.</p>
+</div>
+
+<h2><i class="fas fa-clipboard-list"></i> Cosa serve prima di iniziare</h2>
+
+<div class="checklist">
+    <h3>Prerequisiti</h3>
+    <ul>
+        <li>Accesso alla dashboard GoodBarber dell'app del comune (account amministratore)</li>
+        <li>Accesso al CRM Comune.Digital (<code>crm.comune.digital</code>)</li>
+        <li>Il <strong>Webzine ID</strong> dell'app GoodBarber (numero a 6-7 cifre)</li>
+        <li>Il <strong>Token API GoodBarber</strong> dell'app</li>
+        <li>Uno smartphone (Android o iOS) dove scaricare l'app del comune</li>
+        <li>Lo <strong>slug</strong> dell'app (l'identificativo univoco usato negli URL, es: <code>locri</code>, <code>appartinico</code>)</li>
+    </ul>
+</div>
+
+<h2><i class="fas fa-cogs"></i> Panoramica del processo</h2>
+
+<p>L'attivazione si compone di 5 fasi:</p>
+
+<ol>
+    <li><strong>Account fantasma:</strong> creare un utente "fantoccio" sull'app del comune che riceverà tutte le notifiche push</li>
+    <li><strong>Configurazione CRM:</strong> registrare l'app e l'account fantasma nel CRM</li>
+    <li><strong>Sezione GoodBarber:</strong> creare la sezione URL nell'app GoodBarber che mostrerà l'archivio</li>
+    <li><strong>Banner home (opzionale):</strong> attivare il banner nella home dell'app</li>
+    <li><strong>Test:</strong> verificare che tutto funzioni con un primo sync</li>
+</ol>
+
+<hr style="margin: 32px 0; border: none; border-top: 2px solid var(--grigio-300);">
+
+<h2><i class="fas fa-mobile-alt"></i> Fase 1 — Creare l'account fantasma</h2>
+
+<p>L'account fantasma è un utente reale sull'app del comune che usiamo per <em>intercettare</em> tutte le notifiche push inviate dal comune. Il nostro sistema poi le legge tramite l'API di GoodBarber e le salva nel database.</p>
+
+<div class="step">
+    <div class="step-number">1</div>
+    <h3>Scarica l'app del comune sullo smartphone</h3>
+    <p>Cerca l'app del comune sull'App Store (iOS) o Google Play (Android) e installala. Se l'app non è ancora pubblicata sugli store, puoi accedere alla webapp tramite browser all'indirizzo <code>https://SLUG.comune.digital</code>.</p>
+</div>
+
+<div class="step">
+    <div class="step-number">2</div>
+    <h3>Registra un account dedicato</h3>
+    <p>Apri l'app e crea un nuovo account usando un'email aziendale dedicata (es. <code>fantasma@twinet.it</code> o simile). <strong>Non usare un account personale.</strong></p>
+    <div class="note"><strong>Suggerimento:</strong> usa sempre la stessa email aziendale per tutti i comuni, così è più facile gestire e tracciare gli account fantasma.</div>
+</div>
+
+<div class="step">
+    <div class="step-number">3</div>
+    <h3>Accetta le notifiche push</h3>
+    <p>Quando l'app chiede il permesso per inviare notifiche, accetta. Se non lo chiede subito, vai nelle impostazioni dell'app (o del telefono) e abilita manualmente le notifiche.</p>
+    <div class="warning"><strong>Attenzione:</strong> senza questo passaggio l'account fantasma non riceverà mai notifiche e il monitoraggio non funzionerà.</div>
+</div>
+
+<div class="step">
+    <div class="step-number">4</div>
+    <h3>Apri l'app almeno una volta</h3>
+    <p>Naviga nell'app, magari aprendo qualche sezione. Questo serve a "registrare" il device sui server di GoodBarber e ad attivare il push token.</p>
+</div>
+
+<div class="step">
+    <div class="step-number">5</div>
+    <h3>Recupera l'User ID dell'account fantasma</h3>
+    <p>Vai nella dashboard GoodBarber dell'app del comune e cerca l'utente appena creato:</p>
+    <div class="path">Dashboard GoodBarber → La mia app → Comunità → Utenti</div>
+    <p>Cerca l'email dell'account fantasma nella lista. Cliccando sull'utente vedrai l'<strong>User ID</strong> (un numero a 8 cifre, es. <code>27017396</code>). Annotalo: ti servirà nella fase successiva.</p>
+</div>
+
+<hr style="margin: 32px 0; border: none; border-top: 2px solid var(--grigio-300);">
+
+<h2><i class="fas fa-database"></i> Fase 2 — Configurare l'app nel CRM</h2>
+
+<p>Ora dobbiamo dire al CRM Comune.Digital quali sono le credenziali dell'app e dell'account fantasma.</p>
+
+<div class="step">
+    <div class="step-number">1</div>
+    <h3>Apri la scheda dell'app nel CRM</h3>
+    <div class="path">CRM Comune.Digital → Gestione App → cerca il comune → Modifica</div>
+    <p>Se l'app non esiste ancora nel CRM, creala con il pulsante "Aggiungi App" e compila i dati base (nome comune, slug, contatti).</p>
+</div>
+
+<div class="step">
+    <div class="step-number">2</div>
+    <h3>Compila la sezione "Metriche"</h3>
+    <p>Nella scheda di modifica dell'app, trova la sezione <strong>Metriche</strong> e inserisci:</p>
+    <ul>
+        <li><strong>Webzine ID (CMS):</strong> il numero ID dell'app su GoodBarber (es. <code>2942056</code>)</li>
+        <li><strong>Token API GoodBarber:</strong> la stringa del token API</li>
+    </ul>
+</div>
+
+<div class="step">
+    <div class="step-number">3</div>
+    <h3>Compila la sezione "Monitoraggio Push"</h3>
+    <p>Nella stessa scheda, trova la sezione <strong>Monitoraggio Push</strong> e:</p>
+    <ul>
+        <li>Abilita la spunta <strong>"Monitoraggio Push attivo"</strong></li>
+        <li>Inserisci l'<strong>User ID dell'account fantasma</strong> recuperato nella Fase 1</li>
+    </ul>
+    <p>Salva la scheda.</p>
+</div>
+
+<div class="warning"><strong>Verifica:</strong> dopo aver salvato, ricarica la pagina e controlla che i campi siano stati salvati correttamente. Errori comuni: spazi inseriti per sbaglio nei campi numerici, oppure Webzine ID copiato di un'altra app.</div>
+
+<hr style="margin: 32px 0; border: none; border-top: 2px solid var(--grigio-300);">
+
+<h2><i class="fas fa-link"></i> Fase 3 — Creare la sezione URL su GoodBarber</h2>
+
+<p>Adesso dobbiamo creare nell'app del comune una nuova sezione che, quando l'utente la apre, mostra la pagina dell'archivio notifiche hostata su <code>notifiche.comune.digital</code>.</p>
+
+<div class="step">
+    <div class="step-number">1</div>
+    <h3>Apri la struttura dell'app</h3>
+    <div class="path">Dashboard GoodBarber → La mia app → Struttura</div>
+</div>
+
+<div class="step">
+    <div class="step-number">2</div>
+    <h3>Aggiungi una nuova sezione di tipo URL</h3>
+    <p>Clicca su <strong>"Aggiungi una sezione"</strong> e dalla lista dei tipi disponibili scegli <strong>"URL"</strong>.</p>
+</div>
+
+<div class="step">
+    <div class="step-number">3</div>
+    <h3>Compila i campi della sezione</h3>
+    <table>
+        <tr><th>Campo</th><th>Valore</th></tr>
+        <tr><td>Nome sezione</td><td><code>archivionotifiche</code> (tutto attaccato, minuscolo)</td></tr>
+        <tr><td>URL</td><td><code>https://notifiche.comune.digital/storico-notifiche/?app=SLUG</code></td></tr>
+    </table>
+    <p>Sostituisci <code>SLUG</code> con lo slug effettivo dell'app. Esempi:</p>
+    <ul>
+        <li>Locri → <code>https://notifiche.comune.digital/storico-notifiche/?app=locri</code></li>
+        <li>Partinico → <code>https://notifiche.comune.digital/storico-notifiche/?app=appartinico</code></li>
+        <li>La Spezia → <code>https://notifiche.comune.digital/storico-notifiche/?app=cittadellaspezia</code></li>
+    </ul>
+    <div class="note"><strong>Nota:</strong> lo slug può essere diverso dal nome del comune. Verifica sempre lo slug corretto consultando la scheda dell'app nel CRM.</div>
+</div>
+
+<div class="step">
+    <div class="step-number">4</div>
+    <h3>Sposta la sezione nella cartella InfoApp</h3>
+    <p>Dopo aver salvato, trascina la sezione <code>archivionotifiche</code> dentro la cartella (folder/livello) chiamata <strong>InfoApp</strong>. Se la cartella non esiste, lascia la sezione al livello principale.</p>
+</div>
+
+<hr style="margin: 32px 0; border: none; border-top: 2px solid var(--grigio-300);">
+
+<h2><i class="fas fa-bullhorn"></i> Fase 4 — Attivare il banner nella home (opzionale ma consigliato)</h2>
+
+<p>Per rendere visibile l'archivio notifiche già dalla home dell'app, possiamo attivare un banner sottile che invita l'utente a leggere le ultime notifiche.</p>
+
+<div class="step">
+    <div class="step-number">1</div>
+    <h3>Apri il Generatore Home nell'Officina Digitale</h3>
+    <div class="path">CRM Comune.Digital → Officina Digitale → Generatore Home</div>
+</div>
+
+<div class="step">
+    <div class="step-number">2</div>
+    <h3>Carica la configurazione del comune</h3>
+    <p>Dal pannello in alto seleziona la configurazione esistente del comune oppure creane una nuova compilando il nome e i parametri base.</p>
+</div>
+
+<div class="step">
+    <div class="step-number">3</div>
+    <h3>Attiva il widget "Banner Notifiche"</h3>
+    <p>Nella sezione <strong>Gestione Widget</strong> trova "Banner Notifiche" (di default è in seconda posizione, subito dopo la Barra Data) e mettigli la spunta per abilitarlo.</p>
+    <p>Puoi anche spostarlo su o giù con le frecce per cambiarne la posizione nella home.</p>
+</div>
+
+<div class="step">
+    <div class="step-number">4</div>
+    <h3>Verifica lo slug nella sezione "Banner Notifiche"</h3>
+    <p>Scorri il form fino alla sezione <strong>Banner Notifiche</strong>. Trovi un campo "Slug App" pre-compilato con il nome del comune. <strong>Modificalo solo se lo slug è diverso dal nome</strong> (es. Partinico → <code>appartinico</code>).</p>
+    <p>Sotto al campo vedrai l'anteprima dell'URL generato in tempo reale. Verifica che corrisponda all'indirizzo corretto.</p>
+</div>
+
+<div class="step">
+    <div class="step-number">5</div>
+    <h3>Genera e installa il nuovo HTML home</h3>
+    <p>Clicca su <strong>"Genera HTML"</strong>, copia il codice generato, e sostituiscilo nella sezione "Home" dell'app GoodBarber del comune.</p>
+</div>
+
+<hr style="margin: 32px 0; border: none; border-top: 2px solid var(--grigio-300);">
+
+<h2><i class="fas fa-check-circle"></i> Fase 5 — Test e primo sync</h2>
+
+<div class="step">
+    <div class="step-number">1</div>
+    <h3>Lancia il primo sync delle notifiche</h3>
+    <div class="path">CRM Comune.Digital → Storico Push → trova il comune → "Sync ora"</div>
+    <p>Il sync recupera le ultime notifiche push ricevute dall'account fantasma e le salva nel database. La prima volta potrebbe essere vuoto se l'account è stato appena creato — è normale.</p>
+</div>
+
+<div class="step">
+    <div class="step-number">2</div>
+    <h3>Invia una notifica di test</h3>
+    <p>Dalla dashboard GoodBarber del comune, invia una notifica push di test (anche solo a un gruppo ristretto). Aspetta 1-2 minuti che arrivi all'account fantasma.</p>
+</div>
+
+<div class="step">
+    <div class="step-number">3</div>
+    <h3>Rilancia il sync e verifica</h3>
+    <p>Torna nel CRM e clicca di nuovo "Sync ora". La notifica di test dovrebbe comparire nell'elenco. Se non compare, controlla la dashboard di monitoraggio per eventuali alert.</p>
+</div>
+
+<div class="step">
+    <div class="step-number">4</div>
+    <h3>Apri l'app e verifica l'archivio</h3>
+    <p>Sullo smartphone, apri l'app del comune, vai in <strong>InfoApp → archivionotifiche</strong> e verifica che la pagina si carichi correttamente, mostrando le notifiche raccolte.</p>
+    <p>Se hai attivato anche il banner home, verifica che sia visibile nella home dell'app e che cliccandolo porti correttamente all'archivio.</p>
+</div>
+
+<hr style="margin: 32px 0; border: none; border-top: 2px solid var(--grigio-300);">
+
+<h2><i class="fas fa-exclamation-triangle"></i> Risoluzione problemi comuni</h2>
+
+<h3>L'account fantasma risulta "non attivo"</h3>
+<div class="error">
+    <strong>Causa:</strong> l'account è stato creato ma non ha mai aperto l'app, oppure non ha accettato le notifiche.<br>
+    <strong>Soluzione:</strong> apri l'app sul telefono, accedi con l'account fantasma, e accetta le notifiche dalle impostazioni del telefono. Poi rilancia il sync.
+</div>
+
+<h3>Il sync va in timeout (errore 504)</h3>
+<div class="error">
+    <strong>Causa:</strong> troppe app da sincronizzare insieme.<br>
+    <strong>Soluzione:</strong> il sync usa già la parallelizzazione e il chunking automatici. Se il problema persiste, lancia il sync solo per il singolo comune dal pulsante "Sync ora" della sua scheda.
+</div>
+
+<h3>Le notifiche non vengono categorizzate correttamente</h3>
+<div class="error">
+    <strong>Causa:</strong> il sistema riconosce le categorie dal prefisso del testo della notifica (es. "News:", "Evento:", "Differenziata:"). Se il comune usa prefissi non standard, finiscono come "Avviso".<br>
+    <strong>Soluzione:</strong> dopo il deploy di nuovi pattern, lancia un sync con il parametro <code>?full=true</code> per ri-categorizzare tutte le notifiche già salvate.
+</div>
+
+<h3>Il link "Leggi la notizia" non compare</h3>
+<div class="error">
+    <strong>Causa:</strong> il link compare solo per le notifiche di tipo <code>rss_auto</code> (News, Social, Facebook) che hanno un URL dell'articolo associato.<br>
+    <strong>Soluzione:</strong> verifica che la notifica abbia il prefisso corretto e che GoodBarber abbia inviato anche il campo <code>url</code> nella push.
+</div>
+
+<h3>Lo slug nel CRM è diverso dal nome del comune</h3>
+<div class="warning">
+    <strong>Esempi:</strong> Partinico ha slug <code>appartinico</code>, La Spezia ha slug <code>cittadellaspezia</code>.<br>
+    <strong>Importante:</strong> usa sempre lo slug corretto nell'URL della sezione GoodBarber e nel banner home. Lo trovi nella scheda dell'app nel CRM.
+</div>
+
+<hr style="margin: 32px 0; border: none; border-top: 2px solid var(--grigio-300);">
+
+<h2><i class="fas fa-info-circle"></i> Note tecniche aggiuntive</h2>
+
+<h3>Categorie di notifiche riconosciute</h3>
+<table>
+    <tr><th>Categoria</th><th>Prefissi del testo</th><th>Visibilità</th></tr>
+    <tr><td>News</td><td>News:, Social:, Social News:, Facebook:</td><td>Permanente</td></tr>
+    <tr><td>Agenda</td><td>Evento:, In Programma:</td><td>Permanente</td></tr>
+    <tr><td>Differenziata/Rifiuti</td><td>Differenziata:, Rifiuti:, Raccolta:, Raccolta Differenziata:, Stasera esporre...</td><td>Solo 24h</td></tr>
+    <tr><td>Allerta</td><td>Allerta:, "allerta meteo/gialla/arancione/rossa"</td><td>Permanente</td></tr>
+    <tr><td>Avviso</td><td>Tutto il resto (default)</td><td>Permanente</td></tr>
+</table>
+
+<h3>Architettura del sistema</h3>
+<ul>
+    <li><strong>API GoodBarber Push History:</strong> il sync interroga l'endpoint <code>https://api.goodbarber.net/pushapi/history/</code> con Webzine ID e User ID dell'account fantasma per recuperare lo storico</li>
+    <li><strong>Salvataggio:</strong> le notifiche vengono salvate nella collection Firestore <code>push_history</code> con un ID deterministico per evitare duplicati</li>
+    <li><strong>Categorizzazione:</strong> avviene nella funzione <code>detectNotificationSource()</code> in <code>api/sync-push-history.js</code> tramite pattern matching sul testo</li>
+    <li><strong>Frontend pubblico:</strong> la pagina <code>notifiche.comune.digital/storico-notifiche/</code> legge da Firestore filtrando per <code>appSlug</code></li>
+    <li><strong>Reader articoli:</strong> per le notizie RSS, un proxy server-side (<code>api/article-proxy.js</code>) recupera il contenuto completo dell'articolo dall'API GoodBarber e lo mostra in una pagina dedicata, evitando i problemi di deep linking dei PWA GoodBarber</li>
+</ul>
+
+<h3>Comandi utili</h3>
+<ul>
+    <li><strong>Sync normale:</strong> aggiunge solo le notifiche nuove</li>
+    <li><strong>Sync full</strong> (<code>?full=true</code>): ri-elabora tutte le notifiche già salvate, utile dopo aver aggiunto nuovi pattern di categorizzazione</li>
+    <li><strong>Sync per singola app:</strong> usa il pulsante "Sync ora" nella scheda dell'app o nella tabella storico-push</li>
+</ul>
+
+</main>
+
+<footer>
+    Comune.Digital — Documentazione interna — versione 1.0
+</footer>
+
+</div>
+
+</body>
+</html>

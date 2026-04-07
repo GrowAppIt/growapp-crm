@@ -771,12 +771,14 @@
                 .where('status', '==', 'sent');
 
             // Filtro per gruppo sorgente
+            // NB: 'manual' è trattato come Notizie per retrocompatibilità con i
+            // vecchi record salvati senza pattern riconosciuto (vedi classifier).
             if (state.activeFilter === 'notizie') {
-                query = query.where('source', '==', 'rss_auto');
+                query = query.where('source', 'in', ['rss_auto', 'manual']);
             } else if (state.activeFilter === 'in_agenda') {
                 query = query.where('source', '==', 'calendar_auto');
             } else if (state.activeFilter === 'avvisi') {
-                query = query.where('source', 'in', ['meteo_alert', 'crm_broadcast', 'crm_api', 'manual']);
+                query = query.where('source', 'in', ['meteo_alert', 'crm_broadcast', 'crm_api']);
             }
 
             query = query.orderBy('sentAt', 'desc').limit(CONFIG.pageSize);
@@ -903,18 +905,52 @@
             return;
         }
 
+        // ========================================================
+        // Deduplica Differenziata / Rifiuti:
+        // - tieni UNA sola notifica (la più recente) per categoria
+        // - nascondila se è più vecchia di 24 ore
+        // Evita il caso "sia la differenziata di ieri che quella di stasera
+        // che dicono entrambe 'Stasera esporre...'"
+        // ========================================================
+        const now = new Date();
+        const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+        const DIFF_TITLES = ['differenziata', 'rifiuti'];
+
+        // Mappa: titolo → notifica più recente di quel tipo
+        const latestDiff = {};
+        state.notifications.forEach(n => {
+            const t = (n.title || '').toLowerCase().trim();
+            if (!DIFF_TITLES.includes(t)) return;
+            const sentAt = n.sentAt?.toDate ? n.sentAt.toDate() : new Date(n.sentAt || 0);
+            const prev = latestDiff[t];
+            const prevDate = prev ? (prev.sentAt?.toDate ? prev.sentAt.toDate() : new Date(prev.sentAt || 0)) : null;
+            if (!prev || sentAt > prevDate) {
+                latestDiff[t] = n;
+            }
+        });
+
+        // Set di ID delle notifiche differenziata da mostrare (solo la più recente,
+        // e solo se entro 24 ore)
+        const visibleDiffIds = new Set();
+        Object.values(latestDiff).forEach(n => {
+            const sentAt = n.sentAt?.toDate ? n.sentAt.toDate() : new Date(n.sentAt || 0);
+            if ((now - sentAt) <= ONE_DAY_MS) {
+                visibleDiffIds.add(n.id);
+            }
+        });
+
         let html = '';
         let lastDateStr = '';
-
-        const now24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
         state.notifications.forEach(notif => {
             const sentAt = notif.sentAt?.toDate ? notif.sentAt.toDate() : new Date(notif.sentAt || 0);
 
-            // Nascondi notifiche Differenziata/Rifiuti più vecchie di 24 ore
-            const titleLower = (notif.title || '').toLowerCase();
-            if ((titleLower === 'differenziata' || titleLower === 'rifiuti') && sentAt < now24h) {
-                return; // salta questa notifica
+            // Gestione speciale Differenziata/Rifiuti: mostra solo l'ultima entro 24h
+            const titleLower = (notif.title || '').toLowerCase().trim();
+            if (DIFF_TITLES.includes(titleLower)) {
+                if (!visibleDiffIds.has(notif.id)) {
+                    return; // salta: è un duplicato più vecchio o è scaduta
+                }
             }
 
             const dateStr = formatDateGroup(sentAt);
@@ -1035,18 +1071,20 @@
     }
 
     // Mappa filtro UI → sorgenti Firestore
+    // NB: 'manual' → Notizie (retrocompatibilità con i vecchi record).
     function matchesFilter(source, filter) {
         if (filter === 'all') return true;
-        if (filter === 'notizie') return source === 'rss_auto';
+        if (filter === 'notizie') return ['rss_auto', 'manual'].includes(source);
         if (filter === 'in_agenda') return source === 'calendar_auto';
-        if (filter === 'avvisi') return ['meteo_alert', 'crm_broadcast', 'crm_api', 'manual'].includes(source);
+        if (filter === 'avvisi') return ['meteo_alert', 'crm_broadcast', 'crm_api'].includes(source);
         return true;
     }
 
-    // Filtra notifiche ripetitive (Differenziata/Rifiuti quotidiani)
+    // shouldHideNotification: nessuna notifica viene nascosta a livello di query.
+    // La deduplica e il filtro 24h per Differenziata/Rifiuti vengono applicati
+    // direttamente in renderNotifications() sulla lista già caricata, così
+    // NESSUNA notifica viene mai scartata a monte.
     function shouldHideNotification(notif) {
-        const title = (notif.title || '').trim();
-        if (title.startsWith('Differenziata:') || title.startsWith('Rifiuti:')) return true;
         return false;
     }
 
