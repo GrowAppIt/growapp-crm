@@ -771,14 +771,14 @@
                 .where('status', '==', 'sent');
 
             // Filtro per gruppo sorgente
-            // NB: 'manual' è trattato come Notizie per retrocompatibilità con i
-            // vecchi record salvati senza pattern riconosciuto (vedi classifier).
+            // NB: 'manual' = notifiche non classificate → vanno negli Avvisi,
+            // così non si perdono mai.
             if (state.activeFilter === 'notizie') {
-                query = query.where('source', 'in', ['rss_auto', 'manual']);
+                query = query.where('source', '==', 'rss_auto');
             } else if (state.activeFilter === 'in_agenda') {
                 query = query.where('source', '==', 'calendar_auto');
             } else if (state.activeFilter === 'avvisi') {
-                query = query.where('source', 'in', ['meteo_alert', 'crm_broadcast', 'crm_api']);
+                query = query.where('source', 'in', ['meteo_alert', 'crm_broadcast', 'crm_api', 'manual']);
             }
 
             query = query.orderBy('sentAt', 'desc').limit(CONFIG.pageSize);
@@ -1071,12 +1071,12 @@
     }
 
     // Mappa filtro UI → sorgenti Firestore
-    // NB: 'manual' → Notizie (retrocompatibilità con i vecchi record).
+    // NB: 'manual' → Avvisi (notifiche non classificate).
     function matchesFilter(source, filter) {
         if (filter === 'all') return true;
-        if (filter === 'notizie') return ['rss_auto', 'manual'].includes(source);
+        if (filter === 'notizie') return source === 'rss_auto';
         if (filter === 'in_agenda') return source === 'calendar_auto';
-        if (filter === 'avvisi') return ['meteo_alert', 'crm_broadcast', 'crm_api'].includes(source);
+        if (filter === 'avvisi') return ['meteo_alert', 'crm_broadcast', 'crm_api', 'manual'].includes(source);
         return true;
     }
 

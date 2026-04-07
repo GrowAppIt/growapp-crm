@@ -291,12 +291,12 @@ const StoricoPush = {
                 .sp-notif-row:hover {
                     background: var(--grigio-100);
                 }
-                .sp-notif-row.src-rss_auto,
-                .sp-notif-row.src-manual { border-left-color: var(--verde-700); }
+                .sp-notif-row.src-rss_auto { border-left-color: var(--verde-700); }
                 .sp-notif-row.src-calendar_auto { border-left-color: #F57F17; }
                 .sp-notif-row.src-meteo_alert { border-left-color: var(--rosso-errore, #D32F2F); }
                 .sp-notif-row.src-crm_broadcast,
-                .sp-notif-row.src-crm_api { border-left-color: var(--blu-700); }
+                .sp-notif-row.src-crm_api,
+                .sp-notif-row.src-manual { border-left-color: var(--blu-700); }
 
                 .sp-notif-icon {
                     width: 32px;
@@ -310,8 +310,8 @@ const StoricoPush = {
                     background: var(--grigio-100);
                     color: var(--grigio-500);
                 }
-                .sp-notif-icon.ic-rss_auto,
-                .sp-notif-icon.ic-manual { background: var(--verde-100); color: var(--verde-700); }
+                .sp-notif-icon.ic-rss_auto { background: var(--verde-100); color: var(--verde-700); }
+                .sp-notif-icon.ic-manual { background: var(--blu-100); color: var(--blu-700); }
                 .sp-notif-icon.ic-calendar_auto { background: #FFF8E1; color: #F57F17; }
                 .sp-notif-icon.ic-meteo_alert { background: #FFEBEE; color: #D32F2F; }
                 .sp-notif-icon.ic-crm_broadcast,
@@ -459,14 +459,13 @@ const StoricoPush = {
             }
             if (this.filters.source) {
                 if (this.filters.source === 'notizie') {
-                    // Include "manual" per retrocompatibilità: tutte le notifiche
-                    // storiche senza pattern riconosciuto erano salvate come 'manual'
-                    // ma in realtà sono news (es. "Comunicati" di Catania).
-                    query = query.where('source', 'in', ['rss_auto', 'manual']);
+                    query = query.where('source', '==', 'rss_auto');
                 } else if (this.filters.source === 'in_agenda') {
                     query = query.where('source', '==', 'calendar_auto');
                 } else if (this.filters.source === 'avvisi') {
-                    query = query.where('source', 'in', ['meteo_alert', 'crm_broadcast', 'crm_api']);
+                    // 'manual' = notifiche non classificate → finiscono qui
+                    // così NON si perdono mai e possono essere riviste.
+                    query = query.where('source', 'in', ['meteo_alert', 'crm_broadcast', 'crm_api', 'manual']);
                 }
             }
 
@@ -520,14 +519,13 @@ const StoricoPush = {
                 .get();
             document.getElementById('sp-stat-apps').textContent = appsSnap.size;
 
-            // Per le altre stats, facciamo query leggere
-            // NB: 'manual' è incluso nelle Notizie per retrocompatibilità con i record
-            // storici senza pattern riconosciuto (vedi loadNotifications).
+            // Per le altre stats, facciamo query leggere.
+            // NB: 'manual' è incluso negli Avvisi (notifiche non classificate).
             const queries = {
                 total: db.collection('push_history').where('status', '==', 'sent'),
-                rss: db.collection('push_history').where('source', 'in', ['rss_auto', 'manual']),
+                rss: db.collection('push_history').where('source', '==', 'rss_auto'),
                 events: db.collection('push_history').where('source', '==', 'calendar_auto'),
-                broadcast: db.collection('push_history').where('source', 'in', ['meteo_alert', 'crm_broadcast', 'crm_api'])
+                broadcast: db.collection('push_history').where('source', 'in', ['meteo_alert', 'crm_broadcast', 'crm_api', 'manual'])
             };
 
             // Esegui in parallelo
@@ -574,9 +572,7 @@ const StoricoPush = {
             'meteo_alert': 'fa-cloud-sun-rain',
             'crm_broadcast': 'fa-bullhorn',
             'crm_api': 'fa-code',
-            // "manual" viene trattato come Notizia per retrocompatibilità:
-            // tutte le push senza pattern riconosciuto finivano qui.
-            'manual': 'fa-rss'
+            'manual': 'fa-bell'
         };
 
         const sourceLabels = {
@@ -585,7 +581,7 @@ const StoricoPush = {
             'meteo_alert': 'Allerta',
             'crm_broadcast': 'Avviso',
             'crm_api': 'Avviso',
-            'manual': 'Notizia'
+            'manual': 'Avviso'
         };
 
         container.innerHTML = this.notifications.map(n => {

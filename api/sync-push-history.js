@@ -162,10 +162,83 @@ async function fetchPushHistory(webzineId, userId, page = 1) {
 }
 
 /**
- * Determina il tipo/sorgente della notifica dal messaggio
+ * Determina il tipo/sorgente della notifica in modalità IBRIDA:
+ *
+ *   1. PRIMA prova a usare i metadati GoodBarber (rootzine, section_id, url)
+ *      → è la classificazione più affidabile perché non dipende dal testo
+ *      scelto dall'operatore ma dalla sezione dell'app da cui proviene la push.
+ *
+ *   2. POI applica i pattern testuali sul messaggio (prefissi noti, parole chiave)
+ *      → utile per allerte meteo scritte a mano, comunicati, differenziata, ecc.
+ *
+ *   3. INFINE, se nulla matcha, ritorna 'manual' (categoria Avvisi)
+ *      → così le notifiche non identificate NON spariscono ma compaiono sotto Avvisi.
+ *
+ * Accetta l'intero oggetto notif di GoodBarber: { id, message, rootzine, section_id, url, ... }
+ * Per retrocompatibilità accetta anche una stringa (il solo messaggio).
  */
-function detectNotificationSource(message) {
-    if (!message) return { source: 'manual', title: '', body: message || '' };
+function detectNotificationSource(notif) {
+    // Retrocompatibilità: se viene passata una stringa, la trattiamo come message
+    if (typeof notif === 'string') notif = { message: notif };
+    notif = notif || {};
+
+    const message = notif.message || '';
+    const rootzine = (notif.rootzine || '').toString().toLowerCase();
+    const url = (notif.url || '').toString().toLowerCase();
+    const sectionId = notif.section_id || null;
+
+    if (!message && !url && !rootzine) {
+        return { source: 'manual', title: '', body: '' };
+    }
+
+    // ============================================================
+    // FASE 1 — Classificazione tramite metadati GoodBarber
+    // ============================================================
+
+    // rootzine e URL sono forti indicatori della sezione dell'app.
+    // GoodBarber usa convenzioni tipo "news", "events", "articles" ecc.
+    const metaText = rootzine + ' ' + url;
+
+    // Notizie: sezioni news/articles/comunicati/blog
+    if (
+        /\b(news|article|blog|rss|feed|comunicat|press|stamp)/i.test(metaText) ||
+        /\/(news|article|blog|rss|comunicat|press)/i.test(url)
+    ) {
+        return {
+            source: 'rss_auto',
+            title: extractTitleFromMessage(message) || 'Notizia',
+            body: stripKnownPrefixes(message)
+        };
+    }
+
+    // Agenda / Eventi: sezioni events/agenda/calendar
+    if (
+        /\b(event|agenda|calendar|calendario|manifestaz)/i.test(metaText) ||
+        /\/(event|agenda|calendar)/i.test(url)
+    ) {
+        return {
+            source: 'calendar_auto',
+            title: extractTitleFromMessage(message) || 'Evento',
+            body: stripKnownPrefixes(message)
+        };
+    }
+
+    // Allerte meteo: sezioni weather/alert/protezione-civile
+    if (
+        /\b(weather|meteo|allerta|alert|protezione.civile|emergen)/i.test(metaText) ||
+        /\/(weather|meteo|alert|allerta)/i.test(url)
+    ) {
+        return {
+            source: 'meteo_alert',
+            title: 'Allerta',
+            body: message
+        };
+    }
+
+    // ============================================================
+    // FASE 2 — Pattern testuali (come prima, per fallback su messaggi
+    // scritti a mano o quando i metadati non sono chiari)
+    // ============================================================
 
     // Pattern: "News: testo..." → RSS automatica
     if (message.startsWith('News:')) {
@@ -330,15 +403,60 @@ function detectNotificationSource(message) {
         };
     }
 
-    // Default: se nessun pattern matcha, trattiamo come Notizia (rss_auto)
-    // Scelta voluta: la maggior parte dei messaggi non classificati sono comunicati
-    // istituzionali / notizie dai comuni. Solo i broadcast generati esplicitamente dal
-    // CRM (crm_broadcast / crm_api) e le allerte meteo restano nella categoria "Avvisi".
+    // ============================================================
+    // FASE 3 — Default
+    // ============================================================
+    // Nessun metadato e nessun pattern ha matchato: categoria 'manual' (Avvisi).
+    // Le notifiche NON vengono mai scartate: finiscono comunque nello storico
+    // sotto la categoria Avvisi e da lì possono essere riviste manualmente.
     return {
-        source: 'rss_auto',
+        source: 'manual',
         title: '',
         body: message
     };
+}
+
+/**
+ * Rimuove dal messaggio i prefissi noti tipo "News:", "Comunicato:" ecc.
+ * così il body finale è pulito quando il titolo viene già dai metadati.
+ */
+function stripKnownPrefixes(message) {
+    if (!message) return '';
+    return message
+        .replace(/^(News|Social News|Social|Facebook|Comunicat[oi][^:]*|Avvis[oi]|Notizi[ae]|Evento|In\s+[Pp]rogramma|Differenziata|Rifiuti|Raccolta(\s+Differenziata)?|Allerta)\s*:\s*/i, '')
+        .trim() || message;
+}
+
+/**
+ * Estrae un titolo sintetico dal prefisso del messaggio (se presente).
+ * Es: "Comunicato: strada chiusa" → "Comunicato"
+ * Se non c'è un prefisso riconoscibile ritorna null.
+ */
+function extractTitleFromMessage(message) {
+    if (!message) return null;
+    const m = message.match(/^(News|Social News|Social|Facebook|Comunicato|Comunicati|Avviso|Avvisi|Notizia|Notizie|Evento|In Programma|In programma|Differenziata|Rifiuti|Raccolta Differenziata|Allerta)\s*:/i);
+    if (!m) return null;
+    // Normalizza il titolo con la prima lettera maiuscola
+    const raw = m[1].toLowerCase();
+    const normalized = {
+        'news': 'News',
+        'social news': 'Social News',
+        'social': 'Social',
+        'facebook': 'Facebook',
+        'comunicato': 'Comunicato',
+        'comunicati': 'Comunicato',
+        'avviso': 'Avviso',
+        'avvisi': 'Avviso',
+        'notizia': 'Notizia',
+        'notizie': 'Notizia',
+        'evento': 'Evento',
+        'in programma': 'In Programma',
+        'differenziata': 'Differenziata',
+        'rifiuti': 'Rifiuti',
+        'raccolta differenziata': 'Differenziata',
+        'allerta': 'Allerta'
+    };
+    return normalized[raw] || m[1];
 }
 
 /**
@@ -355,7 +473,9 @@ async function saveNotifications(notifications, appData) {
         const batch = db.batch();
 
         for (const notif of chunk) {
-            const { source, title, body } = detectNotificationSource(notif.message);
+            // Passiamo l'intero oggetto notif al classifier così può usare
+            // anche i metadati (rootzine, section_id, url) oltre al testo.
+            const { source, title, body } = detectNotificationSource(notif);
 
             // Usa un ID deterministico basato sul push_id di GoodBarber
             // per evitare duplicati
