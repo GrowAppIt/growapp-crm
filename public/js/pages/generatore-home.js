@@ -11,6 +11,7 @@
  * v4.5.2 – Bonifica completa dei residui backslash nel codice di runtime: replace(/\\./g,'') del SV sostituito con split.join, querySelector('media\\:thumbnail') sostituito con getElementsByTagName. Ora il JS emesso non contiene più alcun carattere backslash.
  * v4.5.3 – Fix tentativo 1 crash widget Meteo in GoodBarber "menù custom": la funzione locale apiUrl() veniva interpretata dal preprocessor di GB come macro di sistema e sostituita con un URL hardcoded contenente "//", che diventava un commento JS rompendo la chiamata fetchJSON. Rinominata in buildMeteoUrl(): NON è bastato perché GB matcha qualunque identificatore con suffisso "url"/"Url" (case-insensitive).
  * v4.5.4 – Fix DEFINITIVO crash widget Meteo: rimossa del tutto la funzione buildMeteoUrl(). La query string e l'endpoint vengono ora costruiti INLINE dentro loadMeteo() in una variabile locale "meteoEndpoint" (nessun identificatore termina in url/Url). Bug confermato in preview Mezzolombardo: GB sostituiva sia apiUrl() sia buildMeteoUrl() con apiurl(<URL>) / buildMeteourl(<URL>), causando SyntaxError "missing ) after argument list" alla riga ~3022.
+ * v4.5.5 – Fix RSS Slider eventi in GoodBarber "menù custom": il fetch same-origin verso /syndication/<feed>/ veniva intercettato dal Service Worker dell'app GoodBarber e restituiva la SPA shell HTML con HTTP 404; tutti e 3 i CORS proxy pubblici (allorigins, corsproxy.io, codetabs) ormai falliscono per limiti free / blocchi UA. Aggiunto come PRIMA scelta della catena fetch un proxy RSS server-side ospitato sul CRM (https://crm.comune.digital/api/rss-proxy?url=...), che bypassa il SW (è cross-origin) e usa un User-Agent browser-like per evitare i blocchi. Verificato in preview Mezzolombardo che senza proxy CRM tutti i fetch falliscono.
  * Si integra nel CRM come sezione dell'Officina Digitale.
  */
 window.GeneratoreHome = (function () {
@@ -3741,21 +3742,30 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
 
   /* RSS SLIDERS RUNTIME */
   (() => {
+    // Catena di proxy: prima il proxy CRM Comune.Digital (server-side, bypassa
+    // sia il SW dell'app GoodBarber sia i blocchi CORS / UA dei feed), poi
+    // i proxy pubblici come ultima risorsa.
     const CORS_PROXIES = [
+      // 1. Proxy CRM Comune.Digital (RAW XML)
+      (u) => 'https://crm.comune.digital/api/rss-proxy?url='
+        + encodeURIComponent(u),
+      // 2. allorigins (JSON wrapped {contents:"..."})
       (u) => 'https://api.allorigins.win/get?url='
         + encodeURIComponent(u),
+      // 3. corsproxy.io (RAW)
       (u) => 'https://corsproxy.io/?' + encodeURIComponent(u),
+      // 4. codetabs (RAW)
       (u) => 'https://api.codetabs.com/v1/proxy?quest='
         + encodeURIComponent(u),
     ];
 
-    const fetchWithTimeout = (url, ms) => {
+    const fetchWithTimeout = (target, ms) => {
       let ctrl, sig;
       if (typeof AbortController !== 'undefined') {
         ctrl = new AbortController();
         sig = ctrl.signal;
       }
-      const fp = fetch(url, { cache: 'no-store', signal: sig })
+      const fp = fetch(target, { cache: 'no-store', signal: sig })
         .then((r) => {
           if (!r.ok) throw new Error('HTTP ' + r.status);
           return r;
@@ -3769,22 +3779,47 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
       return Promise.race([fp, tp]);
     };
 
-    const fetchRssText = (rssUrl) => {
-      const bust = rssUrl
-        + (rssUrl.includes('?') ? '&' : '?')
+    // Estrae XML dal payload del proxy: gestisce sia XML raw sia
+    // wrapper JSON tipo { contents: "<xml>..." } di allorigins.
+    const extractXml = (raw) => {
+      if (!raw || !raw.length) throw new Error('empty');
+      const trimmed = raw.trim();
+      // Tentativo JSON wrapper
+      if (trimmed.charAt(0) === '{') {
+        try {
+          const j = JSON.parse(trimmed);
+          if (j && typeof j.contents === 'string' && j.contents.length) {
+            return j.contents;
+          }
+          // Risposta di errore JSON dal proxy CRM (es. {ok:false,error:"..."})
+          if (j && j.ok === false) throw new Error(j.error || 'proxy-error');
+        } catch (e) {
+          // se JSON.parse fallisce, prosegue come XML raw
+        }
+      }
+      // Scarta SPA fallback HTML
+      const lower = trimmed.toLowerCase();
+      if (lower.indexOf('<!doctype html') === 0 || lower.indexOf('<html') === 0) {
+        throw new Error('html-fallback');
+      }
+      return raw;
+    };
+
+    const fetchRssText = (rssTarget) => {
+      const bust = rssTarget
+        + (rssTarget.indexOf('?') >= 0 ? '&' : '?')
         + '_t=' + Date.now();
+      // Tentativo 1: fetch diretto same-origin/cross-origin
       return fetchWithTimeout(bust, 10000)
         .then((r) => r.text())
+        .then((t) => extractXml(t))
         .catch(() => {
+          // Tentativo 2..N: cascata di proxy
           return CORS_PROXIES.reduce((chain, pFn) => {
             return chain.catch(() => {
-              return fetchWithTimeout(pFn(bust), 10000)
-                .then((r) => r.json ? r.json() : r.text())
-                .then((d) => {
-                  if (d && typeof d.contents === 'string') return d.contents;
-                  if (typeof d === 'string') return d;
-                  throw new Error('proxy-invalid');
-                });
+              return fetchWithTimeout(pFn(bust), 12000)
+                .then((r) => r.text())
+                .then((t) => extractXml(t));
             });
           }, Promise.reject(new Error('start')));
         });

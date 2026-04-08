@@ -110,6 +110,7 @@ Più widget dinamici aggiunti dall'utente: `rssSlider_*`, `bannerCustom_*`.
 - v4.5.2 — Bonifica residui backslash (regex SV → split.join, querySelector → getElementsByTagName)
 - v4.5.3 — Tentativo 1 fix macro `apiUrl` → rinominata in `buildMeteoUrl` (NON è bastato: GB matcha qualunque suffisso `*url`/`*Url`)
 - v4.5.4 — **Fix DEFINITIVO macro `*url(`**: rimossa funzione `buildMeteoUrl()`, endpoint inlinato come variabile `meteoEndpoint` dentro `loadMeteo()` (vedi sezione 3.1)
+- v4.5.5 — **Fix RSS Slider eventi in menù custom**: il fetch verso `/syndication/<feed>/` veniva intercettato dal Service Worker dell'app GoodBarber e ritornava la SPA shell HTML 404; tutti e 3 i CORS proxy pubblici (allorigins, corsproxy.io, codetabs) ormai falliscono per limiti free / blocchi UA. Aggiunto come PRIMA scelta della catena fetch il proxy server-side `/api/rss-proxy.js` sul CRM, che bypassa il SW (è cross-origin) e usa un User-Agent browser-like. Vedi sezione 3.4.
 
 ---
 
@@ -173,6 +174,39 @@ Il preprocessor strippa o trasforma i backslash, rompendo regex e stringhe. Rego
 | CSS url() con apici | `'url(\'' + path + '\')'` | `"url(" + "'" + path + "'" + ")"` |
 | Regex con punto | `s.replace(/\./g, '')` | `s.split('.').join('')` |
 | Selector CSS namespace | `querySelector('media\\:thumbnail')` | `getElementsByTagName('media:thumbnail')` |
+
+### 3.4 Service Worker delle app GoodBarber e fetch RSS
+
+**Problema confermato in produzione (Mezzolombardo, v4.5.5)**: ogni Comune servito su `<comune>.comune.digital` (app GoodBarber) ha un **Service Worker** registrato sull'intera origine, scope `/`. Il SW intercetta TUTTI i fetch same-origin: per i path che non riconosce (es. `/syndication/eventi/`) restituisce la **SPA shell HTML con HTTP 404**, NON il file remoto. Risultato: qualunque widget runtime che fa `fetch('https://<comune>.comune.digital/syndication/...')` da dentro l'iframe del menù custom NON può ricevere XML.
+
+In più, i 3 CORS proxy pubblici classici sono ormai inaffidabili:
+- `api.allorigins.win` → spesso "Failed to fetch" / down
+- `corsproxy.io` → 403 "Free usage is limited to localhost and development environments"
+- `api.codetabs.com` → 403 "Forbidden by administrative rules" su comune.digital (UA gating)
+
+**Soluzione standard adottata**: proxy RSS server-side ospitato sul CRM, file `api/rss-proxy.js`. Endpoint:
+
+```
+GET https://crm.comune.digital/api/rss-proxy?url=<feed-url-encoded>
+```
+
+Caratteristiche:
+- Allowlist di domini (`.comune.digital`, `.goodbarber.app`, `.goodbarber.com`, `.ww-api.com`, `rss.app`)
+- User-Agent browser-like (`Mozilla/5.0 (compatible; ComuneDigitalRSSProxy/1.0; ...)`) per superare i blocchi UA
+- Cache edge 5 min + stale 1 h
+- Restituisce **XML raw** con `Content-Type: text/xml` e `Access-Control-Allow-Origin: *`
+- Scarta automaticamente le risposte HTML SPA shell (anti-fallback)
+- Errori → JSON `{ ok: false, error: "..." }` con status appropriato (502/504/403/400)
+
+Nel runtime di `generatore-home.js`, dentro l'IIFE `RSS SLIDERS RUNTIME`, `CORS_PROXIES` ha questa priorità:
+1. **Proxy CRM** (`crm.comune.digital/api/rss-proxy?url=`) ← PRIMARIO
+2. allorigins (JSON wrapper `{contents:""}`)
+3. corsproxy.io
+4. codetabs
+
+La funzione `extractXml(raw)` gestisce sia XML raw sia il wrapper JSON di allorigins, e scarta SPA shell HTML.
+
+**Lezione**: per qualunque feed RSS chiamato da dentro l'iframe del menù custom, NON contare su un fetch same-origin, NON contare sui CORS proxy pubblici. Usare sempre prima il proxy CRM.
 
 ### 3.3 Verifica obbligatoria prima di rilasciare in produzione
 
