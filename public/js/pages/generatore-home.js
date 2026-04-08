@@ -5,6 +5,8 @@
  * v4.0.1 – Aggiunto widget Slideshow Verticale (full-screen con data/meteo/pulsanti) + bugfix i18n, form, icons
  * v4.2.0 – Fix crash quando dateHeader disabilitato (null-check su currentDate, specialEvent, weatherIcon, temperature, dpcScriptMount) – build 2
  * v4.3.0 – Tema Tab Bar chiaro/scuro, fix SV height, fix SV microcopy, fix header font, appendLang su tutti gli href interni
+ * v4.4.0 – Restyle Barra Data: nuovo layout single-row con cal-icon glass, mini-meteo con icone Font Awesome (day/night via WMO codes), riga evento nascosta se assente, lista eventi estesa (~80 ricorrenze)
+ * v4.5.0 – Restyle integrale widget Meteo: 2 schermate (corrente + 7 giorni), modal dettagli slide-up, temi colore dinamici (sunny/cloudy/rain/storm/snow/fog/night) con accent esteso a icone/testi, scroll Android-safe sulla previsione, cache offline. Posizionato di default come ultimo widget.
  * Si integra nel CRM come sezione dell'Officina Digitale.
  */
 window.GeneratoreHome = (function () {
@@ -311,7 +313,7 @@ window.GeneratoreHome = (function () {
       ],
       protCivileEnabled: true, protCivileApiKey: '', protCivileRegione: 'Sici-E',
       protCivileComune: '', protCivileUrlRegione: 'https://www.protezionecivilesicilia.it',
-      meteoWeeklyUrl: 'meteo', meteoInterval: 15, meteoTimeout: 10000,
+      meteoInterval: 15, meteoTimeout: 20000,
       footerTerminiUrl: '', footerTerminiLabel: 'Termini e condizioni del Servizio',
       footerPrivacyUrl: '', footerPrivacyLabel: 'Privacy Policy',
       footerCopyrightText: 'Comune.Digital', footerCopyrightUrl: 'https://app.comune.digital',
@@ -354,9 +356,9 @@ window.GeneratoreHome = (function () {
         { id: 'bannerCIE', label: 'Banner CIE', enabled: true, order: 5 },
         { id: 'raccoltaDifferenziata', label: 'Raccolta Differenziata', enabled: true, order: 6 },
         { id: 'protezioneCivile', label: 'Protezione Civile', enabled: true, order: 7 },
-        { id: 'meteoCard', label: 'Meteo', enabled: true, order: 8 },
-        { id: 'slideshowVerticale', label: 'Slideshow Verticale', enabled: false, order: 9 },
-        { id: 'tabBar', label: 'Tab Bar', enabled: false, order: 10 },
+        { id: 'slideshowVerticale', label: 'Slideshow Verticale', enabled: false, order: 8 },
+        { id: 'tabBar', label: 'Tab Bar', enabled: false, order: 9 },
+        { id: 'meteoCard', label: 'Meteo', enabled: true, order: 14 },
       ],
     };
   }
@@ -627,10 +629,10 @@ window.GeneratoreHome = (function () {
 
     // === SEZ. 12: METEO ===
     formHtml += makeSection('fa-cloud-sun', 'Meteo',
-      '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;">' +
-        makeInput('ghMeteoWeeklyUrl','URL Previsioni',state.meteoWeeklyUrl,'meteo') +
+      '<p style="font-size:12px;color:#9B9B9B;margin:0 0 12px;"><i class="fas fa-info-circle"></i> Fonte dati: <strong>Open-Meteo</strong> (gratuito, senza API key, modello ICON-EU ~1.5km). Lat/Lon vengono presi dalla sezione Geolocalizzazione. La card mostra meteo attuale, dettagli (umidità, vento, pioggia, pressione, visibilità, UV, alba, tramonto) e previsioni a 7 giorni, con tema visivo che cambia in base alle condizioni meteo.</p>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">' +
         makeInput('ghMeteoInterval','Intervallo Agg. (min)',String(state.meteoInterval),'15','number') +
-        makeInput('ghMeteoTimeout','Timeout (ms)',String(state.meteoTimeout),'10000','number') +
+        makeInput('ghMeteoTimeout','Timeout (ms)',String(state.meteoTimeout),'20000','number') +
       '</div>',
       false
     );
@@ -2023,9 +2025,8 @@ window.GeneratoreHome = (function () {
     state.protCivileRegione = v('ghProtCivileRegione');
     state.protCivileComune = v('ghProtCivileComune');
     state.protCivileUrlRegione = v('ghProtCivileUrlRegione');
-    state.meteoWeeklyUrl = v('ghMeteoWeeklyUrl');
     state.meteoInterval = parseInt(v('ghMeteoInterval')) || 15;
-    state.meteoTimeout = parseInt(v('ghMeteoTimeout')) || 10000;
+    state.meteoTimeout = parseInt(v('ghMeteoTimeout')) || 20000;
     state.footerTerminiUrl = v('ghFooterTerminiUrl');
     state.footerTerminiLabel = v('ghFooterTerminiLabel');
     state.footerPrivacyUrl = v('ghFooterPrivacyUrl');
@@ -2090,7 +2091,6 @@ window.GeneratoreHome = (function () {
     set('ghProtCivileRegione', state.protCivileRegione);
     set('ghProtCivileComune', state.protCivileComune);
     set('ghProtCivileUrlRegione', state.protCivileUrlRegione);
-    set('ghMeteoWeeklyUrl', state.meteoWeeklyUrl);
     set('ghMeteoInterval', state.meteoInterval);
     set('ghMeteoTimeout', state.meteoTimeout);
     set('ghFooterTerminiUrl', state.footerTerminiUrl);
@@ -2212,7 +2212,6 @@ window.GeneratoreHome = (function () {
       enabled:      ${!!S.protCivileEnabled},
     },
     meteo: {
-      weeklyForecastUrl: ${q(S.meteoWeeklyUrl)},
       updateIntervalMin: ${S.meteoInterval},
       timeoutMs:         ${S.meteoTimeout},
     },
@@ -2415,10 +2414,11 @@ ${buildJS()}
 [data-theme="dark"] body{background:#121212;}
 [data-theme="dark"] .w-main-header{background:linear-gradient(180deg,${dbp['900']} 0%,#061E32 100%);}
 [data-theme="dark"] .w-footer{background:#061E32;}
-[data-theme="dark"] .w-date-header{background:linear-gradient(135deg,rgba(30,30,30,.92),rgba(25,25,25,.88));}
-[data-theme="dark"] .w-date-header .day-label,[data-theme="dark"] .w-date-header .day-sub{color:#E0E0E0;}
-[data-theme="dark"] .w-date-header .day-icon{color:#7AB8E8;}
-[data-theme="dark"] .w-date-header .weather-temp{color:#E0E0E0;}
+[data-theme="dark"] .w-date-header{background:linear-gradient(160deg,#0A1A28 0%,#0D2A40 60%,#143656 100%);}
+[data-theme="dark"] .w-date-header .date-text,[data-theme="dark"] .w-date-header .event-text{color:#E0E0E0;}
+[data-theme="dark"] .w-date-header .cal-icon{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.18);}
+[data-theme="dark"] .w-date-header .weather{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.18);}
+[data-theme="dark"] .w-date-header .temp{color:#E0E0E0;}
 [data-theme="dark"] .slide-textbox{background:rgba(10,30,50,0.35);border-color:rgba(255,255,255,0.20);}
 [data-theme="dark"] .svc-card{background:rgba(40,40,40,.75);border-color:rgba(255,255,255,.08);}
 [data-theme="dark"] .svc-link:hover .svc-card{background:rgba(55,55,55,.90);}
@@ -2431,10 +2431,13 @@ ${buildJS()}
 [data-contrast="high"] .svc-card{border:2px solid #000!important;background:#fff!important;}
 [data-contrast="high"] .svc-label-it{color:#000!important;}[data-contrast="high"] .svc-label-en{color:#333!important;}
 [data-contrast="high"] .svc-title-it{color:#000!important;}
-[data-contrast="high"] .rd-card,[data-contrast="high"] .meteo-card{border:2px solid #000!important;background:#fff!important;}
-[data-contrast="high"] .rd-chip,[data-contrast="high"] .m-chip{border:2px solid #000!important;color:#000!important;font-weight:700!important;}
-[data-contrast="high"] .rd-title,[data-contrast="high"] .meteo-title{color:#000!important;}
-[data-contrast="high"] .rd-accordion,[data-contrast="high"] .meteo-acc{border:2px solid #000!important;}
+[data-contrast="high"] .rd-card{border:2px solid #000!important;background:#fff!important;}
+[data-contrast="high"] .w-meteo-wrapper .rd-card{background:#fff!important;}
+[data-contrast="high"] .w-meteo-wrapper .rd-card *{color:#000!important;text-shadow:none!important;}
+[data-contrast="high"] .w-meteo-wrapper .rd-temp-box,[data-contrast="high"] .w-meteo-wrapper .btn-action,[data-contrast="high"] .w-meteo-wrapper .det-cell,[data-contrast="high"] .w-meteo-wrapper .forecast-row{border:2px solid #000!important;background:#fff!important;box-shadow:none!important;}
+[data-contrast="high"] .rd-chip{border:2px solid #000!important;color:#000!important;font-weight:700!important;}
+[data-contrast="high"] .rd-title{color:#000!important;}
+[data-contrast="high"] .rd-accordion{border:2px solid #000!important;}
 [data-contrast="high"] .banner-link-card{border:2px solid #fff!important;}
 [data-contrast="high"] .w-banner-cie{border:2px solid #fff!important;}
 [data-contrast="high"] .cie-title,[data-contrast="high"] .cie-subtitle{color:#fff!important;font-weight:700!important;}
@@ -2445,22 +2448,25 @@ ${buildJS()}
 [data-theme="dark"][data-contrast="high"] body{background:#000;}
 [data-theme="dark"][data-contrast="high"] .svc-card{border:2px solid #fff!important;background:#000!important;}
 [data-theme="dark"][data-contrast="high"] .svc-label-it{color:#fff!important;}
-[data-theme="dark"][data-contrast="high"] .rd-card,[data-theme="dark"][data-contrast="high"] .meteo-card{border:2px solid #fff!important;background:#000!important;}
-[data-theme="dark"][data-contrast="high"] .rd-chip,[data-theme="dark"][data-contrast="high"] .m-chip{border:2px solid #fff!important;color:#fff!important;}
-[data-theme="dark"][data-contrast="high"] .rd-title,[data-theme="dark"][data-contrast="high"] .meteo-title{color:#fff!important;}
-[data-theme="dark"][data-contrast="high"] .rd-accordion,[data-theme="dark"][data-contrast="high"] .meteo-acc{border:2px solid #fff!important;}
+[data-theme="dark"][data-contrast="high"] .rd-card{border:2px solid #fff!important;background:#000!important;}
+[data-theme="dark"][data-contrast="high"] .w-meteo-wrapper .rd-card{background:#000!important;}
+[data-theme="dark"][data-contrast="high"] .w-meteo-wrapper .rd-card *{color:#fff!important;text-shadow:none!important;}
+[data-theme="dark"][data-contrast="high"] .w-meteo-wrapper .rd-temp-box,[data-theme="dark"][data-contrast="high"] .w-meteo-wrapper .btn-action,[data-theme="dark"][data-contrast="high"] .w-meteo-wrapper .det-cell,[data-theme="dark"][data-contrast="high"] .w-meteo-wrapper .forecast-row{border:2px solid #fff!important;background:#000!important;box-shadow:none!important;}
+[data-theme="dark"][data-contrast="high"] .rd-chip{border:2px solid #fff!important;color:#fff!important;}
+[data-theme="dark"][data-contrast="high"] .rd-title{color:#fff!important;}
+[data-theme="dark"][data-contrast="high"] .rd-accordion{border:2px solid #fff!important;}
 [data-theme="dark"][data-contrast="high"] .eco-tip{border:2px solid #fff!important;color:#fff!important;}
 [data-fontscale="1"]{--fs-xs:clamp(13px,3.2vw,15px);--fs-sm:clamp(14px,3.5vw,16px);--fs-base:clamp(15px,3.8vw,17px);--fs-md:clamp(16px,4.0vw,18px);--fs-lg:clamp(17px,4.4vw,21px);--fs-xl:clamp(20px,4.8vw,23px);--fs-2xl:clamp(23px,5.8vw,30px);}
 [data-fontscale="2"]{--fs-xs:clamp(14px,3.6vw,17px);--fs-sm:clamp(16px,3.9vw,18px);--fs-base:clamp(17px,4.3vw,20px);--fs-md:clamp(18px,4.6vw,21px);--fs-lg:clamp(20px,4.9vw,23px);--fs-xl:clamp(22px,5.5vw,26px);--fs-2xl:clamp(26px,6.5vw,34px);}
 [data-fontscale="3"]{--fs-xs:clamp(16px,4.1vw,19px);--fs-sm:clamp(17px,4.4vw,20px);--fs-base:clamp(19px,4.8vw,22px);--fs-md:clamp(20px,5.1vw,23px);--fs-lg:clamp(22px,5.5vw,26px);--fs-xl:clamp(25px,6.1vw,29px);--fs-2xl:clamp(29px,7.3vw,38px);}
 [data-fontscale="4"]{--fs-xs:clamp(18px,4.5vw,21px);--fs-sm:clamp(19px,4.8vw,22px);--fs-base:clamp(21px,5.3vw,24px);--fs-md:clamp(22px,5.6vw,26px);--fs-lg:clamp(24px,6.1vw,29px);--fs-xl:clamp(27px,6.7vw,32px);--fs-2xl:clamp(32px,8.0vw,42px);}
 /* Header: limita la crescita max dei font con fontscale alto */
-[data-fontscale] .w-date-header .current-date{font-size:clamp(14px,3.5vw,18px)!important;}
-[data-fontscale] .w-date-header .special-event{font-size:clamp(12px,3vw,15px)!important;}
-[data-fontscale] .w-date-header .date-ico{width:clamp(26px,7vw,34px)!important;height:clamp(26px,7vw,34px)!important;}
-[data-fontscale] .w-date-header .date-ico i{font-size:clamp(12px,3vw,15px)!important;}
-[data-fontscale] .w-date-header .weather-icon{font-size:clamp(15px,3.8vw,19px)!important;}
-[data-fontscale] .w-date-header .temperature{font-size:clamp(14px,3.5vw,18px)!important;}
+[data-fontscale] .w-date-header .date-text{font-size:clamp(14px,3.5vw,18px)!important;}
+[data-fontscale] .w-date-header .event-text{font-size:clamp(12px,3vw,15px)!important;}
+[data-fontscale] .w-date-header .cal-icon{width:clamp(32px,8.5vw,40px)!important;height:clamp(32px,8.5vw,40px)!important;}
+[data-fontscale] .w-date-header .cal-icon i{font-size:clamp(14px,3.8vw,19px)!important;}
+[data-fontscale] .w-date-header #wFa{font-size:clamp(22px,6vw,30px)!important;}
+[data-fontscale] .w-date-header .temp{font-size:clamp(15px,4vw,19px)!important;}
 [data-fontscale] .lang-toggle{font-size:clamp(18px,5vw,22px)!important;}
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
 html{-webkit-text-size-adjust:100%!important;text-size-adjust:100%!important;font-size:16px!important;scroll-behavior:smooth;touch-action:pan-x pan-y;-ms-touch-action:pan-x pan-y;}
@@ -2482,18 +2488,16 @@ body{font-family:'Titillium Web',system-ui,-apple-system,Segoe UI,Roboto,Arial,s
 .footer-copy{font-size:var(--fs-xs);color:rgba(255,255,255,.50);font-weight:400;padding-top:4px;}
 .footer-copy a{color:rgba(255,255,255,.65);text-decoration:none;font-weight:600;transition:color .15s ease;}
 .footer-copy a:hover{color:#fff;text-decoration:underline;}
-.w-date-header{position:relative;top:0;z-index:100;padding:clamp(8px,2vw,12px) 0;background:linear-gradient(180deg,var(--blu-hover) 2%,var(--blu) 55%,var(--blu-dark) 100%),conic-gradient(from -20deg at 30% 0%,rgba(255,255,255,.55),rgba(255,255,255,0) 30%,rgba(255,255,255,.35) 60%,rgba(255,255,255,0) 85%,rgba(255,255,255,.55)),radial-gradient(900px 300px at 50% 15%,rgba(255,255,255,.20),rgba(255,255,255,0) 60%);border-bottom:1px solid rgba(16,59,96,.55);box-shadow:0 2px 6px rgba(0,0,0,.08);-webkit-backdrop-filter:blur(8px) saturate(160%);backdrop-filter:blur(8px) saturate(160%);overflow:hidden;}
-.w-date-header::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:3px;pointer-events:none;background:linear-gradient(90deg,rgba(60,164,52,0),rgba(60,164,52,.65),rgba(60,164,52,0));filter:blur(.2px);}
-.date-header-inner{max-width:640px;margin:0 auto;padding:0 clamp(10px,3vw,16px);display:flex;justify-content:space-between;align-items:center;gap:10px;}
-.date-left{display:flex;align-items:center;gap:10px;color:#fff;min-width:0;}
-.date-ico{width:clamp(26px,7vw,32px);height:clamp(26px,7vw,32px);border-radius:10px;display:grid;place-items:center;flex-shrink:0;background:linear-gradient(180deg,var(--blu-hover) 2%,var(--blu) 55%,var(--blu-dark) 100%);outline:1px solid rgba(16,59,96,.55);box-shadow:inset 0 10px 18px rgba(16,59,96,.45),inset 0 -10px 16px rgba(255,255,255,.12);}
-.date-ico i{font-size:var(--fs-sm);color:#fff;}
-.date-text{min-width:0;}
-.current-date{font-size:var(--fs-md);font-weight:700;color:#fff;display:block;line-height:1.1;text-shadow:0 1px 0 rgba(0,0,0,.45),0 8px 14px rgba(0,0,0,.30);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.special-event{font-size:var(--fs-sm);color:#f3f8ff;font-weight:400;display:block;line-height:1.15;opacity:.98;text-shadow:0 1px 0 rgba(0,0,0,.35);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.weather-box{display:flex;align-items:center;gap:6px;color:#fff;font-weight:800;flex-shrink:0;}
-.weather-icon{font-size:var(--fs-lg);line-height:1;}
-.temperature{font-size:var(--fs-md);}
+.w-date-header{position:relative;top:0;z-index:100;padding:clamp(8px,2vw,12px) clamp(12px,4vw,20px);background:linear-gradient(160deg,var(--blu-dark) 0%,var(--blu) 60%,var(--blu-hover) 100%);border-bottom:1px solid rgba(16,59,96,.55);box-shadow:0 2px 6px rgba(0,0,0,.08);overflow:hidden;}
+.w-date-header .row-main{display:flex;align-items:center;justify-content:space-between;gap:8px;max-width:640px;margin:0 auto;}
+.w-date-header .left{display:flex;align-items:center;gap:clamp(7px,2vw,11px);flex:1;min-width:0;}
+.w-date-header .cal-icon{flex-shrink:0;width:clamp(30px,8vw,38px);height:clamp(30px,8vw,38px);border-radius:9px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.22);display:grid;place-items:center;color:#fff;font-size:clamp(13px,3.5vw,17px);}
+.w-date-header .date-col{display:flex;flex-direction:column;gap:1px;min-width:0;}
+.w-date-header .date-text{color:#fff;font-weight:700;font-size:clamp(12px,3.2vw,15px);line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-transform:capitalize;}
+.w-date-header .event-text{color:rgba(255,255,255,0.88);font-weight:400;font-size:clamp(10px,2.6vw,12px);line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:none;}
+.w-date-header .weather{flex-shrink:0;display:flex;align-items:center;gap:clamp(4px,1.2vw,7px);background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.22);border-radius:12px;padding:clamp(4px,1vw,6px) clamp(8px,2vw,12px);}
+.w-date-header #wFa{font-size:clamp(20px,5.5vw,28px);color:#fff;line-height:1;}
+.w-date-header .temp{color:#fff;font-weight:700;font-size:clamp(14px,3.8vw,17px);line-height:1;white-space:nowrap;}
 .w-ticker{background:transparent;}
 .ticker-header{position:relative;color:#fff;padding:clamp(5px,1.2vw,7px) clamp(10px,3vw,14px);font-weight:700;font-size:var(--fs-sm);display:flex;align-items:center;gap:10px;background:linear-gradient(180deg,var(--blu-hover) 8%,var(--blu) 58%,var(--blu-dark) 100%),conic-gradient(from -20deg at 25% 0%,rgba(255,255,255,.55),rgba(255,255,255,0) 30%,rgba(255,255,255,.35) 60%,rgba(255,255,255,0) 85%,rgba(255,255,255,.55));border-bottom:1px solid rgba(16,59,96,.45);box-shadow:0 2px 6px rgba(0,0,0,.08);overflow:hidden;}
 .ticker-header a{color:#fff;text-decoration:none;display:flex;align-items:center;gap:10px;width:100%;}
@@ -2650,33 +2654,110 @@ rssapp-ticker a{margin-right:50px!important;display:inline-block!important;color
 #dpc-alerts-widget img,#dpc-alerts-widget svg{max-width:100%;height:auto;}
 .w-protezione .disclaimer{font-size:clamp(10px,2.6vw,12px)!important;}
 .w-meteo-wrapper{padding:clamp(6px,2vw,10px) clamp(8px,2.5vw,12px);background:var(--blu-dark);flex-shrink:0;flex-grow:0;}
-.w-meteo-wrapper .meteo-card{position:relative;border-radius:var(--radius);padding:clamp(10px,2.5vw,12px);background:linear-gradient(135deg,rgba(255,255,255,.86),rgba(255,255,255,.78));backdrop-filter:blur(14px) saturate(118%);-webkit-backdrop-filter:blur(14px) saturate(118%);border:1px solid rgba(var(--blu-rgb),.20);box-shadow:var(--shadow-lg);max-width:520px;margin:0 auto;overflow:hidden;}
-.w-meteo-wrapper .meteo-card>*:not(.meteo-layer){position:relative;z-index:2;}
-.w-meteo-wrapper .meteo-card::before{content:"";position:absolute;inset:-8%;pointer-events:none;border-radius:inherit;background:radial-gradient(220px 240px at 15% 0%,rgba(var(--blu-rgb),.18),transparent 60%),radial-gradient(240px 220px at 110% 10%,rgba(var(--blu-hover-rgb),.22),transparent 60%),radial-gradient(200px 240px at -10% 110%,rgba(255,255,255,.28),transparent 62%);filter:blur(18px) saturate(120%);mix-blend-mode:screen;z-index:0;animation:rdLiqFloat 24s ease-in-out infinite alternate;}
-.w-meteo-wrapper .meteo-card::after{content:"";position:absolute;inset:-30% -20%;pointer-events:none;border-radius:inherit;background:linear-gradient(130deg,rgba(255,255,255,0) 20%,rgba(255,255,255,.18) 40%,rgba(255,255,255,0) 60%);z-index:1;animation:rdSheen 6s ease-in-out infinite;}
-.meteo-header{display:flex;align-items:center;gap:8px;margin-bottom:4px;}
-.meteo-icon{width:clamp(32px,8vw,38px);height:clamp(32px,8vw,38px);display:grid;place-items:center;border-radius:14px;color:#fff;background:radial-gradient(80% 80% at 30% 20%,rgba(255,255,255,.22),rgba(255,255,255,0) 65%),linear-gradient(160deg,var(--blu),var(--blu-hover));box-shadow:inset 0 1px 8px rgba(255,255,255,.28),0 8px 18px rgba(0,0,0,.22);flex-shrink:0;}
-.meteo-title{font-weight:700;font-size:var(--fs-lg);line-height:1.1;color:var(--blu);}
-.meteo-sub{font-size:var(--fs-xs);color:var(--ink-sub);}
-.meteo-badge{margin-left:auto;font-size:var(--fs-xs);font-weight:700;color:var(--blu);padding:4px 8px;border-radius:999px;border:1px solid rgba(var(--blu-rgb),.22);background:linear-gradient(160deg,rgba(var(--blu-rgb),.10),rgba(var(--blu-rgb),.06));}
-.meteo-section{margin-top:6px;}
-.meteo-section h3{margin:0 0 4px;font-size:var(--fs-sm);font-weight:700;color:var(--blu);display:flex;gap:6px;align-items:center;}
-.m-chips{display:flex;flex-wrap:wrap;gap:6px;}
-.m-chip{display:inline-flex;align-items:center;gap:6px;padding:clamp(5px,1.5vw,6px) clamp(8px,2vw,10px);border-radius:12px;font-weight:600;background:linear-gradient(180deg,rgba(var(--blu-rgb),.12),rgba(var(--blu-rgb),.07));border:1px solid rgba(var(--blu-rgb),.28);color:var(--blu-dark);font-size:var(--fs-sm);}
-.m-chip .fa-solid{font-size:var(--fs-sm);}
-.meteo-acc{border:1px solid rgba(var(--blu-rgb),.22);border-radius:14px;overflow:hidden;background:rgba(255,255,255,.86);}
-.meteo-acc-h{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:clamp(6px,2vw,8px) clamp(8px,2vw,10px);cursor:pointer;background:linear-gradient(180deg,rgba(var(--blu-rgb),.08),rgba(var(--blu-rgb),.04));user-select:none;color:var(--blu);font-size:var(--fs-sm);}
-.meteo-acc-h strong{font-size:var(--fs-sm);}
-.meteo-acc-b{display:none;padding:8px 10px;}
-.meteo-acc-b.open{display:block;}
-.meteo-cta{display:flex;gap:8px;margin-top:8px;}
-.meteo-btn{display:inline-flex;align-items:center;gap:8px;padding:clamp(7px,2vw,9px) clamp(10px,2.5vw,12px);border-radius:12px;border:1px solid rgba(var(--blu-rgb),.35);color:#fff;text-decoration:none;font-weight:700;cursor:pointer;font-size:var(--fs-sm);background:linear-gradient(110deg,var(--blu),var(--blu-hover));box-shadow:0 10px 18px rgba(0,0,0,.20),inset 0 1px 10px rgba(255,255,255,.24);}
-.meteo-btn:active{transform:translateY(1px);}
-.meteo-layer{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:10;opacity:0;pointer-events:none;transition:.25s;background:rgba(255,255,255,.95);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);border-radius:inherit;}
-.meteo-layer.visible{opacity:1;pointer-events:auto;}
-.meteo-spinner{width:36px;height:36px;border:4px solid rgba(0,0,0,.1);border-radius:50%;border-top-color:var(--blu);animation:meteoSpin 1s linear infinite;}
-.meteo-err{flex-direction:column;gap:8px;text-align:center;}
-.meteo-err .msg{color:var(--ink-sub);font-size:var(--fs-sm);}
+.w-meteo-wrapper .rd-card{position:relative;border-radius:var(--radius);width:100%;max-width:520px;margin:0 auto;height:460px;background:linear-gradient(135deg,rgba(255,255,255,.94),rgba(255,255,255,.86));backdrop-filter:blur(14px) saturate(118%);-webkit-backdrop-filter:blur(14px) saturate(118%);border:1px solid rgba(var(--blu-rgb),.18);box-shadow:var(--shadow-lg);overflow:hidden;isolation:isolate;transition:background .8s ease;--theme-accent:var(--blu);--theme-accent-soft:rgba(var(--blu-rgb),.85);}
+.w-meteo-wrapper .rd-card.theme-sunny{background:radial-gradient(120% 80% at 20% 0%,rgba(255,241,160,.95) 0%,rgba(255,205,110,.85) 45%,rgba(255,170,80,.75) 100%);--theme-accent:#E67E00;--theme-accent-soft:#F39C12;}
+.w-meteo-wrapper .rd-card.theme-cloudy{background:radial-gradient(120% 80% at 20% 0%,rgba(230,240,252,.96) 0%,rgba(190,210,232,.90) 50%,rgba(155,180,210,.82) 100%);--theme-accent:#3D6FA0;--theme-accent-soft:#5A8BB8;}
+.w-meteo-wrapper .rd-card.theme-rain{background:radial-gradient(120% 80% at 20% 0%,rgba(155,180,210,.94) 0%,rgba(110,140,180,.90) 50%,rgba(75,105,150,.86) 100%);--theme-accent:#9CC8F0;--theme-accent-soft:#BFDCF5;}
+.w-meteo-wrapper .rd-card.theme-storm{background:radial-gradient(120% 80% at 20% 0%,rgba(95,105,135,.95) 0%,rgba(60,70,100,.92) 50%,rgba(30,40,70,.90) 100%);--theme-accent:#FFD56B;--theme-accent-soft:#FFE599;}
+.w-meteo-wrapper .rd-card.theme-snow{background:radial-gradient(120% 80% at 20% 0%,rgba(250,253,255,.98) 0%,rgba(215,230,245,.92) 50%,rgba(180,205,230,.86) 100%);--theme-accent:#4A90C8;--theme-accent-soft:#6FAEDC;}
+.w-meteo-wrapper .rd-card.theme-fog{background:radial-gradient(120% 80% at 20% 0%,rgba(230,232,236,.94) 0%,rgba(195,200,210,.88) 50%,rgba(160,170,185,.84) 100%);--theme-accent:#5B6776;--theme-accent-soft:#7C8898;}
+.w-meteo-wrapper .rd-card.theme-night{background:radial-gradient(120% 80% at 20% 0%,rgba(50,70,120,.96) 0%,rgba(25,40,85,.94) 50%,rgba(10,20,50,.92) 100%);--theme-accent:#FFD56B;--theme-accent-soft:#FFE08A;}
+.w-meteo-wrapper .rd-card.theme-night .rd-title,.w-meteo-wrapper .rd-card.theme-storm .rd-title,.w-meteo-wrapper .rd-card.theme-rain .rd-title,.w-meteo-wrapper .rd-card.theme-night .rd-condition,.w-meteo-wrapper .rd-card.theme-storm .rd-condition,.w-meteo-wrapper .rd-card.theme-rain .rd-condition{color:#FFFFFF;text-shadow:0 1px 2px rgba(0,0,0,.25);}
+.w-meteo-wrapper .rd-card.theme-night .rd-city,.w-meteo-wrapper .rd-card.theme-storm .rd-city,.w-meteo-wrapper .rd-card.theme-rain .rd-city{color:rgba(255,255,255,.85);}
+.w-meteo-wrapper .rd-card.theme-night .rd-info-row,.w-meteo-wrapper .rd-card.theme-night .rd-info-row span,.w-meteo-wrapper .rd-card.theme-storm .rd-info-row,.w-meteo-wrapper .rd-card.theme-storm .rd-info-row span,.w-meteo-wrapper .rd-card.theme-rain .rd-info-row,.w-meteo-wrapper .rd-card.theme-rain .rd-info-row span{color:rgba(255,255,255,.92);}
+.w-meteo-wrapper .rd-card.theme-night .rd-minmax .max,.w-meteo-wrapper .rd-card.theme-storm .rd-minmax .max,.w-meteo-wrapper .rd-card.theme-rain .rd-minmax .max{color:#FFFFFF;}
+.w-meteo-wrapper .rd-card.theme-night .rd-minmax .min,.w-meteo-wrapper .rd-card.theme-storm .rd-minmax .min,.w-meteo-wrapper .rd-card.theme-rain .rd-minmax .min{color:rgba(255,255,255,.78);}
+.w-meteo-wrapper .rd-card.theme-night .rd-minmax .sep,.w-meteo-wrapper .rd-card.theme-storm .rd-minmax .sep,.w-meteo-wrapper .rd-card.theme-rain .rd-minmax .sep{color:rgba(255,255,255,.45);}
+.w-meteo-wrapper .rd-card.theme-night .btn-action,.w-meteo-wrapper .rd-card.theme-storm .btn-action,.w-meteo-wrapper .rd-card.theme-rain .btn-action{border-color:rgba(255,255,255,.35);}
+.w-meteo-wrapper .rd-card.theme-night .fc-title,.w-meteo-wrapper .rd-card.theme-storm .fc-title,.w-meteo-wrapper .rd-card.theme-rain .fc-title{color:#FFFFFF;text-shadow:0 1px 2px rgba(0,0,0,.25);}
+.w-meteo-wrapper .rd-card.theme-night .fc-subtitle,.w-meteo-wrapper .rd-card.theme-storm .fc-subtitle,.w-meteo-wrapper .rd-card.theme-rain .fc-subtitle{color:rgba(255,255,255,.82);}
+.w-meteo-wrapper .rd-card.theme-night .fc-header,.w-meteo-wrapper .rd-card.theme-storm .fc-header,.w-meteo-wrapper .rd-card.theme-rain .fc-header{border-bottom-color:rgba(255,255,255,.25);}
+.w-meteo-wrapper .rd-card.theme-night .forecast-row.today,.w-meteo-wrapper .rd-card.theme-storm .forecast-row.today,.w-meteo-wrapper .rd-card.theme-rain .forecast-row.today{background:#FFFFFF;border-color:rgba(255,255,255,.60);box-shadow:0 4px 14px rgba(0,0,0,.25);}
+.w-meteo-wrapper .rd-card.theme-night .forecast-row,.w-meteo-wrapper .rd-card.theme-storm .forecast-row,.w-meteo-wrapper .rd-card.theme-rain .forecast-row{border-color:rgba(255,255,255,.20);}
+.w-meteo-wrapper .rd-card::before{content:"";position:absolute;inset:-8%;border-radius:inherit;pointer-events:none;background:radial-gradient(220px 240px at 15% 0%,rgba(var(--blu-rgb),.12),transparent 60%),radial-gradient(240px 220px at 110% 10%,rgba(var(--blu-hover-rgb),.14),transparent 60%),radial-gradient(200px 240px at -10% 110%,rgba(255,255,255,.20),transparent 62%);filter:blur(18px) saturate(120%);mix-blend-mode:screen;z-index:0;animation:rdLiqFloat 24s ease-in-out infinite alternate;}
+.w-meteo-wrapper .rd-card::after{content:"";position:absolute;inset:-30% -20%;border-radius:inherit;pointer-events:none;background:linear-gradient(130deg,rgba(255,255,255,0) 20%,rgba(255,255,255,.14) 40%,rgba(255,255,255,0) 60%);z-index:1;animation:rdSheen 6s ease-in-out infinite;}
+.w-meteo-wrapper .mw-screens{position:absolute;inset:0;z-index:2;display:flex;width:200%;transition:transform .38s cubic-bezier(.4,0,.2,1);}
+.w-meteo-wrapper .mw-screens.show-forecast{transform:translateX(-50%);}
+.w-meteo-wrapper .mw-screen{width:50%;height:100%;padding:14px 14px 18px;display:flex;flex-direction:column;gap:10px;overflow:hidden;position:relative;}
+.w-meteo-wrapper .rd-header{display:flex;align-items:center;gap:10px;flex-shrink:0;}
+.w-meteo-wrapper .rd-icon{width:42px;height:42px;display:grid;place-items:center;border-radius:12px;color:#fff;flex-shrink:0;font-size:1.2rem;background:radial-gradient(80% 80% at 30% 20%,rgba(255,255,255,.22),rgba(255,255,255,0) 65%),linear-gradient(160deg,var(--theme-accent),var(--theme-accent-soft));box-shadow:inset 0 1px 8px rgba(255,255,255,.28),0 6px 14px rgba(0,0,0,.20);transition:background .8s ease;}
+.w-meteo-wrapper .rd-header-text{flex:1;min-width:0;}
+.w-meteo-wrapper .rd-title{font-weight:700;font-size:clamp(1.05rem,4.2vw,1.25rem);line-height:1.1;color:var(--theme-accent);transition:color .8s ease;}
+.w-meteo-wrapper .rd-card.theme-night .rd-title,.w-meteo-wrapper .rd-card.theme-storm .rd-title,.w-meteo-wrapper .rd-card.theme-rain .rd-title{color:#FFFFFF;}
+.w-meteo-wrapper .rd-city{font-size:clamp(.86rem,3.3vw,.98rem);color:var(--ink-sub);font-weight:700;}
+.w-meteo-wrapper .rd-badge{display:flex;flex-direction:column;align-items:center;padding:5px 10px;border-radius:10px;border:1px solid rgba(var(--blu-rgb),.18);background:rgba(255,255,255,.80);white-space:nowrap;flex-shrink:0;}
+.w-meteo-wrapper .rd-badge-label{font-size:clamp(.56rem,1.9vw,.66rem);font-weight:700;color:var(--ink-sub);text-transform:uppercase;letter-spacing:.07em;}
+.w-meteo-wrapper .rd-badge-time{font-size:clamp(.9rem,3.3vw,1.06rem);font-weight:700;color:var(--theme-accent);transition:color .8s ease;}
+.w-meteo-wrapper .rd-current{flex:1;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding-top:clamp(10px,3vw,16px);gap:clamp(10px,3vw,16px);min-height:0;}
+.w-meteo-wrapper .rd-temp-box{flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:clamp(14px,3.6vw,22px);background:#fff;border:1px solid rgba(var(--blu-rgb),.08);box-shadow:0 4px 12px rgba(var(--blu-rgb),.12),0 10px 32px rgba(var(--blu-rgb),.18),0 22px 50px rgba(var(--blu-rgb),.13),inset 0 2px 0 rgba(255,255,255,1),inset 0 -2px 0 rgba(var(--blu-rgb),.05);aspect-ratio:1/1;width:clamp(108px,28vw,134px);z-index:2;}
+.w-meteo-wrapper .rd-temp-num{font-size:clamp(2.9rem,11.8vw,4rem);font-weight:700;line-height:1;letter-spacing:-.03em;color:var(--theme-accent);display:flex;align-items:flex-start;text-shadow:0 2px 4px rgba(0,0,0,.10);transition:color .8s ease;}
+.w-meteo-wrapper .rd-temp-num sup{font-size:clamp(.95rem,3.6vw,1.25rem);font-weight:700;margin-top:clamp(6px,1.6vw,10px);color:var(--theme-accent);opacity:.80;}
+.w-meteo-wrapper .rd-info-stack{display:flex;flex-direction:column;align-items:center;text-align:center;gap:clamp(5px,1.6vw,9px);flex-shrink:0;z-index:1;}
+.w-meteo-wrapper .rd-condition{display:flex;align-items:center;justify-content:center;gap:clamp(6px,1.8vw,10px);font-size:clamp(1.22rem,5.2vw,1.6rem);font-weight:700;color:var(--theme-accent);line-height:1.15;transition:color .8s ease;}
+.w-meteo-wrapper .rd-cond-icon{font-size:clamp(1.3rem,5.5vw,1.7rem);flex-shrink:0;color:var(--theme-accent);transition:color .8s ease;}
+.w-meteo-wrapper .rd-card.theme-night .rd-cond-icon,.w-meteo-wrapper .rd-card.theme-storm .rd-cond-icon,.w-meteo-wrapper .rd-card.theme-rain .rd-cond-icon{color:var(--theme-accent);}
+.w-meteo-wrapper .rd-info-row{display:flex;align-items:center;justify-content:center;gap:7px;font-size:clamp(.9rem,3.5vw,1.08rem);color:var(--ink-sub);font-weight:700;}
+.w-meteo-wrapper .rd-info-row i{color:var(--theme-accent);font-size:.9rem;flex-shrink:0;transition:color .8s ease;}
+.w-meteo-wrapper .rd-minmax{display:flex;align-items:center;gap:8px;font-size:clamp(.94rem,3.6vw,1.1rem);font-weight:700;}
+.w-meteo-wrapper .rd-minmax i{font-size:.72rem;flex-shrink:0;}
+.w-meteo-wrapper .rd-minmax i.up{color:var(--theme-accent);transition:color .8s ease;}
+.w-meteo-wrapper .rd-minmax i.dn{color:var(--ink-sub);}
+.w-meteo-wrapper .rd-minmax .max{color:var(--theme-accent);transition:color .8s ease;}
+.w-meteo-wrapper .rd-minmax .sep{color:var(--ink-sub);opacity:.3;font-weight:300;font-size:1.1rem;}
+.w-meteo-wrapper .rd-minmax .min{color:var(--ink-sub);}
+.w-meteo-wrapper .rd-card.theme-night .rd-minmax i.up,.w-meteo-wrapper .rd-card.theme-storm .rd-minmax i.up,.w-meteo-wrapper .rd-card.theme-rain .rd-minmax i.up{color:var(--theme-accent);}
+.w-meteo-wrapper .rd-actions{display:flex;flex-direction:row;gap:8px;flex-shrink:0;}
+.w-meteo-wrapper .btn-action{flex:1;min-width:0;display:flex;align-items:center;justify-content:center;gap:7px;padding:15px 10px;border-radius:clamp(12px,3vw,16px);cursor:pointer;background:#fff;border:1px solid rgba(var(--blu-rgb),.08);box-shadow:0 4px 12px rgba(var(--blu-rgb),.12),0 10px 28px rgba(var(--blu-rgb),.14),inset 0 2px 0 rgba(255,255,255,1),inset 0 -2px 0 rgba(var(--blu-rgb),.05);color:var(--theme-accent);font-weight:700;font-size:clamp(.88rem,3.3vw,1rem);font-family:'Titillium Web',sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:color .8s ease;}
+.w-meteo-wrapper .btn-action i{font-size:.95rem;color:var(--theme-accent);flex-shrink:0;transition:color .8s ease;}
+.w-meteo-wrapper .btn-action .chev{font-size:.72rem;opacity:.55;margin-left:2px;}
+.w-meteo-wrapper .btn-action:active{transform:translateY(1px);}
+.w-meteo-wrapper .rd-source{text-align:center;font-size:clamp(.56rem,1.8vw,.66rem);font-weight:700;color:var(--ink-sub);opacity:.7;margin-top:2px;flex-shrink:0;letter-spacing:.02em;}
+.w-meteo-wrapper .rd-source a{color:inherit;text-decoration:none;}
+.w-meteo-wrapper .rd-card.theme-night .rd-source,.w-meteo-wrapper .rd-card.theme-storm .rd-source,.w-meteo-wrapper .rd-card.theme-rain .rd-source{color:rgba(255,255,255,.75);opacity:.9;}
+.w-meteo-wrapper .details-modal{position:absolute;left:0;right:0;bottom:0;top:clamp(208px,56vw,232px);border-radius:20px 20px 0 0;background:rgba(255,255,255,.98);border:1px solid rgba(var(--blu-rgb),.22);border-bottom:none;box-shadow:0 -12px 32px rgba(0,0,0,.18),0 -4px 10px rgba(0,0,0,.10);transform:translateY(100%);transition:transform .42s cubic-bezier(.4,0,.2,1);z-index:15;display:flex;flex-direction:column;overflow:hidden;padding:6px 14px 14px;}
+.w-meteo-wrapper .details-modal.open{transform:translateY(0);}
+.w-meteo-wrapper .details-modal::before{content:"";display:block;width:42px;height:4px;background:rgba(var(--blu-rgb),.28);border-radius:2px;margin:4px auto 6px;flex-shrink:0;}
+.w-meteo-wrapper .dm-head{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:4px 4px 10px;flex-shrink:0;}
+.w-meteo-wrapper .dm-head strong{font-size:clamp(.96rem,3.4vw,1.08rem);font-weight:700;color:var(--theme-accent);display:flex;align-items:center;gap:8px;transition:color .8s ease;}
+.w-meteo-wrapper .dm-close{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;background:rgba(var(--blu-rgb),.10);color:var(--theme-accent);cursor:pointer;border:none;font-size:.92rem;flex-shrink:0;transition:background .2s,color .8s ease;}
+.w-meteo-wrapper .dm-close:hover{background:rgba(var(--blu-rgb),.18);}
+.w-meteo-wrapper .dm-body{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;touch-action:pan-y;overscroll-behavior:contain;padding:2px 2px 4px;}
+.w-meteo-wrapper .det-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
+.w-meteo-wrapper .det-cell{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:8px 6px;border-radius:10px;gap:3px;background:#fff;border:1px solid rgba(var(--blu-rgb),.10);box-shadow:0 2px 6px rgba(var(--blu-rgb),.06);}
+.w-meteo-wrapper .det-cell .det-top{display:flex;align-items:center;justify-content:center;gap:6px;line-height:1;}
+.w-meteo-wrapper .det-cell i{font-size:clamp(.92rem,3.2vw,1.1rem);color:var(--theme-accent);flex-shrink:0;transition:color .8s ease;}
+.w-meteo-wrapper .det-cell .det-val{font-size:clamp(.88rem,3.2vw,1.04rem);font-weight:700;color:var(--ink);line-height:1.1;}
+.w-meteo-wrapper .det-cell .det-lbl{font-size:clamp(.68rem,2.3vw,.82rem);font-weight:800;color:var(--ink-sub);text-transform:uppercase;letter-spacing:.04em;line-height:1.1;}
+.w-meteo-wrapper .fc-header{display:flex;align-items:center;gap:10px;flex-shrink:0;padding-bottom:8px;border-bottom:1px solid rgba(var(--blu-rgb),.14);}
+.w-meteo-wrapper .fc-back{width:36px;height:36px;display:grid;place-items:center;border-radius:10px;cursor:pointer;flex-shrink:0;background:linear-gradient(145deg,var(--theme-accent),var(--theme-accent-soft));color:#fff;font-size:.92rem;box-shadow:0 4px 12px rgba(0,0,0,.18);transition:background .8s ease;}
+.w-meteo-wrapper .fc-title{font-weight:700;font-size:clamp(1rem,3.7vw,1.16rem);color:var(--theme-accent);transition:color .8s ease;}
+.w-meteo-wrapper .fc-subtitle{font-size:clamp(.74rem,2.6vw,.86rem);color:var(--ink-sub);font-weight:700;margin-left:auto;}
+.w-meteo-wrapper .forecast-list{flex:1;display:flex;flex-direction:column;gap:6px;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;touch-action:pan-y;overscroll-behavior:contain;padding:2px 4px 4px 0;scrollbar-width:thin;scrollbar-color:rgba(var(--blu-rgb),.25) transparent;min-height:0;}
+.w-meteo-wrapper .forecast-list::-webkit-scrollbar{width:4px;}
+.w-meteo-wrapper .forecast-list::-webkit-scrollbar-track{background:transparent;}
+.w-meteo-wrapper .forecast-list::-webkit-scrollbar-thumb{background:rgba(var(--blu-rgb),.25);border-radius:2px;}
+.w-meteo-wrapper .rd-card.theme-night .forecast-list::-webkit-scrollbar-thumb,.w-meteo-wrapper .rd-card.theme-storm .forecast-list::-webkit-scrollbar-thumb,.w-meteo-wrapper .rd-card.theme-rain .forecast-list::-webkit-scrollbar-thumb{background:rgba(255,255,255,.30);}
+.w-meteo-wrapper .forecast-row{display:grid;grid-template-columns:40px 22px 1fr auto auto;align-items:center;gap:8px;padding:9px 12px;border-radius:11px;background:#fff;border:1px solid rgba(var(--blu-rgb),.10);box-shadow:0 2px 6px rgba(var(--blu-rgb),.06);flex-shrink:0;min-height:44px;}
+.w-meteo-wrapper .forecast-row.today{background:linear-gradient(135deg,rgba(var(--blu-rgb),.08),rgba(var(--blu-hover-rgb),.05));border-color:rgba(var(--blu-rgb),.24);box-shadow:0 3px 10px rgba(var(--blu-rgb),.12);}
+.w-meteo-wrapper .fc-day{font-weight:700;font-size:clamp(.8rem,2.9vw,.96rem);color:var(--theme-accent);transition:color .8s ease;}
+.w-meteo-wrapper .fc-icon{font-size:clamp(.92rem,3.1vw,1.1rem);color:var(--theme-accent);text-align:center;transition:color .8s ease;}
+.w-meteo-wrapper .fc-desc{font-size:clamp(.68rem,2.4vw,.8rem);color:var(--ink-sub);font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.w-meteo-wrapper .fc-temps{font-weight:700;font-size:clamp(.8rem,2.9vw,.96rem);white-space:nowrap;text-align:right;color:var(--ink);}
+.w-meteo-wrapper .fc-temps span{color:var(--ink-sub);font-weight:700;}
+.w-meteo-wrapper .fc-meta{display:flex;flex-direction:column;align-items:flex-end;gap:2px;font-size:clamp(.62rem,2vw,.72rem);font-weight:700;color:var(--ink-sub);white-space:nowrap;}
+.w-meteo-wrapper .fc-meta i{font-size:.62rem;color:var(--theme-accent);transition:color .8s ease;}
+.w-meteo-wrapper .mw-layer{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:20;opacity:0;pointer-events:none;transition:.25s;}
+.w-meteo-wrapper .mw-layer.visible{opacity:1;pointer-events:auto;}
+.w-meteo-wrapper .mw-spinner{width:34px;height:34px;border:4px solid rgba(var(--blu-rgb),.15);border-radius:50%;border-top-color:var(--blu);animation:meteoSpin 1s linear infinite;}
+.w-meteo-wrapper .err-box{display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center;background:rgba(255,255,255,.98);border-radius:var(--radius);padding:22px 18px;width:88%;box-shadow:0 8px 28px rgba(0,0,0,.12);border:1px solid rgba(var(--blu-rgb),.12);}
+.w-meteo-wrapper .err-box .err-ico{font-size:1.6rem;color:#D32F2F;}
+.w-meteo-wrapper .err-box .err-title{font-size:clamp(.92rem,3.3vw,1.05rem);font-weight:700;color:var(--ink);}
+.w-meteo-wrapper .err-box .err-msg{font-size:clamp(.78rem,2.8vw,.9rem);color:var(--ink-sub);}
+.w-meteo-wrapper .btn-retry{display:inline-flex;align-items:center;gap:8px;padding:10px 18px;border-radius:10px;border:none;color:#fff;font-family:'Titillium Web',sans-serif;font-weight:700;font-size:clamp(.84rem,3.1vw,.98rem);cursor:pointer;background:linear-gradient(110deg,var(--blu),var(--blu-hover));box-shadow:0 6px 16px rgba(var(--blu-rgb),.30);}
+.w-meteo-wrapper .btn-retry:active{transform:translateY(1px);}
+.w-meteo-wrapper .offline-badge{position:absolute;top:10px;left:50%;transform:translateX(-50%);display:none;align-items:center;gap:6px;padding:5px 12px;border-radius:20px;background:rgba(255,204,0,.95);color:#5a4500;font-size:clamp(.66rem,2.3vw,.76rem);font-weight:700;z-index:25;box-shadow:0 3px 10px rgba(0,0,0,.15);border:1px solid rgba(0,0,0,.08);}
+.w-meteo-wrapper .offline-badge.visible{display:flex;}
+.w-meteo-wrapper .offline-badge i{font-size:.7rem;}
 @keyframes meteoSpin{to{transform:rotate(360deg);}}
 .spotlight-overlay{position:fixed;inset:0;z-index:8000;background:rgba(0,0,0,0);pointer-events:none;transition:background .5s ease;}
 .spotlight-overlay.active{background:rgba(0,0,0,.65);pointer-events:auto;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);}
@@ -2887,18 +2968,18 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
     dateHeader: () =>
       '<header class="w-date-header" id="dateHeader" '
       + 'aria-label="Data odierna e meteo">'
-      + '<div class="date-header-inner">'
-      + '<div class="date-left">'
-      + '<span class="date-ico" aria-hidden="true">'
-      + '<i class="fa-solid fa-calendar-days"></i></span>'
-      + '<div class="date-text">'
-      + '<span class="current-date" id="currentDate"></span>'
-      + '<span class="special-event" id="specialEvent"></span>'
+      + '<div class="row-main">'
+      + '<div class="left">'
+      + '<div class="cal-icon" aria-hidden="true">'
+      + '<i class="fa-solid fa-calendar-days"></i></div>'
+      + '<div class="date-col">'
+      + '<div class="date-text" id="currentDate"></div>'
+      + '<div class="event-text" id="specialEvent"></div>'
       + '</div></div>'
-      + '<div class="weather-box" aria-label="Meteo attuale a '
+      + '<div class="weather" aria-label="Meteo attuale a '
       + esc(C.nomeComune) + '">'
-      + '<span class="weather-icon" id="weatherIcon">--</span>'
-      + '<span class="temperature" id="temperature">--°C</span>'
+      + '<i id="wFa" class="fa-solid fa-cloud" aria-hidden="true"></i>'
+      + '<span class="temp" id="temperature">--°C</span>'
       + '</div></div></header>',
 
     tickerBar: () =>
@@ -3074,60 +3155,82 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
     meteoCard: () =>
       '<section class="w-meteo-wrapper" aria-label="Meteo '
       + esc(C.nomeComune) + '">'
-      + '<div id="meteoCard" class="meteo-card" aria-live="polite">'
-      + '<div class="meteo-header">'
-      + '<div class="meteo-icon" aria-hidden="true">'
+      + '<div id="meteoCard" class="rd-card" aria-live="polite">'
+      + '<div class="mw-screens" id="mwScreens">'
+      + '<div class="mw-screen">'
+      + '<div class="rd-header">'
+      + '<div class="rd-icon" aria-hidden="true">'
       + '<i class="fa-solid fa-cloud-sun"></i></div>'
-      + '<div>'
-      + '<div class="meteo-title" data-i18n="meteo.title">'
+      + '<div class="rd-header-text">'
+      + '<div class="rd-title" data-i18n="meteo.title">'
       + esc(t('meteo.title')) + '</div>'
-      + '<div class="meteo-sub" id="mwCity" '
+      + '<div class="rd-city" id="mwCity" '
       + 'data-i18n="meteo.loading">'
       + esc(t('meteo.loading')) + '</div>'
       + '</div>'
-      + '<div class="meteo-badge" id="mwBadge">--:--</div>'
-      + '</div>'
-      + '<div class="meteo-section">'
-      + '<h3><i class="fa-solid fa-temperature-half"></i> '
-      + '<span data-i18n="meteo.current">'
-      + esc(t('meteo.current')) + '</span></h3>'
-      + '<div class="m-chips" id="meteoNow"></div></div>'
-      + '<div class="meteo-section">'
-      + '<div class="meteo-acc" id="meteoAcc">'
-      + '<div class="meteo-acc-h" id="meteoAccHead">'
-      + '<strong><i class="fa-solid fa-circle-info"></i> '
-      + '<span data-i18n="meteo.details">'
-      + esc(t('meteo.details')) + '</span></strong>'
-      + '<small><i id="meteoChev" '
-      + 'class="fa-solid fa-chevron-down"></i></small>'
-      + '</div>'
-      + '<div class="meteo-acc-b" id="meteoAccBody">'
-      + '<div class="m-chips" id="meteoDet"></div>'
-      + '</div></div></div>'
-      + '<div class="meteo-cta">'
-      + '<a class="meteo-btn" href="javascript:void(0)" '
-      + 'id="meteoWeekly">'
-      + '<i class="fa-solid fa-calendar-week"></i> '
-      + '<span data-i18n="meteo.weekly">'
-      + esc(t('meteo.weekly')) + '</span></a>'
-      + '</div>'
-      + '<div class="meteo-layer" id="meteoLoader">'
-      + '<div class="meteo-spinner" aria-label="Caricamento">'
+      + '<div class="rd-badge">'
+      + '<span class="rd-badge-label">Aggiornato</span>'
+      + '<span class="rd-badge-time" id="mwTime">--:--</span>'
       + '</div></div>'
-      + '<div class="meteo-layer meteo-err" id="meteoError" '
-      + 'role="alert">'
-      + '<div><i class="fa-solid fa-triangle-exclamation"></i> '
-      + '<span data-i18n="meteo.error">'
-      + esc(t('meteo.error')) + '</span></div>'
-      + '<div class="msg" id="meteoErrmsg" '
-      + 'data-i18n="meteo.errorSub">'
-      + esc(t('meteo.errorSub')) + '</div>'
-      + '<a class="meteo-btn" href="#" id="meteoRetry" '
-      + 'style="margin-top:4px">'
-      + '<i class="fa-solid fa-rotate-right"></i> '
-      + '<span data-i18n="meteo.retry">'
-      + esc(t('meteo.retry')) + '</span></a>'
-      + '</div></div></section>',
+      + '<div class="rd-current">'
+      + '<div class="rd-temp-box">'
+      + '<div class="rd-temp-num" id="mwTempNum">--<sup>°</sup></div>'
+      + '</div>'
+      + '<div class="rd-info-stack">'
+      + '<div class="rd-condition" id="mwCondDesc">--</div>'
+      + '<div class="rd-info-row">'
+      + '<i class="fa-solid fa-temperature-arrow-down"></i>'
+      + '<span>Percepita&nbsp;<strong id="mwTempFeel">--</strong></span>'
+      + '</div>'
+      + '<div class="rd-minmax">'
+      + '<i class="fa-solid fa-arrow-up up"></i>'
+      + '<span class="max" id="mwTempMax">--</span>'
+      + '<span class="sep">|</span>'
+      + '<i class="fa-solid fa-arrow-down dn"></i>'
+      + '<span class="min" id="mwTempMin">--</span>'
+      + '</div></div></div>'
+      + '<div class="rd-actions">'
+      + '<button class="btn-action" id="mwBtnDetails" type="button">'
+      + '<i class="fa-solid fa-circle-info"></i>'
+      + '<span>Dettagli</span>'
+      + '<i class="fa-solid fa-chevron-up chev"></i>'
+      + '</button>'
+      + '<button class="btn-action" id="mwBtnForecast" type="button">'
+      + '<i class="fa-solid fa-calendar-week"></i>'
+      + '<span>7 giorni</span>'
+      + '<i class="fa-solid fa-chevron-right chev"></i>'
+      + '</button></div>'
+      + '<div class="rd-source">Fonte: Open-Meteo · ICON-EU</div>'
+      + '<div class="details-modal" id="mwDetailsModal">'
+      + '<div class="dm-head">'
+      + '<strong><i class="fa-solid fa-circle-info"></i> Dettagli meteo</strong>'
+      + '<button class="dm-close" id="mwBtnCloseDet" type="button" aria-label="Chiudi">'
+      + '<i class="fa-solid fa-xmark"></i></button>'
+      + '</div>'
+      + '<div class="dm-body"><div class="det-grid" id="mwDet"></div></div>'
+      + '</div></div>'
+      + '<div class="mw-screen">'
+      + '<div class="fc-header">'
+      + '<div class="fc-back" id="mwBtnBack">'
+      + '<i class="fa-solid fa-chevron-left"></i></div>'
+      + '<div class="fc-title"><i class="fa-solid fa-calendar-week"></i>&nbsp; 7 giorni</div>'
+      + '<div class="fc-subtitle" id="mwFcCity">--</div>'
+      + '</div>'
+      + '<div class="forecast-list" id="mwForecast"></div>'
+      + '</div></div>'
+      + '<div class="offline-badge" id="mwOfflineBadge">'
+      + '<i class="fa-solid fa-cloud-arrow-down"></i>'
+      + '<span id="mwOfflineText">Dati offline</span></div>'
+      + '<div class="mw-layer" id="mwLoader">'
+      + '<div class="mw-spinner" aria-label="Caricamento"></div></div>'
+      + '<div class="mw-layer" id="mwErrLayer" role="alert">'
+      + '<div class="err-box">'
+      + '<div class="err-ico"><i class="fa-solid fa-triangle-exclamation"></i></div>'
+      + '<div class="err-title">Impossibile caricare i dati</div>'
+      + '<div class="err-msg" id="mwErrMsg">Verifica la connessione</div>'
+      + '<button class="btn-retry" id="mwRetry" type="button">'
+      + '<i class="fa-solid fa-rotate-right"></i> Riprova</button>'
+      + '</div></div></div></section>',
   };
 
   // Register dynamic RSS slider renderers
@@ -3996,48 +4099,110 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
   };
 
   const specialEvents = {
-    '1/1': '🎉 Buon Anno!',
-    '1/6': '🧙 Befana!',
-    '1/27': '🕯 Giorno della Memoria',
-    '2/14': '💖 San Valentino!',
-    '3/8': '👩 Giornata internazionale della donna',
-    '3/17': '🇮🇹 Giornata Unità Nazionale',
-    '3/19': '👨 Festa del papà',
-    '3/21': '🌸 Giornata della Poesia',
-    '3/22': '💧 Giornata Mondiale dell\\'acqua',
+    '1/1':  '🎉 Buon Anno!',
+    '1/4':  '📙 Giornata Mondiale del Braille',
+    '1/6':  '🧙 La Befana vien di notte!',
+    '1/14': '🧮 Giornata Mondiale della Logica',
+    '1/15': '❄️ Giornata Mondiale della Neve',
+    '1/16': '✝️ Sant\\'Antonio Abate',
+    '1/17': '🍕 Giornata Mondiale della Pizza',
+    '1/20': '✝️ San Sebastiano',
+    '1/21': '🤗 Giornata Mondiale dell\\'Abbraccio',
+    '1/24': '📚 Giornata Mondiale dell\\'Educazione',
+    '1/26': '🌞 Giornata Mondiale dell\\'Energia Pulita',
+    '1/27': '🕯️ Giorno della Memoria',
+    '1/28': '🛡️ Privacy Day',
+    '1/29': '🧩 Puzzle Day',
+    '2/2':  '🌍 Giornata delle Zone Umide',
+    '2/4':  '🔬 Giornata Mondiale contro il Cancro',
+    '2/7':  '👎 Giornata contro il Bullismo',
+    '2/8':  '🌐 Safer Internet Day',
+    '2/10': '🕊️ Giorno del Ricordo – Foibe',
+    '2/11': '🩺 Giornata Mondiale del Malato',
+    '2/13': '📻 Giornata Mondiale della Radio',
+    '2/14': '💖 San Valentino',
+    '2/20': '⚖️ Giornata Mondiale della Giustizia Sociale',
+    '2/21': '🗣️ Giornata Internazionale della Lingua Madre',
+    '2/28': '🧬 Giornata Mondiale delle Malattie Rare',
+    '3/1':  '🌀 Giornata della Protezione Civile',
+    '3/5':  '☮️ Giornata del Disarmo',
+    '3/6':  '🌍 Giornata dei Giusti',
+    '3/8':  '👩 Festa della Donna',
+    '3/14': 'π Giornata del Pi Greco',
+    '3/17': '🇮🇹 Anniversario Unità d\\'Italia',
+    '3/19': '👨 Festa del Papà',
+    '3/20': '😃 Giornata Mondiale della Felicità',
+    '3/21': '🌸 Giornata Mondiale della Poesia',
+    '3/22': '💧 Giornata Mondiale dell\\'Acqua',
+    '4/2':  '🧩 Giornata Mondiale Consapevolezza Autismo',
+    '4/5':  '🐣 Buona Pasqua!',
+    '4/6':  '🕊️ Lunedì dell\\'Angelo',
+    '4/7':  '🩺 Giornata Mondiale della Salute',
     '4/22': '🌍 Giornata della Terra',
+    '4/23': '📖 Giornata Mondiale del Libro',
     '4/25': '🇮🇹 Festa della Liberazione',
-    '5/1': '🛠 Festa dei Lavoratori!',
-    '5/9': '🇪🇺 Festa dell\\'Europa',
-    '6/2': '🇮🇹 Festa della Repubblica',
-    '6/5': '🌳 Giornata dell\\'Ambiente',
-    '6/21': '🎶 Festa della Musica',
+    '5/1':  '🛠 Festa del Lavoro',
+    '5/3':  '📰 Giornata Mondiale Libertà di Stampa',
+    '5/9':  '🇪🇺 Festa dell\\'Europa',
+    '5/15': '👨‍👩‍👧 Giornata Internazionale della Famiglia',
+    '5/20': '🐝 Giornata Mondiale delle Api',
+    '5/23': '⚖️ Giornata della Legalità – Falcone',
+    '5/31': '🚭 Giornata Mondiale senza Tabacco',
+    '6/1':  '👧 Giornata Mondiale dell\\'Infanzia',
+    '6/2':  '🇮🇹 Festa della Repubblica Italiana',
+    '6/5':  '🌳 Giornata Mondiale dell\\'Ambiente',
+    '6/8':  '🌊 Giornata Mondiale degli Oceani',
+    '6/14': '💉 Giornata Mondiale del Donatore di Sangue',
+    '6/20': '🤝 Giornata Mondiale del Rifugiato',
+    '6/21': '🧘 Giornata Internazionale dello Yoga',
+    '7/7':  '🍫 Giornata Mondiale del Cioccolato',
+    '7/11': '👥 Giornata Mondiale della Popolazione',
+    '7/18': '🌍 Mandela Day',
+    '7/19': '🕯️ Anniversario Strage di Via d\\'Amelio',
+    '7/30': '🤝 Giornata Internazionale dell\\'Amicizia',
+    '8/9':  '🫂 Giornata Internazionale dei Popoli Indigeni',
+    '8/12': '🎓 Giornata Internazionale della Gioventù',
     '8/15': '☀️ Ferragosto!',
-    '10/4': 'San Francesco d\\'Assisi',
-    '10/31': '🎃 Halloween!',
-    '11/1': '🕯 Tutti i Santi',
-    '11/4': '🎖 Giornata Unità e Forze Armate',
+    '8/19': '📷 Giornata Mondiale della Fotografia',
+    '9/5':  '🤲 Giornata della Carità',
+    '9/8':  '📚 Giornata Mondiale dell\\'Alfabetizzazione',
+    '9/21': '☮️ Giornata Internazionale della Pace',
+    '9/27': '🌐 Giornata Mondiale del Turismo',
+    '9/29': '❤️ Giornata Mondiale del Cuore',
+    '10/4': '✝️ Festa di San Francesco d\\'Assisi',
+    '10/10':'🧠 Giornata Mondiale della Salute Mentale',
+    '10/31':'🎃 Halloween',
+    '11/1': '🕯️ Festa di Ognissanti',
+    '11/2': '💐 Commemorazione dei Defunti',
+    '11/4': '🎖️ Giornata delle Forze Armate',
+    '11/13':'🤗 Giornata Mondiale della Gentilezza',
+    '11/25':'🎗️ Giornata contro la Violenza sulle Donne',
     '12/8': '🙏 Immacolata Concezione',
-    '12/24': '🎄 Vigilia di Natale',
-    '12/25': '🎅 Natale!',
-    '12/26': '🎁 Santo Stefano',
-    '12/31': '🎊 Vigilia di Capodanno',
+    '12/25':'🎄 Buon Natale!',
+    '12/31':'🎊 Buon San Silvestro!',
   };
 
   const updateDateWidget = () => {
     const now = new Date();
     const locale = LANG === 'en' ? 'en-GB' : 'it-IT';
-    const weekday = now.toLocaleDateString(locale, { weekday: 'long' });
-    const formatted = weekday.charAt(0).toUpperCase() + weekday.slice(1);
-    const month = now.toLocaleDateString(locale,
-      { month: 'long', year: 'numeric' });
+    const label = now.toLocaleDateString(locale, {
+      weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+    });
     const cdEl = document.getElementById('currentDate');
-    if (cdEl) cdEl.textContent = formatted + ' ' + now.getDate() + ' ' + month;
+    if (cdEl) cdEl.textContent = label;
 
     const key = (now.getMonth() + 1) + '/' + now.getDate();
-    const dayNum = dayOfYear(now);
+    const ev  = specialEvents[key] || '';
     const seEl = document.getElementById('specialEvent');
-    if (seEl) seEl.textContent = specialEvents[key] || (dayNum + '° ' + t('date.dayOfYear'));
+    if (seEl) {
+      if (ev) {
+        seEl.textContent = ev;
+        seEl.style.display = 'block';
+      } else {
+        seEl.textContent = '';
+        seEl.style.display = 'none';
+      }
+    }
   };
 
   updateDateWidget();
@@ -4052,52 +4217,50 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
     }, ms);
   })();
 
-  /* MINI METEO */
+  /* MINI METEO – icone Font Awesome con day/night, fonte Open-Meteo */
   const miniMeteoUrl = 'https://api.open-meteo.com/v1/forecast?latitude='
     + C.lat + '&longitude=' + C.lon
-    + '&current=temperature_2m,weather_code&timezone=Europe/Rome';
+    + '&current=temperature_2m,is_day,weather_code&timezone=auto';
 
-  const miniWeatherIcon = (code) => {
-    const m = {
-      0: '☀️',
-      1: '🌤️',
-      2: '⛅',
-      3: '☁️',
-      45: '🌫️',
-      48: '🌫️',
-      51: '🌦️',
-      53: '🌦️',
-      55: '🌧️',
-      61: '🌧️',
-      63: '🌧️',
-      65: '🌧️',
-      71: '🌨️',
-      73: '🌨️',
-      75: '🌨️',
-      80: '🌧️',
-      95: '⛈️',
-      96: '⛈️',
-    };
-    return m[code] || '—';
+  const wmoToFa = (code, isDay) => {
+    if (code === 0 || code === 1) return isDay ? 'fa-sun'       : 'fa-moon';
+    if (code === 2)               return isDay ? 'fa-cloud-sun' : 'fa-cloud-moon';
+    if (code === 3)               return 'fa-cloud';
+    if (code === 45 || code === 48) return 'fa-smog';
+    if (code >= 51 && code <= 57)   return 'fa-cloud-rain';
+    if (code >= 61 && code <= 67)   return 'fa-cloud-showers-heavy';
+    if (code >= 71 && code <= 77)   return 'fa-snowflake';
+    if (code >= 80 && code <= 82)   return 'fa-cloud-showers-heavy';
+    if (code === 85 || code === 86) return 'fa-snowflake';
+    if (code === 95 || code === 96 || code === 99) return 'fa-cloud-bolt';
+    return 'fa-cloud';
   };
 
   const fetchMiniMeteo = () => {
-    const wiEl = document.getElementById('weatherIcon');
+    const faEl = document.getElementById('wFa');
     const tpEl = document.getElementById('temperature');
-    if (!wiEl && !tpEl) return;
+    if (!faEl && !tpEl) return;
     fetch(miniMeteoUrl)
       .then((res) => {
-        if (!res.ok) throw new Error();
+        if (!res.ok) throw new Error('HTTP ' + res.status);
         return res.json();
       })
       .then((data) => {
-        const c = data.current;
-        if (wiEl) wiEl.textContent = miniWeatherIcon(c.weather_code);
-        if (tpEl) tpEl.textContent = Math.round(c.temperature_2m) + '°C';
+        const c = data.current || {};
+        if (tpEl) {
+          tpEl.textContent =
+            (c.temperature_2m != null ? Math.round(c.temperature_2m) : '--') + '°C';
+        }
+        if (faEl) {
+          const ico = wmoToFa(c.weather_code, c.is_day === 1);
+          faEl.className = 'fa-solid ' + ico;
+          faEl.style.color = '#fff';
+        }
       })
-      .catch(() => {
-        if (wiEl) wiEl.textContent = '—';
+      .catch((err) => {
         if (tpEl) tpEl.textContent = '--°C';
+        if (faEl) { faEl.className = 'fa-solid fa-cloud'; faEl.style.color = 'rgba(255,255,255,.4)'; }
+        console.warn('Meteo non disponibile:', err);
       });
   };
 
@@ -4612,182 +4775,328 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
     })();
   })();
 
-  /* METEO */
-  (() => {
-    const MC = C.meteo;
-    const METEO_CFG = {
-      name: C.nomeComune,
+  /* METEO – v4.5.0 */
+  (function(){
+    if (!document.getElementById('meteoCard')) return;
+    var MC = C.meteo || {};
+    var CFG = {
+      apiBase: 'https://api.open-meteo.com/v1/forecast',
       lat: C.lat,
       lon: C.lon,
-      weeklyUrl: href(MC.weeklyForecastUrl),
-      interval: MC.updateIntervalMin,
-      timeout: MC.timeoutMs,
+      cityName: C.nomeComune,
+      unit: 'C',
+      updateInterval: MC.updateIntervalMin || 15,
+      timeout: MC.timeoutMs || 20000,
+      maxRetries: 3,
+      retryDelay: 3000
     };
 
-    const pad2 = (n) => ('0' + n).slice(-2);
+    var card         = document.getElementById('meteoCard');
+    var screensEl    = document.getElementById('mwScreens');
+    var mwCity       = document.getElementById('mwCity');
+    var mwTime       = document.getElementById('mwTime');
+    var tempNumEl    = document.getElementById('mwTempNum');
+    var tempFeelEl   = document.getElementById('mwTempFeel');
+    var tempMaxEl    = document.getElementById('mwTempMax');
+    var tempMinEl    = document.getElementById('mwTempMin');
+    var condDescEl   = document.getElementById('mwCondDesc');
+    var detEl        = document.getElementById('mwDet');
+    var forecastEl   = document.getElementById('mwForecast');
+    var fcCityEl     = document.getElementById('mwFcCity');
+    var loaderEl     = document.getElementById('mwLoader');
+    var errLayerEl   = document.getElementById('mwErrLayer');
+    var errMsgEl     = document.getElementById('mwErrMsg');
+    var retryBtn     = document.getElementById('mwRetry');
+    var btnForecast  = document.getElementById('mwBtnForecast');
+    var btnBack      = document.getElementById('mwBtnBack');
+    var btnDetails   = document.getElementById('mwBtnDetails');
+    var btnCloseDet  = document.getElementById('mwBtnCloseDet');
+    var detailsModal = document.getElementById('mwDetailsModal');
+    var offlineBadge = document.getElementById('mwOfflineBadge');
+    var offlineText  = document.getElementById('mwOfflineText');
 
-    const nowTime = () => {
-      const d = new Date();
-      return pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+    var CACHE_KEY = 'meteo_cache_v2_' + CFG.lat + '_' + CFG.lon;
+
+    function pad2(n){ return n < 10 ? '0' + n : '' + n; }
+    function oraNow(){ var d = new Date(); return pad2(d.getHours()) + ':' + pad2(d.getMinutes()); }
+    function isF(){ return CFG.unit === 'F'; }
+    function tSuffix(){ return isF() ? '\\u00B0F' : '\\u00B0C'; }
+    function sleep(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
+
+    var GIORNI = ['Dom','Lun','Mar','Mer','Gio','Ven','Sab'];
+    function dayLabel(ds){
+      var d = new Date(ds + 'T00:00:00'); var og = new Date();
+      if (d.toDateString() === og.toDateString()) return 'Oggi';
+      return GIORNI[d.getDay()];
+    }
+
+    var WMO = {
+      0:  { ico:'fa-sun',                 desc:'Sereno',                       theme:'sunny'  },
+      1:  { ico:'fa-sun',                 desc:'Prevalentemente sereno',       theme:'sunny'  },
+      2:  { ico:'fa-cloud-sun',           desc:'Parzialmente nuvoloso',        theme:'cloudy' },
+      3:  { ico:'fa-cloud',               desc:'Nuvoloso',                     theme:'cloudy' },
+      45: { ico:'fa-smog',                desc:'Nebbia',                       theme:'fog'    },
+      48: { ico:'fa-smog',                desc:'Nebbia con brina',             theme:'fog'    },
+      51: { ico:'fa-cloud-rain',          desc:'Pioggerella leggera',          theme:'rain'   },
+      53: { ico:'fa-cloud-rain',          desc:'Pioggerella moderata',         theme:'rain'   },
+      55: { ico:'fa-cloud-rain',          desc:'Pioggerella intensa',          theme:'rain'   },
+      56: { ico:'fa-cloud-rain',          desc:'Pioggerella gelata',           theme:'rain'   },
+      57: { ico:'fa-cloud-rain',          desc:'Pioggerella gelata intensa',   theme:'rain'   },
+      61: { ico:'fa-cloud-showers-heavy', desc:'Pioggia leggera',              theme:'rain'   },
+      63: { ico:'fa-cloud-showers-heavy', desc:'Pioggia moderata',             theme:'rain'   },
+      65: { ico:'fa-cloud-showers-heavy', desc:'Pioggia forte',                theme:'rain'   },
+      66: { ico:'fa-cloud-showers-heavy', desc:'Pioggia gelata',               theme:'rain'   },
+      67: { ico:'fa-cloud-showers-heavy', desc:'Pioggia gelata intensa',       theme:'rain'   },
+      71: { ico:'fa-snowflake',           desc:'Neve leggera',                 theme:'snow'   },
+      73: { ico:'fa-snowflake',           desc:'Neve moderata',                theme:'snow'   },
+      75: { ico:'fa-snowflake',           desc:'Neve forte',                   theme:'snow'   },
+      77: { ico:'fa-snowflake',           desc:'Granelli di neve',             theme:'snow'   },
+      80: { ico:'fa-cloud-showers-heavy', desc:'Rovesci leggeri',              theme:'rain'   },
+      81: { ico:'fa-cloud-showers-heavy', desc:'Rovesci moderati',             theme:'rain'   },
+      82: { ico:'fa-cloud-showers-heavy', desc:'Rovesci violenti',             theme:'rain'   },
+      85: { ico:'fa-snowflake',           desc:'Rovesci di neve leggeri',      theme:'snow'   },
+      86: { ico:'fa-snowflake',           desc:'Rovesci di neve forti',        theme:'snow'   },
+      95: { ico:'fa-cloud-bolt',          desc:'Temporale',                    theme:'storm'  },
+      96: { ico:'fa-cloud-bolt',          desc:'Temporale con grandine',       theme:'storm'  },
+      99: { ico:'fa-cloud-bolt',          desc:'Temporale con grandine forte', theme:'storm'  }
     };
+    function wmoInfo(code){ return WMO[code] || { ico:'fa-cloud', desc:'Variabile', theme:'cloudy' }; }
 
-    const chip = (html) => '<span class="m-chip">' + html + '</span>';
+    function themeFor(code, isDay){
+      if (!isDay) return 'theme-night';
+      return 'theme-' + wmoInfo(code).theme;
+    }
+    function applyTheme(themeClass){
+      var themes = ['theme-sunny','theme-cloudy','theme-rain','theme-storm','theme-snow','theme-fog','theme-night'];
+      for (var i = 0; i < themes.length; i++) card.classList.remove(themes[i]);
+      card.classList.add(themeClass);
+    }
 
-    const nowEl = document.getElementById('meteoNow');
-    const detEl = document.getElementById('meteoDet');
-    const cityEl = document.getElementById('mwCity');
-    const badgeEl = document.getElementById('mwBadge');
-    const weeklyBtn = document.getElementById('meteoWeekly');
-    const loader = document.getElementById('meteoLoader');
-    const err = document.getElementById('meteoError');
-    const errmsg = document.getElementById('meteoErrmsg');
-    const retry = document.getElementById('meteoRetry');
-    const accHead = document.getElementById('meteoAccHead');
-    const accBody = document.getElementById('meteoAccBody');
-    const chev = document.getElementById('meteoChev');
+    function saveCache(data){
+      try {
+        var payload = { data: data, savedAt: Date.now() };
+        localStorage.setItem(CACHE_KEY, JSON.stringify(payload));
+      } catch (e) {}
+    }
+    function loadCache(){
+      try {
+        var raw = localStorage.getItem(CACHE_KEY);
+        if (!raw) return null;
+        return JSON.parse(raw);
+      } catch (e) { return null; }
+    }
+    function showOfflineBadge(savedAt){
+      if (!offlineBadge || !offlineText) return;
+      var d = new Date(savedAt);
+      offlineText.textContent = 'Dati offline – agg. ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+      offlineBadge.classList.add('visible');
+    }
+    function hideOfflineBadge(){ if (offlineBadge) offlineBadge.classList.remove('visible'); }
 
-    let _lastMeteo = null;
-
-    const showLoader = (v) => {
-      if (loader) loader.classList.toggle('visible', !!v);
-    };
-
-    const showErr = (m) => {
-      if (errmsg) errmsg.textContent = m || 'Errore';
-      if (err) err.classList.add('visible');
+    function showLoader(on){ if (loaderEl) loaderEl.className = on ? 'mw-layer visible' : 'mw-layer'; }
+    function showError(msg){
+      if (errMsgEl) errMsgEl.textContent = msg || 'Errore';
+      if (errLayerEl) errLayerEl.className = 'mw-layer visible';
       showLoader(false);
-    };
+    }
+    function hideError(){ if (errLayerEl) errLayerEl.className = 'mw-layer'; }
 
-    const hideErr = () => {
-      if (err) err.classList.remove('visible');
-    };
+    function apiUrl(){
+      var params = [
+        'latitude='  + CFG.lat,
+        'longitude=' + CFG.lon,
+        'current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,weather_code,pressure_msl,wind_speed_10m',
+        'hourly=visibility',
+        'daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,uv_index_max,precipitation_probability_max,wind_speed_10m_max',
+        'timezone=auto',
+        'forecast_days=7',
+        'wind_speed_unit=kmh'
+      ];
+      if (isF()) params.push('temperature_unit=fahrenheit');
+      return CFG.apiBase + '?' + params.join('&');
+    }
 
-    const iconFor = (c) => {
-      if (c === 0) return 'fa-sun';
-      if ([1, 2].includes(c)) return 'fa-cloud-sun';
-      if (c === 3) return 'fa-cloud';
-      if ([45, 48].includes(c)) return 'fa-smog';
-      if ([51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82]
-        .includes(c))
-        return 'fa-cloud-showers-heavy';
-      if ([71, 73, 75, 77, 85, 86].includes(c)) return 'fa-snowflake';
-      if ([95, 96, 99].includes(c)) return 'fa-cloud-bolt';
-      return 'fa-circle-question';
-    };
-
-    const descFor = (c) => {
-      const k = 'w.' + c;
-      return t(k) !== k ? t(k) : 'N/D';
-    };
-
-    const render = (cur, daily) => {
-      _lastMeteo = { cur, daily };
-      if (cityEl) cityEl.textContent = METEO_CFG.name;
-      if (badgeEl) badgeEl.textContent = 'Agg. ' + nowTime();
-
-      const temp = Math.round(cur.temperature_2m);
-      const tMax = Math.round(daily.temperature_2m_max[0]);
-      const tMin = Math.round(daily.temperature_2m_min[0]);
-      const ico = iconFor(cur.weather_code);
-      const desc = descFor(cur.weather_code);
-
-      if (nowEl) {
-        nowEl.innerHTML = [
-          chip('<i class="fa-solid ' + ico + '"></i> ' + desc),
-          chip('<i class="fa-solid fa-temperature-half"></i> '
-            + temp + '°C'),
-          chip('<i class="fa-solid fa-arrow-trend-up"></i> ↑'
-            + tMax + '° • ↓' + tMin + '°C'),
-        ].join('');
-      }
-
-      const hum = Math.round(cur.relative_humidity_2m);
-      const wind = Math.round(cur.wind_speed_10m);
-      const pprob = (daily.precipitation_probability_max
-        ? daily.precipitation_probability_max[0]
-        : '--');
-      const press = Math.round(cur.surface_pressure);
-
-      if (detEl) {
-        detEl.innerHTML = [
-          chip('<i class="fa-solid fa-droplet"></i> '
-            + t('meteo.humidity') + ' ' + hum + '%'),
-          chip('<i class="fa-solid fa-wind"></i> '
-            + t('meteo.wind') + ' ' + wind + ' km/h'),
-          chip('<i class="fa-solid fa-umbrella"></i> '
-            + t('meteo.rain') + ' ' + pprob + '%'),
-          chip('<i class="fa-solid fa-gauge"></i> '
-            + t('meteo.pressure') + ' ' + press + ' hPa'),
-        ].join('');
-      }
-    };
-
-    window.reRenderMeteo = () => {
-      if (_lastMeteo) render(_lastMeteo.cur, _lastMeteo.daily);
-    };
-
-    const loadMeteo = () => {
-      hideErr();
-      showLoader(true);
-      const ctrl = new AbortController();
-      const tm = setTimeout(() => ctrl.abort(), METEO_CFG.timeout);
-      const url = 'https://api.open-meteo.com/v1/forecast?latitude='
-        + METEO_CFG.lat + '&longitude=' + METEO_CFG.lon
-        + '&current=temperature_2m,relative_humidity_2m,'
-        + 'precipitation,weather_code,surface_pressure,'
-        + 'wind_speed_10m&daily=temperature_2m_max,'
-        + 'temperature_2m_min,precipitation_probability_max'
-        + '&timezone=Europe/Rome';
-
-      fetch(url, { signal: ctrl.signal })
-        .then((res) => {
-          clearTimeout(tm);
-          if (!res.ok) throw new Error();
+    function fetchJSON(url, signal, attempts){
+      return fetch(url, { signal: signal })
+        .then(function(res){
+          if (!res.ok) {
+            return res.json().catch(function(){ return {}; }).then(function(j){
+              var msg = j.reason || (j.error && j.error.message) || ('HTTP ' + res.status);
+              throw new Error(msg);
+            });
+          }
           return res.json();
         })
-        .then((data) => {
-          render(data.current, data.daily);
-          showLoader(false);
-        })
-        .catch((e) => {
-          showErr(e.name === 'AbortError'
-            ? 'Timeout'
-            : 'Dati non disponibili');
-          showLoader(false);
+        .catch(function(e){
+          if (e.name === 'AbortError') throw e;
+          if (attempts > 1) {
+            return sleep(CFG.retryDelay).then(function(){ return fetchJSON(url, signal, attempts - 1); });
+          }
+          throw e;
         });
-    };
+    }
 
-    if (weeklyBtn) {
-      weeklyBtn.addEventListener('click', (e) => {
-        e.preventDefault();
-        if (window.parent) {
-          window.parent.location.href = METEO_CFG.weeklyUrl;
-        } else {
-          window.location.href = METEO_CFG.weeklyUrl;
+    function hhmmFromIso(iso){
+      if (!iso) return '--';
+      var parts = String(iso).split('T');
+      return parts[1] ? parts[1].substring(0,5) : '--';
+    }
+
+    function render(data){
+      var cur    = data.current || {};
+      var daily  = data.daily   || {};
+      var hourly = data.hourly  || {};
+
+      var cityName = CFG.cityName || '--';
+      var cTemp = cur.temperature_2m;
+      var cFeel = cur.apparent_temperature;
+      var cMax  = daily.temperature_2m_max ? daily.temperature_2m_max[0] : null;
+      var cMin  = daily.temperature_2m_min ? daily.temperature_2m_min[0] : null;
+
+      applyTheme(themeFor(cur.weather_code, cur.is_day));
+
+      if (mwCity)   mwCity.textContent = cityName;
+      if (fcCityEl) fcCityEl.textContent = cityName;
+      if (mwTime)   mwTime.textContent = oraNow();
+
+      if (tempNumEl) tempNumEl.innerHTML = Math.round(cTemp) + '<sup>\\u00B0</sup>';
+
+      var info = wmoInfo(cur.weather_code);
+      if (condDescEl) {
+        condDescEl.innerHTML = '<i class="fa-solid ' + info.ico + ' rd-cond-icon"></i><span>' + info.desc + '</span>';
+      }
+
+      if (tempFeelEl) tempFeelEl.textContent = Math.round(cFeel) + tSuffix();
+      if (tempMaxEl)  tempMaxEl.textContent  = (cMax != null ? Math.round(cMax) : '--') + tSuffix();
+      if (tempMinEl)  tempMinEl.textContent  = (cMin != null ? Math.round(cMin) : '--') + tSuffix();
+
+      var windVal = cur.wind_speed_10m;
+      var windStr = isF()
+        ? Math.round(windVal * 0.621371) + ' mph'
+        : Math.round(windVal) + ' km/h';
+
+      var visStr = '--';
+      if (hourly && hourly.visibility && hourly.time && cur.time) {
+        var idx = hourly.time.indexOf(cur.time);
+        if (idx < 0) {
+          var curDate = new Date(cur.time);
+          var best = 0, bestDiff = Infinity;
+          for (var h = 0; h < hourly.time.length; h++) {
+            var diff = Math.abs(new Date(hourly.time[h]) - curDate);
+            if (diff < bestDiff) { bestDiff = diff; best = h; }
+          }
+          idx = best;
         }
-      });
+        var visM = hourly.visibility[idx];
+        if (typeof visM === 'number') {
+          visStr = isF()
+            ? Math.round(visM * 0.000621371) + ' mi'
+            : Math.round(visM / 1000) + ' km';
+        }
+      }
+
+      var sunrise = hhmmFromIso(daily.sunrise ? daily.sunrise[0] : null);
+      var sunset  = hhmmFromIso(daily.sunset  ? daily.sunset[0]  : null);
+      var uvVal = (daily.uv_index_max && daily.uv_index_max[0] != null) ? Math.round(daily.uv_index_max[0]) : '--';
+      var rainProb = (daily.precipitation_probability_max && daily.precipitation_probability_max[0] != null) ? Math.round(daily.precipitation_probability_max[0]) : 0;
+      var pressStr = cur.pressure_msl != null ? Math.round(cur.pressure_msl) + ' hPa' : '-- hPa';
+
+      function cell(ico, val, lbl){
+        return '<div class="det-cell">' +
+          '<div class="det-top">' +
+            '<i class="fa-solid ' + ico + '"></i>' +
+            '<div class="det-val">' + val + '</div>' +
+          '</div>' +
+          '<div class="det-lbl">' + lbl + '</div>' +
+        '</div>';
+      }
+      if (detEl) {
+        detEl.innerHTML =
+          cell('fa-droplet',  (cur.relative_humidity_2m != null ? cur.relative_humidity_2m : '--') + '%', 'Umidità') +
+          cell('fa-wind',     windStr,        'Vento') +
+          cell('fa-umbrella', rainProb + '%', 'Pioggia') +
+          cell('fa-gauge',    pressStr,       'Pressione') +
+          cell('fa-eye',      visStr,         'Visibilità') +
+          cell('fa-sun',      uvVal + '',     'Indice UV') +
+          cell('fa-sun',      sunrise,        'Alba') +
+          cell('fa-moon',     sunset,         'Tramonto');
+      }
+
+      if (forecastEl) {
+        var rows = '';
+        var times = daily.time || [];
+        for (var i = 0; i < times.length; i++) {
+          var code  = daily.weather_code ? daily.weather_code[i] : 0;
+          var dInfo = wmoInfo(code);
+          var lbl   = dayLabel(times[i]);
+          var maxT  = daily.temperature_2m_max[i];
+          var minT  = daily.temperature_2m_min[i];
+          var rain  = daily.precipitation_probability_max ? Math.round(daily.precipitation_probability_max[i]) : 0;
+          var w7v   = daily.wind_speed_10m_max ? daily.wind_speed_10m_max[i] : 0;
+          var w7Str = isF()
+            ? Math.round(w7v * 0.621371) + ' mph'
+            : Math.round(w7v) + ' km/h';
+          rows +=
+            '<div class="forecast-row' + (lbl === 'Oggi' ? ' today' : '') + '">' +
+              '<div class="fc-day">' + lbl + '</div>' +
+              '<div class="fc-icon"><i class="fa-solid ' + dInfo.ico + '"></i></div>' +
+              '<div class="fc-desc">' + dInfo.desc + '</div>' +
+              '<div class="fc-temps">' + Math.round(maxT) + tSuffix() + ' <span>' + Math.round(minT) + tSuffix() + '</span></div>' +
+              '<div class="fc-meta">' +
+                '<span><i class="fa-solid fa-umbrella"></i> ' + rain + '%</span>' +
+                '<span><i class="fa-solid fa-wind"></i> ' + w7Str + '</span>' +
+              '</div>' +
+            '</div>';
+        }
+        forecastEl.innerHTML = rows;
+      }
     }
 
-    if (retry) {
-      retry.addEventListener('click', (e) => {
-        e.preventDefault();
-        loadMeteo();
-      });
+    function loadMeteo(){
+      hideError();
+      showLoader(true);
+      var ctrl = new AbortController();
+      var tid = setTimeout(function(){ ctrl.abort(); }, CFG.timeout);
+      fetchJSON(apiUrl(), ctrl.signal, CFG.maxRetries)
+        .then(function(data){
+          clearTimeout(tid);
+          hideOfflineBadge();
+          render(data);
+          saveCache(data);
+        })
+        .catch(function(e){
+          clearTimeout(tid);
+          var cached = loadCache();
+          if (cached && cached.data) {
+            render(cached.data);
+            showOfflineBadge(cached.savedAt);
+          } else {
+            showError(e.name === 'AbortError' ? 'Timeout: server non risponde' : (e.message || 'Errore'));
+          }
+        })
+        .then(function(){ showLoader(false); }, function(){ showLoader(false); });
     }
 
-    if (accHead) {
-      accHead.addEventListener('click', () => {
-        if (accBody) accBody.classList.toggle('open');
-        if (chev) chev.classList.toggle('fa-rotate-180');
-      });
-    }
+    function openDetails(){ if (detailsModal) detailsModal.classList.add('open'); }
+    function closeDetails(){ if (detailsModal) detailsModal.classList.remove('open'); }
 
-    document.addEventListener('visibilitychange', () => {
+    if (btnDetails)  btnDetails.addEventListener('click', openDetails);
+    if (btnCloseDet) btnCloseDet.addEventListener('click', closeDetails);
+    if (btnForecast) btnForecast.addEventListener('click', function(){
+      closeDetails();
+      if (screensEl) screensEl.classList.add('show-forecast');
+    });
+    if (btnBack) btnBack.addEventListener('click', function(){
+      if (screensEl) screensEl.classList.remove('show-forecast');
+    });
+    if (retryBtn) retryBtn.addEventListener('click', function(){ loadMeteo(); });
+
+    document.addEventListener('visibilitychange', function(){
       if (!document.hidden) loadMeteo();
     });
 
     loadMeteo();
-    setInterval(loadMeteo, METEO_CFG.interval * 60 * 1000);
+    setInterval(loadMeteo, CFG.updateInterval * 60 * 1000);
   })();
 
   /* LANGUAGE SWITCHER */
