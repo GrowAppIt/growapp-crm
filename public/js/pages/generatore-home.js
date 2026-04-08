@@ -7,6 +7,7 @@
  * v4.3.0 – Tema Tab Bar chiaro/scuro, fix SV height, fix SV microcopy, fix header font, appendLang su tutti gli href interni
  * v4.4.0 – Restyle Barra Data: nuovo layout single-row con cal-icon glass, mini-meteo con icone Font Awesome (day/night via WMO codes), riga evento nascosta se assente, lista eventi estesa (~80 ricorrenze)
  * v4.5.0 – Restyle integrale widget Meteo: 2 schermate (corrente + 7 giorni), modal dettagli slide-up, temi colore dinamici (sunny/cloudy/rain/storm/snow/fog/night) con accent esteso a icone/testi, scroll Android-safe sulla previsione, cache offline. Posizionato di default come ultimo widget.
+ * v4.5.1 – Fix GoodBarber "menù custom": rimossi tutti i backslash-escape dalle stringhe JS emesse (apostrofi tipografici ’ in specialEvents, ° letterale nel meteo, single-quote su BannerCarousel via concat con "'"). Workaround al preprocessor di GB che strippava i \\ generando "missing ) after argument list".
  * Si integra nel CRM come sezione dell'Officina Digitale.
  */
 window.GeneratoreHome = (function () {
@@ -3277,7 +3278,7 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
         const hasText = it.kicker || it.titleIt;
         slidesH += '<div class="bc-slide' + (i === 0 ? ' active' : '') + '" '
           + 'data-title="' + esc(it.kicker || it.titleIt || 'Banner') + '"'
-          + (bg ? ' style="--bg-image:url(\\'' + esc(bg) + '\\')"' : '') + '>';
+          + (bg ? ' style="--bg-image:url(' + "'" + esc(bg) + "'" + ')"' : '') + '>';
 
         if (hasText) {
           slidesH += '<a class="bc-slide-link" '
@@ -4104,12 +4105,12 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
     '1/6':  '🧙 La Befana vien di notte!',
     '1/14': '🧮 Giornata Mondiale della Logica',
     '1/15': '❄️ Giornata Mondiale della Neve',
-    '1/16': '✝️ Sant\\'Antonio Abate',
+    '1/16': '✝️ Sant’Antonio Abate',
     '1/17': '🍕 Giornata Mondiale della Pizza',
     '1/20': '✝️ San Sebastiano',
-    '1/21': '🤗 Giornata Mondiale dell\\'Abbraccio',
-    '1/24': '📚 Giornata Mondiale dell\\'Educazione',
-    '1/26': '🌞 Giornata Mondiale dell\\'Energia Pulita',
+    '1/21': '🤗 Giornata Mondiale dell’Abbraccio',
+    '1/24': '📚 Giornata Mondiale dell’Educazione',
+    '1/26': '🌞 Giornata Mondiale dell’Energia Pulita',
     '1/27': '🕯️ Giorno della Memoria',
     '1/28': '🛡️ Privacy Day',
     '1/29': '🧩 Puzzle Day',
@@ -4129,28 +4130,28 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
     '3/6':  '🌍 Giornata dei Giusti',
     '3/8':  '👩 Festa della Donna',
     '3/14': 'π Giornata del Pi Greco',
-    '3/17': '🇮🇹 Anniversario Unità d\\'Italia',
+    '3/17': '🇮🇹 Anniversario Unità d’Italia',
     '3/19': '👨 Festa del Papà',
     '3/20': '😃 Giornata Mondiale della Felicità',
     '3/21': '🌸 Giornata Mondiale della Poesia',
-    '3/22': '💧 Giornata Mondiale dell\\'Acqua',
+    '3/22': '💧 Giornata Mondiale dell’Acqua',
     '4/2':  '🧩 Giornata Mondiale Consapevolezza Autismo',
     '4/5':  '🐣 Buona Pasqua!',
-    '4/6':  '🕊️ Lunedì dell\\'Angelo',
+    '4/6':  '🕊️ Lunedì dell’Angelo',
     '4/7':  '🩺 Giornata Mondiale della Salute',
     '4/22': '🌍 Giornata della Terra',
     '4/23': '📖 Giornata Mondiale del Libro',
     '4/25': '🇮🇹 Festa della Liberazione',
     '5/1':  '🛠 Festa del Lavoro',
     '5/3':  '📰 Giornata Mondiale Libertà di Stampa',
-    '5/9':  '🇪🇺 Festa dell\\'Europa',
+    '5/9':  '🇪🇺 Festa dell’Europa',
     '5/15': '👨‍👩‍👧 Giornata Internazionale della Famiglia',
     '5/20': '🐝 Giornata Mondiale delle Api',
     '5/23': '⚖️ Giornata della Legalità – Falcone',
     '5/31': '🚭 Giornata Mondiale senza Tabacco',
-    '6/1':  '👧 Giornata Mondiale dell\\'Infanzia',
+    '6/1':  '👧 Giornata Mondiale dell’Infanzia',
     '6/2':  '🇮🇹 Festa della Repubblica Italiana',
-    '6/5':  '🌳 Giornata Mondiale dell\\'Ambiente',
+    '6/5':  '🌳 Giornata Mondiale dell’Ambiente',
     '6/8':  '🌊 Giornata Mondiale degli Oceani',
     '6/14': '💉 Giornata Mondiale del Donatore di Sangue',
     '6/20': '🤝 Giornata Mondiale del Rifugiato',
@@ -4158,18 +4159,18 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
     '7/7':  '🍫 Giornata Mondiale del Cioccolato',
     '7/11': '👥 Giornata Mondiale della Popolazione',
     '7/18': '🌍 Mandela Day',
-    '7/19': '🕯️ Anniversario Strage di Via d\\'Amelio',
-    '7/30': '🤝 Giornata Internazionale dell\\'Amicizia',
+    '7/19': '🕯️ Anniversario Strage di Via d’Amelio',
+    '7/30': '🤝 Giornata Internazionale dell’Amicizia',
     '8/9':  '🫂 Giornata Internazionale dei Popoli Indigeni',
     '8/12': '🎓 Giornata Internazionale della Gioventù',
     '8/15': '☀️ Ferragosto!',
     '8/19': '📷 Giornata Mondiale della Fotografia',
     '9/5':  '🤲 Giornata della Carità',
-    '9/8':  '📚 Giornata Mondiale dell\\'Alfabetizzazione',
+    '9/8':  '📚 Giornata Mondiale dell’Alfabetizzazione',
     '9/21': '☮️ Giornata Internazionale della Pace',
     '9/27': '🌐 Giornata Mondiale del Turismo',
     '9/29': '❤️ Giornata Mondiale del Cuore',
-    '10/4': '✝️ Festa di San Francesco d\\'Assisi',
+    '10/4': '✝️ Festa di San Francesco d’Assisi',
     '10/10':'🧠 Giornata Mondiale della Salute Mentale',
     '10/31':'🎃 Halloween',
     '11/1': '🕯️ Festa di Ognissanti',
@@ -4820,7 +4821,7 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
     function pad2(n){ return n < 10 ? '0' + n : '' + n; }
     function oraNow(){ var d = new Date(); return pad2(d.getHours()) + ':' + pad2(d.getMinutes()); }
     function isF(){ return CFG.unit === 'F'; }
-    function tSuffix(){ return isF() ? '\\u00B0F' : '\\u00B0C'; }
+    function tSuffix(){ return isF() ? '°F' : '°C'; }
     function sleep(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
 
     var GIORNI = ['Dom','Lun','Mar','Mer','Gio','Ven','Sab'];
@@ -4959,7 +4960,7 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
       if (fcCityEl) fcCityEl.textContent = cityName;
       if (mwTime)   mwTime.textContent = oraNow();
 
-      if (tempNumEl) tempNumEl.innerHTML = Math.round(cTemp) + '<sup>\\u00B0</sup>';
+      if (tempNumEl) tempNumEl.innerHTML = Math.round(cTemp) + '<sup>°</sup>';
 
       var info = wmoInfo(cur.weather_code);
       if (condDescEl) {
