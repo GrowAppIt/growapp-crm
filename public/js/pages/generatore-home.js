@@ -13,6 +13,7 @@
  * v4.5.4 – Fix DEFINITIVO crash widget Meteo: rimossa del tutto la funzione buildMeteoUrl(). La query string e l'endpoint vengono ora costruiti INLINE dentro loadMeteo() in una variabile locale "meteoEndpoint" (nessun identificatore termina in url/Url). Bug confermato in preview Mezzolombardo: GB sostituiva sia apiUrl() sia buildMeteoUrl() con apiurl(<URL>) / buildMeteourl(<URL>), causando SyntaxError "missing ) after argument list" alla riga ~3022.
  * v4.5.5 – Fix RSS Slider eventi in GoodBarber "menù custom": il fetch same-origin verso /syndication/<feed>/ veniva intercettato dal Service Worker dell'app GoodBarber e restituiva la SPA shell HTML con HTTP 404; tutti e 3 i CORS proxy pubblici (allorigins, corsproxy.io, codetabs) ormai falliscono per limiti free / blocchi UA. Aggiunto come PRIMA scelta della catena fetch un proxy RSS server-side ospitato sul CRM (https://crm.comune.digital/api/rss-proxy?url=...), che bypassa il SW (è cross-origin) e usa un User-Agent browser-like per evitare i blocchi. Verificato in preview Mezzolombardo che senza proxy CRM tutti i fetch falliscono.
  * v4.5.6 – Restyle card RSS Slider: card più alte (200px vs 130px) e un po' più strette, immagine più larga (140px vs 115px) per mostrare meglio le fotografie. Body con padding uniforme 18px, testo allineato in alto a sinistra (justify-content flex-start), gap 10px tra data e titolo, titolo fino a 4 righe, spazio più ariosi in tutto il widget (header 18/26, gap tra card 16). Responsive <380px: card 275x186 con immagine 120px.
+ * v4.5.7 – Card RSS Slider ancora più grandi: 320x240 (vs 305x200), colonna immagine 160px (vs 140), padding body 20px, gap 12px, font-size titolo 1.08rem, line-clamp 5 righe, border-radius 18px, ombra 12/30. Responsive <380px: 290x220 con immagine 135px.
  * Si integra nel CRM come sezione dell'Officina Digitale.
  */
 window.GeneratoreHome = (function () {
@@ -2803,22 +2804,22 @@ rssapp-ticker a{margin-right:50px!important;display:inline-block!important;color
 .rss-view-all:hover{background:rgba(255,255,255,0.35);}
 .rss-slider-container{display:flex;gap:16px;overflow-x:auto;padding:4px 16px 30px 16px;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;scrollbar-width:none;margin:0;}
 .rss-slider-container::-webkit-scrollbar{display:none;}
-.rss-event-card{flex:0 0 305px;height:200px;scroll-snap-align:start;background:#fff;border-radius:var(--radius-card,16px);box-shadow:0 10px 26px rgba(0,0,0,0.20);display:flex;overflow:hidden;text-decoration:none;position:relative;border:1px solid rgba(255,255,255,0.22);transition:transform 0.2s;}
+.rss-event-card{flex:0 0 320px;height:240px;scroll-snap-align:start;background:#fff;border-radius:var(--radius-card,18px);box-shadow:0 12px 30px rgba(0,0,0,0.22);display:flex;overflow:hidden;text-decoration:none;position:relative;border:1px solid rgba(255,255,255,0.22);transition:transform 0.2s;}
 .rss-event-card:active{transform:scale(0.98);}
-.rss-card-img{width:140px;height:100%;position:relative;background:#f0f2f5;flex-shrink:0;display:flex;align-items:center;justify-content:center;overflow:hidden;}
+.rss-card-img{width:160px;height:100%;position:relative;background:#f0f2f5;flex-shrink:0;display:flex;align-items:center;justify-content:center;overflow:hidden;}
 .rss-card-img img{width:100%;height:100%;object-fit:cover;display:block;}
-.rss-fallback-icon{font-size:2.6rem;color:#cbd5e0;}
-.rss-today-tag{position:absolute;top:0;left:0;background:var(--verde,#3CA434);color:#fff;font-size:0.7rem;font-weight:700;padding:4px 10px;border-bottom-right-radius:12px;box-shadow:1px 1px 4px rgba(0,0,0,0.3);z-index:2;letter-spacing:.4px;}
-.rss-card-body{flex:1;padding:18px 18px 18px 18px;display:flex;flex-direction:column;justify-content:flex-start;align-items:flex-start;text-align:left;min-width:0;gap:10px;box-sizing:border-box;}
-.rss-event-date{font-size:0.78rem;font-weight:700;color:var(--verde,#3CA434);text-transform:uppercase;margin:0;display:flex;align-items:center;gap:6px;letter-spacing:.5px;text-align:left;}
-.rss-event-date i{font-size:0.9rem;}
-.rss-event-title{font-size:1.02rem;font-weight:700;line-height:1.38;color:var(--blu);margin:0;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden;text-align:left;width:100%;word-break:break-word;}
-.rss-msg-box{color:rgba(255,255,255,0.85);font-size:0.9rem;padding:24px;text-align:center;width:100%;}
+.rss-fallback-icon{font-size:3rem;color:#cbd5e0;}
+.rss-today-tag{position:absolute;top:0;left:0;background:var(--verde,#3CA434);color:#fff;font-size:0.72rem;font-weight:700;padding:5px 12px;border-bottom-right-radius:14px;box-shadow:1px 1px 4px rgba(0,0,0,0.3);z-index:2;letter-spacing:.4px;}
+.rss-card-body{flex:1;padding:20px 20px 20px 20px;display:flex;flex-direction:column;justify-content:flex-start;align-items:flex-start;text-align:left;min-width:0;gap:12px;box-sizing:border-box;}
+.rss-event-date{font-size:0.8rem;font-weight:700;color:var(--verde,#3CA434);text-transform:uppercase;margin:0;display:flex;align-items:center;gap:7px;letter-spacing:.5px;text-align:left;}
+.rss-event-date i{font-size:0.95rem;}
+.rss-event-title{font-size:1.08rem;font-weight:700;line-height:1.4;color:var(--blu);margin:0;display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical;overflow:hidden;text-align:left;width:100%;word-break:break-word;}
+.rss-msg-box{color:rgba(255,255,255,0.85);font-size:0.9rem;padding:28px;text-align:center;width:100%;}
 [data-theme="dark"] .rss-event-card{background:var(--cd-gray-900);border-color:rgba(255,255,255,.1);}
 [data-theme="dark"] .rss-event-title{color:var(--cd-blue-300);}
 [data-theme="dark"] .rss-event-date{color:var(--cd-green-300);}
 [data-theme="dark"] .rss-card-img{background:#2a2a2a;}
-@media(max-width:380px){.rss-event-card{flex:0 0 275px;height:186px;}.rss-card-img{width:120px;}.rss-card-body{padding:16px;gap:8px;}.rss-event-title{font-size:0.98rem;-webkit-line-clamp:4;}}
+@media(max-width:380px){.rss-event-card{flex:0 0 290px;height:220px;}.rss-card-img{width:135px;}.rss-card-body{padding:16px;gap:10px;}.rss-event-title{font-size:1rem;-webkit-line-clamp:5;}}
 /* TAB BAR */
 .cd-tab-bar{position:fixed;bottom:0;left:0;right:0;z-index:9998;padding:0;pointer-events:none;display:none;}
 .cd-tab-bar.active{display:flex;justify-content:center;}
