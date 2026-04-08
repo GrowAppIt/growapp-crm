@@ -9,6 +9,7 @@
  * v4.5.0 – Restyle integrale widget Meteo: 2 schermate (corrente + 7 giorni), modal dettagli slide-up, temi colore dinamici (sunny/cloudy/rain/storm/snow/fog/night) con accent esteso a icone/testi, scroll Android-safe sulla previsione, cache offline. Posizionato di default come ultimo widget.
  * v4.5.1 – Fix GoodBarber "menù custom": rimossi tutti i backslash-escape dalle stringhe JS emesse (apostrofi tipografici ’ in specialEvents, ° letterale nel meteo, single-quote su BannerCarousel via concat con "'"). Workaround al preprocessor di GB che strippava i \\ generando "missing ) after argument list".
  * v4.5.2 – Bonifica completa dei residui backslash nel codice di runtime: replace(/\\./g,'') del SV sostituito con split.join, querySelector('media\\:thumbnail') sostituito con getElementsByTagName. Ora il JS emesso non contiene più alcun carattere backslash.
+ * v4.5.3 – Fix DEFINITIVO crash widget Meteo in GoodBarber "menù custom": la funzione locale apiUrl() veniva interpretata dal preprocessor di GB come macro di sistema e sostituita con un URL hardcoded contenente "//", che diventava un commento JS rompendo la chiamata fetchJSON e generando "missing ) after argument list" alla riga 3022. Rinominata in buildMeteoUrl() per evitare la collisione con la macro.
  * Si integra nel CRM come sezione dell'Officina Digitale.
  */
 window.GeneratoreHome = (function () {
@@ -4903,7 +4904,7 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
     }
     function hideError(){ if (errLayerEl) errLayerEl.className = 'mw-layer'; }
 
-    function apiUrl(){
+    function buildMeteoUrl(){
       var params = [
         'latitude='  + CFG.lat,
         'longitude=' + CFG.lon,
@@ -5059,7 +5060,7 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
       showLoader(true);
       var ctrl = new AbortController();
       var tid = setTimeout(function(){ ctrl.abort(); }, CFG.timeout);
-      fetchJSON(apiUrl(), ctrl.signal, CFG.maxRetries)
+      fetchJSON(buildMeteoUrl(), ctrl.signal, CFG.maxRetries)
         .then(function(data){
           clearTimeout(tid);
           hideOfflineBadge();
