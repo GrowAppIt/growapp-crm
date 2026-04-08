@@ -9,7 +9,8 @@
  * v4.5.0 – Restyle integrale widget Meteo: 2 schermate (corrente + 7 giorni), modal dettagli slide-up, temi colore dinamici (sunny/cloudy/rain/storm/snow/fog/night) con accent esteso a icone/testi, scroll Android-safe sulla previsione, cache offline. Posizionato di default come ultimo widget.
  * v4.5.1 – Fix GoodBarber "menù custom": rimossi tutti i backslash-escape dalle stringhe JS emesse (apostrofi tipografici ’ in specialEvents, ° letterale nel meteo, single-quote su BannerCarousel via concat con "'"). Workaround al preprocessor di GB che strippava i \\ generando "missing ) after argument list".
  * v4.5.2 – Bonifica completa dei residui backslash nel codice di runtime: replace(/\\./g,'') del SV sostituito con split.join, querySelector('media\\:thumbnail') sostituito con getElementsByTagName. Ora il JS emesso non contiene più alcun carattere backslash.
- * v4.5.3 – Fix DEFINITIVO crash widget Meteo in GoodBarber "menù custom": la funzione locale apiUrl() veniva interpretata dal preprocessor di GB come macro di sistema e sostituita con un URL hardcoded contenente "//", che diventava un commento JS rompendo la chiamata fetchJSON e generando "missing ) after argument list" alla riga 3022. Rinominata in buildMeteoUrl() per evitare la collisione con la macro.
+ * v4.5.3 – Fix tentativo 1 crash widget Meteo in GoodBarber "menù custom": la funzione locale apiUrl() veniva interpretata dal preprocessor di GB come macro di sistema e sostituita con un URL hardcoded contenente "//", che diventava un commento JS rompendo la chiamata fetchJSON. Rinominata in buildMeteoUrl(): NON è bastato perché GB matcha qualunque identificatore con suffisso "url"/"Url" (case-insensitive).
+ * v4.5.4 – Fix DEFINITIVO crash widget Meteo: rimossa del tutto la funzione buildMeteoUrl(). La query string e l'endpoint vengono ora costruiti INLINE dentro loadMeteo() in una variabile locale "meteoEndpoint" (nessun identificatore termina in url/Url). Bug confermato in preview Mezzolombardo: GB sostituiva sia apiUrl() sia buildMeteoUrl() con apiurl(<URL>) / buildMeteourl(<URL>), causando SyntaxError "missing ) after argument list" alla riga ~3022.
  * Si integra nel CRM come sezione dell'Officina Digitale.
  */
 window.GeneratoreHome = (function () {
@@ -4904,20 +4905,10 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
     }
     function hideError(){ if (errLayerEl) errLayerEl.className = 'mw-layer'; }
 
-    function buildMeteoUrl(){
-      var params = [
-        'latitude='  + CFG.lat,
-        'longitude=' + CFG.lon,
-        'current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,weather_code,pressure_msl,wind_speed_10m',
-        'hourly=visibility',
-        'daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,uv_index_max,precipitation_probability_max,wind_speed_10m_max',
-        'timezone=auto',
-        'forecast_days=7',
-        'wind_speed_unit=kmh'
-      ];
-      if (isF()) params.push('temperature_unit=fahrenheit');
-      return CFG.apiBase + '?' + params.join('&');
-    }
+    // NB: la costruzione dell'endpoint meteo è inlinata dentro loadMeteo() per evitare
+    // qualsiasi nome di funzione/variabile che termini in "url" (anche case-insensitive),
+    // perché il preprocessor di GoodBarber "menù custom" matcha quel suffisso e sostituisce
+    // l'invocazione con un URL hardcoded contenente "//" (commento JS) → SyntaxError.
 
     function fetchJSON(url, signal, attempts){
       return fetch(url, { signal: signal })
@@ -5060,7 +5051,20 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
       showLoader(true);
       var ctrl = new AbortController();
       var tid = setTimeout(function(){ ctrl.abort(); }, CFG.timeout);
-      fetchJSON(buildMeteoUrl(), ctrl.signal, CFG.maxRetries)
+      // Inline endpoint composer (NO function-name ending in url/Url, NO macro collision)
+      var qsParts = [
+        'latitude='  + CFG.lat,
+        'longitude=' + CFG.lon,
+        'current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,weather_code,pressure_msl,wind_speed_10m',
+        'hourly=visibility',
+        'daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,uv_index_max,precipitation_probability_max,wind_speed_10m_max',
+        'timezone=auto',
+        'forecast_days=7',
+        'wind_speed_unit=kmh'
+      ];
+      if (isF()) qsParts.push('temperature_unit=fahrenheit');
+      var meteoEndpoint = CFG.apiBase + '?' + qsParts.join('&');
+      fetchJSON(meteoEndpoint, ctrl.signal, CFG.maxRetries)
         .then(function(data){
           clearTimeout(tid);
           hideOfflineBadge();
