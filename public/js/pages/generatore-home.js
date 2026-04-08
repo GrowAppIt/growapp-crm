@@ -8,6 +8,7 @@
  * v4.4.0 – Restyle Barra Data: nuovo layout single-row con cal-icon glass, mini-meteo con icone Font Awesome (day/night via WMO codes), riga evento nascosta se assente, lista eventi estesa (~80 ricorrenze)
  * v4.5.0 – Restyle integrale widget Meteo: 2 schermate (corrente + 7 giorni), modal dettagli slide-up, temi colore dinamici (sunny/cloudy/rain/storm/snow/fog/night) con accent esteso a icone/testi, scroll Android-safe sulla previsione, cache offline. Posizionato di default come ultimo widget.
  * v4.5.1 – Fix GoodBarber "menù custom": rimossi tutti i backslash-escape dalle stringhe JS emesse (apostrofi tipografici ’ in specialEvents, ° letterale nel meteo, single-quote su BannerCarousel via concat con "'"). Workaround al preprocessor di GB che strippava i \\ generando "missing ) after argument list".
+ * v4.5.2 – Bonifica completa dei residui backslash nel codice di runtime: replace(/\\./g,'') del SV sostituito con split.join, querySelector('media\\:thumbnail') sostituito con getElementsByTagName. Ora il JS emesso non contiene più alcun carattere backslash.
  * Si integra nel CRM come sezione dell'Officina Digitale.
  */
 window.GeneratoreHome = (function () {
@@ -3492,7 +3493,7 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
       var locale = lang === 'en' ? 'en-GB' : 'it-IT';
       var now = new Date();
       var f = now.toLocaleDateString(locale, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
-      if (dateText) dateText.textContent = capFirst(f.replace(/\\./g, ''));
+      if (dateText) dateText.textContent = capFirst(f.split('.').join(''));
     }
     // Expose re-render for language switch
     window.svUpdateLang = function() { updateMicro(); updateDate(); };
@@ -3804,7 +3805,7 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
         let imgUrl = null;
 
         try {
-          const mt = it.querySelector('media\\\\:thumbnail,thumbnail');
+          const mt = it.getElementsByTagName('media:thumbnail')[0] || it.getElementsByTagName('thumbnail')[0];
           if (mt) imgUrl = mt.getAttribute('url');
         } catch (e) {}
 
