@@ -72,10 +72,24 @@ module.exports = async function handler(req, res) {
         '.rss.app',
         'rss.app'
     ];
+
+    // Pattern aggiuntivi: siti istituzionali dei Comuni italiani
+    // Esempio: www.comune.pantelleria.tp.it, www.comune.mezzolombardo.tn.it
+    const allowedPatterns = [
+        /^(www\.)?comune\..+\.it$/i,       // comune.*.it (siti comunali)
+        /\.comune\..+\.it$/i,              // *.comune.*.it (sottodomini comunali)
+        /^(www\.)?regione\..+\.it$/i,      // regione.*.it (siti regionali)
+        /^(www\.)?provincia\..+\.it$/i,    // provincia.*.it (siti provinciali)
+        /\.governo\.it$/i,                 // *.governo.it
+        /\.beniculturali\.it$/i,           // *.beniculturali.it
+        /\.protezionecivile\.it$/i         // *.protezionecivile.it
+    ];
+
     const host = parsed.hostname.toLowerCase();
-    const isAllowed = allowedSuffixes.some(s => host === s.replace(/^\./, '') || host.endsWith(s));
-    if (!isAllowed) {
-        return res.status(403).json({ ok: false, error: 'Dominio non autorizzato per il proxy RSS.' });
+    const isAllowedSuffix = allowedSuffixes.some(s => host === s.replace(/^\./, '') || host.endsWith(s));
+    const isAllowedPattern = allowedPatterns.some(re => re.test(host));
+    if (!isAllowedSuffix && !isAllowedPattern) {
+        return res.status(403).json({ ok: false, error: 'Dominio non autorizzato per il proxy RSS: ' + host });
     }
 
     // Solo http/https

@@ -2526,63 +2526,141 @@
     const TIMEOUT_MS = 12000;
     const MAX_ITEMS_PER_FEED = 20;
 
-    // Proxy CORS (fallback per feed senza header CORS)
-    const CORS_PROXY = (url) => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url);
+    /**
+     * Catena di proxy CORS — stessa logica del generatore-home.js
+     * Priorità: 1) Proxy CRM (più affidabile, server-side)
+     *           2) allorigins (JSON wrapper)
+     *           3) corsproxy.io
+     * Il tentativo diretto viene fatto PRIMA dei proxy solo per feed
+     * che sappiamo avere CORS aperto (es. rss.app).
+     */
+    const CORS_PROXIES = [
+      {
+        name: 'CRM Proxy',
+        buildUrl: function(feedUrl) { return 'https://crm.comune.digital/api/rss-proxy?url=' + encodeURIComponent(feedUrl); },
+        extractText: function(res) { return res.text(); }  // restituisce XML raw
+      },
+      {
+        name: 'allorigins',
+        buildUrl: function(feedUrl) { return 'https://api.allorigins.win/get?url=' + encodeURIComponent(feedUrl); },
+        extractText: function(res) {
+          // allorigins wrappa in JSON { contents: "..." }
+          return res.json().then(function(j) { return j.contents || ''; });
+        }
+      },
+      {
+        name: 'corsproxy.io',
+        buildUrl: function(feedUrl) { return 'https://corsproxy.io/?' + encodeURIComponent(feedUrl); },
+        extractText: function(res) { return res.text(); }
+      }
+    ];
 
-    // Cache per ricordare quali domini necessitano del proxy (evita retry inutili)
-    const _corsProxyDomains = new Set();
+    // Cache: ricorda quale proxy ha funzionato per ogni dominio
+    const _domainProxyCache = {};  // domain → indice in CORS_PROXIES (o -1 = diretto)
 
+    function _timedFetch(url, ms) {
+      return new Promise(function(resolve, reject) {
+        var ctrl = new AbortController();
+        var t = setTimeout(function() { ctrl.abort(); }, ms);
+        fetch(url, { signal: ctrl.signal, cache: "no-store" })
+          .then(function(res) {
+            clearTimeout(t);
+            if (!res.ok) throw new Error("HTTP " + res.status);
+            resolve(res);
+          })
+          .catch(function(err) {
+            clearTimeout(t);
+            reject(err);
+          });
+      });
+    }
+
+    /**
+     * fetchWithTimeout — tenta il feed con catena di fallback:
+     *   1. Se il dominio ha un proxy "ricordato" in cache, usa quello subito
+     *   2. Altrimenti: tentativo diretto (timeout breve 4s) → proxy CRM → allorigins → corsproxy
+     *
+     * Restituisce una Promise<string> col testo XML del feed.
+     */
     function fetchWithTimeout(url, ms) {
-      return new Promise(async (resolve, reject) => {
-        const domain = new URL(url).hostname;
+      return new Promise(async function(resolve, reject) {
+        var domain = new URL(url).hostname;
 
-        // Se sappiamo già che questo dominio richiede il proxy, saltiamo il tentativo diretto
-        if (_corsProxyDomains.has(domain)) {
+        // Se abbiamo un proxy memorizzato per questo dominio, proviamo quello per primo
+        if (_domainProxyCache[domain] !== undefined) {
+          var cachedIdx = _domainProxyCache[domain];
           try {
-            const proxyRes = await _timedFetch(CORS_PROXY(url), ms);
-            return resolve(proxyRes);
-          } catch (proxyErr) {
-            return reject(new Error('Feed non raggiungibile via proxy: ' + (proxyErr.message || 'errore')));
+            if (cachedIdx === -1) {
+              // Diretto funzionava
+              var directRes = await _timedFetch(url, ms);
+              var directTxt = await directRes.text();
+              return resolve(new Response(directTxt));
+            } else {
+              var proxy = CORS_PROXIES[cachedIdx];
+              var proxyRes = await _timedFetch(proxy.buildUrl(url), ms);
+              var proxyTxt = await proxy.extractText(proxyRes);
+              // Verifica che non sia HTML (SPA shell)
+              var trimmed = (proxyTxt || '').trim().toLowerCase();
+              if (trimmed.startsWith('<!doctype html') || trimmed.startsWith('<html')) {
+                throw new Error('Proxy ha restituito HTML invece di XML');
+              }
+              return resolve(new Response(proxyTxt));
+            }
+          } catch (cacheErr) {
+            // Il proxy memorizzato ha fallito, cancelliamo la cache e riproviamo tutto
+            console.warn('[RSS] Proxy memorizzato per ' + domain + ' ha fallito, riprovo catena completa');
+            delete _domainProxyCache[domain];
           }
         }
 
         // 1. Tentativo diretto (timeout breve: CORS fallisce in <1s)
         try {
-          const directRes = await _timedFetch(url, Math.min(ms, 4000));
-          return resolve(directRes);
+          var directRes2 = await _timedFetch(url, Math.min(ms, 4000));
+          _domainProxyCache[domain] = -1;
+          return resolve(directRes2);
         } catch (directErr) {
-          // Errore HTTP reale (4xx/5xx) — non riprovare con proxy
-          if (directErr.message && directErr.message.startsWith('HTTP ')) {
-            return reject(directErr);
+          // Errore HTTP reale (4xx/5xx con risposta) — non riprovare con proxy
+          if (directErr.message && directErr.message.startsWith('HTTP ') && !directErr.message.startsWith('HTTP 0')) {
+            // Eccezione: per errori 403/404 da siti comunali, proviamo il proxy
+            // perché potrebbe essere un blocco CORS, non un vero errore
+            var httpCode = parseInt(directErr.message.replace('HTTP ', ''));
+            if (httpCode >= 500) {
+              return reject(directErr);
+            }
+          }
+          // CORS bloccato o timeout → procediamo coi proxy
+        }
+
+        // 2. Catena proxy: CRM → allorigins → corsproxy
+        for (var i = 0; i < CORS_PROXIES.length; i++) {
+          var px = CORS_PROXIES[i];
+          try {
+            var pRes = await _timedFetch(px.buildUrl(url), ms);
+            var pTxt = await px.extractText(pRes);
+
+            // Verifica anti-SPA: scartiamo risposte HTML
+            var pTrimmed = (pTxt || '').trim().toLowerCase();
+            if (pTrimmed.startsWith('<!doctype html') || pTrimmed.startsWith('<html')) {
+              console.warn('[RSS] ' + px.name + ' ha restituito HTML per ' + domain + ', provo il prossimo');
+              continue;
+            }
+
+            // Verifica che ci sia contenuto XML valido
+            if (!pTxt || pTxt.trim().length < 50) {
+              console.warn('[RSS] ' + px.name + ' ha restituito risposta vuota per ' + domain);
+              continue;
+            }
+
+            _domainProxyCache[domain] = i;
+            console.log('[RSS] Feed ' + domain + ' caricato via ' + px.name);
+            return resolve(new Response(pTxt));
+          } catch (pxErr) {
+            console.warn('[RSS] ' + px.name + ' fallito per ' + domain + ': ' + (pxErr.message || 'errore'));
+            // Prossimo proxy...
           }
         }
 
-        // 2. Fallback proxy CORS
-        try {
-          const proxyRes = await _timedFetch(CORS_PROXY(url), ms);
-          _corsProxyDomains.add(domain); // Ricorda per i prossimi caricamenti
-          console.log(`🔄 Feed ${domain} → proxy CORS attivato`);
-          return resolve(proxyRes);
-        } catch (proxyErr) {
-          reject(new Error('Feed non raggiungibile (CORS bloccato e proxy non disponibile)'));
-        }
-      });
-    }
-
-    function _timedFetch(url, ms) {
-      return new Promise((resolve, reject) => {
-        const ctrl = new AbortController();
-        const t = setTimeout(() => ctrl.abort(), ms);
-        fetch(url, { signal: ctrl.signal, cache: "no-store" })
-          .then(res => {
-            clearTimeout(t);
-            if (!res.ok) throw new Error("HTTP " + res.status);
-            resolve(res);
-          })
-          .catch(err => {
-            clearTimeout(t);
-            reject(err);
-          });
+        reject(new Error('Feed non raggiungibile: tutti i proxy hanno fallito per ' + domain));
       });
     }
 
