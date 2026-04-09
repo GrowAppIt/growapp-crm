@@ -896,7 +896,7 @@ window.GeneratoreHome = (function () {
       collectRssSlidersFromDOM();
       state.rssSliders.push({
         icon: 'fa-calendar-days', titleIt: '', titleEn: '', feedUrl: '', targetUrl: '', domainBase: '',
-        newLabelIt: 'NUOVO', newLabelEn: 'NEW'
+        newLabelIt: 'OGGI', newLabelEn: 'TODAY', sliderType: 'eventi'
       });
       syncRssSliderWidgets();
       refreshRssSliders();
@@ -1353,12 +1353,17 @@ window.GeneratoreHome = (function () {
           '<div><label style="font-size:12px;font-weight:600;color:#4A4A4A;">Dominio base (per immagini)</label>' +
             '<input type="text" data-rss="'+i+'" data-rfield="domainBase" value="'+esc(slider.domainBase)+'" placeholder="https://comune.digital" style="width:100%;padding:8px 10px;border:1px solid #d0d0d0;border-radius:6px;font-size:13px;box-sizing:border-box;font-family:\'Titillium Web\',sans-serif;"></div>' +
         '</div>' +
-        // Riga 4: Label tag NUOVO
-        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">' +
-          '<div><label style="font-size:12px;font-weight:600;color:#4A4A4A;">Etichetta "nuovo" (IT)</label>' +
-            '<input type="text" data-rss="'+i+'" data-rfield="newLabelIt" value="'+esc(slider.newLabelIt || 'NUOVO')+'" placeholder="NUOVO" style="width:100%;padding:8px 10px;border:1px solid #d0d0d0;border-radius:6px;font-size:13px;box-sizing:border-box;font-family:\'Titillium Web\',sans-serif;"></div>' +
-          '<div><label style="font-size:12px;font-weight:600;color:#4A4A4A;">Etichetta "nuovo" (EN)</label>' +
-            '<input type="text" data-rss="'+i+'" data-rfield="newLabelEn" value="'+esc(slider.newLabelEn || 'NEW')+'" placeholder="NEW" style="width:100%;padding:8px 10px;border:1px solid #d0d0d0;border-radius:6px;font-size:13px;box-sizing:border-box;font-family:\'Titillium Web\',sans-serif;"></div>' +
+        // Riga 4: Tipo contenuto + Label tag OGGI
+        '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">' +
+          '<div><label style="font-size:12px;font-weight:600;color:#4A4A4A;">Tipo contenuto</label>' +
+            '<select data-rss="'+i+'" data-rfield="sliderType" style="width:100%;padding:8px 10px;border:1px solid #d0d0d0;border-radius:6px;font-size:12px;font-family:\'Titillium Web\',sans-serif;">' +
+              '<option value="eventi"'+((slider.sliderType || 'eventi') === 'eventi' ? ' selected' : '')+'>Eventi (etichetta OGGI)</option>' +
+              '<option value="generico"'+((slider.sliderType) === 'generico' ? ' selected' : '')+'>Generico (nessuna etichetta)</option>' +
+            '</select></div>' +
+          '<div><label style="font-size:12px;font-weight:600;color:#4A4A4A;">Etichetta oggi (IT)</label>' +
+            '<input type="text" data-rss="'+i+'" data-rfield="newLabelIt" value="'+esc(slider.newLabelIt || 'OGGI')+'" placeholder="OGGI" style="width:100%;padding:8px 10px;border:1px solid #d0d0d0;border-radius:6px;font-size:13px;box-sizing:border-box;font-family:\'Titillium Web\',sans-serif;"></div>' +
+          '<div><label style="font-size:12px;font-weight:600;color:#4A4A4A;">Etichetta oggi (EN)</label>' +
+            '<input type="text" data-rss="'+i+'" data-rfield="newLabelEn" value="'+esc(slider.newLabelEn || 'TODAY')+'" placeholder="TODAY" style="width:100%;padding:8px 10px;border:1px solid #d0d0d0;border-radius:6px;font-size:13px;box-sizing:border-box;font-family:\'Titillium Web\',sans-serif;"></div>' +
         '</div>' +
       '</div>';
     });
@@ -3885,7 +3890,7 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
       evts.sort((a, b) => a.date - b.date);
       return evts;
     };
-    const renderSlider = (container, events, targetUrl, newLabelIt, newLabelEn) => {
+    const renderSlider = (container, events, targetUrl, newLabelIt, newLabelEn, sliderType) => {
       container.innerHTML = '';
       container.setAttribute('aria-busy', 'false');
 
@@ -3935,14 +3940,14 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
           imgCol.appendChild(ic);
         }
 
-        if (evt.isNew) {
+        if (evt.isNew && sliderType === 'eventi') {
           const tag = document.createElement('div');
           tag.className = 'rss-today-tag';
-          tag.setAttribute('data-i18n-it', newLabelIt || 'NUOVO');
-          tag.setAttribute('data-i18n-en', newLabelEn || 'NEW');
+          tag.setAttribute('data-i18n-it', newLabelIt || 'OGGI');
+          tag.setAttribute('data-i18n-en', newLabelEn || 'TODAY');
           tag.textContent = LANG === 'en'
-            ? (newLabelEn || 'NEW')
-            : (newLabelIt || 'NUOVO');
+            ? (newLabelEn || 'TODAY')
+            : (newLabelIt || 'OGGI');
           imgCol.appendChild(tag);
         }
 
@@ -3976,7 +3981,7 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
         fetchRssText(sl.feedUrl)
           .then((xml) => {
             const evts = parseRss(xml, sl.domainBase || BASE);
-            renderSlider(container, evts, sl.targetUrl, sl.newLabelIt, sl.newLabelEn);
+            renderSlider(container, evts, sl.targetUrl, sl.newLabelIt, sl.newLabelEn, sl.sliderType || 'eventi');
             try {
               localStorage.setItem(
                 cacheKey,
@@ -4007,7 +4012,7 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
                   };
                 });
                 renderSlider(container, restored, sl.targetUrl,
-                  sl.newLabelIt, sl.newLabelEn);
+                  sl.newLabelIt, sl.newLabelEn, sl.sliderType || 'eventi');
                 return;
               }
             } catch (e) {}
@@ -4031,7 +4036,7 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
             };
           });
           renderSlider(container, restored, sl.targetUrl,
-            sl.newLabelIt, sl.newLabelEn);
+            sl.newLabelIt, sl.newLabelEn, sl.sliderType || 'eventi');
         }
       } catch (e) {}
 
