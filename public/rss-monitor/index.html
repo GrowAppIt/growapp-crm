@@ -2995,6 +2995,7 @@
       window.latestPostPerFeed = latestPostPerFeed;
 
       renderStatus(statusMap);
+      populateFeedFilter();
       await renderItems(allItems);
 
       const minutes = parseInt($("autoRefresh").value);
@@ -4022,7 +4023,6 @@
       await cleanupOldItems();
 
       await loadAllFeeds();
-      populateFeedFilter();
     }
 
     // Make functions global for onclick handlers

@@ -2127,14 +2127,21 @@ const DataService = {
 
             const importoPerPeriodo = Math.round((importoAnnuale / numPeriodi) * 100) / 100;
 
-            // Raccogli TUTTE le fatture che possono corrispondere a questo contratto:
-            // 1) Fatture con contrattoId esplicito
+            // Raccogli le fatture che possono corrispondere a questo contratto:
+            // 1) Fatture con contrattoId esplicito di QUESTO contratto
             const fattureDirecte = fatturePerContratto[contratto.id] || [];
             // 2) Fatture dello stesso cliente SENZA contrattoId (match per data)
             const fattureCliente = (fatturePerCliente[contratto.clienteId] || [])
-                .filter(f => !f.contrattoId); // Solo quelle senza contrattoId (evita doppi match)
+                .filter(f => !f.contrattoId);
+            // 3) Fatture dello stesso cliente con contrattoId di ALTRI contratti
+            //    (per gestire fatture consolidate o linkate al contratto sbagliato)
+            const fattureClienteAltriContratti = (fatturePerCliente[contratto.clienteId] || [])
+                .filter(f => f.contrattoId && f.contrattoId !== contratto.id);
 
+            // Match primario: fatture dirette + senza contratto
             const tutteLeFatture = [...fattureDirecte, ...fattureCliente];
+            // Match secondario (fallback): anche fatture di altri contratti dello stesso cliente
+            const tutteLeFattureConFallback = [...tutteLeFatture, ...fattureClienteAltriContratti];
 
             // Genera solo i periodi dell'anno corrente e del prossimo
             // (non tutto lo storico — quello è già fatturato)
@@ -2177,16 +2184,24 @@ const DataService = {
                     periodoAl.setDate(periodoAl.getDate() - 1);
                     periodoAl.setHours(23, 59, 59, 999);
 
-                    // Verifica se esiste già una fattura per questo periodo
-                    // PRIORITÀ 1: match esatto tramite competenzaDal/competenzaAl
-                    // PRIORITÀ 2: fallback fuzzy per fatture senza competenza
-                    const fatturaEsistente = tutteLeFatture.some(f => {
-                        // Match esatto per competenza (se la fattura ha i campi compilati)
+                    // Verifica se esiste già una fattura per questo periodo.
+                    // La funzione _matchFatturaPeriodo controlla:
+                    //   1. Overlap di periodi competenzaDal/Al (priorità)
+                    //   2. Match competenzaDal ±5 giorni (se manca competenzaAl)
+                    //   3. Fallback fuzzy per data emissione (se manca competenza)
+                    const _matchFatturaPeriodo = (f) => {
                         if (f.competenzaDal) {
                             const fDal = new Date(f.competenzaDal);
                             fDal.setHours(0, 0, 0, 0);
-                            // La fattura copre questo periodo se il suo inizio competenza
-                            // cade nel range del periodo generato (con tolleranza ±5 giorni)
+
+                            // Se la fattura ha anche competenzaAl, usa overlap dei periodi
+                            if (f.competenzaAl) {
+                                const fAl = new Date(f.competenzaAl);
+                                fAl.setHours(23, 59, 59, 999);
+                                return fDal <= periodoAl && fAl >= periodoDal;
+                            }
+
+                            // Fallback: solo competenzaDal, usa tolleranza ±5 giorni
                             const dalMin = new Date(periodoDal);
                             dalMin.setDate(dalMin.getDate() - 5);
                             const dalMax = new Date(periodoDal);
@@ -2204,7 +2219,24 @@ const DataService = {
                         const dataMax = new Date(dataFatturazione);
                         dataMax.setDate(dataMax.getDate() + giorniFinestra);
                         return de >= dataMin && de <= dataMax;
-                    });
+                    };
+
+                    // STEP 1: Cerca tra fatture dirette (stesso contratto) e senza contratto
+                    let fatturaEsistente = tutteLeFatture.some(_matchFatturaPeriodo);
+
+                    // STEP 2: Se non trovata, cerca tra le fatture dello stesso cliente
+                    // linkate ad altri contratti (fatture consolidate o linkate per errore).
+                    // Usa SOLO overlap di periodo competenza (match rigoroso).
+                    if (!fatturaEsistente) {
+                        fatturaEsistente = fattureClienteAltriContratti.some(f => {
+                            if (!f.competenzaDal || !f.competenzaAl) return false;
+                            const fDal = new Date(f.competenzaDal);
+                            fDal.setHours(0, 0, 0, 0);
+                            const fAl = new Date(f.competenzaAl);
+                            fAl.setHours(23, 59, 59, 999);
+                            return fDal <= periodoAl && fAl >= periodoDal;
+                        });
+                    }
 
                     if (!fatturaEsistente) {
                         const periodoLabel = this._getPeriodoLabel(contratto.periodicita, i + 1, numPeriodi);

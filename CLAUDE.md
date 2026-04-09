@@ -71,6 +71,8 @@ webapp/
 - **`public/js/pages/generatore-home.js`** ← il file più importante. È il generatore della homepage del Comune. Produce HTML completi che vanno copiati in GoodBarber. **Versione attuale: v4.5.3**.
 - `public/js/pages/generatore-webapp.js` — generatore di altre webapp embedded
 - `public/js/pages/officina-digitale.js` — hub che contiene il Generatore Home come tab
+- `public/js/data-service.js` — accesso dati centralizzato, contiene `calcolaFattureDaEmettere()` (vedi sezione 9)
+- `public/js/forms.js` — form builder, contiene `_generaPeriodiContratto()` e `onContrattoSelezionato()`
 
 ---
 
@@ -325,3 +327,182 @@ npm run deploy           # PROD — chiedere prima a Giancarlo!
 
 - Nessun audit completo dei nomi di funzione "a rischio macro GoodBarber" è stato fatto sul resto del generatore. Se in futuro compaiono crash analoghi su altri widget, controllare per primi i nomi della lista in 3.1.
 - Non c'è ancora una pipeline di test automatici. La verifica si basa su `node --check` + test manuale in preview GoodBarber.
+
+---
+
+## 9. Sistema Fatturazione e Contratti
+
+Questa sezione documenta il flusso completo dalla creazione del contratto all'emissione della fattura, e l'algoritmo che calcola le fatture ancora da emettere (lo "scadenzario").
+
+### 9.1 Modello dati Firestore
+
+**Collezione `contratti`** — un documento per contratto:
+```
+{
+  id: "CTR-2026-001",
+  clienteId: "CLI-001",
+  clienteNome: "Comune di Mezzolombardo",
+  tipo: "Canone App" | "Attivazione" | "Servizio" | ...,
+  importo: 1200,                    // Importo per periodo di fatturazione
+  iva: 22,
+  stato: "attivo" | "in_attesa" | "scaduto" | "disdetto",
+  dataInizio: "2026-01-14",         // ← IMPORTANTE: data effettiva di inizio
+  dataFine: "2026-12-31",
+  periodicita: "mensile" | "bimestrale" | "trimestrale" | "semestrale" | "annuale" | "una_tantum",
+  giorniPagamento: 30,
+  note: "...",
+  createdAt: Timestamp,
+  updatedAt: Timestamp
+}
+```
+
+**Collezione `fatture`** — un documento per fattura:
+```
+{
+  id: "FAT-2026-001",
+  numero: "2026/001",               // Numero progressivo anno/seq
+  contrattoId: "CTR-2026-001",      // Riferimento al contratto
+  clienteId: "CLI-001",
+  clienteNome: "Comune di Mezzolombardo",
+  importo: 1200,
+  iva: 22,
+  totale: 1464,
+  competenzaDal: "2026-01-14",      // Inizio periodo di competenza
+  competenzaAl: "2026-02-13",       // Fine periodo di competenza
+  dataEmissione: "2026-01-14",
+  dataScadenza: "2026-02-13",
+  stato: "emessa" | "pagata" | "scaduta" | "annullata",
+  metodoPagamento: "bonifico" | "ri.ba" | ...,
+  note: "...",
+  createdAt: Timestamp
+}
+```
+
+**Collezione `contatori`** — numerazione progressiva fatture:
+```
+{
+  id: "fatture_2026",
+  valore: 42                        // Prossimo numero disponibile
+}
+```
+
+### 9.2 Flusso: creazione contratto → emissione fattura
+
+**STEP 1 — Creazione contratto** (`forms.js` linee ~2507-2645, `data-service.js` linee ~853-885):
+- L'utente compila il form contratto: cliente, tipo, importo, periodicità, data inizio, data fine
+- `DataService.createContratto()` salva su Firestore con ID auto-generato `CTR-{anno}-{seq}`
+
+**STEP 2 — Creazione fattura** (form fattura in `forms.js` linee ~1440-1600):
+- L'utente apre il form "Nuova Fattura" e seleziona un contratto
+- `onContrattoSelezionato()` (`forms.js` ~linea 1513) si attiva e:
+  1. Carica i dati del contratto
+  2. Chiama `_generaPeriodiContratto()` per ottenere tutti i periodi di fatturazione
+  3. Cerca il primo periodo non ancora coperto da fattura esistente
+  4. Pre-compila automaticamente: importo, IVA, `competenzaDal`, `competenzaAl`, `dataEmissione`, `dataScadenza`
+- L'utente conferma e salva
+
+**STEP 3 — Salvataggio fattura** (`data-service.js` linee ~1736-1786, `createFattura()`):
+- Genera numero progressivo da collezione `contatori` (operazione atomica)
+- Salva il documento fattura su Firestore
+- Aggiorna la cache locale
+
+### 9.3 Generazione periodi di fatturazione
+
+La funzione `_generaPeriodiContratto()` (`forms.js` ~linea 1603) genera tutti i periodi teorici dalla data di inizio alla data di fine del contratto, in base alla periodicità.
+
+**Logica**:
+```
+Input: contratto con dataInizio, dataFine, periodicita
+Output: array di { dal: Date, al: Date }
+
+Per ogni step di periodicità (1 mese, 2 mesi, 3 mesi, 6 mesi, 12 mesi):
+  - periodoDal = dataInizio + (step × i)    // Avanza dal mese base
+  - periodoAl  = periodoDal + step - 1 giorno
+  - Se periodoAl > dataFine → periodoAl = dataFine
+  - Se periodoDal > dataFine → stop
+```
+
+**Esempio** (contratto mensile, inizio 14/01/2026, fine 31/12/2026):
+- Periodo 1: 14/01/2026 → 13/02/2026
+- Periodo 2: 14/02/2026 → 13/03/2026
+- Periodo 3: 14/03/2026 → 13/04/2026
+- ... e così via fino a dicembre
+
+**ATTENZIONE**: I periodi NON partono dal 1° del mese ma dalla data effettiva di inizio contratto. Se il contratto parte il 14 gennaio, i periodi sono 14→13, 14→13, ecc. Questo è fondamentale per capire il matching con le fatture.
+
+### 9.4 Algoritmo `calcolaFattureDaEmettere()` — lo scadenzario
+
+Questa è la funzione critica che determina quali fatture devono ancora essere emesse. Si trova in `data-service.js` linee ~2078-2266.
+
+**Flusso dell'algoritmo**:
+
+1. **Carica tutti i contratti attivi** (stato = `attivo` o `in_attesa`)
+2. **Carica tutte le fatture** raggruppate per contratto (`fatturePerContratto`) e per cliente (`fatturePerCliente`)
+3. **Per ogni contratto**, genera i periodi teorici con la stessa logica di `_generaPeriodiContratto()`
+4. **Per ogni periodo**, cerca se esiste una fattura corrispondente
+
+**Matching fattura-periodo (v4.5.x con fix overlap + cross-contratto)**:
+
+Il matching avviene in **due step**:
+
+**STEP 1 — Match diretto** (fatture dello stesso contratto + fatture del cliente senza contratto):
+```
+tutteLeFatture = fatturePerContratto[contratto.id] + fatturePerCliente[contratto.clienteId].filter(senza contrattoId)
+```
+Per ogni fattura in `tutteLeFatture`, la funzione `_matchFatturaPeriodo` verifica:
+- Se la fattura ha `competenzaDal` E `competenzaAl` → **overlap di date**: la fattura copre il periodo se `fDal ≤ periodoAl AND fAl ≥ periodoDal`
+- Se la fattura ha solo `competenzaDal` (senza `competenzaAl`) → fallback ±5 giorni dalla data inizio periodo
+- Se la fattura non ha date di competenza → fallback fuzzy su importo + data emissione vicina
+
+**STEP 2 — Match cross-contratto** (fatture del cliente su ALTRI contratti, solo se STEP 1 non ha trovato nulla):
+```
+fattureClienteAltriContratti = fatturePerCliente[contratto.clienteId].filter(ha contrattoId diverso)
+```
+Per questo step si usa SOLO l'overlap stretto (entrambe le date presenti, `fDal ≤ periodoAl AND fAl ≥ periodoDal`). Questo copre il caso comune di clienti come Italiaonline che hanno una fattura unica che copre più contratti.
+
+5. **Se nessun match** → il periodo viene aggiunto alla lista "da emettere"
+6. **Output**: array di oggetti con contratto, importo, periodo, data emissione suggerita
+
+### 9.5 Visualizzazione nello scadenzario
+
+Lo scadenzario è visibile in due punti:
+- **Dashboard** (`dashboard.js`): widget riassuntivo con conteggio e importo totale
+- **Pagina Scadenzario** (`scadenzario.js`): lista dettagliata filtrata per mese
+- **Dettaglio Contratto** (`dettaglio-contratto.js` ~linea 443, `renderScadenze`): mostra le prossime scadenze per quel singolo contratto
+
+La funzione `getScadenzeCompute()` (`data-service.js` ~linea 2272) converte l'output di `calcolaFattureDaEmettere()` nel formato atteso dalle pagine UI.
+
+### 9.6 Bug risolto (aprile 2026) e lezione appresa
+
+**Problema**: il CRM continuava a mostrare fatture "da emettere" per periodi già coperti da fattura. Numero falsi positivi: 77 fatture "fantasma".
+
+**Causa 1 — Matching per tolleranza anziché overlap** (77→71, -6):
+La logica originale confrontava `competenzaDal` della fattura con la data inizio del periodo generato, con tolleranza ±5 giorni. Ma se il contratto inizia il 14 e la fattura è stata emessa con competenza dal 1° del mese, la differenza è 13 giorni → non matchava.
+
+**Fix**: sostituito il confronto ±5 giorni con **overlap di periodi** (`fDal ≤ periodoAl AND fAl ≥ periodoDal`). Due intervalli si sovrappongono se e solo se ciascuno inizia prima che l'altro finisca.
+
+**Causa 2 — Fatture cross-contratto ignorate** (71→53, -18):
+Alcuni clienti (in particolare Italiaonline) emettono una fattura unica che copre più contratti dello stesso cliente. La fattura è associata a `contrattoId = CTR-2026-120` ma deve coprire anche `CTR-2026-115`, `CTR-2026-118`, ecc. La logica originale guardava solo le fatture dello stesso `contrattoId`.
+
+**Fix**: aggiunto STEP 2 di matching che cerca anche tra le fatture dello stesso `clienteId` ma di altri contratti, usando overlap stretto (entrambe le date presenti).
+
+**Risultato finale**: da 77 falsi positivi a 53 fatture effettivamente da emettere.
+
+**LEZIONE PER IL FUTURO**:
+- **Mai usare tolleranza a giorni fissi** per matching periodi: usare sempre overlap di date
+- **Considerare sempre le fatture cross-contratto**: un cliente può avere una fattura consolidata che copre più contratti
+- Per diagnosticare problemi di fatturazione, iniettare JS direttamente nella pagina CRM via Claude in Chrome per confrontare i dati Firestore con l'output dell'algoritmo
+
+### 9.7 File e funzioni chiave del sistema fatturazione
+
+| File | Funzione/Sezione | Cosa fa |
+|------|------------------|---------|
+| `data-service.js` ~L853 | `createContratto()` | Crea contratto su Firestore |
+| `data-service.js` ~L1736 | `createFattura()` | Crea fattura con numero progressivo |
+| `data-service.js` ~L2078 | `calcolaFattureDaEmettere()` | Algoritmo scadenzario (genera periodi + matching) |
+| `data-service.js` ~L2272 | `getScadenzeCompute()` | Converte output per UI scadenzario |
+| `forms.js` ~L1513 | `onContrattoSelezionato()` | Auto-fill form fattura da contratto |
+| `forms.js` ~L1603 | `_generaPeriodiContratto()` | Genera periodi teorici da contratto |
+| `dettaglio-contratto.js` ~L443 | `renderScadenze()` | Mostra scadenze nel dettaglio contratto |
+| `dashboard.js` | Widget scadenzario | Conteggio e importo totale da emettere |
+| `scadenzario.js` | Pagina Scadenzario | Lista dettagliata per mese |

@@ -1,6 +1,6 @@
 {
   "name": "crm-comune-digital",
-  "version": "4.5.11",
+  "version": "4.5.12",
   "description": "CRM Comune.Digital – Gestione completa clienti, contratti, app, fatture e homepage generator",
   "main": "index.html",
   "scripts": {
