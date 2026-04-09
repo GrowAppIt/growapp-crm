@@ -3882,7 +3882,7 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
         });
       }
 
-      evts.sort((a, b) => b.date - a.date);
+      evts.sort((a, b) => a.date - b.date);
       return evts;
     };
     const renderSlider = (container, events, targetUrl, newLabelIt, newLabelEn) => {
