@@ -15,7 +15,7 @@
  * v4.5.6 – Restyle card RSS Slider: card più alte (200px vs 130px) e un po' più strette, immagine più larga (140px vs 115px) per mostrare meglio le fotografie. Body con padding uniforme 18px, testo allineato in alto a sinistra (justify-content flex-start), gap 10px tra data e titolo, titolo fino a 4 righe, spazio più ariosi in tutto il widget (header 18/26, gap tra card 16). Responsive <380px: card 275x186 con immagine 120px.
  * v4.5.7 – Card RSS Slider ancora più grandi: 320x240 (vs 305x200), colonna immagine 160px (vs 140), padding body 20px, gap 12px, font-size titolo 1.08rem, line-clamp 5 righe, border-radius 18px, ombra 12/30. Responsive <380px: 290x220 con immagine 135px.
  * v4.5.8 – Tracking pubblicazione homepage: aggiunto sistema per segnare quando una homepage è stata pubblicata su GoodBarber. Box stato con pulsante "Segna come pubblicato" nella sezione Configurazioni Salvate, indicatore visivo nel dropdown (✅ pubblicato / ⏳ in attesa), dati pubblicazione persistiti su Firestore (pubblicato, ultimaPubblicazione, pubblicatoDa). saveConfig e autoSave usano merge:true per non sovrascrivere i dati pubblicazione.
- * v4.5.9 – Fix immagini RSS Slider per feed rss.app (es. pagine Facebook): (A) aggiunto supporto al tag <media:content> nella catena di estrazione immagini del runtime RSS — i feed GoodBarber usano <media:thumbnail>, ma rss.app e molti aggregatori usano <media:content medium="image">; (B) creato proxy immagini server-side /api/image-proxy.js per bypassare la protezione hotlink di Facebook CDN (scontent-*.fbcdn.net) che restituisce 403 quando le immagini vengono caricate da un dominio diverso da facebook.com. Le immagini da domini protetti vengono automaticamente instradate attraverso il proxy CRM.
+ * v4.5.9 – Fix immagini RSS Slider per feed rss.app (es. pagine Facebook): (A) aggiunto supporto al tag <media:content> nella catena di estrazione immagini del runtime RSS — i feed GoodBarber usano <media:thumbnail>, ma rss.app e molti aggregatori usano <media:content medium="image">; (B) le immagini da Facebook CDN (scontent-*.fbcdn.net) vengono automaticamente instradate attraverso images.weserv.nl, un servizio di cache/proxy immagini che bypassa la protezione hotlink di Meta (token firmati temporanei che causano 403 sia in hotlinking diretto sia tramite proxy server-side). Creato anche /api/image-proxy.js come utility di backup per altri domini protetti.
  * Si integra nel CRM come sezione dell'Officina Digitale.
  */
 window.GeneratoreHome = (function () {
@@ -3867,15 +3867,18 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
     ];
 
     // Domini immagine con protezione hotlink: Facebook CDN, Instagram, ecc.
-    // Per queste immagini usiamo il proxy server-side /api/image-proxy
-    const HOTLINK_DOMAINS = ['.fbcdn.net', '.facebook.com', '.cdninstagram.com', '.instagram.com'];
-    const proxyImageSrc = (imgSrc) => {
+    // Facebook blocca sia il hotlinking diretto sia i proxy server-side
+    // (URL firmati con token temporanei). Usiamo images.weserv.nl, un
+    // servizio di cache/proxy immagini gratuito e stabile che gestisce
+    // specificamente il CDN di Facebook/Meta.
+    var HOTLINK_DOMAINS = ['.fbcdn.net', '.facebook.com', '.cdninstagram.com', '.instagram.com'];
+    var proxyImageSrc = function(imgSrc) {
       if (!imgSrc) return imgSrc;
       try {
         var h = (new URL(imgSrc)).hostname.toLowerCase();
         for (var di = 0; di < HOTLINK_DOMAINS.length; di++) {
           if (h.endsWith(HOTLINK_DOMAINS[di]) || h === HOTLINK_DOMAINS[di].replace(/^\./, '')) {
-            return 'https://crm.comune.digital/api/image-proxy?url=' + encodeURIComponent(imgSrc);
+            return 'https://images.weserv.nl/?url=' + encodeURIComponent(imgSrc) + '&w=400&q=80';
           }
         }
       } catch (e) {}
