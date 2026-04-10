@@ -4059,7 +4059,6 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
         if (evt.image) {
           const imgEl = document.createElement('img');
           imgEl.setAttribute('referrerpolicy', 'no-referrer');
-          imgEl.setAttribute('crossorigin', 'anonymous');
           imgEl.src = evt.image;
           imgEl.alt = evt.title;
           imgEl.loading = 'lazy';
