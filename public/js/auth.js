@@ -307,6 +307,7 @@ const AuthService = {
             'monitor-rss': ['*', 'view_all_data', 'manage_apps', 'manage_app_content'], // Monitor RSS: NO agenti (esclusi view_clients, manage_clients che ha l'agente)
             'report-app': ['*', 'view_all_data', 'view_apps', 'manage_apps', 'manage_app_content'],
             'push-broadcast': ['*', 'view_all_data', 'manage_apps'],
+            'storico-push': ['*', 'view_all_data', 'manage_apps'],
             'aggiorna-push': ['*', 'view_all_data', 'manage_apps'],
             'generatore-webapp': ['*', 'manage_webapp_templates'],
             'officina-digitale': ['*', 'view_officina_digitale', 'manage_officina_digitale'],
