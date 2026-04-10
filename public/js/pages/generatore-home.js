@@ -14,6 +14,7 @@
  * v4.5.5 – Fix RSS Slider eventi in GoodBarber "menù custom": il fetch same-origin verso /syndication/<feed>/ veniva intercettato dal Service Worker dell'app GoodBarber e restituiva la SPA shell HTML con HTTP 404; tutti e 3 i CORS proxy pubblici (allorigins, corsproxy.io, codetabs) ormai falliscono per limiti free / blocchi UA. Aggiunto come PRIMA scelta della catena fetch un proxy RSS server-side ospitato sul CRM (https://crm.comune.digital/api/rss-proxy?url=...), che bypassa il SW (è cross-origin) e usa un User-Agent browser-like per evitare i blocchi. Verificato in preview Mezzolombardo che senza proxy CRM tutti i fetch falliscono.
  * v4.5.6 – Restyle card RSS Slider: card più alte (200px vs 130px) e un po' più strette, immagine più larga (140px vs 115px) per mostrare meglio le fotografie. Body con padding uniforme 18px, testo allineato in alto a sinistra (justify-content flex-start), gap 10px tra data e titolo, titolo fino a 4 righe, spazio più ariosi in tutto il widget (header 18/26, gap tra card 16). Responsive <380px: card 275x186 con immagine 120px.
  * v4.5.7 – Card RSS Slider ancora più grandi: 320x240 (vs 305x200), colonna immagine 160px (vs 140), padding body 20px, gap 12px, font-size titolo 1.08rem, line-clamp 5 righe, border-radius 18px, ombra 12/30. Responsive <380px: 290x220 con immagine 135px.
+ * v4.5.8 – Tracking pubblicazione homepage: aggiunto sistema per segnare quando una homepage è stata pubblicata su GoodBarber. Box stato con pulsante "Segna come pubblicato" nella sezione Configurazioni Salvate, indicatore visivo nel dropdown (✅ pubblicato / ⏳ in attesa), dati pubblicazione persistiti su Firestore (pubblicato, ultimaPubblicazione, pubblicatoDa). saveConfig e autoSave usano merge:true per non sovrascrivere i dati pubblicazione.
  * Si integra nel CRM come sezione dell'Officina Digitale.
  */
 window.GeneratoreHome = (function () {
@@ -437,7 +438,15 @@ window.GeneratoreHome = (function () {
         '</div>' +
       '</div>' +
       '<button type="button" id="ghBtnSaveConfig" style="background:#145284;color:#fff;border:none;padding:12px 20px;border-radius:8px;font-weight:700;font-size:14px;cursor:pointer;font-family:\'Titillium Web\',sans-serif;width:100%;"><i class="fas fa-save"></i> Salva Configurazione</button>' +
-      '<div style="display:flex;align-items:center;justify-content:center;gap:6px;margin-top:6px;"><i class="fas fa-sync-alt" style="font-size:10px;color:#9B9B9B;"></i><span id="ghAutoSaveStatus" style="font-size:11px;color:#9B9B9B;font-family:\'Titillium Web\',sans-serif;">Auto-save attivo</span></div>',
+      '<div style="display:flex;align-items:center;justify-content:center;gap:6px;margin-top:6px;"><i class="fas fa-sync-alt" style="font-size:10px;color:#9B9B9B;"></i><span id="ghAutoSaveStatus" style="font-size:11px;color:#9B9B9B;font-family:\'Titillium Web\',sans-serif;">Auto-save attivo</span></div>' +
+      '<div id="ghPubblicazioneBox" style="margin-top:16px;padding:14px 16px;border-radius:10px;background:#F5F5F5;border:1px solid #D9D9D9;display:none;">' +
+        '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">' +
+          '<div id="ghPubblicazioneStato" style="font-family:\'Titillium Web\',sans-serif;font-size:13px;color:#4A4A4A;">' +
+            '<i class="fas fa-circle" style="font-size:9px;margin-right:6px;color:#9B9B9B;"></i> Stato pubblicazione sconosciuto' +
+          '</div>' +
+          '<button type="button" id="ghBtnPubblica" style="background:#3CA434;color:#fff;border:none;padding:8px 16px;border-radius:8px;font-weight:600;font-size:13px;cursor:pointer;font-family:\'Titillium Web\',sans-serif;white-space:nowrap;"><i class="fas fa-cloud-upload-alt"></i> Segna come pubblicato</button>' +
+        '</div>' +
+      '</div>',
       false
     );
 
@@ -1040,6 +1049,7 @@ window.GeneratoreHome = (function () {
       if (sel && sel.value) deleteConfig(sel.value);
       else alert('Seleziona una configurazione');
     });
+    document.getElementById('ghBtnPubblica')?.addEventListener('click', markAsPublished);
 
     // === AUTO-SAVE (ogni 60 secondi, silenzioso) ===
     let autoSaveTimer = null;
@@ -1062,7 +1072,7 @@ window.GeneratoreHome = (function () {
           nomeComune: state.nomeComune,
           updatedAt: new Date(),
           createdBy: userEmail
-        });
+        }, { merge: true });
         autoSaveDirty = false;
         if (autoSaveIndicator) {
           autoSaveIndicator.textContent = 'Salvato ' + new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
@@ -1797,9 +1807,16 @@ window.GeneratoreHome = (function () {
       snap.forEach(doc => docs.push(doc));
       docs.sort((a, b) => a.id.localeCompare(b.id, 'it'));
       docs.forEach(doc => {
+        const data = doc.data();
         const opt = document.createElement('option');
         opt.value = doc.id;
-        opt.textContent = doc.id;
+        var label = doc.id;
+        if (data.pubblicato) {
+          label = '\u2705 ' + label;  // ✅ emoji verde
+        } else {
+          label = '\u23F3 ' + label;  // ⏳ emoji clessidra
+        }
+        opt.textContent = label;
         sel.appendChild(opt);
       });
     } catch (err) {
@@ -1821,7 +1838,7 @@ window.GeneratoreHome = (function () {
         nomeComune: state.nomeComune,
         updatedAt: timestamp,
         createdBy: userEmail
-      });
+      }, { merge: true });
       alert('Configurazione salvata!');
       await loadConfigList();
     } catch (err) {
@@ -1859,9 +1876,17 @@ window.GeneratoreHome = (function () {
           state.slideshowVerticale = getDefaultState().slideshowVerticale;
         }
         populateForm();
+        // Traccia il docId corrente e mostra stato pubblicazione
+        currentLoadedDocId = docId;
+        updatePubblicazioneUI({
+          pubblicato: !!data.pubblicato,
+          ultimaPubblicazione: data.ultimaPubblicazione || null
+        });
         alert('Configurazione caricata!');
       } else {
         alert('Configurazione non trovata');
+        currentLoadedDocId = null;
+        updatePubblicazioneUI(null);
       }
     } catch (err) {
       console.error('Error loading config:', err);
@@ -1880,6 +1905,80 @@ window.GeneratoreHome = (function () {
     } catch (err) {
       console.error('Error deleting config:', err);
       alert('Errore durante l\'eliminazione: ' + err.message);
+    }
+  }
+
+  /* ============================================================
+     PUBBLICAZIONE: UI + LOGICA
+     ============================================================ */
+
+  // Variabile per tenere traccia del docId attualmente caricato
+  var currentLoadedDocId = null;
+
+  function updatePubblicazioneUI(data) {
+    var box = document.getElementById('ghPubblicazioneBox');
+    var statoEl = document.getElementById('ghPubblicazioneStato');
+    if (!box || !statoEl) return;
+
+    if (!data) {
+      // Nessuna config caricata
+      box.style.display = 'none';
+      return;
+    }
+
+    box.style.display = 'block';
+
+    if (data.pubblicato) {
+      var dataStr = '—';
+      if (data.ultimaPubblicazione) {
+        var d = data.ultimaPubblicazione;
+        // Gestisce sia Date JS sia Firestore Timestamp
+        if (d.toDate) d = d.toDate();
+        else if (typeof d === 'string') d = new Date(d);
+        dataStr = d.toLocaleDateString('it-IT', { day: '2-digit', month: 'long', year: 'numeric' }) +
+                  ' alle ' + d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+      }
+      statoEl.innerHTML =
+        '<i class="fas fa-check-circle" style="font-size:11px;margin-right:6px;color:#3CA434;"></i>' +
+        '<strong style="color:#3CA434;">Pubblicato</strong>' +
+        '<span style="margin-left:8px;color:#4A4A4A;">— ultima pubblicazione: ' + dataStr + '</span>';
+      box.style.background = '#E2F8DE';
+      box.style.borderColor = '#A4E89A';
+    } else {
+      statoEl.innerHTML =
+        '<i class="fas fa-times-circle" style="font-size:11px;margin-right:6px;color:#FFCC00;"></i>' +
+        '<strong style="color:#856404;">Non ancora pubblicato</strong>';
+      box.style.background = '#fff3cd';
+      box.style.borderColor = '#ffc107';
+    }
+  }
+
+  async function markAsPublished() {
+    if (!isFirebaseAvailable()) { alert('Firebase non disponibile'); return; }
+    if (!currentLoadedDocId) { alert('Carica prima una configurazione!'); return; }
+    if (!confirm('Confermi che questa homepage è stata pubblicata su GoodBarber?')) return;
+
+    try {
+      var db = firebase.firestore();
+      var now = new Date();
+      var userEmail = (typeof AuthService !== 'undefined' && AuthService.getUserEmail) ? AuthService.getUserEmail() : 'unknown';
+      await db.collection('generatore-home-configs').doc(currentLoadedDocId).set({
+        pubblicato: true,
+        ultimaPubblicazione: now,
+        pubblicatoDa: userEmail
+      }, { merge: true });
+
+      updatePubblicazioneUI({ pubblicato: true, ultimaPubblicazione: now });
+      // Aggiorna il dropdown per mostrare il pallino verde
+      await loadConfigList();
+      // Ri-seleziona la config corrente nel dropdown
+      var sel = document.getElementById('ghConfigSelect');
+      if (sel) sel.value = currentLoadedDocId;
+
+      alert('Homepage segnata come pubblicata!');
+    } catch (err) {
+      console.error('Errore markAsPublished:', err);
+      alert('Errore: ' + err.message);
     }
   }
 
