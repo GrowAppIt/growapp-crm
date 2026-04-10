@@ -15,6 +15,7 @@
  * v4.5.6 – Restyle card RSS Slider: card più alte (200px vs 130px) e un po' più strette, immagine più larga (140px vs 115px) per mostrare meglio le fotografie. Body con padding uniforme 18px, testo allineato in alto a sinistra (justify-content flex-start), gap 10px tra data e titolo, titolo fino a 4 righe, spazio più ariosi in tutto il widget (header 18/26, gap tra card 16). Responsive <380px: card 275x186 con immagine 120px.
  * v4.5.7 – Card RSS Slider ancora più grandi: 320x240 (vs 305x200), colonna immagine 160px (vs 140), padding body 20px, gap 12px, font-size titolo 1.08rem, line-clamp 5 righe, border-radius 18px, ombra 12/30. Responsive <380px: 290x220 con immagine 135px.
  * v4.5.8 – Tracking pubblicazione homepage: aggiunto sistema per segnare quando una homepage è stata pubblicata su GoodBarber. Box stato con pulsante "Segna come pubblicato" nella sezione Configurazioni Salvate, indicatore visivo nel dropdown (✅ pubblicato / ⏳ in attesa), dati pubblicazione persistiti su Firestore (pubblicato, ultimaPubblicazione, pubblicatoDa). saveConfig e autoSave usano merge:true per non sovrascrivere i dati pubblicazione.
+ * v4.5.9 – Fix immagini RSS Slider per feed rss.app (es. pagine Facebook): aggiunto supporto al tag <media:content> nella catena di estrazione immagini del runtime RSS. I feed GoodBarber usano <media:thumbnail>, ma rss.app e molti aggregatori (Facebook, YouTube, podcast) usano <media:content medium="image">. La catena di ricerca è ora: media:thumbnail → media:content → enclosure → img in description.
  * Si integra nel CRM come sezione dell'Officina Digitale.
  */
 window.GeneratoreHome = (function () {
@@ -3951,6 +3952,24 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
           const mt = it.getElementsByTagName('media:thumbnail')[0] || it.getElementsByTagName('thumbnail')[0];
           if (mt) imgUrl = mt.getAttribute('url');
         } catch (e) {}
+
+        if (!imgUrl) {
+          try {
+            var mcAll = it.getElementsByTagName('media:content');
+            for (var mi = 0; mi < mcAll.length; mi++) {
+              var mcMed = mcAll[mi].getAttribute('medium');
+              var mcType = mcAll[mi].getAttribute('type') || '';
+              var mcUrl = mcAll[mi].getAttribute('url');
+              if (mcUrl && (mcMed === 'image' || mcType.indexOf('image') === 0)) {
+                imgUrl = mcUrl;
+                break;
+              }
+            }
+            if (!imgUrl && mcAll.length > 0 && mcAll[0].getAttribute('url')) {
+              imgUrl = mcAll[0].getAttribute('url');
+            }
+          } catch (e) {}
+        }
 
         if (!imgUrl) {
           try {
