@@ -17,6 +17,7 @@
  * v4.5.8 – Tracking pubblicazione homepage: aggiunto sistema per segnare quando una homepage è stata pubblicata su GoodBarber. Box stato con pulsante "Segna come pubblicato" nella sezione Configurazioni Salvate, indicatore visivo nel dropdown (✅ pubblicato / ⏳ in attesa), dati pubblicazione persistiti su Firestore (pubblicato, ultimaPubblicazione, pubblicatoDa). saveConfig e autoSave usano merge:true per non sovrascrivere i dati pubblicazione.
  * v4.5.9 – Fix immagini RSS Slider per feed rss.app (es. pagine Facebook): (A) aggiunto supporto al tag <media:content> nella catena di estrazione immagini del runtime RSS — i feed GoodBarber usano <media:thumbnail>, ma rss.app e molti aggregatori usano <media:content medium="image">; (B) fix hotlink protection Facebook CDN: le immagini vengono caricate con referrerpolicy="no-referrer" e crossorigin="anonymous" per bypassare il blocco Referer di Meta; se fallisce, retry automatico tramite images.weserv.nl come proxy cache. Creato anche /api/image-proxy.js come utility di backup.
  * v4.5.10 – Fix CRITICO pagina bianca in GoodBarber "menù custom": il costruttore "new URL(imgSrc)" introdotto in v4.5.9 per la hotlink protection veniva intercettato dal preprocessor di GB che matcha qualunque "URL(" (case-insensitive) come macro di sistema, sostituendolo con un URL hardcoded contenente "//" (commento JS) → SyntaxError fatale a livello di parsing, intero script non eseguito, pagina bianca. Sostituito con document.createElement('a').hostname per estrarre l'hostname senza usare il costruttore URL.
+ * v4.5.11 – Rimossa TUTTA la hotlink protection aggiunta in v4.5.9 (HOTLINK_DOMAINS, isHotlinkProtected, weserv.nl proxy retry, referrerpolicy). Funzionalita' abbandonata. Contiene anche regex con backslash (replace(/^\\./) e endsWith) che il preprocessor GB potrebbe corrompere. Ripristinato error handler immagini semplice (nascondi + fallback icona). Mantenuto supporto <media:content> per feed rss.app (safe).
  * Si integra nel CRM come sezione dell'Officina Digitale.
  */
 window.GeneratoreHome = (function () {
@@ -3867,31 +3868,6 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
         + encodeURIComponent(u),
     ];
 
-    // Domini immagine con protezione hotlink: Facebook CDN, Instagram, ecc.
-    // Strategia: (1) caricare direttamente con referrerpolicy=no-referrer
-    // (senza Referer header i CDN social lasciano passare l'immagine);
-    // (2) se fallisce, riprovare tramite images.weserv.nl come proxy cache.
-    var HOTLINK_DOMAINS = ['.fbcdn.net', '.facebook.com', '.cdninstagram.com', '.instagram.com'];
-    // NB: NON usare "new URL()" — il preprocessor di GoodBarber "menù custom"
-    // matcha qualunque identificatore che termina in url/Url (case-insensitive)
-    // seguito da "(" e lo sostituisce con un URL hardcoded contenente "//",
-    // che diventa un commento JS → SyntaxError fatale a livello di parsing.
-    // Workaround: estrarre l'hostname tramite un elemento <a> del DOM.
-    var isHotlinkProtected = function(imgSrc) {
-      if (!imgSrc) return false;
-      try {
-        var tmpAnchor = document.createElement('a');
-        tmpAnchor.href = imgSrc;
-        var h = (tmpAnchor.hostname || '').toLowerCase();
-        for (var di = 0; di < HOTLINK_DOMAINS.length; di++) {
-          if (h.endsWith(HOTLINK_DOMAINS[di]) || h === HOTLINK_DOMAINS[di].replace(/^\./, '')) {
-            return true;
-          }
-        }
-      } catch (e) {}
-      return false;
-    };
-
     const fetchWithTimeout = (target, ms) => {
       let ctrl, sig;
       if (typeof AbortController !== 'undefined') {
@@ -4066,22 +4042,13 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
 
         if (evt.image) {
           const imgEl = document.createElement('img');
-          imgEl.setAttribute('referrerpolicy', 'no-referrer');
           imgEl.src = evt.image;
           imgEl.alt = evt.title;
           imgEl.loading = 'lazy';
           const fb = document.createElement('i');
           fb.className = 'fa-regular fa-image rss-fallback-icon';
           fb.style.display = 'none';
-          var triedProxy = false;
           imgEl.addEventListener('error', () => {
-            // Se il caricamento diretto fallisce e l'immagine e' da un
-            // dominio protetto, riprova tramite weserv.nl come proxy
-            if (!triedProxy && isHotlinkProtected(evt.image)) {
-              triedProxy = true;
-              imgEl.src = 'https://images.weserv.nl/?url=' + encodeURIComponent(evt.image) + '&w=400&q=80';
-              return;
-            }
             imgEl.style.display = 'none';
             fb.style.display = 'flex';
           });
