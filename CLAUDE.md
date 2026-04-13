@@ -68,7 +68,7 @@ webapp/
 ```
 
 ### File chiave su cui Claude lavora di solito
-- **`public/js/pages/generatore-home.js`** ← il file più importante. È il generatore della homepage del Comune. Produce HTML completi che vanno copiati in GoodBarber. **Versione attuale: v4.5.3**.
+- **`public/js/pages/generatore-home.js`** ← il file più importante. È il generatore della homepage del Comune. Produce HTML completi che vanno copiati in GoodBarber. **Versione attuale: v4.5.10**.
 - `public/js/pages/generatore-webapp.js` — generatore di altre webapp embedded
 - `public/js/pages/officina-digitale.js` — hub che contiene il Generatore Home come tab
 - `public/js/data-service.js` — accesso dati centralizzato, contiene `calcolaFattureDaEmettere()` (vedi sezione 9)
@@ -113,6 +113,8 @@ Più widget dinamici aggiunti dall'utente: `rssSlider_*`, `bannerCustom_*`.
 - v4.5.3 — Tentativo 1 fix macro `apiUrl` → rinominata in `buildMeteoUrl` (NON è bastato: GB matcha qualunque suffisso `*url`/`*Url`)
 - v4.5.4 — **Fix DEFINITIVO macro `*url(`**: rimossa funzione `buildMeteoUrl()`, endpoint inlinato come variabile `meteoEndpoint` dentro `loadMeteo()` (vedi sezione 3.1)
 - v4.5.5 — **Fix RSS Slider eventi in menù custom**: il fetch verso `/syndication/<feed>/` veniva intercettato dal Service Worker dell'app GoodBarber e ritornava la SPA shell HTML 404; tutti e 3 i CORS proxy pubblici (allorigins, corsproxy.io, codetabs) ormai falliscono per limiti free / blocchi UA. Aggiunto come PRIMA scelta della catena fetch il proxy server-side `/api/rss-proxy.js` sul CRM, che bypassa il SW (è cross-origin) e usa un User-Agent browser-like. Vedi sezione 3.4.
+- v4.5.6–v4.5.9 — Restyle card RSS Slider (più grandi), tracking pubblicazione homepage, supporto `<media:content>` per feed rss.app, hotlink protection Facebook CDN
+- v4.5.10 — **Fix CRITICO pagina bianca**: `new URL(imgSrc)` introdotto in v4.5.9 veniva matchato dal preprocessor GB come macro `URL(` → SyntaxError fatale → pagina bianca. Sostituito con `document.createElement('a').hostname`. Vedi sezione 3.1.
 
 ---
 
@@ -150,6 +152,17 @@ fetchJSON(buildMeteourl(https://mezzolombardo.comune.digital/apiv3/root/scratch/
 ```
 
 **IMPORTANTE — Le VARIABILI sono safe**: `var miniMeteoUrl = '...'; fetch(miniMeteoUrl)` sopravvive intatto. La trasformazione GB scatta SOLO quando c'è `(` subito dopo l'identificatore. Quindi una variabile usata come argomento (`fetch(miniMeteoUrl)`) è OK.
+
+**ATTENZIONE — Anche `new URL()` è a rischio**: il costruttore nativo `new URL(imgSrc)` contiene il pattern `URL(` che il preprocessor GB matcha case-insensitively. Bug confermato in v4.5.9→v4.5.10 (pagina bianca su Valledolmo). **Workaround**: estrarre l'hostname usando `document.createElement('a')`:
+```js
+// ❌ PERICOLOSO — "new URL(" → preprocessor lo trasforma in macro
+var h = (new URL(imgSrc)).hostname;
+
+// ✅ SAFE — nessun pattern *url( nel codice
+var tmpAnchor = document.createElement('a');
+tmpAnchor.href = imgSrc;
+var h = (tmpAnchor.hostname || '').toLowerCase();
+```
 
 **Workaround in v4.5.4**: rimuovere del tutto la funzione `buildMeteoUrl()` e costruire l'endpoint INLINE dentro `loadMeteo()` come variabile locale (`var meteoEndpoint = ...`). Pattern raccomandato per qualunque costruzione di URL:
 

@@ -16,6 +16,7 @@
  * v4.5.7 – Card RSS Slider ancora più grandi: 320x240 (vs 305x200), colonna immagine 160px (vs 140), padding body 20px, gap 12px, font-size titolo 1.08rem, line-clamp 5 righe, border-radius 18px, ombra 12/30. Responsive <380px: 290x220 con immagine 135px.
  * v4.5.8 – Tracking pubblicazione homepage: aggiunto sistema per segnare quando una homepage è stata pubblicata su GoodBarber. Box stato con pulsante "Segna come pubblicato" nella sezione Configurazioni Salvate, indicatore visivo nel dropdown (✅ pubblicato / ⏳ in attesa), dati pubblicazione persistiti su Firestore (pubblicato, ultimaPubblicazione, pubblicatoDa). saveConfig e autoSave usano merge:true per non sovrascrivere i dati pubblicazione.
  * v4.5.9 – Fix immagini RSS Slider per feed rss.app (es. pagine Facebook): (A) aggiunto supporto al tag <media:content> nella catena di estrazione immagini del runtime RSS — i feed GoodBarber usano <media:thumbnail>, ma rss.app e molti aggregatori usano <media:content medium="image">; (B) fix hotlink protection Facebook CDN: le immagini vengono caricate con referrerpolicy="no-referrer" e crossorigin="anonymous" per bypassare il blocco Referer di Meta; se fallisce, retry automatico tramite images.weserv.nl come proxy cache. Creato anche /api/image-proxy.js come utility di backup.
+ * v4.5.10 – Fix CRITICO pagina bianca in GoodBarber "menù custom": il costruttore "new URL(imgSrc)" introdotto in v4.5.9 per la hotlink protection veniva intercettato dal preprocessor di GB che matcha qualunque "URL(" (case-insensitive) come macro di sistema, sostituendolo con un URL hardcoded contenente "//" (commento JS) → SyntaxError fatale a livello di parsing, intero script non eseguito, pagina bianca. Sostituito con document.createElement('a').hostname per estrarre l'hostname senza usare il costruttore URL.
  * Si integra nel CRM come sezione dell'Officina Digitale.
  */
 window.GeneratoreHome = (function () {
@@ -3871,10 +3872,17 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
     // (senza Referer header i CDN social lasciano passare l'immagine);
     // (2) se fallisce, riprovare tramite images.weserv.nl come proxy cache.
     var HOTLINK_DOMAINS = ['.fbcdn.net', '.facebook.com', '.cdninstagram.com', '.instagram.com'];
+    // NB: NON usare "new URL()" — il preprocessor di GoodBarber "menù custom"
+    // matcha qualunque identificatore che termina in url/Url (case-insensitive)
+    // seguito da "(" e lo sostituisce con un URL hardcoded contenente "//",
+    // che diventa un commento JS → SyntaxError fatale a livello di parsing.
+    // Workaround: estrarre l'hostname tramite un elemento <a> del DOM.
     var isHotlinkProtected = function(imgSrc) {
       if (!imgSrc) return false;
       try {
-        var h = (new URL(imgSrc)).hostname.toLowerCase();
+        var tmpAnchor = document.createElement('a');
+        tmpAnchor.href = imgSrc;
+        var h = (tmpAnchor.hostname || '').toLowerCase();
         for (var di = 0; di < HOTLINK_DOMAINS.length; di++) {
           if (h.endsWith(HOTLINK_DOMAINS[di]) || h === HOTLINK_DOMAINS[di].replace(/^\./, '')) {
             return true;
