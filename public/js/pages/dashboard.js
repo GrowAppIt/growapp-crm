@@ -1526,6 +1526,11 @@ const Dashboard = {
                 // Helper per riga fattura
                 const _renderRigaFatt = (f, isSospesa) => {
                     const giorni = Math.abs(Math.ceil((new Date(f.dataScadenza) - new Date()) / (1000 * 60 * 60 * 24)));
+                    const residuo = _calcolaResiduo(f);
+                    const isParziale = f.statoPagamento === 'PARZIALMENTE_PAGATA';
+                    const importoLabel = isParziale
+                        ? DataService.formatCurrency(residuo) + ' <span style="font-size:0.75rem;font-weight:400;color:var(--grigio-500);">su ' + DataService.formatCurrency(f.importoTotale) + '</span>'
+                        : DataService.formatCurrency(f.importoTotale);
                     return `
                         <div class="list-item fattScad-item ${isSospesa ? 'fattScad-sospesa' : ''}" style="cursor:pointer;${isSospesa ? 'display:none;border-left:3px solid #FF9800;background:#FFFAF0;' : ''}" onclick="UI.showPage('dettaglio-fattura','${f.id}')">
                             <div style="display:flex;justify-content:space-between;align-items:center;gap:1rem;">
@@ -1533,11 +1538,11 @@ const Dashboard = {
                                     <div style="font-weight:600;color:var(--grigio-900);">
                                         ${isSospesa ? '<i class="fas fa-pause-circle" style="color:#FF9800;margin-right:4px;font-size:0.85rem;"></i>' : ''}${f.clienteRagioneSociale || 'N/A'}
                                     </div>
-                                    <div style="font-size:0.8rem;color:var(--grigio-500);">${f.numeroFatturaCompleto || f.numeroFattura || 'Fattura'} • Scadenza: ${DataService.formatDate(f.dataScadenza)} • ${f.statoPagamento === 'PARZIALMENTE_PAGATA' ? 'Parz. pagata' : 'Non pagata'}${isSospesa ? ' • <span style="color:#FF9800;font-weight:600;">Credito sospeso</span>' : ''}</div>
+                                    <div style="font-size:0.8rem;color:var(--grigio-500);">${f.numeroFatturaCompleto || f.numeroFattura || 'Fattura'} • Scadenza: ${DataService.formatDate(f.dataScadenza)} • ${isParziale ? 'Parz. pagata' : 'Non pagata'}${isSospesa ? ' • <span style="color:#FF9800;font-weight:600;">Credito sospeso</span>' : ''}</div>
                                 </div>
                                 <div style="text-align:right;flex-shrink:0;">
                                     <span class="badge badge-danger">${giorni}gg fa</span>
-                                    <div style="font-size:1rem;font-weight:700;color:${isSospesa ? '#FF9800' : '#D32F2F'};margin-top:0.25rem;">${DataService.formatCurrency(f.importoTotale)}</div>
+                                    <div style="font-size:1rem;font-weight:700;color:${isSospesa ? '#FF9800' : '#D32F2F'};margin-top:0.25rem;">${importoLabel}</div>
                                 </div>
                             </div>
                         </div>`;
@@ -2804,7 +2809,7 @@ const Dashboard = {
         }
         if (fattureScadute.length > 0) {
             const importo = fattureScadute.reduce((s, f) => {
-                if (f.stato === 'PARZIALMENTE_PAGATA' && f.acconti && f.acconti.length > 0) {
+                if (f.statoPagamento === 'PARZIALMENTE_PAGATA' && f.acconti && f.acconti.length > 0) {
                     const totAcconti = f.acconti.reduce((sum, a) => sum + (a.importo || 0), 0);
                     return s + Math.max(0, (f.importoTotale || 0) - totAcconti);
                 }
@@ -2925,13 +2930,22 @@ const Dashboard = {
         ordinate.forEach(f => {
             const scaduta = f.dataScadenza && new Date(f.dataScadenza) < oggi;
             const nomeCliente = clienteMap[f.clienteId] || f.clienteRagioneSociale || 'N/D';
+            const isParziale = f.statoPagamento === 'PARZIALMENTE_PAGATA';
+            let residuo = f.importoTotale || 0;
+            if (isParziale) {
+                const totAcconti = (f.acconti || []).reduce((s, a) => s + (a.importo || 0), 0);
+                residuo = Math.max(0, (f.importoTotale || 0) - totAcconti);
+            }
+            const importoLabel = isParziale
+                ? DataService.formatCurrency(residuo) + ' <span style="font-size:0.75rem;font-weight:400;color:var(--grigio-500);">su ' + DataService.formatCurrency(f.importoTotale) + '</span>'
+                : DataService.formatCurrency(f.importoTotale);
             righe += `<div style="display: flex; justify-content: space-between; align-items: center; padding: 0.6rem 0.5rem; border-bottom: 1px solid var(--grigio-100); ${scaduta ? 'background: #FFF3F3; border-radius: 6px; margin-bottom: 2px;' : ''}">
                 <div style="flex: 1;">
                     <a href="#" onclick="UI.showPage('dettaglio-fattura', '${f.id}')" style="color: var(--blu-700); text-decoration: none; font-weight: 600; font-size: 0.9rem;">${f.numeroFattura || f.numeroFatturaCompleto || 'N/D'}</a>
-                    <div style="font-size: 0.8rem; color: var(--grigio-500);">${nomeCliente} • Scad. ${DataService.formatDate(f.dataScadenza)}</div>
+                    <div style="font-size: 0.8rem; color: var(--grigio-500);">${nomeCliente} • Scad. ${DataService.formatDate(f.dataScadenza)}${isParziale ? ' • Parz. pagata' : ''}</div>
                 </div>
                 <div style="text-align: right;">
-                    <div style="font-weight: 700; color: ${scaduta ? '#D32F2F' : 'var(--grigio-700)'};">${DataService.formatCurrency(f.importoTotale)}</div>
+                    <div style="font-weight: 700; color: ${scaduta ? '#D32F2F' : 'var(--grigio-700)'};">${importoLabel}</div>
                     ${scaduta ? '<span class="badge badge-danger" style="font-size: 0.7rem;">SCADUTA</span>' : ''}
                 </div>
             </div>`;

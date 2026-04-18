@@ -684,7 +684,13 @@ const Report = {
                     score: Math.min(score, 100),
                     dettagli,
                     fattureNonPagate: numNonPagate,
-                    importoNonPagato: fattureNonPagate.reduce((s, f) => s + (f.importoTotale || 0), 0)
+                    importoNonPagato: fattureNonPagate.reduce((s, f) => {
+                        if (f.statoPagamento === 'PARZIALMENTE_PAGATA') {
+                            const totAcconti = (f.acconti || []).reduce((sa, a) => sa + (a.importo || 0), 0);
+                            return s + Math.max(0, (f.importoTotale || 0) - totAcconti);
+                        }
+                        return s + (f.importoTotale || 0);
+                    }, 0)
                 });
             }
         });
@@ -1232,8 +1238,14 @@ const Report = {
         const numeroFatture = fattureFiltrate.filter(f => f.tipoDocumento !== 'NOTA_DI_CREDITO' && !(f.numeroFatturaCompleto || '').startsWith('NC-')).length;
         const ticketMedio = numeroFatture > 0 ? fatturatoTotale / numeroFatture : 0;
         const daIncassare = fattureFiltrate
-            .filter(f => f.statoPagamento === 'NON_PAGATA' && f.tipoDocumento !== 'NOTA_DI_CREDITO')
-            .reduce((sum, f) => sum + (f.importoTotale || 0), 0);
+            .filter(f => (f.statoPagamento === 'NON_PAGATA' || f.statoPagamento === 'PARZIALMENTE_PAGATA') && f.tipoDocumento !== 'NOTA_DI_CREDITO')
+            .reduce((sum, f) => {
+                if (f.statoPagamento === 'PARZIALMENTE_PAGATA') {
+                    const totAcconti = (f.acconti || []).reduce((s, a) => s + (a.importo || 0), 0);
+                    return sum + Math.max(0, (f.importoTotale || 0) - totAcconti);
+                }
+                return sum + (f.importoTotale || 0);
+            }, 0);
 
         // Top clienti
         const fatturatoPerCliente = {};
