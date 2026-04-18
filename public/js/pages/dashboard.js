@@ -137,9 +137,9 @@ const Dashboard = {
             const contrattiScaduti = contrattiTutti.filter(c => c.stato === 'SCADUTO')
                 .sort((a, b) => new Date(a.dataScadenza || 0) - new Date(b.dataScadenza || 0));
 
-            // Fatture scadute (filtro in memoria) — include anche PARZIALMENTE_PAGATA
+            // Fatture scadute (filtro in memoria) — include anche PARZIALMENTE_PAGATA, esclude NC
             const fattureScadute = fatture.filter(f =>
-                (f.statoPagamento === 'NON_PAGATA' || f.statoPagamento === 'PARZIALMENTE_PAGATA') && f.dataScadenza && new Date(f.dataScadenza) < oggi
+                (f.statoPagamento === 'NON_PAGATA' || f.statoPagamento === 'PARZIALMENTE_PAGATA') && f.dataScadenza && new Date(f.dataScadenza) < oggi && f.tipoDocumento !== 'NOTA_DI_CREDITO'
             );
 
             // Fatture in scadenza (filtro in memoria) — include anche PARZIALMENTE_PAGATA
@@ -671,14 +671,21 @@ const Dashboard = {
     },
 
     renderFattureNonPagate(fattureScadute) {
-        // Calcola saldo residuo: per PARZIALMENTE_PAGATA sottrai gli acconti
-        const totaleScaduto = fattureScadute.reduce((sum, f) => {
+        // Helper: calcola saldo residuo per singola fattura
+        const _residuo = (f) => {
             if (f.statoPagamento === 'PARZIALMENTE_PAGATA') {
                 const totAcconti = (f.acconti || []).reduce((s, a) => s + (a.importo || 0), 0);
-                return sum + Math.max(0, (f.importoTotale || 0) - totAcconti);
+                return Math.max(0, (f.importoTotale || 0) - totAcconti);
             }
-            return sum + (f.importoTotale || 0);
-        }, 0);
+            return f.importoTotale || 0;
+        };
+        const _isSospeso = (f) => f.creditoSospeso === true || f.creditoSospeso === 'true';
+
+        // Separa normali da crediti sospesi (coerente con KPI card)
+        const fattureNormali = fattureScadute.filter(f => !_isSospeso(f));
+        const fattureSospese = fattureScadute.filter(f => _isSospeso(f));
+        const totaleNormali = fattureNormali.reduce((sum, f) => sum + _residuo(f), 0);
+        const totaleSospese = fattureSospese.reduce((sum, f) => sum + _residuo(f), 0);
 
         return `
             <div class="card fade-in">
@@ -690,14 +697,15 @@ const Dashboard = {
                 <div class="card-body">
                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr)); gap: 1.5rem;">
                         <div class="stat-box">
-                            <div class="stat-value">${fattureScadute.length}</div>
+                            <div class="stat-value">${fattureNormali.length}</div>
                             <div class="stat-label">Fatture</div>
                         </div>
                         <div class="stat-box">
-                            <div class="stat-value">${DataService.formatCurrency(totaleScaduto)}</div>
+                            <div class="stat-value">${DataService.formatCurrency(totaleNormali)}</div>
                             <div class="stat-label">Totale</div>
                         </div>
                     </div>
+                    ${fattureSospese.length > 0 ? '<p style="font-size: 0.75rem; color: #FF9800; margin-top: 0.75rem; text-align: center;"><i class="fas fa-pause-circle"></i> + ' + fattureSospese.length + ' in sospeso (' + DataService.formatCurrency(totaleSospese) + ') escluse dal totale</p>' : ''}
                     <div style="text-align: center; margin-top: 1.5rem;">
                         <button class="btn btn-primary btn-sm" onclick="UI.showPage('scadenzario')">
                             <i class="fas fa-calendar-alt"></i> Vedi scadenzario
@@ -899,10 +907,10 @@ const Dashboard = {
                         </div>
                     </div>
 
-                    <!-- Da incassare -->
+                    <!-- Crediti aperti -->
                     <div style="padding: 1rem 1.25rem; border-bottom: 1px solid var(--grigio-300);">
                         <div style="font-size: 0.8rem; color: var(--grigio-700); font-weight: 500; margin-bottom: 0.25rem;">
-                            <i class="fas fa-clock" style="color: var(--rosso-errore); width: 18px;"></i> Da incassare (totale)
+                            <i class="fas fa-clock" style="color: var(--rosso-errore); width: 18px;"></i> Crediti aperti (scaduti + a scadere)
                         </div>
                         <span style="font-size: 1.5rem; font-weight: 700; color: ${metrics.daIncassare > 0 ? 'var(--rosso-errore)' : 'var(--verde-700)'};">
                             ${DataService.formatCurrency(metrics.daIncassare)}
@@ -1328,12 +1336,12 @@ const Dashboard = {
             }));
         }
 
-        // Fatturato da Incassare — SOLO ruoli amministrativi
+        // Scaduto da incassare — SOLO ruoli amministrativi
         if (!_isTecnicoKPI && (AuthService.hasPermission('manage_invoices') || AuthService.hasPermission('view_invoices'))) {
             kpiCards.push(UI.createKPICard({
                 icon: 'euro-sign',
                 iconClass: 'danger',
-                label: 'Fatturato da Incassare',
+                label: 'Scaduto da Incassare',
                 value: DataService.formatCurrency(fatturatoScaduto),
                 onclick: 'Dashboard.mostraDettaglioKPI("fatturatoScaduto")'
             }));
@@ -1521,7 +1529,7 @@ const Dashboard = {
 
                 const totaleNormali = itemsNormali.reduce((sum, f) => sum + _calcolaResiduo(f), 0);
                 const totaleSospese = itemsSospeseFatt.reduce((sum, f) => sum + _calcolaResiduo(f), 0);
-                titolo = `Fatturato da Incassare — ${itemsNormali.length} fatture • Totale: ${DataService.formatCurrency(totaleNormali)}`;
+                titolo = `Scaduto da Incassare — ${itemsNormali.length} fatture • Totale: ${DataService.formatCurrency(totaleNormali)}`;
 
                 // Helper per riga fattura
                 const _renderRigaFatt = (f, isSospesa) => {
