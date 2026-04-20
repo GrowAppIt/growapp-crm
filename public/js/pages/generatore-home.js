@@ -18,6 +18,7 @@
  * v4.5.9 – Fix immagini RSS Slider per feed rss.app (es. pagine Facebook): (A) aggiunto supporto al tag <media:content> nella catena di estrazione immagini del runtime RSS — i feed GoodBarber usano <media:thumbnail>, ma rss.app e molti aggregatori usano <media:content medium="image">; (B) fix hotlink protection Facebook CDN: le immagini vengono caricate con referrerpolicy="no-referrer" e crossorigin="anonymous" per bypassare il blocco Referer di Meta; se fallisce, retry automatico tramite images.weserv.nl come proxy cache. Creato anche /api/image-proxy.js come utility di backup.
  * v4.5.10 – Fix CRITICO pagina bianca in GoodBarber "menù custom": il costruttore "new URL(imgSrc)" introdotto in v4.5.9 per la hotlink protection veniva intercettato dal preprocessor di GB che matcha qualunque "URL(" (case-insensitive) come macro di sistema, sostituendolo con un URL hardcoded contenente "//" (commento JS) → SyntaxError fatale a livello di parsing, intero script non eseguito, pagina bianca. Sostituito con document.createElement('a').hostname per estrarre l'hostname senza usare il costruttore URL.
  * v4.5.11 – Rimossa TUTTA la hotlink protection aggiunta in v4.5.9 (HOTLINK_DOMAINS, isHotlinkProtected, weserv.nl proxy retry, referrerpolicy). Funzionalita' abbandonata. Contiene anche regex con backslash (replace(/^\\./) e endsWith) che il preprocessor GB potrebbe corrompere. Ripristinato error handler immagini semplice (nascondi + fallback icona). Mantenuto supporto <media:content> per feed rss.app (safe).
+ * v4.6.0 – (1) Editor CRM: aggiunto drag & drop + frecce su/giu per riordinare gli elementi di lista: servizi dentro una sezione (widget Servizi), card dentro un gruppo (Banner Personalizzabili), pulsanti dello Slideshow Verticale. Modifica interna all'editor, NON tocca l'HTML emesso: zero rischio preprocessor GoodBarber. (2) Banner Personalizzabili: rimosso l'effetto "patina bianca" sulle immagini. Quando una card ha sia immagine sia testo, l'immagine viene mostrata a piena area, a colori, senza grayscale (prima era opacity:.05 + filter:grayscale(100%)); il testo resta leggibile con titolo bianco + text-shadow scuro e kicker/CTA con alta leggibilita'. Il link della card resta cliccabile su tutta l'area. Se la card ha solo immagine senza testo, comportamento invariato.
  * Si integra nel CRM come sezione dell'Officina Digitale.
  */
 window.GeneratoreHome = (function () {
@@ -1157,6 +1158,116 @@ window.GeneratoreHome = (function () {
   }
 
   /* ============================================================
+     HELPER: DRAG & DROP RIORDINO ELEMENTI LISTA (solo editor CRM)
+     Usato per riordinare servizi/banner cards/pulsanti SV.
+     NON finisce nell'HTML emesso a GoodBarber: nessun rischio preprocessor.
+     ============================================================ */
+  function ghInjectReorderStyles() {
+    if (document.getElementById('gh-reorder-styles')) return;
+    var st = document.createElement('style');
+    st.id = 'gh-reorder-styles';
+    st.textContent = [
+      '.gh-reorder-row{transition:box-shadow .15s ease,transform .15s ease;}',
+      '.gh-reorder-row.is-dragging{opacity:.55;box-shadow:0 6px 20px rgba(20,82,132,.28);transform:scale(.99);}',
+      '.gh-reorder-row.drop-above{box-shadow:0 -3px 0 0 #145284 inset,0 4px 12px rgba(20,82,132,.18);}',
+      '.gh-reorder-row.drop-below{box-shadow:0 3px 0 0 #145284 inset,0 4px 12px rgba(20,82,132,.18);}',
+      '.gh-reorder-toolbar{display:inline-flex;align-items:center;gap:4px;margin-right:8px;vertical-align:middle;}',
+      '.gh-reorder-handle{cursor:grab;background:#eef3f8;color:#145284;border:1px solid #c9d6e3;border-radius:6px;padding:3px 7px;font-size:12px;line-height:1;user-select:none;}',
+      '.gh-reorder-handle:active{cursor:grabbing;background:#D1E2F2;}',
+      '.gh-reorder-arrow{background:#fff;color:#145284;border:1px solid #c9d6e3;border-radius:6px;padding:3px 6px;font-size:11px;line-height:1;cursor:pointer;}',
+      '.gh-reorder-arrow:hover:not(:disabled){background:#D1E2F2;}',
+      '.gh-reorder-arrow:disabled{opacity:.4;cursor:not-allowed;}'
+    ].join('');
+    document.head.appendChild(st);
+  }
+
+  // Markup standard della toolbar (handle + frecce). Ritorna stringa HTML.
+  function ghReorderToolbarHTML(isFirst, isLast) {
+    return '<span class="gh-reorder-toolbar">' +
+      '<button type="button" class="gh-reorder-handle" data-reorder-handle title="Trascina per riordinare"><i class="fas fa-grip-vertical"></i></button>' +
+      '<button type="button" class="gh-reorder-arrow" data-reorder-up title="Sposta su"' + (isFirst ? ' disabled' : '') + '><i class="fas fa-arrow-up"></i></button>' +
+      '<button type="button" class="gh-reorder-arrow" data-reorder-down title="Sposta giu"' + (isLast ? ' disabled' : '') + '><i class="fas fa-arrow-down"></i></button>' +
+    '</span>';
+  }
+
+  // Attiva drag&drop + frecce su una lista di .gh-reorder-row dentro scopeEl.
+  //   scopeEl: contenitore DOM (tipicamente la sezione/gruppo)
+  //   getArr:  funzione che ritorna l'array da riordinare (stesso ordine dei DOM elements)
+  //   onChange: callback chiamata dopo un riordino (tipicamente refresh di UI)
+  function ghReorderableInit(scopeEl, getArr, onChange) {
+    ghInjectReorderStyles();
+    if (!scopeEl) return;
+    var rows = Array.prototype.slice.call(scopeEl.querySelectorAll(':scope > .gh-reorder-row'));
+    rows.forEach(function(row, idx) {
+      // Frecce
+      var up = row.querySelector('[data-reorder-up]');
+      var down = row.querySelector('[data-reorder-down]');
+      if (up) {
+        up.addEventListener('click', function() {
+          var arr = getArr();
+          if (!arr || idx <= 0) return;
+          var tmp = arr[idx - 1]; arr[idx - 1] = arr[idx]; arr[idx] = tmp;
+          onChange();
+        });
+      }
+      if (down) {
+        down.addEventListener('click', function() {
+          var arr = getArr();
+          if (!arr || idx >= arr.length - 1) return;
+          var tmp = arr[idx + 1]; arr[idx + 1] = arr[idx]; arr[idx] = tmp;
+          onChange();
+        });
+      }
+
+      // Drag & drop: si attiva solo da handle per evitare di interferire con input/select
+      var handle = row.querySelector('[data-reorder-handle]');
+      if (handle) {
+        handle.addEventListener('mousedown', function() { row.setAttribute('draggable', 'true'); });
+        handle.addEventListener('touchstart', function() { row.setAttribute('draggable', 'true'); }, { passive: true });
+      }
+      row.addEventListener('dragstart', function(ev) {
+        try { ev.dataTransfer.setData('text/plain', String(idx)); } catch(e){}
+        if (ev.dataTransfer) ev.dataTransfer.effectAllowed = 'move';
+        row.classList.add('is-dragging');
+      });
+      row.addEventListener('dragend', function() {
+        row.classList.remove('is-dragging');
+        row.removeAttribute('draggable');
+        rows.forEach(function(r){ r.classList.remove('drop-above','drop-below'); });
+      });
+      row.addEventListener('dragover', function(ev) {
+        ev.preventDefault();
+        if (ev.dataTransfer) ev.dataTransfer.dropEffect = 'move';
+        var rect = row.getBoundingClientRect();
+        var above = (ev.clientY - rect.top) < (rect.height / 2);
+        row.classList.toggle('drop-above', above);
+        row.classList.toggle('drop-below', !above);
+      });
+      row.addEventListener('dragleave', function() {
+        row.classList.remove('drop-above', 'drop-below');
+      });
+      row.addEventListener('drop', function(ev) {
+        ev.preventDefault();
+        row.classList.remove('drop-above', 'drop-below');
+        var fromStr = ev.dataTransfer ? ev.dataTransfer.getData('text/plain') : '';
+        var from = parseInt(fromStr, 10);
+        if (isNaN(from) || from === idx) return;
+        var arr = getArr();
+        if (!arr || from < 0 || from >= arr.length) return;
+        var rect = row.getBoundingClientRect();
+        var above = (ev.clientY - rect.top) < (rect.height / 2);
+        var moved = arr.splice(from, 1)[0];
+        var to = above ? idx : idx + 1;
+        if (from < idx) to--;
+        if (to < 0) to = 0;
+        if (to > arr.length) to = arr.length;
+        arr.splice(to, 0, moved);
+        onChange();
+      });
+    });
+  }
+
+  /* ============================================================
      DYNAMIC FORM – SLIDESHOW VERTICALE
      ============================================================ */
   function refreshSvSlides(skipCollect) {
@@ -1198,9 +1309,14 @@ window.GeneratoreHome = (function () {
     const iconOpts = FA_ICONS.map(ic => '<option value="'+esc(ic.v)+'">'+esc(ic.v)+' — '+esc(ic.l)+'</option>').join('');
     let html = '';
     sv.buttons.forEach((b, i) => {
-      html += '<div style="background:#f8f9fa;border:1px solid #e0e0e0;border-radius:10px;padding:14px;margin-bottom:10px;position:relative;">' +
+      const isFirstSv = (i === 0);
+      const isLastSv = (i === sv.buttons.length - 1);
+      html += '<div class="gh-reorder-row" style="background:#f8f9fa;border:1px solid #e0e0e0;border-radius:10px;padding:14px;margin-bottom:10px;position:relative;">' +
         '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">' +
-          '<strong style="color:#145284;font-size:13px;"><i class="fas fa-circle-dot"></i> Pulsante '+(i+1)+'</strong>' +
+          '<div style="display:flex;align-items:center;">' +
+            (sv.buttons.length > 1 ? ghReorderToolbarHTML(isFirstSv, isLastSv) : '') +
+            '<strong style="color:#145284;font-size:13px;"><i class="fas fa-circle-dot"></i> Pulsante '+(i+1)+'</strong>' +
+          '</div>' +
           (sv.buttons.length > 1 ? '<button type="button" data-remove-sv-btn="'+i+'" style="background:#D32F2F;color:#fff;border:none;padding:4px 10px;border-radius:6px;font-size:12px;cursor:pointer;font-weight:700;"><i class="fas fa-trash"></i></button>' : '') +
         '</div>' +
         '<div style="margin-bottom:8px;"><label style="font-size:12px;font-weight:600;color:#4A4A4A;">Icona</label>' +
@@ -1222,6 +1338,11 @@ window.GeneratoreHome = (function () {
         sv.buttons.splice(idx, 1);
         refreshSvButtons();
       });
+    });
+    // Drag & drop + frecce per riordinare i pulsanti SV
+    ghReorderableInit(c, function(){ return state.slideshowVerticale.buttons; }, function(){
+      collectSvFromDOM();
+      refreshSvButtons(true);
     });
   }
 
@@ -1454,6 +1575,9 @@ window.GeneratoreHome = (function () {
         (state.bannerGroups.length > 1 ? '<button type="button" data-remove-bgrp="'+gi+'" style="background:#D32F2F;color:#fff;border:none;padding:4px 10px;border-radius:6px;font-size:12px;cursor:pointer;font-weight:700;"><i class="fas fa-trash"></i></button>' : '') +
       '</div>';
 
+      // Wrapper delle card: serve come scope per il drag&drop (una lista per gruppo)
+      html += '<div class="gh-bcards-wrap" data-bcards-wrap="'+gi+'">';
+
       // Items dentro il gruppo
       group.items.forEach((item, ii) => {
         let iconOpts = '';
@@ -1465,9 +1589,15 @@ window.GeneratoreHome = (function () {
           ctaOpts += '<option value="'+ic.v+'"'+(item.ctaIcon === ic.v ? ' selected' : '')+'>'+ic.l+'</option>';
         });
 
-        html += '<div class="gh-banner-card" style="background:#fff;border:1px solid #e0e0e0;border-radius:8px;padding:12px;margin-bottom:8px;position:relative;">' +
+        const isFirstBc = (ii === 0);
+        const isLastBc = (ii === group.items.length - 1);
+
+        html += '<div class="gh-banner-card gh-reorder-row" style="background:#fff;border:1px solid #e0e0e0;border-radius:8px;padding:12px;margin-bottom:8px;position:relative;">' +
           '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">' +
-            '<strong style="color:#145284;font-size:13px;"><i class="fas '+esc(item.icon)+'"></i> Card '+(ii+1)+'</strong>' +
+            '<div style="display:flex;align-items:center;">' +
+              (group.items.length > 1 ? ghReorderToolbarHTML(isFirstBc, isLastBc) : '') +
+              '<strong style="color:#145284;font-size:13px;"><i class="fas '+esc(item.icon)+'"></i> Card '+(ii+1)+'</strong>' +
+            '</div>' +
             (group.items.length > 1 ? '<button type="button" data-remove-bcard="'+gi+'-'+ii+'" style="background:#D32F2F;color:#fff;border:none;padding:4px 8px;border-radius:4px;font-size:11px;cursor:pointer;font-weight:700;"><i class="fas fa-trash"></i></button>' : '') +
           '</div>' +
           '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:6px;">' +
@@ -1497,6 +1627,7 @@ window.GeneratoreHome = (function () {
         '</div>';
       });
 
+      html += '</div>'; // chiude .gh-bcards-wrap
       html += '<button type="button" data-add-bcard="'+gi+'" style="background:none;color:#145284;border:1px dashed #145284;padding:6px 12px;border-radius:4px;font-size:11px;cursor:pointer;font-weight:600;margin-top:4px;font-family:\'Titillium Web\',sans-serif;"><i class="fas fa-plus"></i> Aggiungi Card (max 4)</button>';
       html += '</div>';
     });
@@ -1535,6 +1666,17 @@ window.GeneratoreHome = (function () {
         } else {
           alert('Massimo 4 card per banner!');
         }
+      });
+    });
+
+    // Drag & drop + frecce per riordinare le card dentro ciascun gruppo banner
+    c.querySelectorAll('[data-bcards-wrap]').forEach(wrap => {
+      const gi = parseInt(wrap.getAttribute('data-bcards-wrap'));
+      ghReorderableInit(wrap, function(){
+        return (state.bannerGroups[gi] && state.bannerGroups[gi].items) || [];
+      }, function(){
+        collectBannerGroupsFromDOM();
+        refreshBannerGroups(true);
       });
     });
   }
@@ -1664,11 +1806,18 @@ window.GeneratoreHome = (function () {
         '<div><label style="font-size:12px;font-weight:600;color:#4A4A4A;">Nome Sezione IT</label><input type="text" data-sez="'+si+'" data-sez-field="sectionIt" value="'+esc(sec.sectionIt)+'" style="width:100%;padding:8px 10px;border:1px solid #d0d0d0;border-radius:6px;font-size:13px;box-sizing:border-box;font-family:\'Titillium Web\',sans-serif;"></div>' +
         '<div><label style="font-size:12px;font-weight:600;color:#4A4A4A;">Nome Sezione EN</label><input type="text" data-sez="'+si+'" data-sez-field="sectionEn" value="'+esc(sec.sectionEn)+'" style="width:100%;padding:8px 10px;border:1px solid #d0d0d0;border-radius:6px;font-size:13px;box-sizing:border-box;font-family:\'Titillium Web\',sans-serif;"></div>' +
       '</div>';
+      // Wrapper degli items: scope per il drag&drop (uno per sezione)
+      html += '<div class="gh-servizi-items-wrap" data-servizi-wrap="'+si+'">';
       // Items
       sec.items.forEach((it, ii) => {
-        html += '<div style="background:#fff;border:1px solid #e0e0e0;border-radius:8px;padding:12px;margin-bottom:8px;">' +
+        const isFirstIt = (ii === 0);
+        const isLastIt = (ii === sec.items.length - 1);
+        html += '<div class="gh-reorder-row" style="background:#fff;border:1px solid #e0e0e0;border-radius:8px;padding:12px;margin-bottom:8px;">' +
           '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">' +
-            '<span style="font-size:12px;font-weight:600;color:#9B9B9B;">Servizio '+(ii+1)+'</span>' +
+            '<div style="display:flex;align-items:center;">' +
+              (sec.items.length > 1 ? ghReorderToolbarHTML(isFirstIt, isLastIt) : '') +
+              '<span style="font-size:12px;font-weight:600;color:#9B9B9B;">Servizio '+(ii+1)+'</span>' +
+            '</div>' +
             (sec.items.length > 1 ? '<button type="button" data-remove-item="'+si+'-'+ii+'" style="background:none;color:#D32F2F;border:none;font-size:12px;cursor:pointer;font-weight:700;"><i class="fas fa-times"></i></button>' : '') +
           '</div>' +
           '<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;">' +
@@ -1680,6 +1829,7 @@ window.GeneratoreHome = (function () {
             '<div><label style="font-size:11px;font-weight:600;color:#4A4A4A;">Link</label><input type="text" data-item="'+si+'-'+ii+'" data-item-field="href" value="'+esc(it.href)+'" style="width:100%;padding:6px 8px;border:1px solid #d0d0d0;border-radius:6px;font-size:12px;box-sizing:border-box;font-family:\'Titillium Web\',sans-serif;"></div>' +
           '</div></div>';
       });
+      html += '</div>'; // chiude .gh-servizi-items-wrap
       html += '<button type="button" data-add-item="'+si+'" style="background:none;color:#3CA434;border:1px dashed #3CA434;padding:6px 14px;border-radius:6px;font-size:12px;cursor:pointer;font-weight:700;margin-top:4px;font-family:\'Titillium Web\',sans-serif;"><i class="fas fa-plus"></i> Aggiungi Servizio</button>';
       html += '</div>';
     });
@@ -1707,6 +1857,17 @@ window.GeneratoreHome = (function () {
         const si = parseInt(e.currentTarget.getAttribute('data-add-item'));
         state.servizi[si].items.push({ icon: 'fa-gears', labelIt: '', labelEn: '', href: '' });
         refreshServizi();
+      });
+    });
+
+    // Drag & drop + frecce per riordinare i servizi dentro ciascuna sezione
+    c.querySelectorAll('[data-servizi-wrap]').forEach(wrap => {
+      const si = parseInt(wrap.getAttribute('data-servizi-wrap'));
+      ghReorderableInit(wrap, function(){
+        return (state.servizi[si] && state.servizi[si].items) || [];
+      }, function(){
+        collectServiziFromDOM();
+        refreshServizi(true);
       });
     });
   }
@@ -2672,8 +2833,11 @@ rssapp-ticker a{margin-right:50px!important;display:inline-block!important;color
 .bc-container{position:relative;width:100%;overflow:hidden;box-shadow:var(--shadow-md);min-height:clamp(110px,26vw,170px);isolation:isolate;background:#fff;border:1px solid rgba(0,0,0,.06);}
 .bc-slide{position:absolute;inset:0;opacity:0;visibility:hidden;transition:opacity .5s ease,visibility .5s ease;display:grid;place-items:center start;}
 .bc-slide.active{opacity:1;visibility:visible;}
-.bc-slide::before{content:"";position:absolute;inset:0;background-image:var(--bg-image,none);background-size:cover;background-position:center;opacity:.05;z-index:0;pointer-events:none;filter:grayscale(100%);}
+.bc-slide::before{content:"";position:absolute;inset:0;background-image:var(--bg-image,none);background-size:cover;background-position:center;opacity:1;z-index:0;pointer-events:none;}
 .bc-slide:has(.bc-slide-img-only)::before{display:none;}
+.bc-slide.bc-has-bg .bc-title{color:#fff;text-shadow:0 2px 10px rgba(0,0,0,.6),0 1px 2px rgba(0,0,0,.45);}
+.bc-slide.bc-has-bg .bc-kicker{background:rgba(255,255,255,.92);color:var(--blu);border-color:rgba(255,255,255,.95);box-shadow:0 4px 14px rgba(0,0,0,.25);}
+.bc-slide.bc-has-bg .bc-cta{box-shadow:0 6px 20px rgba(0,0,0,.35);}
 .bc-slide-img-only{display:block;width:100%;height:100%;position:absolute;inset:0;padding:0!important;}
 .bc-slide-img-only img{width:100%;height:100%;object-fit:cover;display:block;}
 .bc-slide-link{z-index:1;color:var(--blu);text-decoration:none;display:flex;align-items:center;justify-content:space-between;gap:.8rem;padding:clamp(12px,3vw,20px) clamp(14px,4vw,24px);width:100%;height:100%;}
@@ -2696,6 +2860,8 @@ rssapp-ticker a{margin-right:50px!important;display:inline-block!important;color
 [data-theme="dark"] .bc-slide-link{color:var(--cd-blue-700);}
 [data-theme="dark"] .bc-kicker{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.15);color:var(--cd-blue-500);}
 [data-theme="dark"] .bc-title{color:var(--cd-blue-500);text-shadow:none;}
+[data-theme="dark"] .bc-slide.bc-has-bg .bc-title{color:#fff;text-shadow:0 2px 10px rgba(0,0,0,.7),0 1px 2px rgba(0,0,0,.5);}
+[data-theme="dark"] .bc-slide.bc-has-bg .bc-kicker{background:rgba(255,255,255,.9);color:var(--cd-blue-700);border-color:rgba(255,255,255,.95);}
 
 [data-theme="dark"] .bc-dots{background:rgba(30,30,30,.6);border-color:rgba(255,255,255,.1);}
 .w-banner-notifiche{width:100%;max-width:900px;margin:0 auto;}
@@ -3389,7 +3555,8 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
             : BASE + '/' + it.bgImage)
           : '';
         const hasText = it.kicker || it.titleIt;
-        slidesH += '<div class="bc-slide' + (i === 0 ? ' active' : '') + '" '
+        const hasBgClass = (bg && hasText) ? ' bc-has-bg' : '';
+        slidesH += '<div class="bc-slide' + (i === 0 ? ' active' : '') + hasBgClass + '" '
           + 'data-title="' + esc(it.kicker || it.titleIt || 'Banner') + '"'
           + (bg ? ' style="--bg-image:url(' + "'" + esc(bg) + "'" + ')"' : '') + '>';
 
