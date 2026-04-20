@@ -19,6 +19,7 @@
  * v4.5.10 – Fix CRITICO pagina bianca in GoodBarber "menù custom": il costruttore "new URL(imgSrc)" introdotto in v4.5.9 per la hotlink protection veniva intercettato dal preprocessor di GB che matcha qualunque "URL(" (case-insensitive) come macro di sistema, sostituendolo con un URL hardcoded contenente "//" (commento JS) → SyntaxError fatale a livello di parsing, intero script non eseguito, pagina bianca. Sostituito con document.createElement('a').hostname per estrarre l'hostname senza usare il costruttore URL.
  * v4.5.11 – Rimossa TUTTA la hotlink protection aggiunta in v4.5.9 (HOTLINK_DOMAINS, isHotlinkProtected, weserv.nl proxy retry, referrerpolicy). Funzionalita' abbandonata. Contiene anche regex con backslash (replace(/^\\./) e endsWith) che il preprocessor GB potrebbe corrompere. Ripristinato error handler immagini semplice (nascondi + fallback icona). Mantenuto supporto <media:content> per feed rss.app (safe).
  * v4.6.0 – (1) Editor CRM: aggiunto drag & drop + frecce su/giu per riordinare gli elementi di lista: servizi dentro una sezione (widget Servizi), card dentro un gruppo (Banner Personalizzabili), pulsanti dello Slideshow Verticale. Modifica interna all'editor, NON tocca l'HTML emesso: zero rischio preprocessor GoodBarber. Fix interno pre-rilascio: l'ordine delle operazioni di riordino era errato (swap array eseguito PRIMA del collectFromDOM, quindi i valori degli input venivano risalvati nelle posizioni gia scambiate, annullando lo swap). Corretto introducendo un callback beforeReorder che esegue collectFromDOM PRIMA di qualsiasi modifica all'array (swap frecce o splice drag&drop). (2) Banner Personalizzabili: rimosso l'effetto "patina bianca" sulle immagini. Quando una card ha sia immagine sia testo, l'immagine viene mostrata a piena area, a colori, senza grayscale (prima era opacity:.05 + filter:grayscale(100%)); il testo resta leggibile con titolo bianco + text-shadow scuro e kicker/CTA con alta leggibilita'. Il link della card resta cliccabile su tutta l'area. Se la card ha solo immagine senza testo, comportamento invariato.
+ * v4.7.0 – Aggiunto widget VIDEO (singola istanza per homepage). Supporta YouTube (watch/youtu.be/embed/shorts), Vimeo e MP4 diretto (auto-detect dal formato URL). Due modalita': (A) autoplay muto con loop continuo, (B) click-to-play con audio. Opzionali titolo e sottotitolo IT/EN sopra il video. Layout 16:9 orizzontale con wrapper padding-top:56.25% (compatibile con tutti i browser, indipendente da "aspect-ratio" CSS). Runtime ZERO JS nell'HTML emesso: iframe passivi per YouTube/Vimeo (autoplay+loop via query string) e tag <video> nativo per MP4 (attributi autoplay/muted/loop/controls). Precauzioni GoodBarber menu-custom applicate: nessuna funzione con suffisso url/Url chiamata con (), nessun new URL(), nessun backslash nelle stringhe emesse, URL scritti solo come valori di attributo src, parsing video-id via string methods (split/indexOf/substring) e controllo cifre via charCodeAt.
  * Si integra nel CRM come sezione dell'Officina Digitale.
  */
 window.GeneratoreHome = (function () {
@@ -350,6 +351,15 @@ window.GeneratoreHome = (function () {
         homeHeight: '90',
         overlayOpacity: 100,
       },
+      // Video widget (singolo, orizzontale, YouTube/Vimeo/MP4)
+      videoWidget: {
+        videoUrl: '',
+        videoMode: 'autoplay-muted', // 'autoplay-muted' (con loop) | 'click-to-play' (con audio)
+        titleIt: '',
+        titleEn: '',
+        subtitleIt: '',
+        subtitleEn: '',
+      },
       // Tab Bar
       tabBarTheme: 'light',
       tabBarItems: [
@@ -370,6 +380,7 @@ window.GeneratoreHome = (function () {
         { id: 'protezioneCivile', label: 'Protezione Civile', enabled: true, order: 7 },
         { id: 'slideshowVerticale', label: 'Slideshow Verticale', enabled: false, order: 8 },
         { id: 'tabBar', label: 'Tab Bar', enabled: false, order: 9 },
+        { id: 'videoWidget', label: 'Video', enabled: false, order: 13 },
         { id: 'meteoCard', label: 'Meteo', enabled: true, order: 14 },
       ],
     };
@@ -589,6 +600,34 @@ window.GeneratoreHome = (function () {
       '<div style="display:flex;gap:10px;">' +
         makeInput('ghSvScrollLabelIt', 'Label IT', state.slideshowVerticale.scrollLabelIt || 'Scorri', 'Scorri') +
         makeInput('ghSvScrollLabelEn', 'Label EN', state.slideshowVerticale.scrollLabelEn || 'Scroll down', 'Scroll down') +
+      '</div>',
+      false
+    );
+
+    // === SEZ. 7c: WIDGET VIDEO (singolo, orizzontale) ===
+    const vw = state.videoWidget || {};
+    formHtml += makeSection('fa-video', 'Video',
+      '<p style="font-size:12px;color:#9B9B9B;margin-bottom:12px;"><i class="fas fa-info-circle"></i> Inserisci un video orizzontale (16:9). Supporta YouTube, Vimeo e file MP4 diretti. Scegli se parte da solo in mute (con loop continuo) oppure solo al click con audio. Widget singolo: una sola istanza per homepage.</p>' +
+      makeInput('ghVideoUrl', 'URL del video', vw.videoUrl || '', 'https://www.youtube.com/watch?v=... oppure https://vimeo.com/... oppure https://.../video.mp4') +
+      '<div style="margin-bottom:16px;"><label style="display:block;font-weight:600;color:#4A4A4A;margin-bottom:6px;font-size:13px;">Modalità riproduzione</label>' +
+      '<div style="display:flex;flex-direction:column;gap:8px;">' +
+        '<label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:10px 14px;border:1px solid #d0d0d0;border-radius:8px;background:#fff;">' +
+          '<input type="radio" name="ghVideoMode" value="autoplay-muted" ' + ((vw.videoMode || 'autoplay-muted') === 'autoplay-muted' ? 'checked' : '') + ' style="width:16px;height:16px;accent-color:#145284;">' +
+          '<span style="font-size:13px;color:#4A4A4A;"><strong>Autoplay muto con loop</strong> — il video parte automaticamente, senza audio, e si ripete in continuo.</span>' +
+        '</label>' +
+        '<label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:10px 14px;border:1px solid #d0d0d0;border-radius:8px;background:#fff;">' +
+          '<input type="radio" name="ghVideoMode" value="click-to-play" ' + (vw.videoMode === 'click-to-play' ? 'checked' : '') + ' style="width:16px;height:16px;accent-color:#145284;">' +
+          '<span style="font-size:13px;color:#4A4A4A;"><strong>Click per avviare (con audio)</strong> — il video parte solo al tocco sul player, con audio attivo.</span>' +
+        '</label>' +
+      '</div></div>' +
+      '<h4 style="font-size:13px;font-weight:700;color:#145284;margin:14px 0 8px;"><i class="fas fa-heading"></i> Testo opzionale sopra il video</h4>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">' +
+        makeInput('ghVideoTitleIt', 'Titolo IT', vw.titleIt || '', 'es. Il video di presentazione') +
+        makeInput('ghVideoTitleEn', 'Titolo EN', vw.titleEn || '', 'e.g. Intro video') +
+      '</div>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">' +
+        makeInput('ghVideoSubtitleIt', 'Sottotitolo IT', vw.subtitleIt || '', 'Breve descrizione opzionale') +
+        makeInput('ghVideoSubtitleEn', 'Sottotitolo EN', vw.subtitleEn || '', 'Optional short description') +
       '</div>',
       false
     );
@@ -2052,6 +2091,15 @@ window.GeneratoreHome = (function () {
         if (!state.slideshowVerticale) {
           state.slideshowVerticale = getDefaultState().slideshowVerticale;
         }
+        // Ensure videoWidget entry exists in widgets array (migration v4.7.0)
+        if (!state.widgets.find(w => w.id === 'videoWidget')) {
+          const maxOrdV = state.widgets.reduce((m, w) => Math.max(m, w.order), -1);
+          state.widgets.push({ id: 'videoWidget', label: 'Video', enabled: false, order: maxOrdV + 1 });
+        }
+        // Ensure videoWidget data exists
+        if (!state.videoWidget) {
+          state.videoWidget = getDefaultState().videoWidget;
+        }
         populateForm();
         // Traccia il docId corrente e mostra stato pubblicazione
         currentLoadedDocId = docId;
@@ -2294,6 +2342,15 @@ window.GeneratoreHome = (function () {
     state.slideshowVerticale.overlayOpacity = parseInt(v('ghSvOverlayOpacity'));
     if (isNaN(state.slideshowVerticale.overlayOpacity)) state.slideshowVerticale.overlayOpacity = 100;
     collectBannerGroupsFromDOM();
+    // Video widget
+    if (!state.videoWidget) state.videoWidget = getDefaultState().videoWidget;
+    state.videoWidget.videoUrl = v('ghVideoUrl') || '';
+    const vmodeChecked = document.querySelector('input[name="ghVideoMode"]:checked');
+    state.videoWidget.videoMode = (vmodeChecked && vmodeChecked.value) || 'autoplay-muted';
+    state.videoWidget.titleIt = v('ghVideoTitleIt') || '';
+    state.videoWidget.titleEn = v('ghVideoTitleEn') || '';
+    state.videoWidget.subtitleIt = v('ghVideoSubtitleIt') || '';
+    state.videoWidget.subtitleEn = v('ghVideoSubtitleEn') || '';
     collectWidgetsFromDOM();
     state.bannerNotificheEnabled = v('ghBannerNotificheEnabled');
     state.bannerNotificheSlug = v('ghBannerNotificheSlug') || '';
@@ -2404,6 +2461,17 @@ window.GeneratoreHome = (function () {
     set('ghSvOverlayOpacity', state.slideshowVerticale.overlayOpacity != null ? state.slideshowVerticale.overlayOpacity : 100);
     const svOvLabel = document.getElementById('ghSvOverlayVal');
     if (svOvLabel) svOvLabel.textContent = (state.slideshowVerticale.overlayOpacity != null ? state.slideshowVerticale.overlayOpacity : 100) + '%';
+    // Video widget
+    if (!state.videoWidget) state.videoWidget = getDefaultState().videoWidget;
+    ensureWidgetExists('videoWidget', 'Video', false);
+    set('ghVideoUrl', state.videoWidget.videoUrl);
+    set('ghVideoTitleIt', state.videoWidget.titleIt);
+    set('ghVideoTitleEn', state.videoWidget.titleEn);
+    set('ghVideoSubtitleIt', state.videoWidget.subtitleIt);
+    set('ghVideoSubtitleEn', state.videoWidget.subtitleEn);
+    const vmode = state.videoWidget.videoMode || 'autoplay-muted';
+    const vmodeRadios = document.querySelectorAll('input[name="ghVideoMode"]');
+    vmodeRadios.forEach(r => { r.checked = (r.value === vmode); });
     // Banner Notifiche
     ensureWidgetExists('bannerNotifiche', 'Banner Notifiche', false);
     set('ghBannerNotificheEnabled', state.bannerNotificheEnabled);
@@ -2533,6 +2601,7 @@ window.GeneratoreHome = (function () {
       theme: ${q(S.tabBarTheme || 'light')},
     },
     slideshowVerticale: ${JSON.stringify(S.slideshowVerticale || {})},
+    videoWidget: ${JSON.stringify(S.videoWidget || {})},
     widgets: ${JSON.stringify(S.widgets)},
     i18n: {
       defaultLang: "it",
@@ -2877,6 +2946,18 @@ rssapp-ticker a{margin-right:50px!important;display:inline-block!important;color
 [data-theme="dark"] .bc-slide.bc-has-bg .bc-kicker{background:rgba(255,255,255,.9);color:var(--cd-blue-700);border-color:rgba(255,255,255,.95);}
 
 [data-theme="dark"] .bc-dots{background:rgba(30,30,30,.6);border-color:rgba(255,255,255,.1);}
+/* ===================== Video Widget ===================== */
+.w-video{width:100%;padding:clamp(12px,3vw,18px) clamp(12px,3.5vw,20px);background:transparent;}
+.w-video-head{max-width:720px;margin:0 auto 10px auto;text-align:center;}
+.w-video-title{font-size:clamp(16px,4.2vw,20px);font-weight:700;color:var(--blu);line-height:1.2;margin:0 0 4px 0;}
+.w-video-sub{font-size:clamp(12px,3.2vw,14px);font-weight:400;color:var(--ink-sub);line-height:1.3;margin:0;}
+.w-video-wrap{position:relative;width:100%;max-width:720px;margin:0 auto;padding-top:56.25%;background:#000;border-radius:14px;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,.18);}
+.w-video-wrap .w-video-frame,.w-video-wrap .w-video-native{position:absolute;top:0;left:0;width:100%;height:100%;border:0;display:block;}
+[data-theme="dark"] .w-video-title{color:#fff;}
+[data-theme="dark"] .w-video-sub{color:#CFCFCF;}
+[data-theme="dark"] .w-video-wrap{box-shadow:0 8px 24px rgba(0,0,0,.45);}
+[data-fontscale] .w-video-title{font-size:clamp(16px,4.5vw,22px)!important;}
+[data-fontscale] .w-video-sub{font-size:clamp(12px,3.5vw,15px)!important;}
 .w-banner-notifiche{width:100%;max-width:900px;margin:0 auto;}
 .bn-link{display:flex;align-items:center;justify-content:center;gap:10px;padding:10px 16px;background:var(--blu);color:#fff;text-decoration:none;transition:filter .2s ease;-webkit-tap-highlight-color:transparent;}
 .bn-link:active{filter:brightness(.85);}
@@ -3688,6 +3769,133 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
       + '</div></div></div>'
       + dotsH
       + '<div class="sv-micro-data" style="display:none" data-micro="' + esc(microData) + '"></div>'
+      + '</section>';
+  };
+
+  // VIDEO WIDGET RENDERER - parse YouTube/Vimeo id con string methods.
+  widgetRenderers['videoWidget'] = () => {
+    const vw = C.videoWidget || {};
+    const rawSrc = (vw.videoUrl || '').trim();
+    if (!rawSrc) return '';
+
+    const mode = (vw.videoMode === 'click-to-play') ? 'click-to-play' : 'autoplay-muted';
+
+    // Detect source type (string methods only, no regex backslashes, no URL ctor)
+    const lower = rawSrc.toLowerCase();
+    let kind = 'mp4'; // default fallback
+    let ytId = '';
+    let vmId = '';
+
+    // --- YouTube ---
+    if (lower.indexOf('youtu.be/') !== -1) {
+      // es. https://youtu.be/VIDEOID?si=...
+      const after = rawSrc.split('youtu.be/')[1] || '';
+      ytId = after.split('?')[0].split('&')[0].split('/')[0];
+      kind = 'youtube';
+    } else if (lower.indexOf('youtube.com/watch') !== -1) {
+      // es. https://www.youtube.com/watch?v=VIDEOID&list=...
+      const qStart = rawSrc.indexOf('?');
+      const qs = qStart >= 0 ? rawSrc.substring(qStart + 1) : '';
+      const parts = qs.split('&');
+      for (let i = 0; i < parts.length; i++) {
+        if (parts[i].indexOf('v=') === 0) { ytId = parts[i].substring(2); break; }
+      }
+      kind = 'youtube';
+    } else if (lower.indexOf('youtube.com/embed/') !== -1) {
+      const after = rawSrc.split('youtube.com/embed/')[1] || '';
+      ytId = after.split('?')[0].split('&')[0].split('/')[0];
+      kind = 'youtube';
+    } else if (lower.indexOf('youtube.com/shorts/') !== -1) {
+      const after = rawSrc.split('youtube.com/shorts/')[1] || '';
+      ytId = after.split('?')[0].split('&')[0].split('/')[0];
+      kind = 'youtube';
+    }
+    // --- Vimeo ---
+    else if (lower.indexOf('vimeo.com/') !== -1) {
+      const after = rawSrc.split('vimeo.com/')[1] || '';
+      // scarta eventuale "video/" o "channels/..../"
+      let tail = after;
+      if (tail.indexOf('video/') === 0) tail = tail.substring(6);
+      const seg = tail.split('?')[0].split('/');
+      for (let i = seg.length - 1; i >= 0; i--) {
+        const s = seg[i];
+        // check numero puro senza usare regex (preprocessor GB safe)
+        if (s && s.length > 0) {
+          let allDigits = true;
+          for (let k = 0; k < s.length; k++) {
+            const cc = s.charCodeAt(k);
+            if (cc < 48 || cc > 57) { allDigits = false; break; }
+          }
+          if (allDigits) { vmId = s; break; }
+        }
+      }
+      kind = 'vimeo';
+    }
+    // --- MP4 diretto ---
+    else if (lower.indexOf('.mp4') !== -1) {
+      kind = 'mp4';
+    }
+
+    // Scegli titolo/sottotitolo in lingua (senza toccare nomi "getTitle" ecc.)
+    const en = (LANG === 'en');
+    const vTitle = en ? (vw.titleEn || vw.titleIt || '') : (vw.titleIt || vw.titleEn || '');
+    const vSub   = en ? (vw.subtitleEn || vw.subtitleIt || '') : (vw.subtitleIt || vw.subtitleEn || '');
+
+    let headH = '';
+    if (vTitle || vSub) {
+      headH = '<div class="w-video-head">'
+        + (vTitle ? '<div class="w-video-title" data-i18n-it="' + esc(vw.titleIt || '') + '" data-i18n-en="' + esc(vw.titleEn || '') + '">' + esc(vTitle) + '</div>' : '')
+        + (vSub ? '<div class="w-video-sub" data-i18n-it="' + esc(vw.subtitleIt || '') + '" data-i18n-en="' + esc(vw.subtitleEn || '') + '">' + esc(vSub) + '</div>' : '')
+        + '</div>';
+    }
+
+    // Costruisci il player in base al tipo + modalita'
+    let playerH = '';
+
+    if (kind === 'youtube') {
+      if (!ytId) return ''; // se non riesco a estrarre l'ID non emetto niente
+      let qs = '';
+      if (mode === 'autoplay-muted') {
+        // autoplay muto + loop (YouTube richiede playlist=ID per il loop)
+        qs = 'autoplay=1&mute=1&loop=1&playlist=' + ytId + '&controls=0&rel=0&modestbranding=1&playsinline=1';
+      } else {
+        qs = 'rel=0&modestbranding=1&playsinline=1';
+      }
+      const ytEmbed = 'https://www.youtube.com/embed/' + ytId + '?' + qs;
+      playerH = '<iframe class="w-video-frame" src="' + esc(ytEmbed) + '" '
+        + 'title="' + esc(vTitle || 'Video') + '" '
+        + 'allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" '
+        + 'referrerpolicy="strict-origin-when-cross-origin" '
+        + 'allowfullscreen loading="lazy"></iframe>';
+    } else if (kind === 'vimeo') {
+      if (!vmId) return '';
+      let qs = '';
+      if (mode === 'autoplay-muted') {
+        // background=1 attiva autoplay + loop + muted + nessun controllo
+        qs = 'autoplay=1&muted=1&loop=1&background=1&playsinline=1';
+      } else {
+        qs = 'playsinline=1';
+      }
+      const vmEmbed = 'https://player.vimeo.com/video/' + vmId + '?' + qs;
+      playerH = '<iframe class="w-video-frame" src="' + esc(vmEmbed) + '" '
+        + 'title="' + esc(vTitle || 'Video') + '" '
+        + 'allow="autoplay; fullscreen; picture-in-picture" '
+        + 'allowfullscreen loading="lazy"></iframe>';
+    } else {
+      // MP4 diretto via tag <video> nativo
+      const attrs = (mode === 'autoplay-muted')
+        ? 'autoplay muted playsinline loop preload="metadata"'
+        : 'controls playsinline preload="metadata"';
+      playerH = '<video class="w-video-native" ' + attrs + ' '
+        + 'poster="" '
+        + 'aria-label="' + esc(vTitle || 'Video') + '">'
+        + '<source src="' + esc(rawSrc) + '" type="video/mp4">'
+        + '</video>';
+    }
+
+    return '<section class="w-video" id="videoWidget" aria-label="' + esc(vTitle || 'Video') + '">'
+      + headH
+      + '<div class="w-video-wrap">' + playerH + '</div>'
       + '</section>';
   };
 
