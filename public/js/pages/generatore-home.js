@@ -20,6 +20,7 @@
  * v4.5.11 – Rimossa TUTTA la hotlink protection aggiunta in v4.5.9 (HOTLINK_DOMAINS, isHotlinkProtected, weserv.nl proxy retry, referrerpolicy). Funzionalita' abbandonata. Contiene anche regex con backslash (replace(/^\\./) e endsWith) che il preprocessor GB potrebbe corrompere. Ripristinato error handler immagini semplice (nascondi + fallback icona). Mantenuto supporto <media:content> per feed rss.app (safe).
  * v4.6.0 – (1) Editor CRM: aggiunto drag & drop + frecce su/giu per riordinare gli elementi di lista: servizi dentro una sezione (widget Servizi), card dentro un gruppo (Banner Personalizzabili), pulsanti dello Slideshow Verticale. Modifica interna all'editor, NON tocca l'HTML emesso: zero rischio preprocessor GoodBarber. Fix interno pre-rilascio: l'ordine delle operazioni di riordino era errato (swap array eseguito PRIMA del collectFromDOM, quindi i valori degli input venivano risalvati nelle posizioni gia scambiate, annullando lo swap). Corretto introducendo un callback beforeReorder che esegue collectFromDOM PRIMA di qualsiasi modifica all'array (swap frecce o splice drag&drop). (2) Banner Personalizzabili: rimosso l'effetto "patina bianca" sulle immagini. Quando una card ha sia immagine sia testo, l'immagine viene mostrata a piena area, a colori, senza grayscale (prima era opacity:.05 + filter:grayscale(100%)); il testo resta leggibile con titolo bianco + text-shadow scuro e kicker/CTA con alta leggibilita'. Il link della card resta cliccabile su tutta l'area. Se la card ha solo immagine senza testo, comportamento invariato.
  * v4.7.0 – Aggiunto widget VIDEO (singola istanza per homepage). Supporta YouTube (watch/youtu.be/embed/shorts), Vimeo e MP4 diretto (auto-detect dal formato URL). Due modalita': (A) autoplay muto con loop continuo, (B) click-to-play con audio. Opzionali titolo e sottotitolo IT/EN sopra il video. Layout 16:9 orizzontale con wrapper padding-top:56.25% (compatibile con tutti i browser, indipendente da "aspect-ratio" CSS). Runtime ZERO JS nell'HTML emesso: iframe passivi per YouTube/Vimeo (autoplay+loop via query string) e tag <video> nativo per MP4 (attributi autoplay/muted/loop/controls). Precauzioni GoodBarber menu-custom applicate: nessuna funzione con suffisso url/Url chiamata con (), nessun new URL(), nessun backslash nelle stringhe emesse, URL scritti solo come valori di attributo src, parsing video-id via string methods (split/indexOf/substring) e controllo cifre via charCodeAt.
+ * v4.7.1 – Widget Video: aggiunto controllo aspetto cornice. Due stili: (A) "Angoli arrotondati" (default) con video ~720px centrato, border-radius 14px, padding laterale, ombra; (B) "Rettangolare pieno" edge-to-edge (max-width none, border-radius 0, box-shadow 0). Aggiunto color picker per scegliere il colore di sfondo del widget (visibile soprattutto con stile arrotondato), con hex input sincronizzato e pulsante "Nessuno" per tornare a trasparente. Nuovi campi state: videoWidget.frameStyle e videoWidget.sectionBg.
  * Si integra nel CRM come sezione dell'Officina Digitale.
  */
 window.GeneratoreHome = (function () {
@@ -359,6 +360,8 @@ window.GeneratoreHome = (function () {
         titleEn: '',
         subtitleIt: '',
         subtitleEn: '',
+        frameStyle: 'rounded', // 'rounded' (angoli arrotondati + padding laterale) | 'fullbleed' (rettangolare edge-to-edge)
+        sectionBg: '',         // colore di sfondo del widget (es. #FFFFFF); vuoto = trasparente
       },
       // Tab Bar
       tabBarTheme: 'light',
@@ -628,6 +631,26 @@ window.GeneratoreHome = (function () {
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">' +
         makeInput('ghVideoSubtitleIt', 'Sottotitolo IT', vw.subtitleIt || '', 'Breve descrizione opzionale') +
         makeInput('ghVideoSubtitleEn', 'Sottotitolo EN', vw.subtitleEn || '', 'Optional short description') +
+      '</div>' +
+      '<h4 style="font-size:13px;font-weight:700;color:#145284;margin:14px 0 8px;"><i class="fas fa-object-ungroup"></i> Aspetto della cornice</h4>' +
+      '<div style="margin-bottom:16px;"><label style="display:block;font-weight:600;color:#4A4A4A;margin-bottom:6px;font-size:13px;">Stile cornice</label>' +
+      '<div style="display:flex;flex-direction:column;gap:8px;">' +
+        '<label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:10px 14px;border:1px solid #d0d0d0;border-radius:8px;background:#fff;">' +
+          '<input type="radio" name="ghVideoFrameStyle" value="rounded" ' + ((vw.frameStyle || 'rounded') === 'rounded' ? 'checked' : '') + ' style="width:16px;height:16px;accent-color:#145284;">' +
+          '<span style="font-size:13px;color:#4A4A4A;"><strong>Angoli arrotondati</strong> &mdash; il video e un po&rsquo; piu piccolo del box, con spazio intorno e bordi stondati (bellissimo con uno sfondo a colori).</span>' +
+        '</label>' +
+        '<label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:10px 14px;border:1px solid #d0d0d0;border-radius:8px;background:#fff;">' +
+          '<input type="radio" name="ghVideoFrameStyle" value="fullbleed" ' + (vw.frameStyle === 'fullbleed' ? 'checked' : '') + ' style="width:16px;height:16px;accent-color:#145284;">' +
+          '<span style="font-size:13px;color:#4A4A4A;"><strong>Rettangolare pieno</strong> &mdash; il video occupa tutto il box, senza angoli arrotondati e senza spazio intorno (edge-to-edge).</span>' +
+        '</label>' +
+      '</div></div>' +
+      '<div style="margin-bottom:16px;"><label style="display:block;font-weight:600;color:#4A4A4A;margin-bottom:6px;font-size:13px;">Colore di sfondo del widget</label>' +
+      '<div style="display:flex;align-items:center;gap:10px;">' +
+        '<input type="color" id="ghVideoSectionBg" value="' + esc(vw.sectionBg || '#FFFFFF') + '" style="width:56px;height:40px;border:1px solid #d0d0d0;border-radius:8px;cursor:pointer;padding:2px;background:#fff;">' +
+        '<input type="text" id="ghVideoSectionBgHex" value="' + esc(vw.sectionBg || '') + '" placeholder="lascia vuoto = trasparente" style="flex:1;padding:10px 14px;border:1px solid #d0d0d0;border-radius:8px;font-family:\'Titillium Web\',sans-serif;font-size:14px;box-sizing:border-box;">' +
+        '<button type="button" id="ghVideoSectionBgClear" title="Nessun sfondo (trasparente)" style="padding:8px 12px;background:#F5F5F5;color:#4A4A4A;border:1px solid #d0d0d0;border-radius:8px;cursor:pointer;font-weight:600;font-size:12px;font-family:\'Titillium Web\',sans-serif;"><i class="fas fa-eraser"></i> Nessuno</button>' +
+      '</div>' +
+      '<p style="font-size:11px;color:#9B9B9B;margin:6px 0 0;">Con angoli arrotondati lo sfondo si vede ai lati del video. Con &ldquo;Rettangolare pieno&rdquo; lo sfondo non e visibile (il video copre tutto).</p>' +
       '</div>',
       false
     );
@@ -847,6 +870,24 @@ window.GeneratoreHome = (function () {
         updatePalettePreview();
         updatePresetHighlight();
       }
+    });
+
+    // Video widget: sync color picker <-> hex input + pulsante "Nessuno"
+    const vBgColor = document.getElementById('ghVideoSectionBg');
+    const vBgHex = document.getElementById('ghVideoSectionBgHex');
+    const vBgClear = document.getElementById('ghVideoSectionBgClear');
+    if (vBgColor) vBgColor.addEventListener('input', e => {
+      if (vBgHex) vBgHex.value = e.target.value.toUpperCase();
+    });
+    if (vBgHex) vBgHex.addEventListener('input', e => {
+      let val = e.target.value.trim();
+      if (val.length >= 4 && /^#[0-9a-fA-F]{3,6}$/.test(val)) {
+        if (val.length === 4) val = '#' + val[1]+val[1] + val[2]+val[2] + val[3]+val[3];
+        if (vBgColor) vBgColor.value = val;
+      }
+    });
+    if (vBgClear) vBgClear.addEventListener('click', () => {
+      if (vBgHex) vBgHex.value = '';
     });
 
     // Preset palette cards click
@@ -2351,6 +2392,10 @@ window.GeneratoreHome = (function () {
     state.videoWidget.titleEn = v('ghVideoTitleEn') || '';
     state.videoWidget.subtitleIt = v('ghVideoSubtitleIt') || '';
     state.videoWidget.subtitleEn = v('ghVideoSubtitleEn') || '';
+    const vFrameChecked = document.querySelector('input[name="ghVideoFrameStyle"]:checked');
+    state.videoWidget.frameStyle = (vFrameChecked && vFrameChecked.value) || 'rounded';
+    const vBgHexEl = document.getElementById('ghVideoSectionBgHex');
+    state.videoWidget.sectionBg = vBgHexEl ? (vBgHexEl.value || '').trim() : '';
     collectWidgetsFromDOM();
     state.bannerNotificheEnabled = v('ghBannerNotificheEnabled');
     state.bannerNotificheSlug = v('ghBannerNotificheSlug') || '';
@@ -2472,6 +2517,12 @@ window.GeneratoreHome = (function () {
     const vmode = state.videoWidget.videoMode || 'autoplay-muted';
     const vmodeRadios = document.querySelectorAll('input[name="ghVideoMode"]');
     vmodeRadios.forEach(r => { r.checked = (r.value === vmode); });
+    const vFrame = state.videoWidget.frameStyle || 'rounded';
+    document.querySelectorAll('input[name="ghVideoFrameStyle"]').forEach(r => { r.checked = (r.value === vFrame); });
+    const vBgColorEl = document.getElementById('ghVideoSectionBg');
+    const vBgHexEl2 = document.getElementById('ghVideoSectionBgHex');
+    if (vBgHexEl2) vBgHexEl2.value = state.videoWidget.sectionBg || '';
+    if (vBgColorEl && state.videoWidget.sectionBg) vBgColorEl.value = state.videoWidget.sectionBg;
     // Banner Notifiche
     ensureWidgetExists('bannerNotifiche', 'Banner Notifiche', false);
     set('ghBannerNotificheEnabled', state.bannerNotificheEnabled);
@@ -2947,15 +2998,23 @@ rssapp-ticker a{margin-right:50px!important;display:inline-block!important;color
 
 [data-theme="dark"] .bc-dots{background:rgba(30,30,30,.6);border-color:rgba(255,255,255,.1);}
 /* ===================== Video Widget ===================== */
-.w-video{width:100%;padding:clamp(12px,3vw,18px) clamp(12px,3.5vw,20px);background:transparent;}
+.w-video{width:100%;background:transparent;}
 .w-video-head{max-width:720px;margin:0 auto 10px auto;text-align:center;}
 .w-video-title{font-size:clamp(16px,4.2vw,20px);font-weight:700;color:var(--blu);line-height:1.2;margin:0 0 4px 0;}
 .w-video-sub{font-size:clamp(12px,3.2vw,14px);font-weight:400;color:var(--ink-sub);line-height:1.3;margin:0;}
-.w-video-wrap{position:relative;width:100%;max-width:720px;margin:0 auto;padding-top:56.25%;background:#000;border-radius:14px;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,.18);}
+.w-video-wrap{position:relative;width:100%;padding-top:56.25%;background:#000;overflow:hidden;}
 .w-video-wrap .w-video-frame,.w-video-wrap .w-video-native{position:absolute;top:0;left:0;width:100%;height:100%;border:0;display:block;}
+/* Variante: angoli arrotondati con spazio intorno (usa la width centrata e l'ombra) */
+.w-video.w-video-rounded{padding:clamp(12px,3vw,18px) clamp(12px,3.5vw,20px);}
+.w-video.w-video-rounded .w-video-head{padding:0;}
+.w-video.w-video-rounded .w-video-wrap{max-width:720px;margin:0 auto;border-radius:14px;box-shadow:0 8px 24px rgba(0,0,0,.18);}
+/* Variante: rettangolare full-bleed (edge-to-edge, senza margini, senza radius) */
+.w-video.w-video-fullbleed{padding:0;}
+.w-video.w-video-fullbleed .w-video-head{padding:clamp(10px,2.5vw,14px) clamp(12px,3.5vw,20px) 8px;margin:0;max-width:none;}
+.w-video.w-video-fullbleed .w-video-wrap{max-width:none;margin:0;border-radius:0;box-shadow:none;}
 [data-theme="dark"] .w-video-title{color:#fff;}
 [data-theme="dark"] .w-video-sub{color:#CFCFCF;}
-[data-theme="dark"] .w-video-wrap{box-shadow:0 8px 24px rgba(0,0,0,.45);}
+[data-theme="dark"] .w-video.w-video-rounded .w-video-wrap{box-shadow:0 8px 24px rgba(0,0,0,.45);}
 [data-fontscale] .w-video-title{font-size:clamp(16px,4.5vw,22px)!important;}
 [data-fontscale] .w-video-sub{font-size:clamp(12px,3.5vw,15px)!important;}
 .w-banner-notifiche{width:100%;max-width:900px;margin:0 auto;}
@@ -3893,7 +3952,14 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
         + '</video>';
     }
 
-    return '<section class="w-video" id="videoWidget" aria-label="' + esc(vTitle || 'Video') + '">'
+    // Stile cornice: rounded (arrotondato con spazio intorno) o fullbleed (edge-to-edge)
+    const isFullbleed = (vw.frameStyle === 'fullbleed');
+    const frameClass = isFullbleed ? ' w-video-fullbleed' : ' w-video-rounded';
+    // Sfondo widget opzionale
+    const bgCol = (vw.sectionBg || '').trim();
+    const sectionStyle = bgCol ? ' style="background:' + esc(bgCol) + ';"' : '';
+
+    return '<section class="w-video' + frameClass + '" id="videoWidget"' + sectionStyle + ' aria-label="' + esc(vTitle || 'Video') + '">'
       + headH
       + '<div class="w-video-wrap">' + playerH + '</div>'
       + '</section>';
