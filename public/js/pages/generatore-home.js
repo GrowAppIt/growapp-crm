@@ -18,7 +18,7 @@
  * v4.5.9 – Fix immagini RSS Slider per feed rss.app (es. pagine Facebook): (A) aggiunto supporto al tag <media:content> nella catena di estrazione immagini del runtime RSS — i feed GoodBarber usano <media:thumbnail>, ma rss.app e molti aggregatori usano <media:content medium="image">; (B) fix hotlink protection Facebook CDN: le immagini vengono caricate con referrerpolicy="no-referrer" e crossorigin="anonymous" per bypassare il blocco Referer di Meta; se fallisce, retry automatico tramite images.weserv.nl come proxy cache. Creato anche /api/image-proxy.js come utility di backup.
  * v4.5.10 – Fix CRITICO pagina bianca in GoodBarber "menù custom": il costruttore "new URL(imgSrc)" introdotto in v4.5.9 per la hotlink protection veniva intercettato dal preprocessor di GB che matcha qualunque "URL(" (case-insensitive) come macro di sistema, sostituendolo con un URL hardcoded contenente "//" (commento JS) → SyntaxError fatale a livello di parsing, intero script non eseguito, pagina bianca. Sostituito con document.createElement('a').hostname per estrarre l'hostname senza usare il costruttore URL.
  * v4.5.11 – Rimossa TUTTA la hotlink protection aggiunta in v4.5.9 (HOTLINK_DOMAINS, isHotlinkProtected, weserv.nl proxy retry, referrerpolicy). Funzionalita' abbandonata. Contiene anche regex con backslash (replace(/^\\./) e endsWith) che il preprocessor GB potrebbe corrompere. Ripristinato error handler immagini semplice (nascondi + fallback icona). Mantenuto supporto <media:content> per feed rss.app (safe).
- * v4.6.0 – (1) Editor CRM: aggiunto drag & drop + frecce su/giu per riordinare gli elementi di lista: servizi dentro una sezione (widget Servizi), card dentro un gruppo (Banner Personalizzabili), pulsanti dello Slideshow Verticale. Modifica interna all'editor, NON tocca l'HTML emesso: zero rischio preprocessor GoodBarber. (2) Banner Personalizzabili: rimosso l'effetto "patina bianca" sulle immagini. Quando una card ha sia immagine sia testo, l'immagine viene mostrata a piena area, a colori, senza grayscale (prima era opacity:.05 + filter:grayscale(100%)); il testo resta leggibile con titolo bianco + text-shadow scuro e kicker/CTA con alta leggibilita'. Il link della card resta cliccabile su tutta l'area. Se la card ha solo immagine senza testo, comportamento invariato.
+ * v4.6.0 – (1) Editor CRM: aggiunto drag & drop + frecce su/giu per riordinare gli elementi di lista: servizi dentro una sezione (widget Servizi), card dentro un gruppo (Banner Personalizzabili), pulsanti dello Slideshow Verticale. Modifica interna all'editor, NON tocca l'HTML emesso: zero rischio preprocessor GoodBarber. Fix interno pre-rilascio: l'ordine delle operazioni di riordino era errato (swap array eseguito PRIMA del collectFromDOM, quindi i valori degli input venivano risalvati nelle posizioni gia scambiate, annullando lo swap). Corretto introducendo un callback beforeReorder che esegue collectFromDOM PRIMA di qualsiasi modifica all'array (swap frecce o splice drag&drop). (2) Banner Personalizzabili: rimosso l'effetto "patina bianca" sulle immagini. Quando una card ha sia immagine sia testo, l'immagine viene mostrata a piena area, a colori, senza grayscale (prima era opacity:.05 + filter:grayscale(100%)); il testo resta leggibile con titolo bianco + text-shadow scuro e kicker/CTA con alta leggibilita'. Il link della card resta cliccabile su tutta l'area. Se la card ha solo immagine senza testo, comportamento invariato.
  * Si integra nel CRM come sezione dell'Officina Digitale.
  */
 window.GeneratoreHome = (function () {
@@ -1191,31 +1191,43 @@ window.GeneratoreHome = (function () {
   }
 
   // Attiva drag&drop + frecce su una lista di .gh-reorder-row dentro scopeEl.
-  //   scopeEl: contenitore DOM (tipicamente la sezione/gruppo)
-  //   getArr:  funzione che ritorna l'array da riordinare (stesso ordine dei DOM elements)
-  //   onChange: callback chiamata dopo un riordino (tipicamente refresh di UI)
-  function ghReorderableInit(scopeEl, getArr, onChange) {
+  //   scopeEl:       contenitore DOM (tipicamente la sezione/gruppo)
+  //   getArr:        funzione che ritorna l'array da riordinare (stesso ordine dei DOM elements)
+  //   afterReorder:  callback chiamata DOPO il riordino (tipicamente refresh della UI)
+  //   beforeReorder: callback opzionale chiamata PRIMA del riordino (tipicamente collectFromDOM,
+  //                  cosi i valori degli input correnti vengono salvati nell'array alle loro posizioni
+  //                  ATTUALI prima che lo splice/swap cambi gli indici)
+  function ghReorderableInit(scopeEl, getArr, afterReorder, beforeReorder) {
     ghInjectReorderStyles();
     if (!scopeEl) return;
     var rows = Array.prototype.slice.call(scopeEl.querySelectorAll(':scope > .gh-reorder-row'));
+
+    function runBefore() {
+      if (typeof beforeReorder === 'function') {
+        try { beforeReorder(); } catch(e){}
+      }
+    }
+
     rows.forEach(function(row, idx) {
       // Frecce
       var up = row.querySelector('[data-reorder-up]');
       var down = row.querySelector('[data-reorder-down]');
       if (up) {
         up.addEventListener('click', function() {
+          runBefore();
           var arr = getArr();
           if (!arr || idx <= 0) return;
           var tmp = arr[idx - 1]; arr[idx - 1] = arr[idx]; arr[idx] = tmp;
-          onChange();
+          afterReorder();
         });
       }
       if (down) {
         down.addEventListener('click', function() {
+          runBefore();
           var arr = getArr();
           if (!arr || idx >= arr.length - 1) return;
           var tmp = arr[idx + 1]; arr[idx + 1] = arr[idx]; arr[idx] = tmp;
-          onChange();
+          afterReorder();
         });
       }
 
@@ -1226,6 +1238,8 @@ window.GeneratoreHome = (function () {
         handle.addEventListener('touchstart', function() { row.setAttribute('draggable', 'true'); }, { passive: true });
       }
       row.addEventListener('dragstart', function(ev) {
+        // Collect PRIMA dello spostamento (prima che l'array venga modificato al drop)
+        runBefore();
         try { ev.dataTransfer.setData('text/plain', String(idx)); } catch(e){}
         if (ev.dataTransfer) ev.dataTransfer.effectAllowed = 'move';
         row.classList.add('is-dragging');
@@ -1262,7 +1276,7 @@ window.GeneratoreHome = (function () {
         if (to < 0) to = 0;
         if (to > arr.length) to = arr.length;
         arr.splice(to, 0, moved);
-        onChange();
+        afterReorder();
       });
     });
   }
@@ -1340,10 +1354,11 @@ window.GeneratoreHome = (function () {
       });
     });
     // Drag & drop + frecce per riordinare i pulsanti SV
-    ghReorderableInit(c, function(){ return state.slideshowVerticale.buttons; }, function(){
-      collectSvFromDOM();
-      refreshSvButtons(true);
-    });
+    ghReorderableInit(c,
+      function(){ return state.slideshowVerticale.buttons; },
+      function(){ refreshSvButtons(true); },
+      function(){ collectSvFromDOM(); }
+    );
   }
 
   function collectSvFromDOM() {
@@ -1672,12 +1687,11 @@ window.GeneratoreHome = (function () {
     // Drag & drop + frecce per riordinare le card dentro ciascun gruppo banner
     c.querySelectorAll('[data-bcards-wrap]').forEach(wrap => {
       const gi = parseInt(wrap.getAttribute('data-bcards-wrap'));
-      ghReorderableInit(wrap, function(){
-        return (state.bannerGroups[gi] && state.bannerGroups[gi].items) || [];
-      }, function(){
-        collectBannerGroupsFromDOM();
-        refreshBannerGroups(true);
-      });
+      ghReorderableInit(wrap,
+        function(){ return (state.bannerGroups[gi] && state.bannerGroups[gi].items) || []; },
+        function(){ refreshBannerGroups(true); },
+        function(){ collectBannerGroupsFromDOM(); }
+      );
     });
   }
 
@@ -1863,12 +1877,11 @@ window.GeneratoreHome = (function () {
     // Drag & drop + frecce per riordinare i servizi dentro ciascuna sezione
     c.querySelectorAll('[data-servizi-wrap]').forEach(wrap => {
       const si = parseInt(wrap.getAttribute('data-servizi-wrap'));
-      ghReorderableInit(wrap, function(){
-        return (state.servizi[si] && state.servizi[si].items) || [];
-      }, function(){
-        collectServiziFromDOM();
-        refreshServizi(true);
-      });
+      ghReorderableInit(wrap,
+        function(){ return (state.servizi[si] && state.servizi[si].items) || []; },
+        function(){ refreshServizi(true); },
+        function(){ collectServiziFromDOM(); }
+      );
     });
   }
 
