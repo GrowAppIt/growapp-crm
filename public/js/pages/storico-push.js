@@ -706,40 +706,86 @@ const StoricoPush = {
     // ================================================================
 
     openConfig() {
-        // Mostra un modal con la lista delle app e la configurazione del monitoraggio
-        const appRows = this.apps.map(a => {
-            const enabled = a.pushMonitorEnabled ? 'checked' : '';
+        // Ordina alfabeticamente per nome comune
+        const sortedApps = [...this.apps].sort((a, b) => {
+            const na = (a.comune || a.nome || '').toLowerCase();
+            const nb = (b.comune || b.nome || '').toLowerCase();
+            return na.localeCompare(nb, 'it');
+        });
+
+        // Divide in due gruppi: monitorate attive vs disponibili da aggiungere
+        const monitorate = sortedApps.filter(a => a.pushMonitorEnabled);
+        const disponibili = sortedApps.filter(a => !a.pushMonitorEnabled);
+
+        const countMonitorate = monitorate.length;
+        const countDisponibili = disponibili.length;
+
+        // Costruisce una riga di tabella per un'app, con toggle-switch che salva subito
+        const buildRow = (a) => {
             const userId = a.monitorPushUserId || '';
             const currentSlug = a.appSlug || '';
+            const enabled = !!a.pushMonitorEnabled;
             // Suggerimento slug: dal nome comune, minuscolo, senza accenti/spazi/speciali
             const suggestedSlug = (a.comune || a.nome || '').toLowerCase()
                 .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
                 .replace(/[^a-z0-9]/g, '');
+            const nomeApp = a.comune || a.nome || '';
+            const badge = enabled
+                ? '<span class="sp-cfg-badge sp-cfg-badge-on"><i class="fas fa-check-circle"></i> Monitorata</span>'
+                : '<span class="sp-cfg-badge sp-cfg-badge-off"><i class="far fa-circle"></i> Non monitorata</span>';
+
             return `
-                <tr>
-                    <td><strong>${this.escapeHtml(a.comune || a.nome)}</strong></td>
-                    <td>
+                <tr class="sp-cfg-row" data-app-id="${a.id}" data-search="${this.escapeHtml(nomeApp.toLowerCase())}">
+                    <td style="padding:10px 6px;vertical-align:middle;">
+                        <div style="font-weight:700;color:#145284;">${this.escapeHtml(nomeApp)}</div>
+                        <div style="margin-top:3px;">${badge}</div>
+                    </td>
+                    <td style="padding:10px 6px;vertical-align:middle;">
                         <input type="text" class="sp-config-slug"
                                data-app-id="${a.id}"
                                value="${this.escapeHtml(currentSlug)}"
                                placeholder="${this.escapeHtml(suggestedSlug)}"
-                               style="width:140px;padding:4px 8px;border:1px solid #ddd;border-radius:4px;font-size:0.85rem;font-family:monospace;">
+                               style="width:150px;padding:5px 8px;border:1px solid #ddd;border-radius:4px;font-size:0.85rem;font-family:monospace;">
                     </td>
-                    <td><code>${a.goodbarberWebzineId || '—'}</code></td>
-                    <td>
+                    <td style="padding:10px 6px;vertical-align:middle;"><code style="font-size:0.8rem;color:#9B9B9B;">${a.goodbarberWebzineId || '—'}</code></td>
+                    <td style="padding:10px 6px;vertical-align:middle;">
                         <input type="number" class="sp-config-userid"
                                data-app-id="${a.id}"
                                value="${userId}"
                                placeholder="User ID fantasma"
-                               style="width:120px;padding:4px 8px;border:1px solid #ddd;border-radius:4px;font-size:0.85rem;">
+                               style="width:120px;padding:5px 8px;border:1px solid #ddd;border-radius:4px;font-size:0.85rem;">
                     </td>
-                    <td style="text-align:center;">
-                        <input type="checkbox" class="sp-config-enabled"
-                               data-app-id="${a.id}" ${enabled}>
+                    <td style="padding:10px 6px;text-align:center;vertical-align:middle;">
+                        <label class="sp-switch" title="${enabled ? 'Disattiva monitoraggio' : 'Attiva monitoraggio'}">
+                            <input type="checkbox" class="sp-config-enabled"
+                                   data-app-id="${a.id}" ${enabled ? 'checked' : ''}
+                                   onchange="StoricoPush.toggleMonitor('${a.id}', this.checked, this)">
+                            <span class="sp-switch-slider"></span>
+                        </label>
                     </td>
                 </tr>
             `;
-        }).join('');
+        };
+
+        const headerRow = `
+            <thead>
+                <tr style="border-bottom:2px solid #d9d9d9;text-align:left;background:#F5F5F5;">
+                    <th style="padding:10px 6px;">Comune</th>
+                    <th style="padding:10px 6px;">App Slug</th>
+                    <th style="padding:10px 6px;">Webzine ID</th>
+                    <th style="padding:10px 6px;">Monitor User ID</th>
+                    <th style="padding:10px 6px;text-align:center;width:90px;">Monitor</th>
+                </tr>
+            </thead>
+        `;
+
+        const rowsMonitorate = monitorate.length > 0
+            ? monitorate.map(buildRow).join('')
+            : `<tr><td colspan="5" style="padding:20px;text-align:center;color:#9B9B9B;font-style:italic;">Nessuna app in monitoraggio. Attiva il toggle di una app qui sotto per iniziare.</td></tr>`;
+
+        const rowsDisponibili = disponibili.length > 0
+            ? disponibili.map(buildRow).join('')
+            : `<tr><td colspan="5" style="padding:20px;text-align:center;color:#9B9B9B;font-style:italic;">Tutte le app attive sono già in monitoraggio.</td></tr>`;
 
         const modalHtml = `
             <div id="sp-config-modal" onclick="StoricoPush.closeConfig(event)" style="
@@ -749,43 +795,157 @@ const StoricoPush = {
                 z-index:9999;padding:1rem;">
                 <div onclick="event.stopPropagation()" style="
                     background:white;border-radius:12px;
-                    max-width:900px;width:100%;max-height:85vh;
+                    max-width:1000px;width:100%;max-height:90vh;
                     overflow:hidden;display:flex;flex-direction:column;
                     box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+
+                    <!-- Header -->
                     <div style="padding:1rem 1.5rem;border-bottom:1px solid #d9d9d9;display:flex;align-items:center;justify-content:space-between;">
-                        <h3 style="margin:0;font-size:1.1rem;color:#145284;"><i class="fas fa-cog"></i> Configurazione Monitoraggio Push</h3>
+                        <div>
+                            <h3 style="margin:0;font-size:1.1rem;color:#145284;font-weight:700;"><i class="fas fa-cog"></i> Configurazione Monitoraggio Push</h3>
+                            <p style="margin:4px 0 0 0;font-size:0.78rem;color:#9B9B9B;">Il toggle <strong>Monitor</strong> salva subito. Slug e User ID si salvano con il bottone <strong>Salva</strong>.</p>
+                        </div>
                         <button onclick="StoricoPush.closeConfig()" style="background:none;border:none;font-size:1.2rem;cursor:pointer;color:#9B9B9B;padding:4px 8px;">
                             <i class="fas fa-times"></i>
                         </button>
                     </div>
-                    <div style="padding:1rem 1.5rem;overflow-y:auto;flex:1;">
-                        <p style="margin-bottom:12px;font-size:0.85rem;color:#9B9B9B;">
-                            Per ogni app: inserisci l'<strong>App Slug</strong> (nome dell'app su GoodBarber, tutto minuscolo senza spazi — es: "appartinico", "comunedicefalu"),
-                            il <strong>User ID</strong> dell'utente fantasma e attiva il monitoraggio.
-                        </p>
-                        <table style="width:100%;border-collapse:collapse;font-size:0.85rem;">
-                            <thead>
-                                <tr style="border-bottom:2px solid #d9d9d9;text-align:left;">
-                                    <th style="padding:8px 4px;">Comune</th>
-                                    <th style="padding:8px 4px;">App Slug</th>
-                                    <th style="padding:8px 4px;">Webzine ID</th>
-                                    <th style="padding:8px 4px;">Monitor User ID</th>
-                                    <th style="padding:8px 4px;text-align:center;">Attivo</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${appRows}
-                            </tbody>
-                        </table>
+
+                    <!-- Ricerca -->
+                    <div style="padding:10px 1.5rem;border-bottom:1px solid #F5F5F5;background:#FAFAFA;">
+                        <div style="position:relative;max-width:360px;">
+                            <i class="fas fa-search" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#9B9B9B;font-size:0.85rem;"></i>
+                            <input id="sp-cfg-search" type="text" placeholder="Cerca comune..."
+                                   oninput="StoricoPush.filterConfigList(this.value)"
+                                   style="width:100%;padding:7px 10px 7px 32px;border:1px solid #D9D9D9;border-radius:6px;font-family:'Titillium Web',sans-serif;font-size:0.9rem;">
+                        </div>
                     </div>
-                    <div style="display:flex;gap:8px;justify-content:flex-end;padding:12px 1.5rem;border-top:1px solid #d9d9d9;background:white;">
-                        <button class="btn btn-outline" onclick="StoricoPush.closeConfig()">Annulla</button>
-                        <button class="btn btn-primary" onclick="StoricoPush.saveConfig()">
-                            <i class="fas fa-save"></i> Salva Configurazione
-                        </button>
+
+                    <!-- Body scrollabile -->
+                    <div style="padding:1rem 1.5rem;overflow-y:auto;flex:1;">
+
+                        <!-- Sezione: Monitorate -->
+                        <div class="sp-cfg-section" data-section="monitorate">
+                            <h4 style="margin:0 0 8px 0;font-size:0.95rem;color:#3CA434;font-weight:700;display:flex;align-items:center;gap:6px;">
+                                <i class="fas fa-satellite-dish"></i>
+                                <span>Monitorate</span>
+                                <span id="sp-cfg-count-monitorate" style="background:#E2F8DE;color:#3CA434;padding:2px 8px;border-radius:10px;font-size:0.75rem;">${countMonitorate}</span>
+                            </h4>
+                            <table style="width:100%;border-collapse:collapse;font-size:0.85rem;margin-bottom:18px;">
+                                ${headerRow}
+                                <tbody id="sp-cfg-tbody-monitorate">
+                                    ${rowsMonitorate}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Sezione: Disponibili -->
+                        <div class="sp-cfg-section" data-section="disponibili">
+                            <h4 style="margin:0 0 8px 0;font-size:0.95rem;color:#145284;font-weight:700;display:flex;align-items:center;gap:6px;">
+                                <i class="fas fa-plus-circle"></i>
+                                <span>Disponibili da aggiungere</span>
+                                <span id="sp-cfg-count-disponibili" style="background:#D1E2F2;color:#145284;padding:2px 8px;border-radius:10px;font-size:0.75rem;">${countDisponibili}</span>
+                            </h4>
+                            <table style="width:100%;border-collapse:collapse;font-size:0.85rem;">
+                                ${headerRow}
+                                <tbody id="sp-cfg-tbody-disponibili">
+                                    ${rowsDisponibili}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Footer -->
+                    <div style="display:flex;gap:8px;justify-content:space-between;align-items:center;padding:12px 1.5rem;border-top:1px solid #d9d9d9;background:white;">
+                        <span id="sp-cfg-hint" style="font-size:0.78rem;color:#9B9B9B;">
+                            <i class="fas fa-info-circle"></i> Tip: attiva il toggle per iniziare subito a monitorare un comune.
+                        </span>
+                        <div style="display:flex;gap:8px;">
+                            <button class="btn btn-outline" onclick="StoricoPush.closeConfig()">Chiudi</button>
+                            <button class="btn btn-primary" onclick="StoricoPush.saveConfig()">
+                                <i class="fas fa-save"></i> Salva Slug e User ID
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
+
+            <style>
+                /* Toggle switch */
+                .sp-switch {
+                    position: relative;
+                    display: inline-block;
+                    width: 46px;
+                    height: 24px;
+                    cursor: pointer;
+                }
+                .sp-switch input {
+                    opacity: 0;
+                    width: 0;
+                    height: 0;
+                }
+                .sp-switch-slider {
+                    position: absolute;
+                    inset: 0;
+                    background-color: #D9D9D9;
+                    border-radius: 24px;
+                    transition: background-color .2s;
+                }
+                .sp-switch-slider::before {
+                    content: "";
+                    position: absolute;
+                    height: 18px;
+                    width: 18px;
+                    left: 3px;
+                    top: 3px;
+                    background-color: #FFFFFF;
+                    border-radius: 50%;
+                    transition: transform .2s;
+                    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+                }
+                .sp-switch input:checked + .sp-switch-slider {
+                    background-color: #3CA434;
+                }
+                .sp-switch input:checked + .sp-switch-slider::before {
+                    transform: translateX(22px);
+                }
+                .sp-switch input:disabled + .sp-switch-slider {
+                    opacity: 0.6;
+                    cursor: wait;
+                }
+
+                /* Badge di stato */
+                .sp-cfg-badge {
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 4px;
+                    font-size: 0.72rem;
+                    font-weight: 700;
+                    padding: 2px 8px;
+                    border-radius: 10px;
+                    text-transform: uppercase;
+                    letter-spacing: 0.3px;
+                }
+                .sp-cfg-badge-on {
+                    background: #E2F8DE;
+                    color: #3CA434;
+                }
+                .sp-cfg-badge-off {
+                    background: #F5F5F5;
+                    color: #9B9B9B;
+                }
+
+                /* Riga nascosta dalla ricerca */
+                .sp-cfg-row.sp-cfg-hidden {
+                    display: none;
+                }
+
+                /* Responsive */
+                @media (max-width: 768px) {
+                    #sp-config-modal > div > div table { font-size: 0.78rem; }
+                    #sp-config-modal .sp-config-slug,
+                    #sp-config-modal .sp-config-userid { width: 100% !important; min-width: 90px; }
+                }
+            </style>
         `;
 
         document.body.insertAdjacentHTML('beforeend', modalHtml);
@@ -838,14 +998,164 @@ const StoricoPush = {
             UI.showSuccess('Configurazione salvata!');
             this.closeConfig();
 
-            // Aggiorna la lista app locale
+            // Aggiorna la lista app locale (ATTIVA + già monitorate anche se non attive)
             const tutteLeApp = await DataService.getApps();
-            this.apps = tutteLeApp.filter(a => a.statoApp === 'ATTIVA');
+            this.apps = tutteLeApp.filter(a => a.pushMonitorEnabled || a.statoApp === 'ATTIVA');
 
         } catch (error) {
             UI.hideLoading();
             UI.showError('Errore nel salvataggio: ' + error.message);
         }
+    },
+
+    // ================================================================
+    // Toggle immediato on/off monitoraggio (salva subito su Firestore)
+    // ================================================================
+
+    async toggleMonitor(appId, enabled, checkboxEl) {
+        if (!appId) return;
+
+        // Trova l'app in memoria
+        const app = this.apps.find(a => a.id === appId);
+        const appName = app ? (app.comune || app.nome || appId) : appId;
+
+        // Se sto disattivando, chiedi conferma
+        if (!enabled) {
+            const ok = confirm(
+                `Vuoi disattivare il monitoraggio push per "${appName}"?\n\n` +
+                `Le notifiche già salvate nello storico resteranno, ` +
+                `ma non verranno più sincronizzate nuove notifiche per questa app.`
+            );
+            if (!ok) {
+                // L'utente ha annullato: ripristina lo stato del checkbox
+                if (checkboxEl) checkboxEl.checked = true;
+                return;
+            }
+        }
+
+        // Se sto attivando ma manca lo slug, blocca e avvisa
+        if (enabled && app && !app.appSlug) {
+            // Suggerimento slug
+            const suggested = (app.comune || app.nome || '').toLowerCase()
+                .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+                .replace(/[^a-z0-9]/g, '');
+            const inputSlug = document.querySelector(`.sp-config-slug[data-app-id="${appId}"]`);
+            const currentSlug = inputSlug ? inputSlug.value.trim() : '';
+
+            if (!currentSlug) {
+                alert(
+                    `Per attivare il monitoraggio di "${appName}" serve prima l'App Slug.\n\n` +
+                    `Compila il campo "App Slug" (${suggested ? 'es. ' + suggested : 'es. nome app in minuscolo senza spazi'}) ` +
+                    `e clicca "Salva Slug e User ID", poi riprova ad attivare il toggle.`
+                );
+                if (checkboxEl) checkboxEl.checked = false;
+                // Focus sul campo slug
+                if (inputSlug) {
+                    inputSlug.focus();
+                    inputSlug.style.borderColor = '#D32F2F';
+                    setTimeout(() => { inputSlug.style.borderColor = '#ddd'; }, 2500);
+                }
+                return;
+            }
+        }
+
+        // Disabilita il checkbox durante il salvataggio
+        if (checkboxEl) checkboxEl.disabled = true;
+
+        try {
+            await db.collection('app').doc(appId).update({
+                pushMonitorEnabled: enabled
+            });
+
+            // Aggiorna lo stato in memoria
+            if (app) app.pushMonitorEnabled = enabled;
+
+            // Sposta la riga nella sezione corretta e aggiorna badge
+            this._moveConfigRow(appId, enabled);
+            this._updateConfigCounts();
+
+            // Feedback visivo
+            if (typeof UI !== 'undefined' && UI.showSuccess) {
+                UI.showSuccess(enabled
+                    ? `Monitoraggio attivato per ${appName}`
+                    : `Monitoraggio disattivato per ${appName}`);
+            }
+
+        } catch (error) {
+            console.error('[StoricoPush] Errore toggle monitor:', error);
+            if (typeof UI !== 'undefined' && UI.showError) {
+                UI.showError('Errore nel salvataggio: ' + error.message);
+            }
+            // Ripristina lo stato del checkbox
+            if (checkboxEl) checkboxEl.checked = !enabled;
+        } finally {
+            if (checkboxEl) checkboxEl.disabled = false;
+        }
+    },
+
+    // Sposta una riga del modal dalla sezione "monitorate" a "disponibili" e viceversa
+    _moveConfigRow(appId, enabled) {
+        const row = document.querySelector(`.sp-cfg-row[data-app-id="${appId}"]`);
+        if (!row) return;
+
+        // Aggiorna il badge dentro la riga
+        const badgeCell = row.querySelector('td:first-child > div:last-child');
+        if (badgeCell) {
+            badgeCell.innerHTML = enabled
+                ? '<span class="sp-cfg-badge sp-cfg-badge-on"><i class="fas fa-check-circle"></i> Monitorata</span>'
+                : '<span class="sp-cfg-badge sp-cfg-badge-off"><i class="far fa-circle"></i> Non monitorata</span>';
+        }
+
+        // Sposta la riga
+        const targetTbody = enabled
+            ? document.getElementById('sp-cfg-tbody-monitorate')
+            : document.getElementById('sp-cfg-tbody-disponibili');
+
+        if (targetTbody) {
+            // Rimuovi eventuale riga "empty state" del tbody di destinazione
+            const empty = targetTbody.querySelector('td[colspan]');
+            if (empty) targetTbody.innerHTML = '';
+            targetTbody.appendChild(row);
+        }
+    },
+
+    // Aggiorna i contatori nei titoli delle sezioni e gestisce gli empty state
+    _updateConfigCounts() {
+        const tbodyMon = document.getElementById('sp-cfg-tbody-monitorate');
+        const tbodyDis = document.getElementById('sp-cfg-tbody-disponibili');
+        const countMon = document.getElementById('sp-cfg-count-monitorate');
+        const countDis = document.getElementById('sp-cfg-count-disponibili');
+
+        const nMon = tbodyMon ? tbodyMon.querySelectorAll('tr.sp-cfg-row').length : 0;
+        const nDis = tbodyDis ? tbodyDis.querySelectorAll('tr.sp-cfg-row').length : 0;
+
+        if (countMon) countMon.textContent = nMon;
+        if (countDis) countDis.textContent = nDis;
+
+        // Se un tbody è vuoto, rimetti l'empty state
+        if (tbodyMon && nMon === 0 && !tbodyMon.querySelector('td[colspan]')) {
+            tbodyMon.innerHTML = `<tr><td colspan="5" style="padding:20px;text-align:center;color:#9B9B9B;font-style:italic;">Nessuna app in monitoraggio. Attiva il toggle di una app qui sotto per iniziare.</td></tr>`;
+        }
+        if (tbodyDis && nDis === 0 && !tbodyDis.querySelector('td[colspan]')) {
+            tbodyDis.innerHTML = `<tr><td colspan="5" style="padding:20px;text-align:center;color:#9B9B9B;font-style:italic;">Tutte le app attive sono già in monitoraggio.</td></tr>`;
+        }
+    },
+
+    // ================================================================
+    // Ricerca nella lista di configurazione
+    // ================================================================
+
+    filterConfigList(term) {
+        const q = (term || '').trim().toLowerCase();
+        const rows = document.querySelectorAll('#sp-config-modal tr.sp-cfg-row');
+        rows.forEach(r => {
+            const searchable = r.getAttribute('data-search') || '';
+            if (!q || searchable.indexOf(q) !== -1) {
+                r.classList.remove('sp-cfg-hidden');
+            } else {
+                r.classList.add('sp-cfg-hidden');
+            }
+        });
     },
 
     // ================================================================
