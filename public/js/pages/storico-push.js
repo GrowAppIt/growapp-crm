@@ -20,6 +20,8 @@ const StoricoPush = {
         limit: 30
     },
     apps: [],
+    tutteLeApp: [],        // cache della lista completa (per il modal Configura)
+    showAllApps: false,    // se true, nel modal Configura si vedono anche le app non-ATTIVE
 
     // ================================================================
     // Render principale
@@ -31,6 +33,7 @@ const StoricoPush = {
 
             // Carica lista app per filtri (tutte le app con pushMonitorEnabled O attive)
             const tutteLeApp = await DataService.getApps();
+            this.tutteLeApp = tutteLeApp || [];
             this.apps = tutteLeApp.filter(a => a.pushMonitorEnabled || a.statoApp === 'ATTIVA');
 
             // Reset stato
@@ -706,8 +709,14 @@ const StoricoPush = {
     // ================================================================
 
     openConfig() {
+        // Sorgente: se showAllApps=true mostra TUTTE le app del CRM,
+        // altrimenti solo ATTIVE + già monitorate (comportamento default)
+        const sourceList = this.showAllApps
+            ? (this.tutteLeApp || [])
+            : (this.apps || []);
+
         // Ordina alfabeticamente per nome comune
-        const sortedApps = [...this.apps].sort((a, b) => {
+        const sortedApps = [...sourceList].sort((a, b) => {
             const na = (a.comune || a.nome || '').toLowerCase();
             const nb = (b.comune || b.nome || '').toLowerCase();
             return na.localeCompare(nb, 'it');
@@ -719,6 +728,11 @@ const StoricoPush = {
 
         const countMonitorate = monitorate.length;
         const countDisponibili = disponibili.length;
+
+        // Conta app nascoste perché non ATTIVE (per mostrare indicatore)
+        const totaleCrm = (this.tutteLeApp || []).length;
+        const totaleVisibiliDefault = (this.apps || []).length;
+        const totaliNonAttive = Math.max(0, totaleCrm - totaleVisibiliDefault);
 
         // Costruisce una riga di tabella per un'app, con toggle-switch che salva subito
         const buildRow = (a) => {
@@ -810,13 +824,75 @@ const StoricoPush = {
                         </button>
                     </div>
 
-                    <!-- Ricerca -->
-                    <div style="padding:10px 1.5rem;border-bottom:1px solid #F5F5F5;background:#FAFAFA;">
-                        <div style="position:relative;max-width:360px;">
+                    <!-- Ricerca + controlli -->
+                    <div style="padding:10px 1.5rem;border-bottom:1px solid #F5F5F5;background:#FAFAFA;display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;">
+                        <div style="position:relative;flex:1;min-width:220px;max-width:360px;">
                             <i class="fas fa-search" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#9B9B9B;font-size:0.85rem;"></i>
                             <input id="sp-cfg-search" type="text" placeholder="Cerca comune..."
                                    oninput="StoricoPush.filterConfigList(this.value)"
                                    style="width:100%;padding:7px 10px 7px 32px;border:1px solid #D9D9D9;border-radius:6px;font-family:'Titillium Web',sans-serif;font-size:0.9rem;">
+                        </div>
+                        <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+                            <label style="display:flex;align-items:center;gap:8px;font-size:0.82rem;color:#4A4A4A;cursor:pointer;">
+                                <span>Mostra tutte le app${totaliNonAttive > 0 ? ` <span style="color:#9B9B9B;">(${totaliNonAttive} non ATTIVE)</span>` : ''}</span>
+                                <span class="sp-switch" style="width:40px;height:22px;" title="Include anche le app non-ATTIVE del CRM">
+                                    <input type="checkbox" id="sp-cfg-show-all"
+                                           ${this.showAllApps ? 'checked' : ''}
+                                           onchange="StoricoPush.toggleShowAllApps(this.checked)">
+                                    <span class="sp-switch-slider"></span>
+                                </span>
+                            </label>
+                            <button class="btn btn-primary" style="padding:6px 12px;font-size:0.82rem;"
+                                    onclick="StoricoPush.openAddAppForm()">
+                                <i class="fas fa-plus"></i> Aggiungi app
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Form inline "Nuova app" (nascosto di default) -->
+                    <div id="sp-cfg-new-app-form" style="display:none;padding:14px 1.5rem;border-bottom:1px solid #D1E2F2;background:#F0F7FC;">
+                        <h4 style="margin:0 0 10px 0;font-size:0.9rem;color:#145284;font-weight:700;">
+                            <i class="fas fa-plus-circle"></i> Nuova app nel CRM
+                        </h4>
+                        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-bottom:10px;">
+                            <div>
+                                <label style="display:block;font-size:0.72rem;font-weight:700;color:#9B9B9B;text-transform:uppercase;margin-bottom:3px;">Comune *</label>
+                                <input id="sp-new-comune" type="text" placeholder="Es. Mezzolombardo"
+                                       oninput="StoricoPush._onNewAppComuneInput(this.value)"
+                                       style="width:100%;padding:7px 10px;border:1px solid #D9D9D9;border-radius:5px;font-family:'Titillium Web',sans-serif;font-size:0.9rem;">
+                            </div>
+                            <div>
+                                <label style="display:block;font-size:0.72rem;font-weight:700;color:#9B9B9B;text-transform:uppercase;margin-bottom:3px;">App Slug *</label>
+                                <input id="sp-new-slug" type="text" placeholder="es. mezzolombardo"
+                                       style="width:100%;padding:7px 10px;border:1px solid #D9D9D9;border-radius:5px;font-family:monospace;font-size:0.85rem;">
+                            </div>
+                            <div>
+                                <label style="display:block;font-size:0.72rem;font-weight:700;color:#9B9B9B;text-transform:uppercase;margin-bottom:3px;">Monitor User ID</label>
+                                <input id="sp-new-userid" type="number" placeholder="ID utente fantasma"
+                                       style="width:100%;padding:7px 10px;border:1px solid #D9D9D9;border-radius:5px;font-family:'Titillium Web',sans-serif;font-size:0.9rem;">
+                            </div>
+                            <div>
+                                <label style="display:block;font-size:0.72rem;font-weight:700;color:#9B9B9B;text-transform:uppercase;margin-bottom:3px;">Stato app</label>
+                                <select id="sp-new-stato"
+                                        style="width:100%;padding:7px 10px;border:1px solid #D9D9D9;border-radius:5px;font-family:'Titillium Web',sans-serif;font-size:0.9rem;background:white;">
+                                    <option value="ATTIVA" selected>ATTIVA</option>
+                                    <option value="IN_SVILUPPO">IN SVILUPPO</option>
+                                    <option value="IN_PROVA">IN PROVA</option>
+                                </select>
+                            </div>
+                        </div>
+                        <p style="margin:4px 0 10px 0;font-size:0.75rem;color:#9B9B9B;">
+                            <i class="fas fa-info-circle"></i>
+                            Crea una nuova app nella collezione <code>app</code> del CRM con monitoraggio push già attivo.
+                            Per configurare tutti gli altri dati (contratti, contatti, ecc.) usa la pagina <strong>Gestione App</strong>.
+                        </p>
+                        <div style="display:flex;gap:8px;justify-content:flex-end;">
+                            <button class="btn btn-outline" style="padding:6px 12px;font-size:0.82rem;"
+                                    onclick="StoricoPush.closeAddAppForm()">Annulla</button>
+                            <button class="btn btn-primary" style="padding:6px 12px;font-size:0.82rem;"
+                                    onclick="StoricoPush.submitNewApp()">
+                                <i class="fas fa-save"></i> Crea app
+                            </button>
                         </div>
                     </div>
 
@@ -1156,6 +1232,144 @@ const StoricoPush = {
                 r.classList.add('sp-cfg-hidden');
             }
         });
+    },
+
+    // ================================================================
+    // Toggle "Mostra tutte le app" — include anche app non-ATTIVE
+    // ================================================================
+
+    toggleShowAllApps(enabled) {
+        this.showAllApps = !!enabled;
+        // Riapri il modal con la nuova sorgente dati
+        const modal = document.getElementById('sp-config-modal');
+        if (modal) modal.remove();
+        this.openConfig();
+    },
+
+    // ================================================================
+    // Form "Aggiungi app" — apertura / chiusura / submit
+    // ================================================================
+
+    openAddAppForm() {
+        const form = document.getElementById('sp-cfg-new-app-form');
+        if (!form) return;
+        form.style.display = 'block';
+        // Reset campi
+        document.getElementById('sp-new-comune').value = '';
+        document.getElementById('sp-new-slug').value = '';
+        document.getElementById('sp-new-userid').value = '';
+        document.getElementById('sp-new-stato').value = 'ATTIVA';
+        // Focus su nome comune
+        setTimeout(() => {
+            const el = document.getElementById('sp-new-comune');
+            if (el) el.focus();
+            form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 50);
+    },
+
+    closeAddAppForm() {
+        const form = document.getElementById('sp-cfg-new-app-form');
+        if (form) form.style.display = 'none';
+    },
+
+    // Mentre l'utente digita il nome comune, propone uno slug nel campo slug (se vuoto)
+    _onNewAppComuneInput(value) {
+        const slugInput = document.getElementById('sp-new-slug');
+        if (!slugInput) return;
+        // Se l'utente ha già scritto manualmente uno slug, non sovrascrivere
+        if (slugInput.dataset.edited === '1') return;
+
+        const suggested = (value || '').toLowerCase()
+            .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+            .replace(/[^a-z0-9]/g, '');
+        slugInput.value = suggested;
+
+        // Se utente edita a mano dopo, segna come "edited" e smetto di auto-riempire
+        slugInput.addEventListener('input', function markEdited() {
+            slugInput.dataset.edited = '1';
+            slugInput.removeEventListener('input', markEdited);
+        });
+    },
+
+    async submitNewApp() {
+        const comune = (document.getElementById('sp-new-comune').value || '').trim();
+        const slugRaw = (document.getElementById('sp-new-slug').value || '').trim();
+        const userIdRaw = (document.getElementById('sp-new-userid').value || '').trim();
+        const statoApp = (document.getElementById('sp-new-stato').value || 'ATTIVA').trim();
+
+        // Validazione minima
+        if (!comune) {
+            alert('Il campo "Comune" è obbligatorio.');
+            document.getElementById('sp-new-comune').focus();
+            return;
+        }
+        if (!slugRaw) {
+            alert('Il campo "App Slug" è obbligatorio (nome dell\'app su GoodBarber, minuscolo senza spazi).');
+            document.getElementById('sp-new-slug').focus();
+            return;
+        }
+
+        // Normalizza lo slug (minuscolo, solo a-z0-9)
+        const appSlug = slugRaw.toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (!appSlug) {
+            alert('L\'App Slug deve contenere almeno una lettera o cifra.');
+            document.getElementById('sp-new-slug').focus();
+            return;
+        }
+
+        // Evita duplicati sullo slug
+        const duplicato = (this.tutteLeApp || []).find(a => (a.appSlug || '').toLowerCase() === appSlug);
+        if (duplicato) {
+            const nomeDup = duplicato.comune || duplicato.nome || appSlug;
+            alert(`Esiste già un'app nel CRM con slug "${appSlug}" (${nomeDup}).\n\nUsa il toggle sulla riga esistente invece di crearne una nuova.`);
+            return;
+        }
+
+        const monitorPushUserId = userIdRaw ? (parseInt(userIdRaw, 10) || 0) : 0;
+
+        // Conferma
+        const conferma = confirm(
+            `Creare una nuova app nel CRM?\n\n` +
+            `Comune: ${comune}\n` +
+            `App Slug: ${appSlug}\n` +
+            `Monitor User ID: ${monitorPushUserId || '(non impostato)'}\n` +
+            `Stato: ${statoApp}\n` +
+            `Monitoraggio push: ATTIVO`
+        );
+        if (!conferma) return;
+
+        try {
+            UI.showLoading('Creazione app in corso...');
+
+            const nuovoDoc = {
+                comune: comune,
+                nome: comune,
+                appSlug: appSlug,
+                statoApp: statoApp,
+                pushMonitorEnabled: true,
+                monitorPushUserId: monitorPushUserId
+            };
+
+            const newId = await DataService.createApp(nuovoDoc);
+
+            // Aggiorna le cache locali
+            const nuovaApp = { id: newId, ...nuovoDoc };
+            this.tutteLeApp = [...(this.tutteLeApp || []), nuovaApp];
+            this.apps = [...(this.apps || []), nuovaApp];
+
+            UI.hideLoading();
+            UI.showSuccess(`App "${comune}" creata e aggiunta al monitoraggio!`);
+
+            // Rigenera il modal con la nuova app
+            const modal = document.getElementById('sp-config-modal');
+            if (modal) modal.remove();
+            this.openConfig();
+
+        } catch (error) {
+            UI.hideLoading();
+            console.error('[StoricoPush] Errore creazione app:', error);
+            UI.showError('Errore nella creazione dell\'app: ' + error.message);
+        }
     },
 
     // ================================================================
