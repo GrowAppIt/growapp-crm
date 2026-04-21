@@ -59,9 +59,11 @@ const PushHistoryService = {
      */
     async logNotification(data) {
         try {
+            // Normalizza appSlug a lowercase+trim per coerenza con sync e pagina pubblica
+            const slugNorm = ((data.appSlug || '') + '').toLowerCase().trim();
             const record = {
                 appId: data.appId || '',
-                appSlug: data.appSlug || '',
+                appSlug: slugNorm,
                 comune: data.comune || '',
                 title: data.title || '',
                 message: data.message || '',
@@ -106,10 +108,12 @@ const PushHistoryService = {
                 const batch = db.batch();
 
                 chunk.forEach(data => {
+                    // Normalizza appSlug a lowercase+trim per ogni entry del batch
+                    const slugNorm = ((data.appSlug || '') + '').toLowerCase().trim();
                     const docRef = db.collection('push_history').doc();
                     batch.set(docRef, {
                         appId: data.appId || '',
-                        appSlug: data.appSlug || '',
+                        appSlug: slugNorm,
                         comune: data.comune || '',
                         title: data.title || '',
                         message: data.message || '',
@@ -145,9 +149,12 @@ const PushHistoryService = {
      * @returns {Promise<{success: boolean, notifications: Array, lastDoc: Object|null}>}
      */
     async getHistoryByApp(appSlug, limit = 20, lastDoc = null) {
+        // Normalizza lo slug a lowercase/trim: i documenti sono sempre salvati
+        // lowercase dal sync, quindi una query con casing diverso non matcherebbe.
+        const slug = (appSlug || '').toString().toLowerCase().trim();
         try {
             let query = db.collection('push_history')
-                .where('appSlug', '==', appSlug)
+                .where('appSlug', '==', slug)
                 .where('status', '==', this.STATUS.SENT)
                 .orderBy('sentAt', 'desc')
                 .limit(limit);
@@ -173,7 +180,7 @@ const PushHistoryService = {
             try {
                 console.warn('[PushHistory] Tentativo fallback senza orderBy...');
                 let fallbackQuery = db.collection('push_history')
-                    .where('appSlug', '==', appSlug)
+                    .where('appSlug', '==', slug)
                     .where('status', '==', this.STATUS.SENT)
                     .limit(limit * 2);
 
@@ -257,13 +264,23 @@ const PushHistoryService = {
      * @returns {Promise<{success: boolean, count: number}>}
      */
     async getCountByApp(appSlug) {
+        const slug = (appSlug || '').toString().toLowerCase().trim();
         try {
-            const snapshot = await db.collection('push_history')
-                .where('appSlug', '==', appSlug)
-                .where('status', '==', this.STATUS.SENT)
-                .get();
-
-            return { success: true, count: snapshot.size };
+            // Count aggregato: 1 read invece di N (Firebase 10+)
+            try {
+                const agg = await db.collection('push_history')
+                    .where('appSlug', '==', slug)
+                    .where('status', '==', this.STATUS.SENT)
+                    .count().get();
+                return { success: true, count: agg.data().count };
+            } catch (eCount) {
+                // Fallback per SDK più vecchi
+                const snapshot = await db.collection('push_history')
+                    .where('appSlug', '==', slug)
+                    .where('status', '==', this.STATUS.SENT)
+                    .get();
+                return { success: true, count: snapshot.size };
+            }
         } catch (error) {
             console.error('[PushHistory] Errore conteggio:', error);
             return { success: false, count: 0 };
@@ -282,12 +299,19 @@ const PushHistoryService = {
             const startDate = new Date();
             startDate.setDate(startDate.getDate() - days);
 
-            const snapshot = await db.collection('push_history')
-                .where('source', '==', source)
-                .where('sentAt', '>=', startDate)
-                .get();
-
-            return { success: true, count: snapshot.size };
+            try {
+                const agg = await db.collection('push_history')
+                    .where('source', '==', source)
+                    .where('sentAt', '>=', startDate)
+                    .count().get();
+                return { success: true, count: agg.data().count };
+            } catch (eCount) {
+                const snapshot = await db.collection('push_history')
+                    .where('source', '==', source)
+                    .where('sentAt', '>=', startDate)
+                    .get();
+                return { success: true, count: snapshot.size };
+            }
         } catch (error) {
             console.error('[PushHistory] Errore conteggio per sorgente:', error);
             return { success: false, count: 0 };

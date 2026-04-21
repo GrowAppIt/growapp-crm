@@ -696,6 +696,10 @@
         } catch (e) { /* cross-origin, ignora */ }
     }
 
+    // Normalizza appSlug a lowercase + trim (i documenti in push_history sono salvati lowercase)
+    // Senza questo, un URL con maiuscole (es. ?app=Zambrone) non matcherebbe i doc (appSlug='zambrone').
+    CONFIG.appSlug = (CONFIG.appSlug || '').toString().toLowerCase().trim();
+
     // Stato dell'app
     let state = {
         notifications: [],
@@ -766,22 +770,24 @@
         }
 
         try {
+            // STRATEGIA FILTRI (v4.5+):
+            // La query su Firestore NON filtra più per "source", per non richiedere
+            // un indice composito diverso per ogni chip (Notizie/Agenda/Avvisi).
+            // Il filtro viene applicato lato client dentro renderNotifications().
+            // Indice unico richiesto: (appSlug ASC, status ASC, sentAt DESC).
+            //
+            // Per mantenere una UX decente con filtri attivi, carichiamo un batch
+            // più grande (pageSize * 3) quando un filtro è attivo, così l'utente vede
+            // abbastanza risultati anche se il filtro è molto selettivo.
+            const batchSize = state.activeFilter === 'all'
+                ? CONFIG.pageSize
+                : CONFIG.pageSize * 3;
+
             let query = state.db.collection('push_history')
                 .where('appSlug', '==', CONFIG.appSlug)
-                .where('status', '==', 'sent');
-
-            // Filtro per gruppo sorgente
-            // NB: 'manual' = notifiche non classificate → vanno negli Avvisi,
-            // così non si perdono mai.
-            if (state.activeFilter === 'notizie') {
-                query = query.where('source', '==', 'rss_auto');
-            } else if (state.activeFilter === 'in_agenda') {
-                query = query.where('source', '==', 'calendar_auto');
-            } else if (state.activeFilter === 'avvisi') {
-                query = query.where('source', 'in', ['meteo_alert', 'crm_broadcast', 'crm_api', 'manual']);
-            }
-
-            query = query.orderBy('sentAt', 'desc').limit(CONFIG.pageSize);
+                .where('status', '==', 'sent')
+                .orderBy('sentAt', 'desc')
+                .limit(batchSize);
 
             if (state.lastDoc) {
                 query = query.startAfter(state.lastDoc);
@@ -802,14 +808,16 @@
                 ? [...state.notifications, ...newNotifications]
                 : newNotifications;
 
-            state.hasMore = newNotifications.length >= CONFIG.pageSize;
+            // hasMore si basa sul batch caricato: se abbiamo ricevuto meno del richiesto
+            // dal server, abbiamo esaurito lo storico.
+            state.hasMore = snapshot.size >= batchSize;
 
             renderNotifications();
 
         } catch (error) {
             console.error('[Storico] Errore caricamento:', error);
 
-            // Fallback: prova senza orderBy (indice composito mancante)
+            // Fallback: prova senza orderBy (indice (appSlug+status+sentAt) mancante)
             try {
                 let fallbackQuery = state.db.collection('push_history')
                     .where('appSlug', '==', CONFIG.appSlug)
@@ -823,19 +831,16 @@
                     if (!shouldHideNotification(data)) all.push(data);
                 });
 
-                // Ordina e filtra manualmente
+                // Ordina lato client (fallback senza orderBy = ordine indefinito)
                 all.sort((a, b) => {
                     const da = a.sentAt?.toDate ? a.sentAt.toDate() : new Date(a.sentAt || 0);
                     const db2 = b.sentAt?.toDate ? b.sentAt.toDate() : new Date(b.sentAt || 0);
                     return db2 - da;
                 });
 
-                if (state.activeFilter !== 'all') {
-                    state.notifications = all.filter(n => matchesFilter(n.source, state.activeFilter));
-                } else {
-                    state.notifications = all;
-                }
-
+                // Il filtro per source è applicato nel render, non qui, così la chip
+                // "Tutte" torna sempre a mostrare tutto senza ri-fetch.
+                state.notifications = all;
                 state.hasMore = false;
                 renderNotifications();
 
@@ -859,24 +864,72 @@
 
     async function loadStats() {
         try {
-            const snapshot = await state.db.collection('push_history')
-                .where('appSlug', '==', CONFIG.appSlug)
-                .where('status', '==', 'sent')
-                .get();
-
             const now = new Date();
             const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
             const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-            let total = 0, month = 0, today = 0;
+            // STRATEGIA A BASSO COSTO:
+            // - "total" = count aggregato (1 read invece di N per contare tutto lo storico)
+            // - "month" = leggiamo i doc del mese corrente (pochi — tipicamente < 200)
+            //            e poi contiamo su quelli anche "today" lato client.
+            // Così evitiamo 3 indici compositi e comunque minimizziamo le letture.
 
-            snapshot.forEach(doc => {
-                total++;
-                const sentAt = doc.data().sentAt;
-                const date = sentAt?.toDate ? sentAt.toDate() : new Date(sentAt || 0);
-                if (date >= startOfMonth) month++;
-                if (date >= startOfDay) today++;
-            });
+            let total = 0;
+            let month = 0;
+            let today = 0;
+
+            // 1) TOTAL con count aggregato + fallback
+            try {
+                const agg = await state.db.collection('push_history')
+                    .where('appSlug', '==', CONFIG.appSlug)
+                    .where('status', '==', 'sent')
+                    .count().get();
+                total = agg.data().count;
+            } catch (eCount) {
+                // Fallback: se count() non disponibile o non indicizzato,
+                // stima prudente = contiamo leggendo con cap a 500 doc.
+                const snap = await state.db.collection('push_history')
+                    .where('appSlug', '==', CONFIG.appSlug)
+                    .where('status', '==', 'sent')
+                    .limit(500)
+                    .get();
+                total = snap.size;
+            }
+
+            // 2) MONTH + TODAY — query limitata al mese corrente
+            try {
+                const monthSnap = await state.db.collection('push_history')
+                    .where('appSlug', '==', CONFIG.appSlug)
+                    .where('status', '==', 'sent')
+                    .where('sentAt', '>=', startOfMonth)
+                    .get();
+                monthSnap.forEach(doc => {
+                    month++;
+                    const sentAt = doc.data().sentAt;
+                    const date = sentAt?.toDate ? sentAt.toDate() : new Date(sentAt || 0);
+                    if (date >= startOfDay) today++;
+                });
+            } catch (eMonth) {
+                // Se manca l'indice composto (appSlug+status+sentAt) facciamo un fallback
+                // senza range su sentAt, prendendo gli ultimi 100 doc e filtrando lato client.
+                // È meno preciso ma non rompe la UI.
+                console.warn('[Storico] Fallback month stats (indice range mancante):', eMonth.message);
+                try {
+                    const fb = await state.db.collection('push_history')
+                        .where('appSlug', '==', CONFIG.appSlug)
+                        .where('status', '==', 'sent')
+                        .limit(100)
+                        .get();
+                    fb.forEach(doc => {
+                        const sentAt = doc.data().sentAt;
+                        const date = sentAt?.toDate ? sentAt.toDate() : new Date(sentAt || 0);
+                        if (date >= startOfMonth) month++;
+                        if (date >= startOfDay) today++;
+                    });
+                } catch (eFb) {
+                    // ignora, mostriamo solo il total
+                }
+            }
 
             document.getElementById('stat-total').textContent = total;
             document.getElementById('stat-month').textContent = month;
@@ -941,9 +994,17 @@
 
         let html = '';
         let lastDateStr = '';
+        let renderedCount = 0;
 
         state.notifications.forEach(notif => {
             const sentAt = notif.sentAt?.toDate ? notif.sentAt.toDate() : new Date(notif.sentAt || 0);
+
+            // FILTRO PER CATEGORIA (client-side): rispetta la chip selezionata.
+            // La query su Firestore carica tutte le notifiche del comune, il filtro
+            // fine per sorgente è qui così ogni chip funziona senza indici dedicati.
+            if (!matchesFilter(notif.source || 'manual', state.activeFilter)) {
+                return;
+            }
 
             // Gestione speciale Differenziata/Rifiuti: mostra solo l'ultima entro 24h
             const titleLower = (notif.title || '').toLowerCase().trim();
@@ -952,6 +1013,8 @@
                     return; // salta: è un duplicato più vecchio o è scaduta
                 }
             }
+
+            renderedCount++;
 
             const dateStr = formatDateGroup(sentAt);
 
@@ -992,14 +1055,25 @@
             `;
         });
 
-        // Se tutte le notifiche sono state filtrate (es. solo Differenziata/Rifiuti scadute)
+        // Se tutte le notifiche sono state filtrate (es. nessun match per la chip selezionata
+        // o solo Differenziata/Rifiuti scadute).
         if (!html) {
+            const canLoadMore = state.hasMore;
+            const emptyCopy = state.activeFilter !== 'all'
+                ? (canLoadMore
+                    ? 'Nessuna notifica di questa categoria nelle ultime caricate. Prova a caricarne altre o seleziona "Tutte".'
+                    : 'Non ci sono notifiche per questo filtro.')
+                : 'Da questo momento qui troverai tutte le notifiche ricevute dall\'App.';
+
             container.innerHTML = `
                 <div class="empty-state">
                     <i class="fas fa-bell-slash"></i>
                     <h3>Nessuna notifica</h3>
-                    <p>${state.activeFilter !== 'all' ? 'Non ci sono notifiche per questo filtro.' : 'Da questo momento qui troverai tutte le notifiche ricevute dall\'App.'}</p>
+                    <p>${emptyCopy}</p>
                 </div>
+                ${canLoadMore ? `<button class="load-more" onclick="loadNotifications(true)">
+                    <i class="fas fa-chevron-down"></i> Carica altre notifiche
+                </button>` : ''}
             `;
             return;
         }
@@ -1154,10 +1228,24 @@
         // Personalizza per il comune — legge il nome reale da Firestore
         let comuneNome = CONFIG.appSlug.charAt(0).toUpperCase() + CONFIG.appSlug.slice(1);
         try {
-            const appSnap = await state.db.collection('app')
+            // Primo tentativo: match esatto (slug già normalizzato lowercase)
+            let appSnap = await state.db.collection('app')
                 .where('appSlug', '==', CONFIG.appSlug)
                 .limit(1)
                 .get();
+            // Fallback case-insensitive: se qualche vecchio documento ha lo slug
+            // con maiuscole, proviamo a trovarlo fra le app monitorate
+            if (appSnap.empty) {
+                const allMonitored = await state.db.collection('app')
+                    .where('pushMonitorEnabled', '==', true)
+                    .get();
+                const target = CONFIG.appSlug;
+                const match = allMonitored.docs.find(d => {
+                    const s = ((d.data() || {}).appSlug || '').toLowerCase().trim();
+                    return s === target;
+                });
+                if (match) appSnap = { empty: false, docs: [match] };
+            }
             if (!appSnap.empty) {
                 const appData = appSnap.docs[0].data();
                 comuneNome = appData.comune || appData.nome || appData.nomeComune || comuneNome;

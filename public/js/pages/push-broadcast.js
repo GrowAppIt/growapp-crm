@@ -979,6 +979,63 @@ const PushBroadcast = {
         }))
       });
 
+      // --- Registra anche in push_history, una entry per ogni app destinataria ---
+      // Senza questo, lo storico pubblico (notifiche.comune.digital/storico-notifiche/?app=X)
+      // non mostrerebbe le push broadcast per i comuni che non hanno il monitoraggio
+      // push (ghost user) attivo. Con questa scrittura, lo storico è sempre completo.
+      try {
+        if (typeof PushHistoryService !== 'undefined' &&
+            Array.isArray(this.currentSendResults) &&
+            this.currentSendResults.length > 0) {
+
+          // Mappa i risultati agli oggetti logNotification attesi dal service
+          const platformMap = {
+            'Tutte': 'all',
+            'iOS': 'ios',
+            'Android': 'android',
+            'PWA': 'pwa'
+          };
+          const apiPlatform = platformMap[this.selectedPlatform] || 'all';
+
+          const logRecords = this.currentSendResults.map(result => {
+            // Cerca l'oggetto app originale per recuperare slug e id
+            const appObj = selectedAppsData.find(a => a.id === result.appId) || {};
+            const slug = ((appObj.appSlug || '') + '').toLowerCase().trim();
+            const personalizedMessage = messageTemplate.replace('{COMUNE}', appObj.comune || result.comune || '');
+
+            return {
+              appId: appObj.id || result.appId || '',
+              appSlug: slug,
+              comune: appObj.comune || result.comune || '',
+              title: '',
+              message: personalizedMessage,
+              source: PushHistoryService.SOURCES.CRM_BROADCAST,
+              platform: apiPlatform,
+              sentBy: userId || 'system',
+              sentByName: userName || 'Operatore CRM',
+              status: result.success
+                ? PushHistoryService.STATUS.SENT
+                : PushHistoryService.STATUS.FAILED,
+              error: result.error || null,
+              metadata: {
+                template: templateName || null,
+                webzineId: appObj.goodbarberWebzineId || null
+              }
+            };
+          }).filter(r => r.appSlug); // solo entry con slug valido
+
+          if (logRecords.length > 0) {
+            const logRes = await PushHistoryService.logNotificationsBatch(logRecords);
+            if (!logRes.success) {
+              console.warn('[push-broadcast] logNotificationsBatch fallito:', logRes.error);
+            }
+          }
+        }
+      } catch (histErr) {
+        // Non blocchiamo il flusso principale se push_history fallisce
+        console.warn('[push-broadcast] Errore registrazione push_history:', histErr);
+      }
+
       // Show results
       const progressSection = document.getElementById('progress-section');
       const resultsSection = document.getElementById('results-section');

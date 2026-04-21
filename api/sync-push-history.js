@@ -77,8 +77,11 @@ const DELAY_BETWEEN_REQUESTS = 200; // ms tra richieste API per non sovraccarica
 async function getMonitoredApps(filterSlug = null) {
     let query = db.collection('app').where('pushMonitorEnabled', '==', true);
 
+    // Normalizza il filtro a lowercase: evita mismatch se l'utente del CRM
+    // ha digitato "Locri" nell'URL mentre nel DB è salvato "locri" (o viceversa).
     if (filterSlug) {
-        query = query.where('appSlug', '==', filterSlug);
+        const filterSlugNorm = filterSlug.toLowerCase().trim();
+        query = query.where('appSlug', '==', filterSlugNorm);
     }
 
     const snapshot = await query.get();
@@ -87,13 +90,14 @@ async function getMonitoredApps(filterSlug = null) {
     snapshot.forEach(doc => {
         const data = doc.data();
         if (data.goodbarberWebzineId && data.monitorPushUserId) {
+            const slugNorm = (data.appSlug || '').toLowerCase().trim();
             apps.push({
                 id: doc.id,
-                appSlug: data.appSlug || '',
+                appSlug: slugNorm,              // sempre lowercase nel flusso sync
                 comune: data.comune || '',
                 webzineId: data.goodbarberWebzineId,
                 monitorUserId: data.monitorPushUserId,
-                appUrl: data.appUrl || `https://${data.appSlug}.comune.digital`
+                appUrl: data.appUrl || (slugNorm ? `https://${slugNorm}.comune.digital` : '')
             });
         }
     });
@@ -144,21 +148,103 @@ async function getLastSyncedPushId(appSlug) {
 }
 
 /**
- * Chiama l'API GoodBarber pushapi/history
+ * Timeout di default per le chiamate a GoodBarber.
+ * Se l'API non risponde entro questo tempo la singola fetch viene abortita;
+ * il sync prosegue con le pagine già scaricate invece di bloccarsi fino al
+ * timeout della serverless function (300s).
+ */
+const GOODBARBER_FETCH_TIMEOUT_MS = 30000; // 30 secondi
+
+/**
+ * Chiama l'API GoodBarber pushapi/history con timeout esplicito.
+ * Usa AbortController così se l'API è lenta non ci blocchiamo indefinitamente.
  */
 async function fetchPushHistory(webzineId, userId, page = 1) {
     const url = `${GOODBARBER_PUSH_API}?user_id=${userId}&token=&page=${page}&webzine_id=${webzineId}`;
 
-    const response = await fetch(url, {
-        method: 'GET',
-        headers: { 'Accept': 'application/json' }
-    });
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), GOODBARBER_FETCH_TIMEOUT_MS);
+
+    let response;
+    try {
+        response = await fetch(url, {
+            method: 'GET',
+            headers: { 'Accept': 'application/json' },
+            signal: controller.signal
+        });
+    } catch (err) {
+        // AbortError → timeout esplicito; altri errori → rilancia
+        if (err && err.name === 'AbortError') {
+            throw new Error(`GoodBarber API timeout (>${GOODBARBER_FETCH_TIMEOUT_MS}ms) su pagina ${page}`);
+        }
+        throw err;
+    } finally {
+        clearTimeout(timer);
+    }
 
     if (!response.ok) {
         throw new Error(`GoodBarber API error: ${response.status} ${response.statusText}`);
     }
 
-    return response.json();
+    // Parsing JSON difensivo: se la risposta non è JSON valido,
+    // evita che l'intero sync esploda con un SyntaxError generico.
+    let data;
+    try {
+        data = await response.json();
+    } catch (err) {
+        throw new Error(`GoodBarber API: risposta non-JSON (pagina ${page}): ${err.message}`);
+    }
+
+    // Controllo esplicito del flag 'ok' di GoodBarber:
+    // alcune risposte arrivano con ok=false anche con status HTTP 200.
+    // Lo trattiamo solo se il campo è esplicitamente falsy (false/0/"false"/"0"),
+    // altrimenti (undefined) procediamo come prima per retrocompatibilità.
+    if (data && typeof data.ok !== 'undefined') {
+        const okVal = data.ok;
+        const isExplicitlyNotOk =
+            okVal === false || okVal === 0 || okVal === '0' || okVal === 'false';
+        if (isExplicitlyNotOk) {
+            throw new Error(`GoodBarber API: ok=${JSON.stringify(okVal)} (pagina ${page})`);
+        }
+    }
+
+    return data;
+}
+
+/**
+ * Prova a convertire un valore qualsiasi in Date valida.
+ * GoodBarber può restituire pushed_at come:
+ *   - timestamp unix (numero o stringa numerica, in secondi)
+ *   - stringa ISO ("2026-04-21T08:30:00Z")
+ *   - formato custom non sempre parseable
+ * In più la risposta contiene anche pushed_at_date come fallback.
+ * Ritorna null se nessun formato è parseabile.
+ */
+function parsePushedAt(primaryValue, fallbackValue) {
+    const tryParse = (v) => {
+        if (v === null || v === undefined || v === '') return null;
+
+        // Numero → assume epoch. Heuristica: se < 10^12 è in secondi, altrimenti in ms.
+        if (typeof v === 'number' && isFinite(v)) {
+            const ms = v < 1e12 ? v * 1000 : v;
+            const d = new Date(ms);
+            return isNaN(d.getTime()) ? null : d;
+        }
+
+        // Stringa numerica → stesso trattamento
+        if (typeof v === 'string' && /^\d+$/.test(v.trim())) {
+            const n = parseInt(v, 10);
+            const ms = n < 1e12 ? n * 1000 : n;
+            const d = new Date(ms);
+            return isNaN(d.getTime()) ? null : d;
+        }
+
+        // Altra stringa → prova ISO/RFC
+        const d = new Date(v);
+        return isNaN(d.getTime()) ? null : d;
+    };
+
+    return tryParse(primaryValue) || tryParse(fallbackValue) || null;
 }
 
 /**
@@ -460,38 +546,65 @@ function extractTitleFromMessage(message) {
 }
 
 /**
- * Salva un batch di notifiche su Firestore
+ * Salva un batch di notifiche su Firestore.
+ *
+ * Se una singola notifica ha date malformate, viene SALTATA con log,
+ * ma il resto del batch procede. In questo modo una notifica sporca non
+ * blocca la sincronizzazione di tutte le altre per quell'app.
+ *
+ * Normalizza appSlug a lowercase quando lo salva, così le query pubbliche
+ * sono case-insensitive di fatto (bisogna scriverne una sola versione).
  */
 async function saveNotifications(notifications, appData) {
-    if (!notifications || notifications.length === 0) return 0;
+    if (!notifications || notifications.length === 0) {
+        return { saved: 0, skipped: 0, skippedReasons: [] };
+    }
 
     const BATCH_SIZE = 450;
     let totalSaved = 0;
+    let totalSkipped = 0;
+    const skippedReasons = [];
+
+    // Normalizza una sola volta
+    const appSlugNorm = (appData.appSlug || '').toLowerCase().trim();
 
     for (let i = 0; i < notifications.length; i += BATCH_SIZE) {
         const chunk = notifications.slice(i, i + BATCH_SIZE);
         const batch = db.batch();
+        let chunkWrites = 0;
 
         for (const notif of chunk) {
+            // Validazione data (A3): se pushed_at e pushed_at_date sono entrambi
+            // invalidi, saltiamo la singola notifica per non rompere il batch.
+            const parsedDate = parsePushedAt(notif.pushed_at, notif.pushed_at_date);
+            if (!parsedDate) {
+                totalSkipped++;
+                const reason = `notif id=${notif.id}: pushed_at non parseabile (${JSON.stringify(notif.pushed_at)})`;
+                skippedReasons.push(reason);
+                console.warn(`[sync] SKIP ${appData.comune} — ${reason}`);
+                continue;
+            }
+
             // Passiamo l'intero oggetto notif al classifier così può usare
             // anche i metadati (rootzine, section_id, url) oltre al testo.
             const { source, title, body } = detectNotificationSource(notif);
 
             // Usa un ID deterministico basato sul push_id di GoodBarber
-            // per evitare duplicati
-            const docId = `gb_${appData.appSlug}_${notif.id}`;
+            // per evitare duplicati. Includiamo lo slug normalizzato così
+            // non si creano due doc diversi per Locri/locri.
+            const docId = `gb_${appSlugNorm || appData.appSlug}_${notif.id}`;
             const docRef = db.collection('push_history').doc(docId);
 
             batch.set(docRef, {
                 appId: appData.id,
-                appSlug: appData.appSlug,
+                appSlug: appSlugNorm,           // sempre lowercase
                 comune: appData.comune,
                 title: title,
                 message: body,
                 fullMessage: notif.message,
                 source: source,
                 platform: 'all',
-                sentAt: admin.firestore.Timestamp.fromDate(new Date(notif.pushed_at)),
+                sentAt: admin.firestore.Timestamp.fromDate(parsedDate),
                 sentBy: 'goodbarber',
                 sentByName: 'GoodBarber',
                 status: 'sent',
@@ -506,13 +619,21 @@ async function saveNotifications(notifications, appData) {
                     pushed_at_original: notif.pushed_at_date || notif.pushed_at
                 }
             }, { merge: true }); // merge per non sovrascrivere eventuali arricchimenti manuali
+
+            chunkWrites++;
         }
 
-        await batch.commit();
-        totalSaved += chunk.length;
+        if (chunkWrites > 0) {
+            await batch.commit();
+            totalSaved += chunkWrites;
+        }
     }
 
-    return totalSaved;
+    return {
+        saved: totalSaved,
+        skipped: totalSkipped,
+        skippedReasons: skippedReasons
+    };
 }
 
 /**
@@ -583,15 +704,26 @@ async function syncApp(appData, fullSync = false) {
     }
 
     // Salva le nuove notifiche su Firestore
-    const savedCount = await saveNotifications(allNewNotifications, appData);
+    const saveResult = await saveNotifications(allNewNotifications, appData);
+    const savedCount = saveResult.saved;
+    const skippedCount = saveResult.skipped;
+
+    // Se ci sono state notifiche saltate per date malformate, le aggiungiamo
+    // al warning così Giancarlo le vede nel CRM (dashboard + alert monitoraggio).
+    let finalWarning = syncWarning;
+    if (skippedCount > 0) {
+        const skipNote = `${skippedCount} notifica/e saltata/e per data non parseabile`;
+        finalWarning = finalWarning ? `${finalWarning} | ${skipNote}` : skipNote;
+    }
 
     // Aggiorna il timestamp dell'ultima sincronizzazione + diagnostica
     const updateData = {
         lastPushSync: admin.firestore.FieldValue.serverTimestamp(),
         lastPushSyncCount: savedCount,
+        lastPushSyncSkipped: skippedCount,
         lastPushSyncPagesScanned: page,
-        lastPushSyncStatus: apiErrors.length > 0 ? 'error' : (syncWarning ? 'warning' : 'ok'),
-        lastPushSyncWarning: syncWarning || null,
+        lastPushSyncStatus: apiErrors.length > 0 ? 'error' : (finalWarning ? 'warning' : 'ok'),
+        lastPushSyncWarning: finalWarning || null,
         lastPushSyncError: apiErrors.length > 0 ? apiErrors.join('; ') : null
     };
     try {
@@ -604,11 +736,15 @@ async function syncApp(appData, fullSync = false) {
         app: appData.comune,
         appSlug: appData.appSlug,
         newNotifications: savedCount,
+        skippedNotifications: skippedCount,
+        skippedReasons: saveResult.skippedReasons && saveResult.skippedReasons.length > 0
+            ? saveResult.skippedReasons.slice(0, 5) // tieni solo i primi 5 per non gonfiare il JSON
+            : null,
         pagesScanned: page,
         fullSync: fullSync,
         reachedExisting: reachedExisting,
         reachedLastPage: reachedLastPage,
-        warning: syncWarning,
+        warning: finalWarning,
         errors: apiErrors.length > 0 ? apiErrors : null
     };
 }

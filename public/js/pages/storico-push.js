@@ -516,13 +516,25 @@ const StoricoPush = {
 
     async loadStats() {
         try {
-            // Conta app monitorate
-            const appsSnap = await db.collection('app')
-                .where('pushMonitorEnabled', '==', true)
-                .get();
-            document.getElementById('sp-stat-apps').textContent = appsSnap.size;
+            // --- Conta app monitorate (count aggregato, 1 read invece di N) ---
+            // Firebase 10+ compat supporta query.count().get() → AggregateQuerySnapshot.
+            // Costo: 1 read per ogni 1000 doc conteggiati (vs N read se leggi tutto).
+            let appsCount = 0;
+            try {
+                const appsAgg = await db.collection('app')
+                    .where('pushMonitorEnabled', '==', true)
+                    .count().get();
+                appsCount = appsAgg.data().count;
+            } catch (e) {
+                // Fallback per SDK più vecchi o indici mancanti
+                const appsSnap = await db.collection('app')
+                    .where('pushMonitorEnabled', '==', true)
+                    .get();
+                appsCount = appsSnap.size;
+            }
+            document.getElementById('sp-stat-apps').textContent = appsCount;
 
-            // Per le altre stats, facciamo query leggere.
+            // --- Stats push_history: usiamo count() aggregato in parallelo ---
             // NB: 'manual' è incluso negli Avvisi (notifiche non classificate).
             const queries = {
                 total: db.collection('push_history').where('status', '==', 'sent'),
@@ -531,18 +543,28 @@ const StoricoPush = {
                 broadcast: db.collection('push_history').where('source', 'in', ['meteo_alert', 'crm_broadcast', 'crm_api', 'manual'])
             };
 
-            // Esegui in parallelo
-            const [totalSnap, rssSnap, eventsSnap, broadcastSnap] = await Promise.all([
-                queries.total.get(),
-                queries.rss.get(),
-                queries.events.get(),
-                queries.broadcast.get()
+            // Helper: count con fallback a get() se count() non è supportato
+            async function countOrFallback(query) {
+                try {
+                    const agg = await query.count().get();
+                    return agg.data().count;
+                } catch (e) {
+                    const snap = await query.get();
+                    return snap.size;
+                }
+            }
+
+            const [totalCount, rssCount, eventsCount, broadcastCount] = await Promise.all([
+                countOrFallback(queries.total),
+                countOrFallback(queries.rss),
+                countOrFallback(queries.events),
+                countOrFallback(queries.broadcast)
             ]);
 
-            document.getElementById('sp-stat-total').textContent = totalSnap.size;
-            document.getElementById('sp-stat-rss').textContent = rssSnap.size;
-            document.getElementById('sp-stat-events').textContent = eventsSnap.size;
-            document.getElementById('sp-stat-broadcast').textContent = broadcastSnap.size;
+            document.getElementById('sp-stat-total').textContent = totalCount;
+            document.getElementById('sp-stat-rss').textContent = rssCount;
+            document.getElementById('sp-stat-events').textContent = eventsCount;
+            document.getElementById('sp-stat-broadcast').textContent = broadcastCount;
 
         } catch (error) {
             console.warn('[StoricoPush] Errore stats:', error);
@@ -1396,15 +1418,19 @@ const StoricoPush = {
                 return;
             }
 
+            // Normalizza lo slug dell'app a lowercase per allinearsi ai doc push_history
+            // (che salviamo sempre lowercase dal sync)
             for (const app of monitorate) {
+                const slug = (app.appSlug || '').toLowerCase().trim();
+                if (!slug) continue;
                 let lastNotifDate = null;
                 let totalNotifs = 0;
                 let queryOk = false;
 
                 try {
-                    // Prima prova con orderBy (richiede indice composito)
+                    // Prima prova con orderBy (richiede indice composito appSlug+status+sentAt desc)
                     const lastSnap = await db.collection('push_history')
-                        .where('appSlug', '==', app.appSlug)
+                        .where('appSlug', '==', slug)
                         .where('status', '==', 'sent')
                         .orderBy('sentAt', 'desc')
                         .limit(1)
@@ -1416,34 +1442,63 @@ const StoricoPush = {
                         lastNotifDate = data.sentAt?.toDate ? data.sentAt.toDate() : null;
                     }
 
-                    const countSnap = await db.collection('push_history')
-                        .where('appSlug', '==', app.appSlug)
-                        .where('status', '==', 'sent')
-                        .get();
-                    totalNotifs = countSnap.size;
+                    // Count aggregato: costa 1 read invece di N (Firebase 10+)
+                    try {
+                        const countAgg = await db.collection('push_history')
+                            .where('appSlug', '==', slug)
+                            .where('status', '==', 'sent')
+                            .count().get();
+                        totalNotifs = countAgg.data().count;
+                    } catch (eCount) {
+                        // Fallback: conta leggendo, limitato a 500 per contenere costi
+                        const countSnap = await db.collection('push_history')
+                            .where('appSlug', '==', slug)
+                            .where('status', '==', 'sent')
+                            .limit(500)
+                            .get();
+                        totalNotifs = countSnap.size;
+                    }
 
                 } catch (e) {
                     // Fallback: query senza orderBy (non serve indice composito)
-                    console.warn(`[monitor] Indice mancante per ${app.appSlug}, uso fallback senza orderBy`);
+                    console.warn(`[monitor] Indice mancante per ${slug}, uso fallback senza orderBy`);
                     try {
-                        const fallbackSnap = await db.collection('push_history')
-                            .where('appSlug', '==', app.appSlug)
-                            .where('status', '==', 'sent')
-                            .get();
+                        // Count aggregato anche nel fallback
+                        try {
+                            const countAgg = await db.collection('push_history')
+                                .where('appSlug', '==', slug)
+                                .where('status', '==', 'sent')
+                                .count().get();
+                            totalNotifs = countAgg.data().count;
+                        } catch (eCount) {
+                            const countSnap = await db.collection('push_history')
+                                .where('appSlug', '==', slug)
+                                .where('status', '==', 'sent')
+                                .limit(500)
+                                .get();
+                            totalNotifs = countSnap.size;
+                        }
 
-                        totalNotifs = fallbackSnap.size;
+                        // Per lastNotifDate leggiamo SOLO se serve (quando totalNotifs > 0
+                        // e non abbiamo potuto usare orderBy). Limitiamo a 50 doc più recenti
+                        // ordinati sul client.
+                        if (totalNotifs > 0) {
+                            const fallbackSnap = await db.collection('push_history')
+                                .where('appSlug', '==', slug)
+                                .where('status', '==', 'sent')
+                                .limit(50)
+                                .get();
+                            fallbackSnap.forEach(doc => {
+                                const d = doc.data();
+                                const sentAt = d.sentAt?.toDate ? d.sentAt.toDate() : null;
+                                if (sentAt && (!lastNotifDate || sentAt > lastNotifDate)) {
+                                    lastNotifDate = sentAt;
+                                }
+                            });
+                        }
                         queryOk = true;
-
-                        // Trova la data più recente manualmente
-                        fallbackSnap.forEach(doc => {
-                            const d = doc.data();
-                            const sentAt = d.sentAt?.toDate ? d.sentAt.toDate() : null;
-                            if (sentAt && (!lastNotifDate || sentAt > lastNotifDate)) {
-                                lastNotifDate = sentAt;
-                            }
-                        });
                     } catch (e2) {
-                        console.warn(`[monitor] Anche il fallback fallito per ${app.appSlug}:`, e2.message);
+                        console.warn(`[monitor] Anche il fallback fallito per ${slug}:`, e2.message);
                     }
                 }
 
