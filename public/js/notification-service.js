@@ -10,7 +10,8 @@ const NotificationService = {
         TASK_REASSIGNED: 'task_reassigned',
         NEW_COMMENT: 'new_comment',
         APP_DISCUSSION: 'app_discussion',
-        SALA_RIUNIONI: 'sala_riunioni'
+        SALA_RIUNIONI: 'sala_riunioni',
+        HEALTH_ALERT: 'health_alert'
     },
 
     /**
@@ -298,7 +299,8 @@ const NotificationService = {
             [this.TYPES.TASK_REASSIGNED]: 'fa-user-edit',
             [this.TYPES.NEW_COMMENT]: 'fa-comment',
             [this.TYPES.APP_DISCUSSION]: 'fa-comments',
-            [this.TYPES.SALA_RIUNIONI]: 'fa-video'
+            [this.TYPES.SALA_RIUNIONI]: 'fa-video',
+            [this.TYPES.HEALTH_ALERT]: 'fa-heart-pulse'
         };
         return icons[type] || 'fa-bell';
     },
@@ -316,7 +318,8 @@ const NotificationService = {
             [this.TYPES.TASK_REASSIGNED]: 'var(--blu-500)',
             [this.TYPES.NEW_COMMENT]: 'var(--verde-700)',
             [this.TYPES.APP_DISCUSSION]: 'var(--blu-500)',
-            [this.TYPES.SALA_RIUNIONI]: 'var(--blu-700)'
+            [this.TYPES.SALA_RIUNIONI]: 'var(--blu-700)',
+            [this.TYPES.HEALTH_ALERT]: '#D32F2F'
         };
         return colors[type] || 'var(--grigio-600)';
     }

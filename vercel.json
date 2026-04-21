@@ -10,12 +10,20 @@
     "api/sync-push-history.js": {
       "maxDuration": 300,
       "memory": 512
+    },
+    "api/daily-health-alert.js": {
+      "maxDuration": 120,
+      "memory": 512
     }
   },
   "crons": [
     {
       "path": "/api/sync-push-history",
       "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/daily-health-alert",
+      "schedule": "0 7 * * *"
     }
   ],
   "redirects": [

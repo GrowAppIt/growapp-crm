@@ -332,6 +332,9 @@ const Dashboard = {
                 </div>
             </div>
 
+            <!-- Banner Health Status: visibile solo se ci sono app in warn/error -->
+            <div id="healthStatusBanner"></div>
+
             <!-- Corpo dashboard: skeleton animato, verrà sostituito dai dati reali -->
             <div id="dashboardBody">
                 <div class="kpi-grid" style="margin-bottom: 1.5rem;">
@@ -360,6 +363,124 @@ const Dashboard = {
             </div>
         `;
         UI.hideLoading();
+
+        // Carica in background il banner health status (non bloccante)
+        this.loadAndRenderHealthBanner().catch(e => console.warn('[Dashboard] Health banner fallito:', e));
+    },
+
+    // ─────────────────────────────────────────────────────────────
+    // Banner Health Status: legge health_status/latest da Firestore
+    // e mostra un avviso visibile se alcune app non ricevono più
+    // notifiche (warn ≥3 giorni, error ≥7 giorni). Il documento viene
+    // aggiornato ogni mattina alle 09:00 dal cron /api/daily-health-alert.
+    // ─────────────────────────────────────────────────────────────
+    async loadAndRenderHealthBanner() {
+        const container = document.getElementById('healthStatusBanner');
+        if (!container) return;
+
+        // Visibile solo a chi ha permesso su app/push (admin, CTO, content manager)
+        const puoVedere = AuthService.hasPermission('view_all_data')
+            || AuthService.hasPermission('manage_apps')
+            || AuthService.hasPermission('view_apps')
+            || AuthService.hasPermission('manage_app_content');
+        if (!puoVedere) { container.innerHTML = ''; return; }
+
+        let doc;
+        try {
+            doc = await db.collection('health_status').doc('latest').get();
+        } catch (e) {
+            console.warn('[Dashboard] Impossibile leggere health_status:', e);
+            container.innerHTML = '';
+            return;
+        }
+        if (!doc || !doc.exists) { container.innerHTML = ''; return; }
+
+        const data = doc.data() || {};
+        const errorApps = Array.isArray(data.errorApps) ? data.errorApps : [];
+        const warnApps = Array.isArray(data.warnApps) ? data.warnApps : [];
+
+        // Nessun problema → non mostriamo nulla
+        if (errorApps.length === 0 && warnApps.length === 0) {
+            container.innerHTML = '';
+            return;
+        }
+
+        // Formatta timestamp dell'ultima verifica
+        let updatedLabel = '';
+        try {
+            const ts = data.updatedAt;
+            const d = ts && ts.toDate ? ts.toDate() : (ts ? new Date(ts) : null);
+            if (d && !isNaN(d.getTime())) {
+                updatedLabel = d.toLocaleString('it-IT', {
+                    day: '2-digit', month: '2-digit', year: 'numeric',
+                    hour: '2-digit', minute: '2-digit'
+                });
+            }
+        } catch (e) {}
+
+        // Priorità: se ci sono errori mostra rosso, altrimenti giallo
+        const hasError = errorApps.length > 0;
+        const bgColor = hasError ? '#FDECEA' : '#FFF8E1';
+        const borderColor = hasError ? '#D32F2F' : '#FFCC00';
+        const iconColor = hasError ? '#D32F2F' : '#B45309';
+        const icon = hasError ? 'fa-circle-exclamation' : 'fa-triangle-exclamation';
+        const titolo = hasError
+            ? `${errorApps.length} app non ricevono notifiche da oltre 7 giorni`
+            : `${warnApps.length} app non ricevono notifiche da oltre 3 giorni`;
+
+        // Costruisci la lista combinata (rossi prima, poi gialli)
+        const tuttiProblemi = [
+            ...errorApps.map(a => ({ ...a, severity: 'error' })),
+            ...warnApps.map(a => ({ ...a, severity: 'warn' }))
+        ];
+
+        const listaHtml = tuttiProblemi.slice(0, 8).map(app => {
+            const sevColor = app.severity === 'error' ? '#D32F2F' : '#B45309';
+            const sevIcon = app.severity === 'error' ? 'fa-circle' : 'fa-circle';
+            const giorni = typeof app.daysSinceLast === 'number' ? app.daysSinceLast : '?';
+            const nome = (app.appName || app.appSlug || 'App sconosciuta');
+            const slug = (app.appSlug || '');
+            return `
+                <div style="display: flex; align-items: center; gap: 0.5rem; padding: 6px 0; border-bottom: 1px solid #F5F5F5; font-size: 0.875rem;">
+                    <i class="fas ${sevIcon}" style="color: ${sevColor}; font-size: 0.5rem;"></i>
+                    <span style="flex: 1; color: #4A4A4A; font-weight: 600;">${nome}</span>
+                    <span style="color: ${sevColor}; font-size: 0.8rem;">
+                        <i class="fas fa-clock"></i> ${giorni} ${giorni === 1 ? 'giorno' : 'giorni'}
+                    </span>
+                    ${slug ? `<button onclick="UI.showPage('storico-push')" class="btn btn-small" style="padding: 2px 8px; font-size: 0.7rem; background: #145284; color: white; border: none; border-radius: 4px; cursor: pointer;" title="Apri storico push">Dettagli</button>` : ''}
+                </div>
+            `;
+        }).join('');
+
+        const resto = tuttiProblemi.length > 8 ? `<div style="padding: 6px 0; font-size: 0.8rem; color: #9B9B9B; text-align: center;">+ altre ${tuttiProblemi.length - 8} app</div>` : '';
+
+        container.innerHTML = `
+            <div style="background: ${bgColor}; border-left: 4px solid ${borderColor}; border-radius: 8px; padding: 1rem 1.25rem; margin-bottom: 1rem;">
+                <div style="display: flex; align-items: flex-start; gap: 0.75rem;">
+                    <i class="fas ${icon}" style="color: ${iconColor}; font-size: 1.25rem; margin-top: 2px;"></i>
+                    <div style="flex: 1;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+                            <div style="font-weight: 700; color: ${iconColor}; font-size: 1rem;">
+                                ${titolo}
+                            </div>
+                            <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                ${updatedLabel ? `<span style="font-size: 0.75rem; color: #9B9B9B;"><i class="fas fa-sync-alt"></i> ${updatedLabel}</span>` : ''}
+                                <button onclick="UI.showPage('storico-push')" class="btn btn-small" style="background: #145284; color: white; border: none; padding: 4px 10px; font-size: 0.8rem; border-radius: 4px; cursor: pointer;">
+                                    <i class="fas fa-chart-line"></i> Apri Monitor
+                                </button>
+                                <button onclick="document.getElementById('healthStatusBanner').innerHTML = ''" class="btn btn-small" style="background: transparent; color: #9B9B9B; border: none; padding: 4px 8px; font-size: 0.9rem; cursor: pointer;" title="Nascondi">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div style="margin-top: 0.5rem;">
+                            ${listaHtml}
+                            ${resto}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
     },
 
     async renderEnabledWidgets(widgets, data) {
