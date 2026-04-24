@@ -491,7 +491,9 @@
         }
 
         if (!CONFIG.appSlug) {
-            showError('Parametro "app" mancante. Contatta il Comune per accedere all\'archivio.');
+            // Nessun comune specificato nell'URL → reindirizza alla landing
+            // di benvenuto (più gentile di un messaggio di errore tecnico).
+            window.location.replace('/archivio-eventi/landing.html');
             return;
         }
 
