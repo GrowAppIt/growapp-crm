@@ -14,6 +14,10 @@
     "api/daily-health-alert.js": {
       "maxDuration": 120,
       "memory": 512
+    },
+    "api/backfill-events.js": {
+      "maxDuration": 300,
+      "memory": 512
     }
   },
   "crons": [
