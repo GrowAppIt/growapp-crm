@@ -1033,8 +1033,14 @@
             // disponibile. Il reader (article.html) legge il parametro "source"
             // per scegliere badge, icona e comportamento (es. evento passato).
             // Il testo e l'icona del pulsante cambiano in base al tipo.
+            //
+            // Il pulsante NON viene mostrato quando:
+            //   - la notifica non ha gbUrl (push puramente testuale)
+            //   - la notifica ha contentUnavailable === true (già verificato
+            //     in passato che il contenuto era 404 sul CMS — tipico per
+            //     vecchi comunicati RSS ruotati fuori dal feed)
             let linkHtml = '';
-            if (notif.gbUrl) {
+            if (notif.gbUrl && notif.contentUnavailable !== true) {
                 // Tabella label/icona per ogni tipo di notifica
                 const LINK_CONFIG = {
                     'rss_auto':      { text: 'Leggi la notizia',       icon: 'fa-newspaper',      aria: 'Leggi la notizia completa' },
@@ -1046,7 +1052,7 @@
                 };
                 const linkCfg = LINK_CONFIG[source] || { text: 'Leggi di più', icon: 'fa-chevron-right', aria: 'Leggi il contenuto completo' };
 
-                const readerUrl = `/storico-notifiche/article.html?src=${encodeURIComponent(notif.gbUrl)}&comune=${encodeURIComponent(state.comuneNome || CONFIG.appSlug)}&app=${encodeURIComponent(CONFIG.appSlug)}&source=${encodeURIComponent(source)}`;
+                const readerUrl = `/storico-notifiche/article.html?src=${encodeURIComponent(notif.gbUrl)}&comune=${encodeURIComponent(state.comuneNome || CONFIG.appSlug)}&app=${encodeURIComponent(CONFIG.appSlug)}&source=${encodeURIComponent(source)}&notifId=${encodeURIComponent(notif.id)}`;
                 linkHtml = `
                     <a class="notif-link" href="${readerUrl}" aria-label="${linkCfg.aria}">
                         <i class="fas ${linkCfg.icon}" aria-hidden="true"></i> ${linkCfg.text}

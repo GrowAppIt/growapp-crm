@@ -447,6 +447,9 @@
         var appSlug = params.get('app') || '';
         // Nuovo parametro: tipo di notifica come da storico (default: manual se non passato)
         var sourceParam = (params.get('source') || 'manual').toLowerCase();
+        // ID Firestore della notifica — opzionale. Se presente, il proxy lo usa
+        // per marcare la notifica come non più disponibile in caso di 404.
+        var notifIdParam = (params.get('notifId') || '').trim();
 
         // Costruisci URL archivio per i pulsanti "torna"
         var archiveUrl = appSlug
@@ -476,6 +479,9 @@
         async function loadContent(url) {
             try {
                 var proxyUrl = '/api/article-proxy?url=' + encodeURIComponent(url);
+                if (notifIdParam) {
+                    proxyUrl += '&notifId=' + encodeURIComponent(notifIdParam);
+                }
                 var resp = await fetch(proxyUrl);
                 var data = null;
                 try { data = await resp.json(); } catch (e) { data = null; }
@@ -582,11 +588,21 @@
             document.getElementById('state-article').classList.remove('hidden');
         }
 
-        // Costruisce il blocco "info evento" (data, ora, luogo) sopra il contenuto
+        // Costruisce il blocco "info evento" (SOLO data e luogo, MAI orari)
+        // sopra il contenuto.
+        //
+        // NOTA IMPORTANTE: gli orari di inizio e fine salvati nel CMS NON
+        // corrispondono all'orario reale dell'evento. Growapp li usa come
+        // "trigger" della push di promemoria (il CMS non consente di
+        // schedulare la notifica in anticipo rispetto all'evento, quindi
+        // gli operatori inseriscono come "inizio" un orario antecedente
+        // per far scattare il promemoria prima). L'orario reale è scritto
+        // nel titolo/contenuto dell'evento. Per questo qui mostriamo solo
+        // le date, mai le ore: farle vedere confonderebbe l'utente.
         function renderEventInfo(article) {
             var rows = [];
 
-            // Data/ora di inizio
+            // Data di inizio (senza ora)
             var start = article.sortDate || article.date;
             if (start) {
                 var sd = new Date(start);
@@ -594,33 +610,28 @@
                     var dateStr = sd.toLocaleDateString('it-IT', {
                         weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
                     });
-                    var timeStr = article.allDay ? '' :
-                        sd.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
-                    var label = dateStr + (timeStr ? ' · ore ' + timeStr : '');
-                    rows.push('<div class="event-info-row"><i class="fas fa-calendar-alt"></i><span>' + escapeHtml(label) + '</span></div>');
+                    rows.push('<div class="event-info-row"><i class="fas fa-calendar-alt"></i><span>' + escapeHtml(dateStr) + '</span></div>');
                 }
             }
 
-            // Data/ora di fine (solo se diversa dall'inizio)
+            // Data di fine (senza ora): mostrata SOLO se cade in un giorno
+            // diverso rispetto alla data di inizio (evento multi-giorno).
+            // Per eventi dello stesso giorno NON mostriamo nulla perché
+            // l'ora di fine nel CMS è fittizia quanto quella di inizio.
             if (article.endDate && article.endDate !== start) {
                 var ed = new Date(article.endDate);
                 var sd2 = start ? new Date(start) : null;
                 if (!isNaN(ed.getTime())) {
-                    // Mostra solo l'ora di fine se stesso giorno
                     var sameDay = sd2 && !isNaN(sd2.getTime()) &&
                         ed.toDateString() === sd2.toDateString();
-                    var endLabel;
-                    if (sameDay && !article.allDay) {
-                        endLabel = 'Fino alle ' + ed.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
-                    } else {
+                    if (!sameDay) {
                         var endDateStr = ed.toLocaleDateString('it-IT', {
                             day: 'numeric', month: 'long', year: 'numeric'
                         });
-                        var endTimeStr = article.allDay ? '' :
-                            ed.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
-                        endLabel = 'Fino a ' + endDateStr + (endTimeStr ? ' ore ' + endTimeStr : '');
+                        var endLabel = 'Fino al ' + endDateStr;
+                        rows.push('<div class="event-info-row"><i class="fas fa-hourglass-end"></i><span>' + escapeHtml(endLabel) + '</span></div>');
                     }
-                    rows.push('<div class="event-info-row"><i class="fas fa-hourglass-end"></i><span>' + escapeHtml(endLabel) + '</span></div>');
+                    // else: stesso giorno → non mostriamo nulla (ore fittizie)
                 }
             }
 
