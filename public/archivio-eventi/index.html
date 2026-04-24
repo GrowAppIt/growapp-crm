@@ -364,7 +364,7 @@
             </div>
             <div class="header-text">
                 <h1 id="header-title">Archivio Eventi</h1>
-                <p id="header-subtitle">La memoria degli eventi del nostro paese</p>
+                <p id="header-subtitle">Gli eventi già svolti</p>
             </div>
         </div>
     </header>
@@ -377,7 +377,7 @@
                 Archivio Eventi
             </div>
             <div class="intro-text" id="intro-text">
-                Qui trovi tutti gli eventi organizzati nel Comune, passati e futuri. Clicca su un evento per vedere i dettagli completi, la locandina e le informazioni pratiche.
+                Qui trovi tutti gli eventi che si sono svolti. Clicca su un evento per vedere i dettagli completi, la locandina e le informazioni pratiche.
             </div>
             <div class="intro-note hidden" id="intro-note">
                 L'archivio include gli eventi pubblicati a partire dal <strong id="archive-start-date">—</strong>.
@@ -416,7 +416,20 @@
         var CONFIG = {
             appSlug: '',
             appBaseUrl: '',
-            pageSize: 30
+            // Batch generoso così il filtro client-side "solo passati"
+            // non rende la prima pagina vuota quando ci sono parecchi eventi futuri
+            pageSize: 50,
+
+            // Firebase config letta dalle env var di Vercel (stesso meccanismo
+            // di storico-notifiche). window.ENV viene popolato da /js/env.js.
+            firebase: {
+                apiKey:            (window.ENV && window.ENV.FIREBASE_API_KEY) || '',
+                authDomain:        (window.ENV && window.ENV.FIREBASE_AUTH_DOMAIN) || '',
+                projectId:         (window.ENV && window.ENV.FIREBASE_PROJECT_ID) || '',
+                storageBucket:     (window.ENV && window.ENV.FIREBASE_STORAGE_BUCKET) || '',
+                messagingSenderId: (window.ENV && window.ENV.FIREBASE_MESSAGING_SENDER_ID) || '',
+                appId:             (window.ENV && window.ENV.FIREBASE_APP_ID) || ''
+            }
         };
 
         var state = {
@@ -433,14 +446,26 @@
         // ============================================================
         // Inizializzazione Firebase
         // ============================================================
+        // Pattern: cerchiamo un'istanza già inizializzata con il nostro
+        // nome univoco ('archivio-eventi'). Se non c'è e abbiamo la
+        // config, la creiamo. Altrimenti tentiamo di usare l'istanza
+        // default già disponibile (es. se la pagina è inclusa in un
+        // contesto dove Firebase è già stato bootstrappato).
         try {
-            if (!firebase.apps.length) {
-                firebase.initializeApp(window.FIREBASE_CONFIG);
+            var app = null;
+            if (CONFIG.firebase.apiKey) {
+                var existing = firebase.apps.find(function(a) { return a.name === 'archivio-eventi'; });
+                app = existing || firebase.initializeApp(CONFIG.firebase, 'archivio-eventi');
+                state.db = firebase.firestore(app);
+            } else if (firebase.apps.length > 0) {
+                // Fallback: config non caricata, ma c'è già un'app Firebase
+                state.db = firebase.firestore();
+            } else {
+                throw new Error('Configurazione Firebase non disponibile.');
             }
-            state.db = firebase.firestore();
         } catch (e) {
             console.error('[Archivio] Errore init Firebase:', e);
-            showError('Impossibile collegarsi al sistema. Riprova più tardi.');
+            showError('Impossibile caricare gli eventi. Riprova più tardi.');
             return;
         }
 
@@ -497,9 +522,13 @@
                     var data = snap.docs[0].data();
                     var nome = data.comune || data.nome || CONFIG.appSlug;
                     state.comuneNome = nome;
-                    document.getElementById('header-title').textContent = 'Archivio Eventi';
-                    document.getElementById('header-subtitle').textContent = 'Comune di ' + nome;
-                    document.getElementById('intro-title').innerHTML = '<i class="fas fa-book" style="margin-right: 6px; color: var(--blu-500);"></i> Gli eventi di ' + escapeHtml(nome);
+                    // Il nome identificativo va nel TITOLO (serve a far capire
+                    // all'utente di quale archivio sta parlando). Il sottotitolo
+                    // resta generico (niente riferimenti diretti a "paese" o
+                    // "città", come richiesto).
+                    document.getElementById('header-title').textContent = 'Archivio Eventi ' + nome;
+                    document.getElementById('intro-title').innerHTML =
+                        '<i class="fas fa-book" style="margin-right: 6px; color: var(--blu-500);"></i> Gli eventi di ' + escapeHtml(nome);
                     document.title = 'Archivio Eventi — ' + nome;
                 }
             } catch (e) {
@@ -534,10 +563,23 @@
 
                 var snap = await query.get();
                 var batch = [];
+
+                // Soglia "mezzanotte di oggi": sono considerati passati gli eventi
+                // con sortDate/sentAt strettamente precedente a questa. Gli eventi
+                // di oggi (che non hanno ancora avuto luogo) NON vengono mostrati
+                // nell'archivio — l'archivio contiene solo ciò che è già svolto.
+                var now = new Date();
+                var todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
                 snap.forEach(function(doc) {
                     var data = doc.data();
                     // Filtra eventi non disponibili (contenuto rimosso dal CMS)
                     if (data.contentUnavailable === true) return;
+
+                    // Filtra eventi futuri e di oggi: l'archivio mostra solo passati
+                    var eventDate = data.sentAt && data.sentAt.toDate ? data.sentAt.toDate() : new Date(data.sentAt || 0);
+                    if (eventDate >= todayMidnight) return;
+
                     batch.push({ id: doc.id, ...data, _doc: doc });
                     state.lastDoc = doc;
                 });
