@@ -88,7 +88,17 @@
       "destination": "/archivio-eventi/index.html"
     },
     {
-      "source": "/((?!archivio-eventi)(?!api/)(?!js/)(?!css/)(?!img/)(?!firebase-messaging-sw).*)",
+      "source": "/",
+      "has": [
+        {
+          "type": "host",
+          "value": "archivioeventi.comune.digital"
+        }
+      ],
+      "destination": "/archivio-eventi/index.html"
+    },
+    {
+      "source": "/:path*",
       "has": [
         {
           "type": "host",
