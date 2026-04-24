@@ -12,6 +12,11 @@
  * Il campo "type" restituito ("article" | "event" | ...) permette al reader
  * di adattare l'interfaccia (badge, info extra, gestione eventi passati).
  *
+ * REGOLA: i messaggi di errore visibili all'utente finale NON devono MAI
+ * nominare "GoodBarber" né dettagli implementativi. Messaggi neutri e
+ * comprensibili. I commenti nel codice e i console.log server-side
+ * possono continuare a nominarlo (sono solo per noi).
+ *
  * Endpoint: GET /api/article-proxy?url={gbUrl}
  *
  * Risposta:
@@ -25,7 +30,7 @@
  *     }
  *   }
  *   oppure
- *   { ok: false, error: "messaggio errore" }
+ *   { ok: false, error: "messaggio errore user-friendly" }
  */
 
 module.exports = async function handler(req, res) {
@@ -41,25 +46,26 @@ module.exports = async function handler(req, res) {
     }
 
     if (req.method !== 'GET') {
-        return res.status(405).json({ ok: false, error: 'Metodo non consentito. Usa GET.' });
+        return res.status(405).json({ ok: false, error: 'Richiesta non valida.' });
     }
 
     const { url } = req.query;
 
     if (!url) {
-        return res.status(400).json({ ok: false, error: 'Parametro "url" mancante.' });
+        return res.status(400).json({ ok: false, error: 'Contenuto non specificato.' });
     }
 
-    // Sicurezza: accetta solo URL GoodBarber
+    // Sicurezza: accetta solo URL dei CMS autorizzati (allowlist interna).
+    // All'utente non serve sapere quali sono — restituiamo messaggio generico.
     try {
         const parsed = new URL(url);
         const validHosts = ['.goodbarber.app', '.goodbarber.com', '.ww-api.com'];
         const isValid = validHosts.some(h => parsed.hostname.endsWith(h));
         if (!isValid) {
-            return res.status(403).json({ ok: false, error: 'URL non autorizzato. Solo URL GoodBarber sono accettati.' });
+            return res.status(403).json({ ok: false, error: 'Link non consentito.' });
         }
     } catch (e) {
-        return res.status(400).json({ ok: false, error: 'URL non valido.' });
+        return res.status(400).json({ ok: false, error: 'Link non valido.' });
     }
 
     try {
@@ -72,8 +78,21 @@ module.exports = async function handler(req, res) {
         });
         clearTimeout(timeout);
 
+        // Se il CMS risponde non-OK, differenziamo tra 404 (contenuto rimosso/scaduto,
+        // tipico per RSS ruotati dai comuni) e altri errori tecnici. Scrivere il log
+        // completo lato server per debug, ma all'utente mostrare un messaggio chiaro.
         if (!response.ok) {
-            return res.status(502).json({ ok: false, error: `GoodBarber ha risposto con errore: ${response.status}` });
+            console.warn('[article-proxy] Risposta non-OK dal CMS:', response.status, response.statusText, 'url:', url);
+            if (response.status === 404 || response.status === 410) {
+                return res.status(404).json({
+                    ok: false,
+                    error: 'Questo contenuto non è più disponibile. Potrebbe essere stato rimosso o archiviato.'
+                });
+            }
+            return res.status(502).json({
+                ok: false,
+                error: 'Contenuto temporaneamente non raggiungibile. Riprova tra qualche istante.'
+            });
         }
 
         const data = await response.json();
@@ -123,9 +142,15 @@ module.exports = async function handler(req, res) {
         });
     } catch (error) {
         if (error.name === 'AbortError') {
-            return res.status(504).json({ ok: false, error: 'Timeout: GoodBarber non ha risposto in tempo.' });
+            return res.status(504).json({
+                ok: false,
+                error: 'Il contenuto ha impiegato troppo tempo a caricare. Riprova.'
+            });
         }
         console.error('[article-proxy] Errore:', error.message);
-        return res.status(500).json({ ok: false, error: 'Errore interno del server.' });
+        return res.status(500).json({
+            ok: false,
+            error: 'Impossibile caricare il contenuto in questo momento.'
+        });
     }
 };

@@ -373,9 +373,13 @@
 
     <!-- Error State -->
     <div class="article-error hidden" id="state-error">
-        <i class="fas fa-exclamation-circle"></i>
+        <i class="fas fa-exclamation-circle" id="error-icon"></i>
         <h2 id="error-title">Impossibile caricare il contenuto</h2>
         <p id="error-message">Si è verificato un errore durante il caricamento.</p>
+        <a class="article-back-bottom" style="margin-top: 8px;" id="error-back-link" href="/storico-notifiche/landing.html" aria-label="Torna all'archivio notifiche"
+           ><span style="display:inline-flex;align-items:center;gap:8px;background:var(--blu-700);color:white;padding:10px 18px;border-radius:8px;text-decoration:none;font-size:0.85rem;font-weight:600;">
+            <i class="fas fa-arrow-left"></i> Torna all'archivio notifiche
+        </span></a>
     </div>
 
     <!-- Article Content -->
@@ -451,6 +455,7 @@
 
         document.getElementById('back-btn').href = archiveUrl;
         document.getElementById('back-bottom-link').href = archiveUrl;
+        document.getElementById('error-back-link').href = archiveUrl;
 
         if (comuneNome) {
             document.getElementById('header-title').textContent = comuneNome;
@@ -472,17 +477,22 @@
             try {
                 var proxyUrl = '/api/article-proxy?url=' + encodeURIComponent(url);
                 var resp = await fetch(proxyUrl);
-                var data = await resp.json();
+                var data = null;
+                try { data = await resp.json(); } catch (e) { data = null; }
 
-                if (!data.ok || !data.article) {
-                    showError(data.error || 'Contenuto non disponibile.');
+                if (!data || !data.ok || !data.article) {
+                    var message = (data && data.error) ? data.error : 'Contenuto non disponibile.';
+                    // 404/410 → contenuto rimosso dal CMS → UI "archivio" gentile
+                    // (non un errore tecnico: è solo un contenuto vecchio scomparso)
+                    var kind = (resp.status === 404 || resp.status === 410) ? 'notfound' : 'error';
+                    showError(message, kind);
                     return;
                 }
 
                 renderContent(data.article);
             } catch (e) {
                 console.error('[Reader] Errore:', e);
-                showError('Errore di rete. Verifica la connessione e riprova.');
+                showError('Errore di rete. Verifica la connessione e riprova.', 'error');
             }
         }
 
@@ -657,11 +667,28 @@
             return tmp.innerHTML;
         }
 
-        function showError(message) {
+        function showError(message, kind) {
+            // kind: 'notfound' (contenuto rimosso/scaduto, UI gentile)
+            //       'error'    (errore tecnico, UI standard)
+            var iconEl = document.getElementById('error-icon');
+            var titleEl = document.getElementById('error-title');
+            var headerTitleEl = document.getElementById('header-title');
+
+            if (kind === 'notfound') {
+                iconEl.className = 'fas fa-box-archive';
+                iconEl.style.color = 'var(--grigio-500)';
+                titleEl.textContent = 'Contenuto non più disponibile';
+                headerTitleEl.textContent = 'Contenuto archiviato';
+            } else {
+                iconEl.className = 'fas fa-exclamation-circle';
+                iconEl.style.color = 'var(--rosso)';
+                titleEl.textContent = 'Impossibile caricare il contenuto';
+                headerTitleEl.textContent = 'Errore';
+            }
+
             document.getElementById('error-message').textContent = message;
             document.getElementById('state-loading').classList.add('hidden');
             document.getElementById('state-error').classList.remove('hidden');
-            document.getElementById('header-title').textContent = 'Errore';
         }
 
         function escapeHtml(str) {
