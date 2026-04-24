@@ -52,6 +52,17 @@
       ],
       "destination": "https://notifiche.comune.digital/storico-notifiche/landing.html",
       "permanent": false
+    },
+    {
+      "source": "/",
+      "has": [
+        {
+          "type": "host",
+          "value": "archivioeventi.comune.digital"
+        }
+      ],
+      "destination": "/archivio-eventi/",
+      "permanent": false
     }
   ],
   "rewrites": [
@@ -85,26 +96,6 @@
     },
     {
       "source": "/archivio-eventi/",
-      "destination": "/archivio-eventi/index.html"
-    },
-    {
-      "source": "/",
-      "has": [
-        {
-          "type": "host",
-          "value": "archivioeventi.comune.digital"
-        }
-      ],
-      "destination": "/archivio-eventi/index.html"
-    },
-    {
-      "source": "/:path*",
-      "has": [
-        {
-          "type": "host",
-          "value": "archivioeventi.comune.digital"
-        }
-      ],
       "destination": "/archivio-eventi/index.html"
     },
     {
