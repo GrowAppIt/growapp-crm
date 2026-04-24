@@ -1029,14 +1029,27 @@
             const sourceIcon = getSourceIcon(source);
             const timeStr = formatTime(sentAt);
 
-            // Link "Leggi la notizia" solo per notizie RSS con gbUrl disponibile
-            // Apre la pagina reader che carica il contenuto tramite API proxy
+            // Link "Leggi il dettaglio" per qualunque tipo di notifica con gbUrl
+            // disponibile. Il reader (article.html) legge il parametro "source"
+            // per scegliere badge, icona e comportamento (es. evento passato).
+            // Il testo e l'icona del pulsante cambiano in base al tipo.
             let linkHtml = '';
-            if (source === 'rss_auto' && notif.gbUrl) {
-                const readerUrl = `/storico-notifiche/article.html?src=${encodeURIComponent(notif.gbUrl)}&comune=${encodeURIComponent(state.comuneNome || CONFIG.appSlug)}&app=${encodeURIComponent(CONFIG.appSlug)}`;
+            if (notif.gbUrl) {
+                // Tabella label/icona per ogni tipo di notifica
+                const LINK_CONFIG = {
+                    'rss_auto':      { text: 'Leggi la notizia',       icon: 'fa-newspaper',      aria: 'Leggi la notizia completa' },
+                    'calendar_auto': { text: "Dettagli dell'evento",   icon: 'fa-calendar-alt',   aria: "Leggi i dettagli dell'evento" },
+                    'manual':        { text: "Leggi l'avviso",         icon: 'fa-bell',           aria: "Leggi l'avviso completo" },
+                    'meteo_alert':   { text: "Leggi l'allerta",        icon: 'fa-cloud-sun-rain', aria: "Leggi l'allerta completa" },
+                    'crm_broadcast': { text: 'Leggi la comunicazione', icon: 'fa-bullhorn',       aria: 'Leggi la comunicazione completa' },
+                    'crm_api':       { text: 'Leggi la comunicazione', icon: 'fa-bullhorn',       aria: 'Leggi la comunicazione completa' }
+                };
+                const linkCfg = LINK_CONFIG[source] || { text: 'Leggi di più', icon: 'fa-chevron-right', aria: 'Leggi il contenuto completo' };
+
+                const readerUrl = `/storico-notifiche/article.html?src=${encodeURIComponent(notif.gbUrl)}&comune=${encodeURIComponent(state.comuneNome || CONFIG.appSlug)}&app=${encodeURIComponent(CONFIG.appSlug)}&source=${encodeURIComponent(source)}`;
                 linkHtml = `
-                    <a class="notif-link" href="${readerUrl}" aria-label="Leggi la notizia completa">
-                        <i class="fas fa-newspaper" aria-hidden="true"></i> Leggi la notizia
+                    <a class="notif-link" href="${readerUrl}" aria-label="${linkCfg.aria}">
+                        <i class="fas ${linkCfg.icon}" aria-hidden="true"></i> ${linkCfg.text}
                     </a>`;
             }
 
