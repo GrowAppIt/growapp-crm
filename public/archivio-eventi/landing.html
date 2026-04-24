@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Archivio Eventi — Comune.Digital</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Titillium+Web:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        :root {
+            --blu-700: #145284;
+            --blu-500: #2E6DA8;
+            --blu-100: #D1E2F2;
+            --grigio-700: #4A4A4A;
+            --grigio-500: #9B9B9B;
+            --grigio-100: #F5F5F5;
+            --bianco: #FFFFFF;
+        }
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Titillium Web', sans-serif;
+            background: var(--grigio-100);
+            color: var(--grigio-700);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        .page {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 40px 24px;
+        }
+        .card {
+            background: var(--bianco);
+            border-radius: 16px;
+            max-width: 480px;
+            width: 100%;
+            padding: 40px 28px;
+            text-align: center;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+        }
+        .icon-wrapper {
+            width: 80px;
+            height: 80px;
+            background: var(--blu-100);
+            border-radius: 20px;
+            margin: 0 auto 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .icon-wrapper i {
+            font-size: 2rem;
+            color: var(--blu-700);
+        }
+        h1 {
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: var(--blu-700);
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            font-size: 0.95rem;
+            color: var(--grigio-700);
+            margin-bottom: 24px;
+            line-height: 1.5;
+        }
+        .hint {
+            background: var(--grigio-100);
+            border-radius: 10px;
+            padding: 16px 18px;
+            font-size: 0.85rem;
+            color: var(--grigio-700);
+            line-height: 1.5;
+            text-align: left;
+            margin-bottom: 16px;
+        }
+        .hint-title {
+            font-weight: 700;
+            color: var(--blu-700);
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.9rem;
+        }
+        .footer {
+            text-align: center;
+            padding: 20px;
+            font-size: 0.75rem;
+            color: var(--grigio-500);
+        }
+        .footer a {
+            color: var(--blu-500);
+            text-decoration: none;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="page">
+        <div class="card">
+            <div class="icon-wrapper">
+                <i class="fas fa-calendar-alt"></i>
+            </div>
+            <h1>Archivio Eventi</h1>
+            <p class="subtitle">
+                Per accedere all'archivio degli eventi, apri la sezione dedicata nell'app del tuo Comune.
+            </p>
+            <div class="hint">
+                <div class="hint-title">
+                    <i class="fas fa-circle-info"></i> Come si accede
+                </div>
+                Apri l'app del tuo Comune, vai nella sezione <strong>Eventi</strong> o <strong>Agenda</strong>, e tocca il pulsante <strong>"Archivio"</strong> (o simile) che trovi nell'intestazione.
+            </div>
+        </div>
+    </div>
+
+    <footer class="footer">
+        Powered by <a href="https://app.comune.digital" target="_blank" rel="noopener noreferrer">Comune.Digital</a>
+    </footer>
+
+</body>
+</html>

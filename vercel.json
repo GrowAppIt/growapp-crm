@@ -52,6 +52,17 @@
       ],
       "destination": "https://notifiche.comune.digital/storico-notifiche/landing.html",
       "permanent": false
+    },
+    {
+      "source": "/((?!archivio-eventi)(?!api/)(?!js/)(?!css/)(?!img/).*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "archivioeventi.comune.digital"
+        }
+      ],
+      "destination": "https://archivioeventi.comune.digital/archivio-eventi/landing.html",
+      "permanent": false
     }
   ],
   "rewrites": [
@@ -78,6 +89,14 @@
     {
       "source": "/storico-notifiche",
       "destination": "/storico-notifiche/index.html"
+    },
+    {
+      "source": "/archivio-eventi",
+      "destination": "/archivio-eventi/index.html"
+    },
+    {
+      "source": "/archivio-eventi/",
+      "destination": "/archivio-eventi/index.html"
     },
     {
       "source": "/rss-monitor/(.*)",
@@ -107,6 +126,27 @@
         {
           "key": "Content-Security-Policy",
           "value": "frame-ancestors 'self' https://notifiche.comune.digital https://crm.comune.digital https://*.comune.digital https://*.goodbarber.com https://*.goodbarber.app"
+        }
+      ]
+    },
+    {
+      "source": "/archivio-eventi/(.*)",
+      "headers": [
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "X-XSS-Protection",
+          "value": "1; mode=block"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "Content-Security-Policy",
+          "value": "frame-ancestors 'self' https://archivioeventi.comune.digital https://notifiche.comune.digital https://crm.comune.digital https://*.comune.digital https://*.goodbarber.com https://*.goodbarber.app"
         }
       ]
     },

@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Archivio Eventi — Comune.Digital</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Titillium+Web:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <script src="/js/env.js"></script>
+
+    <style>
+        :root {
+            --blu-700: #145284;
+            --blu-500: #2E6DA8;
+            --blu-300: #7BA7CE;
+            --blu-100: #D1E2F2;
+            --verde-700: #3CA434;
+            --verde-500: #59C64D;
+            --verde-100: #E2F8DE;
+            --grigio-700: #4A4A4A;
+            --grigio-500: #9B9B9B;
+            --grigio-300: #D9D9D9;
+            --grigio-100: #F5F5F5;
+            --giallo: #FFCC00;
+            --rosso: #D32F2F;
+            --bianco: #FFFFFF;
+        }
+
+        *, *::before, *::after {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html { font-size: 16px; -webkit-text-size-adjust: 100%; }
+
+        body {
+            font-family: 'Titillium Web', sans-serif;
+            font-weight: 400;
+            color: var(--grigio-700);
+            background: var(--grigio-100);
+            min-height: 100vh;
+            line-height: 1.5;
+        }
+
+        /* Header */
+        .header {
+            background: var(--blu-700);
+            color: var(--bianco);
+            padding: 16px 20px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+
+        .header-inner {
+            max-width: 600px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .header-icon {
+            width: 40px;
+            height: 40px;
+            background: rgba(255,255,255,0.15);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            flex-shrink: 0;
+        }
+
+        .header-text h1 {
+            font-size: 1rem;
+            font-weight: 700;
+            line-height: 1.2;
+        }
+
+        .header-text p {
+            font-size: 0.75rem;
+            opacity: 0.9;
+            font-weight: 300;
+            margin-top: 2px;
+        }
+
+        /* Main container */
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 16px 12px 40px;
+        }
+
+        /* Intro panel */
+        .intro {
+            background: var(--bianco);
+            border-radius: 12px;
+            padding: 18px 18px 14px;
+            margin-bottom: 16px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+
+        .intro-title {
+            font-weight: 700;
+            color: var(--blu-700);
+            font-size: 1.05rem;
+            margin-bottom: 6px;
+        }
+
+        .intro-text {
+            font-size: 0.85rem;
+            color: var(--grigio-700);
+            line-height: 1.5;
+        }
+
+        .intro-note {
+            font-size: 0.75rem;
+            color: var(--grigio-500);
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid var(--grigio-300);
+        }
+
+        /* Chip filters */
+        .chips {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+            overflow-x: auto;
+            padding-bottom: 4px;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .chip {
+            flex-shrink: 0;
+            padding: 8px 14px;
+            border-radius: 20px;
+            background: var(--bianco);
+            color: var(--grigio-700);
+            font-family: inherit;
+            font-size: 0.85rem;
+            font-weight: 600;
+            border: 1px solid var(--grigio-300);
+            cursor: pointer;
+            transition: all 0.15s ease;
+            white-space: nowrap;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .chip:hover {
+            background: var(--blu-100);
+        }
+
+        .chip.active {
+            background: var(--blu-700);
+            color: var(--bianco);
+            border-color: var(--blu-700);
+        }
+
+        /* Month section */
+        .month-separator {
+            font-size: 1rem;
+            font-weight: 700;
+            color: var(--blu-700);
+            margin: 24px 4px 12px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid var(--blu-100);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .month-separator i {
+            color: var(--blu-500);
+            font-size: 0.85rem;
+        }
+
+        .month-count {
+            font-size: 0.75rem;
+            font-weight: 400;
+            color: var(--grigio-500);
+            margin-left: auto;
+        }
+
+        /* Event card */
+        .event-card {
+            background: var(--bianco);
+            border-radius: 12px;
+            padding: 14px 16px;
+            margin-bottom: 10px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            transition: box-shadow 0.15s ease;
+        }
+
+        .event-card:hover {
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+
+        .event-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 8px;
+            flex-wrap: wrap;
+        }
+
+        .event-badge {
+            background: #FFF4D6;
+            color: #B45309;
+            font-size: 0.7rem;
+            font-weight: 700;
+            padding: 3px 10px;
+            border-radius: 12px;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        .event-badge.past {
+            background: var(--grigio-100);
+            color: var(--grigio-500);
+        }
+
+        .event-date {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--grigio-500);
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .event-title {
+            font-size: 1rem;
+            font-weight: 700;
+            color: var(--grigio-700);
+            line-height: 1.35;
+            margin-bottom: 10px;
+        }
+
+        .event-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            color: var(--blu-700);
+            background: var(--blu-100);
+            padding: 8px 14px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-size: 0.85rem;
+            font-weight: 600;
+            transition: background 0.15s ease;
+        }
+
+        .event-link:hover {
+            background: var(--blu-300);
+        }
+
+        /* Empty state */
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--grigio-500);
+        }
+
+        .empty-state i {
+            font-size: 3rem;
+            color: var(--grigio-300);
+            margin-bottom: 16px;
+        }
+
+        .empty-state h3 {
+            font-size: 1.1rem;
+            color: var(--grigio-700);
+            margin-bottom: 6px;
+        }
+
+        .empty-state p {
+            font-size: 0.9rem;
+            max-width: 320px;
+            margin: 0 auto;
+        }
+
+        /* Loading state */
+        .loading {
+            text-align: center;
+            padding: 40px 20px;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid var(--blu-100);
+            border-top-color: var(--blu-700);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto 12px;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Load more */
+        .load-more {
+            display: block;
+            margin: 20px auto;
+            padding: 12px 24px;
+            background: var(--bianco);
+            border: 1px solid var(--grigio-300);
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--blu-700);
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .load-more:hover {
+            background: var(--blu-100);
+            border-color: var(--blu-300);
+        }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            padding: 24px 20px 20px;
+            font-size: 0.75rem;
+            color: var(--grigio-500);
+        }
+
+        .footer a {
+            color: var(--blu-500);
+            text-decoration: none;
+        }
+
+        /* Desktop adjustments */
+        @media (min-width: 640px) {
+            .container { padding: 24px 20px 40px; }
+            .intro { padding: 22px 24px 18px; }
+            .event-card { padding: 16px 20px; }
+            .event-title { font-size: 1.05rem; }
+        }
+    </style>
+</head>
+<body>
+
+    <header class="header">
+        <div class="header-inner">
+            <div class="header-icon">
+                <i class="fas fa-calendar-alt"></i>
+            </div>
+            <div class="header-text">
+                <h1 id="header-title">Archivio Eventi</h1>
+                <p id="header-subtitle">La memoria degli eventi del nostro paese</p>
+            </div>
+        </div>
+    </header>
+
+    <main class="container">
+
+        <div class="intro">
+            <div class="intro-title" id="intro-title">
+                <i class="fas fa-book" style="margin-right: 6px; color: var(--blu-500);"></i>
+                Archivio Eventi
+            </div>
+            <div class="intro-text" id="intro-text">
+                Qui trovi tutti gli eventi organizzati nel Comune, passati e futuri. Clicca su un evento per vedere i dettagli completi, la locandina e le informazioni pratiche.
+            </div>
+            <div class="intro-note hidden" id="intro-note">
+                L'archivio include gli eventi pubblicati a partire dal <strong id="archive-start-date">—</strong>.
+            </div>
+        </div>
+
+        <div class="chips" role="tablist" aria-label="Modalità visualizzazione">
+            <button class="chip active" role="tab" aria-selected="true" data-view="month">
+                <i class="fas fa-layer-group"></i> Per mese
+            </button>
+            <button class="chip" role="tab" aria-selected="false" data-view="all">
+                <i class="fas fa-list"></i> Tutti
+            </button>
+        </div>
+
+        <div id="content-container" aria-live="polite">
+            <div class="loading">
+                <div class="spinner"></div>
+                <p>Carico gli eventi...</p>
+            </div>
+        </div>
+
+    </main>
+
+    <footer class="footer">
+        Powered by <a href="https://app.comune.digital" target="_blank" rel="noopener noreferrer">Comune.Digital</a>
+    </footer>
+
+    <script>
+    (function() {
+        'use strict';
+
+        // ============================================================
+        // Configurazione e stato
+        // ============================================================
+        var CONFIG = {
+            appSlug: '',
+            appBaseUrl: '',
+            pageSize: 30
+        };
+
+        var state = {
+            db: null,
+            comuneNome: '',
+            events: [],
+            lastDoc: null,
+            hasMore: true,
+            loading: false,
+            view: 'month',
+            archiveStartDate: null
+        };
+
+        // ============================================================
+        // Inizializzazione Firebase
+        // ============================================================
+        try {
+            if (!firebase.apps.length) {
+                firebase.initializeApp(window.FIREBASE_CONFIG);
+            }
+            state.db = firebase.firestore();
+        } catch (e) {
+            console.error('[Archivio] Errore init Firebase:', e);
+            showError('Impossibile collegarsi al sistema. Riprova più tardi.');
+            return;
+        }
+
+        // ============================================================
+        // Lettura appSlug dall'URL
+        // ============================================================
+        var urlParams = new URLSearchParams(window.location.search);
+        CONFIG.appSlug = (urlParams.get('app') || urlParams.get('comune') || '').toString().toLowerCase().trim();
+
+        if (!CONFIG.appSlug) {
+            // Se siamo dentro un iframe con config parent
+            try {
+                if (window.parent !== window && window.parent.ARCHIVIO_EVENTI_CONFIG) {
+                    CONFIG.appSlug = (window.parent.ARCHIVIO_EVENTI_CONFIG.appSlug || '').toString().toLowerCase().trim();
+                }
+            } catch (e) {}
+        }
+
+        if (!CONFIG.appSlug) {
+            showError('Parametro "app" mancante. Contatta il Comune per accedere all\'archivio.');
+            return;
+        }
+
+        CONFIG.appBaseUrl = 'https://' + CONFIG.appSlug + '.comune.digital';
+
+        // ============================================================
+        // Chip filter — gestione switch vista
+        // ============================================================
+        document.querySelectorAll('.chip[data-view]').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                var view = this.getAttribute('data-view');
+                if (view === state.view) return;
+                state.view = view;
+                document.querySelectorAll('.chip[data-view]').forEach(function(b) {
+                    var active = b.getAttribute('data-view') === view;
+                    b.classList.toggle('active', active);
+                    b.setAttribute('aria-selected', active ? 'true' : 'false');
+                });
+                renderEvents();
+            });
+        });
+
+        // ============================================================
+        // Bootstrap: leggi nome comune + primi eventi
+        // ============================================================
+        loadComuneInfo().then(loadEvents);
+
+        async function loadComuneInfo() {
+            try {
+                var snap = await state.db.collection('app')
+                    .where('appSlug', '==', CONFIG.appSlug)
+                    .limit(1).get();
+                if (!snap.empty) {
+                    var data = snap.docs[0].data();
+                    var nome = data.comune || data.nome || CONFIG.appSlug;
+                    state.comuneNome = nome;
+                    document.getElementById('header-title').textContent = 'Archivio Eventi';
+                    document.getElementById('header-subtitle').textContent = 'Comune di ' + nome;
+                    document.getElementById('intro-title').innerHTML = '<i class="fas fa-book" style="margin-right: 6px; color: var(--blu-500);"></i> Gli eventi di ' + escapeHtml(nome);
+                    document.title = 'Archivio Eventi — ' + nome;
+                }
+            } catch (e) {
+                console.warn('[Archivio] Errore lettura nome comune:', e);
+            }
+        }
+
+        // ============================================================
+        // Caricamento eventi da Firestore
+        // ============================================================
+        async function loadEvents(append) {
+            if (state.loading) return;
+            state.loading = true;
+
+            var container = document.getElementById('content-container');
+            if (!append) {
+                container.innerHTML = '<div class="loading"><div class="spinner"></div><p>Carico gli eventi...</p></div>';
+            }
+
+            try {
+                // Query: solo calendar_auto, stato sent, ordine cronologico decrescente
+                var query = state.db.collection('push_history')
+                    .where('appSlug', '==', CONFIG.appSlug)
+                    .where('source', '==', 'calendar_auto')
+                    .where('status', '==', 'sent')
+                    .orderBy('sentAt', 'desc')
+                    .limit(CONFIG.pageSize);
+
+                if (state.lastDoc) {
+                    query = query.startAfter(state.lastDoc);
+                }
+
+                var snap = await query.get();
+                var batch = [];
+                snap.forEach(function(doc) {
+                    var data = doc.data();
+                    // Filtra eventi non disponibili (contenuto rimosso dal CMS)
+                    if (data.contentUnavailable === true) return;
+                    batch.push({ id: doc.id, ...data, _doc: doc });
+                    state.lastDoc = doc;
+                });
+
+                state.events = append ? state.events.concat(batch) : batch;
+                state.hasMore = snap.size >= CONFIG.pageSize;
+
+                // Alla prima caricata, calcola la data più vecchia per la nota
+                // "L'archivio include eventi a partire da..."
+                if (!append && state.events.length > 0) {
+                    computeArchiveStartDate();
+                }
+
+                renderEvents();
+            } catch (e) {
+                console.error('[Archivio] Errore caricamento eventi:', e);
+                // Fallback senza orderBy (se manca indice composito)
+                try {
+                    var fbQuery = state.db.collection('push_history')
+                        .where('appSlug', '==', CONFIG.appSlug)
+                        .where('source', '==', 'calendar_auto')
+                        .where('status', '==', 'sent')
+                        .limit(CONFIG.pageSize * 3);
+                    var fbSnap = await fbQuery.get();
+                    var fbAll = [];
+                    fbSnap.forEach(function(doc) {
+                        var data = doc.data();
+                        if (data.contentUnavailable === true) return;
+                        fbAll.push({ id: doc.id, ...data });
+                    });
+                    fbAll.sort(function(a, b) {
+                        var da = a.sentAt && a.sentAt.toDate ? a.sentAt.toDate() : new Date(a.sentAt || 0);
+                        var db2 = b.sentAt && b.sentAt.toDate ? b.sentAt.toDate() : new Date(b.sentAt || 0);
+                        return db2 - da;
+                    });
+                    state.events = fbAll;
+                    state.hasMore = false;
+                    renderEvents();
+                } catch (e2) {
+                    showError('Impossibile caricare gli eventi. Riprova più tardi.');
+                }
+            } finally {
+                state.loading = false;
+            }
+        }
+
+        // Legge la data dell'evento più vecchio per mostrarla nel pannello intro.
+        // Query una tantum: prendo 1 doc ordinato per sentAt ASC.
+        async function computeArchiveStartDate() {
+            try {
+                var snap = await state.db.collection('push_history')
+                    .where('appSlug', '==', CONFIG.appSlug)
+                    .where('source', '==', 'calendar_auto')
+                    .where('status', '==', 'sent')
+                    .orderBy('sentAt', 'asc')
+                    .limit(1).get();
+                if (!snap.empty) {
+                    var d = snap.docs[0].data();
+                    var date = d.sentAt && d.sentAt.toDate ? d.sentAt.toDate() : null;
+                    if (date) {
+                        state.archiveStartDate = date;
+                        var formatted = date.toLocaleDateString('it-IT', {
+                            day: 'numeric', month: 'long', year: 'numeric'
+                        });
+                        document.getElementById('archive-start-date').textContent = formatted;
+                        document.getElementById('intro-note').classList.remove('hidden');
+                    }
+                }
+            } catch (e) {
+                // Non critico, skippiamo silenziosamente
+            }
+        }
+
+        // ============================================================
+        // Rendering
+        // ============================================================
+        function renderEvents() {
+            var container = document.getElementById('content-container');
+
+            if (state.events.length === 0) {
+                container.innerHTML =
+                    '<div class="empty-state">' +
+                    '  <i class="fas fa-calendar-xmark"></i>' +
+                    '  <h3>Nessun evento nell\'archivio</h3>' +
+                    '  <p>Il Comune non ha ancora pubblicato eventi, oppure sono tutti molto recenti. Torna a trovarci!</p>' +
+                    '</div>';
+                return;
+            }
+
+            var html = '';
+            if (state.view === 'month') {
+                html = renderByMonth();
+            } else {
+                html = renderFlat();
+            }
+
+            if (state.hasMore) {
+                html += '<button class="load-more" onclick="window.__archivio_loadMore()">' +
+                        '<i class="fas fa-chevron-down"></i> Carica altri eventi</button>';
+            }
+
+            container.innerHTML = html;
+        }
+
+        // Raggruppamento per mese (es. "Aprile 2026", "Marzo 2026", ...)
+        function renderByMonth() {
+            var html = '';
+            var currentKey = '';
+            var buffer = [];
+            var counts = {};
+
+            // Raccogli buckets
+            state.events.forEach(function(ev) {
+                var date = ev.sentAt && ev.sentAt.toDate ? ev.sentAt.toDate() : new Date(ev.sentAt || 0);
+                var key = date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0');
+                counts[key] = (counts[key] || 0) + 1;
+            });
+
+            state.events.forEach(function(ev) {
+                var date = ev.sentAt && ev.sentAt.toDate ? ev.sentAt.toDate() : new Date(ev.sentAt || 0);
+                var key = date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0');
+                if (key !== currentKey) {
+                    if (buffer.length > 0) {
+                        html += buffer.join('');
+                        buffer = [];
+                    }
+                    currentKey = key;
+                    var monthName = date.toLocaleDateString('it-IT', { month: 'long', year: 'numeric' });
+                    monthName = monthName.charAt(0).toUpperCase() + monthName.slice(1);
+                    html += '<div class="month-separator">' +
+                            '<i class="fas fa-calendar"></i>' +
+                            '<span>' + escapeHtml(monthName) + '</span>' +
+                            '<span class="month-count">' + counts[key] + ' eventi</span>' +
+                            '</div>';
+                }
+                buffer.push(renderEventCard(ev));
+            });
+            if (buffer.length > 0) html += buffer.join('');
+            return html;
+        }
+
+        // Vista lineare, cronologica, senza separatori
+        function renderFlat() {
+            return state.events.map(renderEventCard).join('');
+        }
+
+        // Singola card evento
+        function renderEventCard(ev) {
+            var date = ev.sentAt && ev.sentAt.toDate ? ev.sentAt.toDate() : new Date(ev.sentAt || 0);
+            var now = new Date();
+            var todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            var isPast = date < todayMidnight;
+
+            // Titolo dell'evento (viene dal messaggio della push, già pulito dal prefisso)
+            var title = ev.message || ev.fullMessage || 'Evento';
+
+            // Data formattata (senza orari — sono fittizi nel nostro CMS)
+            var dateStr = date.toLocaleDateString('it-IT', {
+                weekday: 'short', day: 'numeric', month: 'short', year: 'numeric'
+            });
+
+            // Badge: "In Programma" per futuri, "Svolto" per passati
+            var badgeClass = isPast ? 'event-badge past' : 'event-badge';
+            var badgeIcon = isPast ? 'fa-clock-rotate-left' : 'fa-calendar-alt';
+            var badgeText = isPast ? 'Svolto' : 'In Programma';
+
+            // URL del reader (riutilizziamo il reader dell'archivio notifiche)
+            var readerUrl = '';
+            if (ev.gbUrl) {
+                readerUrl = '/storico-notifiche/article.html' +
+                    '?src=' + encodeURIComponent(ev.gbUrl) +
+                    '&comune=' + encodeURIComponent(state.comuneNome || CONFIG.appSlug) +
+                    '&app=' + encodeURIComponent(CONFIG.appSlug) +
+                    '&source=calendar_auto' +
+                    '&notifId=' + encodeURIComponent(ev.id);
+            }
+
+            var linkHtml = readerUrl ?
+                '<a class="event-link" href="' + readerUrl + '" aria-label="Apri dettaglio evento">' +
+                '  <i class="fas fa-arrow-right"></i> Dettagli dell\'evento' +
+                '</a>' : '';
+
+            return '<article class="event-card">' +
+                   '<div class="event-header">' +
+                   '<span class="' + badgeClass + '"><i class="fas ' + badgeIcon + '"></i> ' + badgeText + '</span>' +
+                   '<span class="event-date"><i class="fas fa-calendar-day"></i> ' + escapeHtml(dateStr) + '</span>' +
+                   '</div>' +
+                   '<h3 class="event-title">' + escapeHtml(title) + '</h3>' +
+                   linkHtml +
+                   '</article>';
+        }
+
+        // Esponiamo una funzione globale per il pulsante "Carica altri"
+        window.__archivio_loadMore = function() {
+            loadEvents(true);
+        };
+
+        // ============================================================
+        // Utility
+        // ============================================================
+        function showError(message) {
+            var container = document.getElementById('content-container');
+            if (container) {
+                container.innerHTML =
+                    '<div class="empty-state">' +
+                    '  <i class="fas fa-circle-exclamation" style="color: var(--rosso);"></i>' +
+                    '  <h3>Impossibile caricare</h3>' +
+                    '  <p>' + escapeHtml(message) + '</p>' +
+                    '</div>';
+            }
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            var div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+
+    })();
+    </script>
+
+</body>
+</html>
