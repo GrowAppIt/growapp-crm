@@ -129,6 +129,12 @@
             border-top: 1px solid var(--grigio-300);
         }
 
+        /* Utility: nasconde elementi con class .hidden (es. intro-note
+           prima di sapere se ci sono eventi, stati di loading/error, ecc.) */
+        .hidden {
+            display: none !important;
+        }
+
         /* Chip filters */
         .chips {
             display: flex;
@@ -576,6 +582,14 @@
                     // Filtra eventi non disponibili (contenuto rimosso dal CMS)
                     if (data.contentUnavailable === true) return;
 
+                    // FILTRO FONDAMENTALE: l'archivio mostra SOLO eventi agenda
+                    // etichettati "In Programma". La source "calendar_auto" in
+                    // push_history include anche notifiche di raccolta differenziata,
+                    // rifiuti, avvisi ricorrenti: quelli NON sono eventi e vanno
+                    // esclusi. Match stretto su title (il sync salva esattamente
+                    // questa stringa per le push con prefisso "In Programma:").
+                    if (!isInProgrammaTitle(data.title)) return;
+
                     // Filtra eventi futuri e di oggi: l'archivio mostra solo passati
                     var eventDate = data.sentAt && data.sentAt.toDate ? data.sentAt.toDate() : new Date(data.sentAt || 0);
                     if (eventDate >= todayMidnight) return;
@@ -587,11 +601,10 @@
                 state.events = append ? state.events.concat(batch) : batch;
                 state.hasMore = snap.size >= CONFIG.pageSize;
 
-                // Alla prima caricata, calcola la data più vecchia per la nota
-                // "L'archivio include eventi a partire da..."
-                if (!append && state.events.length > 0) {
-                    computeArchiveStartDate();
-                }
+                // Aggiorna la data mostrata nell'intro-note ad ogni caricamento:
+                // se carichiamo una nuova pagina, la "data di partenza archivio"
+                // si aggiorna sulla data del più vecchio evento caricato finora.
+                computeArchiveStartDate();
 
                 renderEvents();
             } catch (e) {
@@ -608,6 +621,8 @@
                     fbSnap.forEach(function(doc) {
                         var data = doc.data();
                         if (data.contentUnavailable === true) return;
+                        // Stesso filtro del ramo principale: solo "In Programma"
+                        if (!isInProgrammaTitle(data.title)) return;
                         fbAll.push({ id: doc.id, ...data });
                     });
                     fbAll.sort(function(a, b) {
@@ -617,6 +632,7 @@
                     });
                     state.events = fbAll;
                     state.hasMore = false;
+                    computeArchiveStartDate();
                     renderEvents();
                 } catch (e2) {
                     showError('Impossibile caricare gli eventi. Riprova più tardi.');
@@ -628,29 +644,34 @@
 
         // Legge la data dell'evento più vecchio per mostrarla nel pannello intro.
         // Query una tantum: prendo 1 doc ordinato per sentAt ASC.
-        async function computeArchiveStartDate() {
-            try {
-                var snap = await state.db.collection('push_history')
-                    .where('appSlug', '==', CONFIG.appSlug)
-                    .where('source', '==', 'calendar_auto')
-                    .where('status', '==', 'sent')
-                    .orderBy('sentAt', 'asc')
-                    .limit(1).get();
-                if (!snap.empty) {
-                    var d = snap.docs[0].data();
-                    var date = d.sentAt && d.sentAt.toDate ? d.sentAt.toDate() : null;
-                    if (date) {
-                        state.archiveStartDate = date;
-                        var formatted = date.toLocaleDateString('it-IT', {
-                            day: 'numeric', month: 'long', year: 'numeric'
-                        });
-                        document.getElementById('archive-start-date').textContent = formatted;
-                        document.getElementById('intro-note').classList.remove('hidden');
-                    }
-                }
-            } catch (e) {
-                // Non critico, skippiamo silenziosamente
+        // Calcola la data del più vecchio evento "In Programma" tra quelli
+        // già caricati in state.events e la mostra nell'intro-note.
+        // Chiamata dopo ogni caricamento (anche paginato): se carichiamo
+        // una pagina più vecchia, la data si aggiorna di conseguenza.
+        //
+        // Perché usiamo state.events e non una query separata: gli eventi
+        // in lista sono GIÀ filtrati su "In Programma" (niente differenziata,
+        // niente rifiuti). Se facessimo una query separata su calendar_auto
+        // ASC senza questo filtro, potremmo finire a pescare una notifica
+        // di differenziata vecchia e mostrare la data sbagliata.
+        function computeArchiveStartDate() {
+            if (!state.events || state.events.length === 0) {
+                document.getElementById('intro-note').classList.add('hidden');
+                return;
             }
+            // La lista è ordinata DESC: l'ULTIMO elemento = il più vecchio
+            var oldest = state.events[state.events.length - 1];
+            var date = oldest.sentAt && oldest.sentAt.toDate ? oldest.sentAt.toDate() : new Date(oldest.sentAt || 0);
+            if (isNaN(date.getTime())) {
+                document.getElementById('intro-note').classList.add('hidden');
+                return;
+            }
+            state.archiveStartDate = date;
+            var formatted = date.toLocaleDateString('it-IT', {
+                day: 'numeric', month: 'long', year: 'numeric'
+            });
+            document.getElementById('archive-start-date').textContent = formatted;
+            document.getElementById('intro-note').classList.remove('hidden');
         }
 
         // ============================================================
@@ -800,6 +821,15 @@
             var div = document.createElement('div');
             div.textContent = str;
             return div.innerHTML;
+        }
+
+        // Verifica se il title della notifica sia esattamente "In Programma"
+        // (con tolleranza a spazi e capitalizzazione). Usato per filtrare
+        // via le notifiche "Differenziata", "Rifiuti", ecc. che condividono
+        // la stessa source "calendar_auto" nel push_history ma NON sono eventi.
+        function isInProgrammaTitle(title) {
+            if (!title) return false;
+            return /^in\s+programma$/i.test(String(title).trim());
         }
 
     })();

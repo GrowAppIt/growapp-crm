@@ -57,19 +57,22 @@
             color: white;
             font-size: 1.1rem;
             cursor: pointer;
-            padding: 6px 10px;
+            padding: 6px 12px;
             border-radius: 6px;
             transition: background 0.2s;
             text-decoration: none;
             display: inline-flex;
             align-items: center;
+            gap: 10px;
+            flex: 1;
+            min-width: 0;
         }
 
         .article-header .back-btn:hover {
             background: rgba(255,255,255,0.15);
         }
 
-        .article-header .header-title {
+        .article-header .back-btn-label {
             font-size: 0.95rem;
             font-weight: 600;
             white-space: nowrap;
@@ -358,10 +361,10 @@
 
     <!-- Header -->
     <header class="article-header">
-        <a class="back-btn" id="back-btn" href="/archivio-eventi/landing.html" aria-label="Torna indietro">
+        <a class="back-btn" id="back-btn" href="/archivio-eventi/landing.html" aria-label="Torna all'archivio eventi">
             <i class="fas fa-arrow-left"></i>
+            <span class="back-btn-label">Torna all'archivio eventi</span>
         </a>
-        <span class="header-title" id="header-title">Caricamento...</span>
         <span class="header-logo"><i class="fas fa-city"></i> Comune.Digital</span>
     </header>
 
@@ -462,9 +465,10 @@
         document.getElementById('back-bottom-link').href = archiveUrl;
         document.getElementById('error-back-link').href = archiveUrl;
 
-        if (comuneNome) {
-            document.getElementById('header-title').textContent = comuneNome;
-        }
+        // L'header qui NON mostra il nome del comune: la sezione del CMS
+        // comunale lo fa già nel suo header esterno. L'header del reader
+        // serve solo da invito a tornare indietro ("Torna all'archivio eventi"),
+        // ed è volutamente neutro.
 
         if (!gbUrl) {
             showError('Nessun contenuto specificato. Parametro "src" mancante.');
@@ -529,7 +533,9 @@
             // Titolo
             var title = article.title || cfg.label;
             document.getElementById('article-title').textContent = title;
-            document.getElementById('header-title').textContent = comuneNome || title;
+            // NB: l'header del reader NON viene aggiornato con il titolo
+            // dell'evento — quello spazio contiene il link fisso
+            // "Torna all'archivio eventi", che è più utile per la navigazione.
             document.title = title + ' — Comune.Digital';
 
             // Autore: mostrato solo se la config lo prevede E se l'autore è presente
@@ -683,20 +689,20 @@
         function showError(message, kind) {
             // kind: 'notfound' (contenuto rimosso/scaduto, UI gentile)
             //       'error'    (errore tecnico, UI standard)
+            // NB: l'header resta fisso su "Torna all'archivio eventi",
+            // così l'utente ha sempre un invito chiaro a tornare indietro
+            // anche quando non riesce a caricare il contenuto.
             var iconEl = document.getElementById('error-icon');
             var titleEl = document.getElementById('error-title');
-            var headerTitleEl = document.getElementById('header-title');
 
             if (kind === 'notfound') {
                 iconEl.className = 'fas fa-box-archive';
                 iconEl.style.color = 'var(--grigio-500)';
                 titleEl.textContent = 'Contenuto non più disponibile';
-                headerTitleEl.textContent = 'Contenuto archiviato';
             } else {
                 iconEl.className = 'fas fa-exclamation-circle';
                 iconEl.style.color = 'var(--rosso)';
                 titleEl.textContent = 'Impossibile caricare il contenuto';
-                headerTitleEl.textContent = 'Errore';
             }
 
             document.getElementById('error-message').textContent = message;
