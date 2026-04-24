@@ -746,10 +746,13 @@
             var badgeIcon = isPast ? 'fa-clock-rotate-left' : 'fa-calendar-alt';
             var badgeText = isPast ? 'Svolto' : 'In Programma';
 
-            // URL del reader (riutilizziamo il reader dell'archivio notifiche)
+            // URL del reader: usiamo il reader DEDICATO dell'archivio eventi
+            // (/archivio-eventi/article.html), così quando l'utente clicca
+            // "Torna" il reader lo riporta qui nell'archivio eventi e NON
+            // allo storico notifiche (che è una webapp separata).
             var readerUrl = '';
             if (ev.gbUrl) {
-                readerUrl = '/storico-notifiche/article.html' +
+                readerUrl = '/archivio-eventi/article.html' +
                     '?src=' + encodeURIComponent(ev.gbUrl) +
                     '&comune=' + encodeURIComponent(state.comuneNome || CONFIG.appSlug) +
                     '&app=' + encodeURIComponent(CONFIG.appSlug) +
