@@ -554,6 +554,11 @@ function extractTitleFromMessage(message) {
  *
  * Normalizza appSlug a lowercase quando lo salva, così le query pubbliche
  * sono case-insensitive di fatto (bisogna scriverne una sola versione).
+ *
+ * NUOVO (apr 2026): scarta le notifiche con pushed_at nel FUTURO.
+ * GoodBarber a volte restituisce push schedulate (non ancora inviate)
+ * o eventi calendar dove pushed_at è la data dell'evento, non dell'invio.
+ * Tolleranza: +1 ora per coprire piccoli sfasamenti d'orologio.
  */
 async function saveNotifications(notifications, appData) {
     if (!notifications || notifications.length === 0) {
@@ -561,6 +566,9 @@ async function saveNotifications(notifications, appData) {
     }
 
     const BATCH_SIZE = 450;
+    const FUTURE_TOLERANCE_MS = 60 * 60 * 1000; // 1 ora
+    const futureCutoff = new Date(Date.now() + FUTURE_TOLERANCE_MS);
+
     let totalSaved = 0;
     let totalSkipped = 0;
     const skippedReasons = [];
@@ -580,6 +588,17 @@ async function saveNotifications(notifications, appData) {
             if (!parsedDate) {
                 totalSkipped++;
                 const reason = `notif id=${notif.id}: pushed_at non parseabile (${JSON.stringify(notif.pushed_at)})`;
+                skippedReasons.push(reason);
+                console.warn(`[sync] SKIP ${appData.comune} — ${reason}`);
+                continue;
+            }
+
+            // Validazione data nel FUTURO: una push history non dovrebbe mai avere
+            // pushed_at futuro. Se succede è quasi sempre una push schedulata o un
+            // evento calendar. Saltiamo per non sporcare lo storico.
+            if (parsedDate > futureCutoff) {
+                totalSkipped++;
+                const reason = `notif id=${notif.id}: pushed_at futuro (${parsedDate.toISOString()}) — probabile push schedulata o evento calendar`;
                 skippedReasons.push(reason);
                 console.warn(`[sync] SKIP ${appData.comune} — ${reason}`);
                 continue;
@@ -750,6 +769,70 @@ async function syncApp(appData, fullSync = false) {
 }
 
 // ============================================================================
+// Autenticazione — accetta tre modalità (in ordine di priorità):
+//
+//   1. Vercel Cron: rilevato via User-Agent "vercel-cron/1.0" o header
+//      x-vercel-cron. Vercel chiama l'endpoint senza poter aggiungere
+//      header custom, quindi serve auto-detect.
+//
+//   2. Firebase ID Token: il CRM passa Authorization: Bearer <id_token>
+//      ottenuto da firebase.auth().currentUser.getIdToken(). Verifichiamo
+//      con admin.auth().verifyIdToken(). Questo copre il bottone
+//      "Sincronizza Ora" del CRM dove l'utente è già loggato.
+//
+//   3. SYNC_SECRET legacy: Authorization: Bearer <secret> oppure ?secret=...
+//      Mantenuto per retrocompatibilità (chiamate da terminale, test, ecc.)
+//
+// Se SYNC_SECRET non è impostato e nessun metodo matcha → si lascia passare
+// (comportamento storico pre-secret, utile in dev).
+// ============================================================================
+
+async function checkAuth(req) {
+    // 1) Vercel Cron auto-detect
+    const ua = (req.headers['user-agent'] || '').toLowerCase();
+    if (ua.includes('vercel-cron') || req.headers['x-vercel-cron']) {
+        return { ok: true, source: 'vercel-cron' };
+    }
+
+    const authHeader = req.headers['authorization'] || '';
+    const querySecret = req.query.secret || '';
+
+    // 2) SYNC_SECRET legacy (controllato prima di Firebase per restare veloce)
+    const syncSecret = process.env.SYNC_SECRET;
+    if (syncSecret) {
+        if (
+            authHeader === `Bearer ${syncSecret}` ||
+            authHeader === syncSecret ||
+            querySecret === syncSecret
+        ) {
+            return { ok: true, source: 'sync-secret' };
+        }
+    }
+
+    // 3) Firebase ID Token (verifica via admin SDK)
+    if (authHeader.startsWith('Bearer ')) {
+        const token = authHeader.substring(7).trim();
+        // Skip se sembra essere il SYNC_SECRET (già controllato sopra) — evita verifyIdToken inutile
+        if (token && token !== syncSecret) {
+            try {
+                const decoded = await admin.auth().verifyIdToken(token);
+                return { ok: true, source: 'firebase', uid: decoded.uid, email: decoded.email };
+            } catch (e) {
+                // Token non valido o non Firebase: cadiamo nel default sotto
+                console.warn('[sync-auth] Bearer token non valido come Firebase ID token:', e.message);
+            }
+        }
+    }
+
+    // Se SYNC_SECRET non è impostato, comportamento legacy: lasciamo passare.
+    if (!syncSecret) {
+        return { ok: true, source: 'no-secret-configured' };
+    }
+
+    return { ok: false };
+}
+
+// ============================================================================
 // Main Handler
 // ============================================================================
 
@@ -767,11 +850,15 @@ module.exports = async function handler(req, res) {
         return res.status(405).json({ error: 'Metodo non consentito. Usa GET.' });
     }
 
-    // Sicurezza: verifica un token segreto (opzionale ma consigliato)
-    const authToken = req.headers['authorization'] || req.query.secret;
-    if (process.env.SYNC_SECRET && authToken !== `Bearer ${process.env.SYNC_SECRET}` && authToken !== process.env.SYNC_SECRET) {
-        return res.status(401).json({ error: 'Non autorizzato' });
+    // Sicurezza multi-livello: cron Vercel | Firebase ID token | SYNC_SECRET
+    const auth = await checkAuth(req);
+    if (!auth.ok) {
+        return res.status(401).json({
+            error: 'Non autorizzato',
+            hint: 'Forniscire Authorization: Bearer <firebase-id-token | SYNC_SECRET>, oppure ?secret=<SYNC_SECRET>. Il cron Vercel viene rilevato automaticamente.'
+        });
     }
+    console.log(`[sync] Autenticazione OK (source: ${auth.source}${auth.uid ? `, uid: ${auth.uid}` : ''})`);
 
     try {
         const { appSlug, full } = req.query;

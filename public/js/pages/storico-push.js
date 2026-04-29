@@ -579,12 +579,24 @@ const StoricoPush = {
         const container = document.getElementById('sp-list');
         const loadMoreEl = document.getElementById('sp-load-more');
 
-        if (this.notifications.length === 0) {
+        // Safety net: nascondi notifiche con sentAt nel futuro.
+        // Il sync nuovo non ne salva più, ma quelle vecchie restano nel DB.
+        // Tolleranza 1h per piccoli sfasamenti orologio.
+        const cutoffMs = Date.now() + (60 * 60 * 1000);
+        const visibleNotifications = this.notifications.filter(n => {
+            const sentAt = n.sentAt && n.sentAt.toDate ? n.sentAt.toDate() : new Date(n.sentAt || 0);
+            return sentAt.getTime() <= cutoffMs;
+        });
+        const hiddenFutureCount = this.notifications.length - visibleNotifications.length;
+
+        if (visibleNotifications.length === 0) {
             container.innerHTML = `
                 <div class="sp-empty">
                     <i class="fas fa-bell-slash"></i>
                     <h3>Nessuna notifica trovata</h3>
-                    <p>Prova a modificare i filtri o avvia una sincronizzazione.</p>
+                    <p>${hiddenFutureCount > 0
+                        ? `${hiddenFutureCount} elemento/i nascosto/i perch&eacute; con data nel futuro (push schedulate o eventi calendar).`
+                        : 'Prova a modificare i filtri o avvia una sincronizzazione.'}</p>
                 </div>
             `;
             loadMoreEl.style.display = 'none';
@@ -609,7 +621,15 @@ const StoricoPush = {
             'manual': 'Avviso'
         };
 
-        container.innerHTML = this.notifications.map(n => {
+        // Banner informativo se abbiamo nascosto delle date future
+        const hiddenBanner = hiddenFutureCount > 0 ? `
+            <div style="padding:8px 14px;margin-bottom:8px;background:#FFF8E1;border-left:3px solid #FFCC00;border-radius:6px;font-size:0.8rem;color:#4A4A4A;">
+                <i class="fas fa-info-circle" style="color:#F57F17;"></i>
+                ${hiddenFutureCount} elemento/i nascosto/i perch&eacute; con data nel futuro (push schedulate o eventi calendar non ancora inviati).
+            </div>
+        ` : '';
+
+        container.innerHTML = hiddenBanner + visibleNotifications.map(n => {
             const source = n.source || 'manual';
             const icon = sourceIcons[source] || 'fa-bell';
             const label = sourceLabels[source] || 'Altro';
@@ -664,14 +684,41 @@ const StoricoPush = {
     // Sincronizzazione manuale
     // ================================================================
 
+    /**
+     * Costruisce gli header HTTP per l'auth verso /api/sync-push-history.
+     * Usa l'ID token Firebase dell'utente loggato — il backend lo verifica
+     * via admin.auth().verifyIdToken(). Niente token esposti nel client.
+     */
+    async _buildSyncAuthHeaders() {
+        try {
+            const fbAuth = (typeof firebase !== 'undefined' && firebase.auth) ? firebase.auth() : null;
+            const user = fbAuth ? fbAuth.currentUser : null;
+            if (user) {
+                const token = await user.getIdToken();
+                if (token) return { 'Authorization': 'Bearer ' + token };
+            }
+        } catch (e) {
+            console.warn('[StoricoPush] Impossibile ottenere ID token Firebase:', e.message);
+        }
+        // Senza token la richiesta procede comunque: il backend la rifiuterà
+        // con 401 se SYNC_SECRET è configurato, e questo è il messaggio che
+        // mostriamo all'utente.
+        return {};
+    },
+
     async syncNow() {
         const appSlug = this.filters.appSlug || '';
+
+        // Auth header costruito una sola volta
+        const authHeaders = await this._buildSyncAuthHeaders();
 
         // Se filtrato per una singola app, sync diretto senza chunk
         if (appSlug) {
             UI.showLoading(`Sincronizzazione ${appSlug}...`);
             try {
-                const response = await fetch(`/api/sync-push-history?appSlug=${encodeURIComponent(appSlug)}`);
+                const response = await fetch(`/api/sync-push-history?appSlug=${encodeURIComponent(appSlug)}`, {
+                    headers: authHeaders
+                });
                 const data = await response.json();
                 UI.hideLoading();
                 if (data.success) {
@@ -679,7 +726,10 @@ const StoricoPush = {
                     await this.loadNotifications(false);
                     this.loadMonitorAlerts();
                 } else {
-                    UI.showError('Errore: ' + (data.error || 'Errore sconosciuto'));
+                    const hint = response.status === 401
+                        ? ' (la sessione potrebbe essere scaduta — rifai login e riprova)'
+                        : '';
+                    UI.showError('Errore: ' + (data.error || 'Errore sconosciuto') + hint);
                 }
             } catch (error) {
                 UI.hideLoading();
@@ -701,12 +751,17 @@ const StoricoPush = {
             while (hasMore) {
                 UI.showLoading(`Sincronizzazione in corso... (blocco ${chunk + 1})`);
 
-                const response = await fetch(`/api/sync-push-history?chunk=${chunk}&chunkSize=${CHUNK_SIZE}`);
+                const response = await fetch(`/api/sync-push-history?chunk=${chunk}&chunkSize=${CHUNK_SIZE}`, {
+                    headers: authHeaders
+                });
                 const data = await response.json();
 
                 if (!data.success) {
                     UI.hideLoading();
-                    UI.showError('Errore nel blocco ' + (chunk + 1) + ': ' + (data.error || 'Errore'));
+                    const hint = response.status === 401
+                        ? ' — sessione scaduta? Esci, rifai login e riprova.'
+                        : '';
+                    UI.showError('Errore nel blocco ' + (chunk + 1) + ': ' + (data.error || 'Errore') + hint);
                     return;
                 }
 
@@ -1423,6 +1478,27 @@ const StoricoPush = {
             for (const app of monitorate) {
                 const slug = (app.appSlug || '').toLowerCase().trim();
                 if (!slug) continue;
+
+                // NUOVO: surface degli errori/warning di sync salvati sul doc app
+                // (impostati da api/sync-push-history.js dopo ogni run).
+                // Questo fa vedere a colpo d'occhio quali app stanno dando problemi
+                // di sincronizzazione anche senza dover aprire la console.
+                if (app.lastPushSyncStatus === 'error' && app.lastPushSyncError) {
+                    alerts.push({
+                        type: 'error',
+                        appName: app.comune || app.appSlug,
+                        message: 'Errore sincronizzazione: ' + app.lastPushSyncError,
+                        details: { lastSync: app.lastPushSync?.toDate ? app.lastPushSync.toDate() : null }
+                    });
+                } else if (app.lastPushSyncStatus === 'warning' && app.lastPushSyncWarning) {
+                    alerts.push({
+                        type: 'warn',
+                        appName: app.comune || app.appSlug,
+                        message: 'Avviso sync: ' + app.lastPushSyncWarning,
+                        details: { lastSync: app.lastPushSync?.toDate ? app.lastPushSync.toDate() : null }
+                    });
+                }
+
                 let lastNotifDate = null;
                 let totalNotifs = 0;
                 let queryOk = false;
