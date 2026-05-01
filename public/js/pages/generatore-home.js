@@ -22,6 +22,22 @@
  * v4.7.0 – Aggiunto widget VIDEO (singola istanza per homepage). Supporta YouTube (watch/youtu.be/embed/shorts), Vimeo e MP4 diretto (auto-detect dal formato URL). Due modalita': (A) autoplay muto con loop continuo, (B) click-to-play con audio. Opzionali titolo e sottotitolo IT/EN sopra il video. Layout 16:9 orizzontale con wrapper padding-top:56.25% (compatibile con tutti i browser, indipendente da "aspect-ratio" CSS). Runtime ZERO JS nell'HTML emesso: iframe passivi per YouTube/Vimeo (autoplay+loop via query string) e tag <video> nativo per MP4 (attributi autoplay/muted/loop/controls). Precauzioni GoodBarber menu-custom applicate: nessuna funzione con suffisso url/Url chiamata con (), nessun new URL(), nessun backslash nelle stringhe emesse, URL scritti solo come valori di attributo src, parsing video-id via string methods (split/indexOf/substring) e controllo cifre via charCodeAt.
  * v4.7.1 – Widget Video: aggiunto controllo aspetto cornice. Due stili: (A) "Angoli arrotondati" (default) con video ~720px centrato, border-radius 14px, padding laterale, ombra; (B) "Rettangolare pieno" edge-to-edge (max-width none, border-radius 0, box-shadow 0). Aggiunto color picker per scegliere il colore di sfondo del widget (visibile soprattutto con stile arrotondato), con hex input sincronizzato e pulsante "Nessuno" per tornare a trasparente. Nuovi campi state: videoWidget.frameStyle e videoWidget.sectionBg.
  * v4.7.2 – Fix riordino widget Banner Personalizzabili (e RSS Slider) nell'editor. Due bug correlati: (A) le frecce su/giu cercavano il vicino con "order === current ± 1" ma i default hanno gap (9, 13, 14: mancano 10/11/12), quindi un banner con order 13 non riusciva a salire sopra videoWidget perche order 12 non esisteva; sostituito con scambio per posizione nell'array ordinato. (B) syncBannerCustomWidgets() / syncRssSliderWidgets() rigeneravano i widget con order = maxOrder+1+i ad ogni call (load/add/remove), perdendo l'ordinamento utente; ora l'order ed enabled gia presenti vengono preservati e solo i widget nuovi ricevono un nuovo order in coda. Modifica interna all'editor CRM: ZERO impatto sull'HTML emesso e sul preprocessor GoodBarber.
+ * v4.7.3 – Hardening sicurezza output (defense-in-depth, 2 fix XSS preventivi):
+ *   (A) href() runtime: aggiunto check esplicito che blocca i protocolli pericolosi
+ *       (javascript:, vbscript:, data:text/html) restituendo '#'. Prima la logica
+ *       startsWith('http')+prefix BASE neutralizzava di fatto questi href, ma il
+ *       check esplicito chiude il vettore in modo robusto se in futuro la logica
+ *       viene rivista. ZERO regressioni attese su URL legittimi (http/https,
+ *       path relativi, sezioni interne). Implementato con indexOf su stringhe in
+ *       lowercase per restare compatibile col preprocessor GoodBarber (no regex
+ *       con backslash, no funzioni con suffisso url/Url).
+ *   (B) RSS slider, estrazione imgUrl dalla descrizione del feed: aggiunta
+ *       whitelist sui protocolli accettati (http/https/relative path). Se il src
+ *       del primo <img> della descrizione e' javascript:/vbscript:/data:, viene
+ *       scartato e la card mostra il fallback (icona). Tutte le immagini RSS
+ *       reali in produzione (Facebook CDN, WordPress, Instagram, GoodBarber
+ *       syndication) usano https:// o path relativi: zero regressioni attese.
+ *       Anche qui solo indexOf su lowercase, preprocessor-safe.
  * Si integra nel CRM come sezione dell'Officina Digitale.
  */
 window.GeneratoreHome = (function () {
@@ -3405,6 +3421,17 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
   };
 
   const href = (path) => {
+    if (!path) return '#';
+    /* Defense-in-depth: blocca protocolli pericolosi a priori.
+       La logica successiva di solito li neutralizza prefissando BASE,
+       ma teniamo anche un check esplicito. Usiamo solo indexOf su stringhe
+       in lowercase per evitare regex/backslash (preprocessor-safe). */
+    const lower = String(path).toLowerCase().trim();
+    if (lower.indexOf('javascript:') === 0 ||
+        lower.indexOf('vbscript:') === 0 ||
+        lower.indexOf('data:text/html') === 0) {
+      return '#';
+    }
     const url = path.startsWith('http') ? path : BASE + '/' + path;
     return appendLang(encodeURI(decodeURI(url)));
   };
@@ -4475,7 +4502,19 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
           if (img) {
             const s = img.getAttribute('src');
             if (s) {
-              imgUrl = s.startsWith('/') ? domainBase + s : s;
+              /* Accetta SOLO immagini con protocollo sicuro (http/https) o
+                 path relativi. Blocca data:, javascript:, vbscript: e altri
+                 schemi che potrebbero confondere il rendering del browser
+                 o creare comportamenti inattesi quando la src viene poi
+                 inserita in un <img> reale. */
+              const sLower = s.toLowerCase().trim();
+              const isSafe = sLower.indexOf('http://') === 0 ||
+                             sLower.indexOf('https://') === 0 ||
+                             s.charAt(0) === '/' ||
+                             s.charAt(0) === '.';
+              if (isSafe) {
+                imgUrl = s.startsWith('/') ? domainBase + s : s;
+              }
             }
           }
         }
