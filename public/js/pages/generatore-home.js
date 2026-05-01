@@ -21,6 +21,7 @@
  * v4.6.0 – (1) Editor CRM: aggiunto drag & drop + frecce su/giu per riordinare gli elementi di lista: servizi dentro una sezione (widget Servizi), card dentro un gruppo (Banner Personalizzabili), pulsanti dello Slideshow Verticale. Modifica interna all'editor, NON tocca l'HTML emesso: zero rischio preprocessor GoodBarber. Fix interno pre-rilascio: l'ordine delle operazioni di riordino era errato (swap array eseguito PRIMA del collectFromDOM, quindi i valori degli input venivano risalvati nelle posizioni gia scambiate, annullando lo swap). Corretto introducendo un callback beforeReorder che esegue collectFromDOM PRIMA di qualsiasi modifica all'array (swap frecce o splice drag&drop). (2) Banner Personalizzabili: rimosso l'effetto "patina bianca" sulle immagini. Quando una card ha sia immagine sia testo, l'immagine viene mostrata a piena area, a colori, senza grayscale (prima era opacity:.05 + filter:grayscale(100%)); il testo resta leggibile con titolo bianco + text-shadow scuro e kicker/CTA con alta leggibilita'. Il link della card resta cliccabile su tutta l'area. Se la card ha solo immagine senza testo, comportamento invariato.
  * v4.7.0 – Aggiunto widget VIDEO (singola istanza per homepage). Supporta YouTube (watch/youtu.be/embed/shorts), Vimeo e MP4 diretto (auto-detect dal formato URL). Due modalita': (A) autoplay muto con loop continuo, (B) click-to-play con audio. Opzionali titolo e sottotitolo IT/EN sopra il video. Layout 16:9 orizzontale con wrapper padding-top:56.25% (compatibile con tutti i browser, indipendente da "aspect-ratio" CSS). Runtime ZERO JS nell'HTML emesso: iframe passivi per YouTube/Vimeo (autoplay+loop via query string) e tag <video> nativo per MP4 (attributi autoplay/muted/loop/controls). Precauzioni GoodBarber menu-custom applicate: nessuna funzione con suffisso url/Url chiamata con (), nessun new URL(), nessun backslash nelle stringhe emesse, URL scritti solo come valori di attributo src, parsing video-id via string methods (split/indexOf/substring) e controllo cifre via charCodeAt.
  * v4.7.1 – Widget Video: aggiunto controllo aspetto cornice. Due stili: (A) "Angoli arrotondati" (default) con video ~720px centrato, border-radius 14px, padding laterale, ombra; (B) "Rettangolare pieno" edge-to-edge (max-width none, border-radius 0, box-shadow 0). Aggiunto color picker per scegliere il colore di sfondo del widget (visibile soprattutto con stile arrotondato), con hex input sincronizzato e pulsante "Nessuno" per tornare a trasparente. Nuovi campi state: videoWidget.frameStyle e videoWidget.sectionBg.
+ * v4.7.2 – Fix riordino widget Banner Personalizzabili (e RSS Slider) nell'editor. Due bug correlati: (A) le frecce su/giu cercavano il vicino con "order === current ± 1" ma i default hanno gap (9, 13, 14: mancano 10/11/12), quindi un banner con order 13 non riusciva a salire sopra videoWidget perche order 12 non esisteva; sostituito con scambio per posizione nell'array ordinato. (B) syncBannerCustomWidgets() / syncRssSliderWidgets() rigeneravano i widget con order = maxOrder+1+i ad ogni call (load/add/remove), perdendo l'ordinamento utente; ora l'order ed enabled gia presenti vengono preservati e solo i widget nuovi ricevono un nuovo order in coda. Modifica interna all'editor CRM: ZERO impatto sull'HTML emesso e sul preprocessor GoodBarber.
  * Si integra nel CRM come sezione dell'Officina Digitale.
  */
 window.GeneratoreHome = (function () {
@@ -1631,29 +1632,51 @@ window.GeneratoreHome = (function () {
   }
 
   function syncRssSliderWidgets() {
-    // Remove all rssSlider_* widgets
-    state.widgets = state.widgets.filter(w => !w.id.startsWith('rssSlider_'));
-    // Re-add with correct indices
-    const maxOrder = state.widgets.reduce((m, w) => Math.max(m, w.order), -1);
+    // Preserva order/enabled dei widget rssSlider_* gia presenti, cosi l'ordinamento
+    // scelto dall'utente (frecce su/giu) non viene perso ad ogni add/remove/load.
+    const existing = {};
+    state.widgets.forEach(w => {
+      if (w.id.indexOf('rssSlider_') === 0) {
+        existing[w.id] = { order: w.order, enabled: w.enabled };
+      }
+    });
+    state.widgets = state.widgets.filter(w => w.id.indexOf('rssSlider_') !== 0);
+    let maxOrder = state.widgets.reduce((m, w) => Math.max(m, w.order), -1);
     state.rssSliders.forEach((slider, i) => {
+      const id = 'rssSlider_' + i;
+      const prev = existing[id];
+      const order = prev ? prev.order : (++maxOrder);
+      const enabled = prev ? prev.enabled : true;
       state.widgets.push({
-        id: 'rssSlider_' + i,
+        id: id,
         label: 'RSS: ' + (slider.titleIt || 'Slider ' + (i + 1)),
-        enabled: true,
-        order: maxOrder + 1 + i
+        enabled: enabled,
+        order: order
       });
     });
   }
 
   function syncBannerCustomWidgets() {
-    state.widgets = state.widgets.filter(w => !w.id.startsWith('bannerCustom_'));
-    const maxOrder = state.widgets.reduce((m, w) => Math.max(m, w.order), -1);
+    // Preserva order/enabled dei widget bannerCustom_* gia presenti, cosi l'ordinamento
+    // scelto dall'utente (frecce su/giu) non viene perso ad ogni add/remove/load.
+    const existing = {};
+    state.widgets.forEach(w => {
+      if (w.id.indexOf('bannerCustom_') === 0) {
+        existing[w.id] = { order: w.order, enabled: w.enabled };
+      }
+    });
+    state.widgets = state.widgets.filter(w => w.id.indexOf('bannerCustom_') !== 0);
+    let maxOrder = state.widgets.reduce((m, w) => Math.max(m, w.order), -1);
     state.bannerGroups.forEach((group, i) => {
+      const id = 'bannerCustom_' + i;
+      const prev = existing[id];
+      const order = prev ? prev.order : (++maxOrder);
+      const enabled = prev ? prev.enabled : true;
       state.widgets.push({
-        id: 'bannerCustom_' + i,
+        id: id,
         label: 'Banner: ' + (group.items[0]?.kicker || group.items[0]?.titleIt || 'Banner ' + (i + 1)),
-        enabled: true,
-        order: maxOrder + 1 + i
+        enabled: enabled,
+        order: order
       });
     });
   }
@@ -2010,10 +2033,17 @@ window.GeneratoreHome = (function () {
     c.querySelectorAll('[data-widget-up]').forEach(btn => {
       btn.addEventListener('click', e => {
         const wid = e.currentTarget.getAttribute('data-widget-up');
-        const w = state.widgets.find(x => x.id === wid);
-        if (w && w.order > 0) {
-          const other = state.widgets.find(x => x.order === w.order - 1);
-          if (other) { w.order--; other.order++; }
+        // Lavora sull'array ordinato per posizione effettiva, NON sul valore esatto di order:
+        // i numeri order possono avere gap (es. defaults 9 -> 13 -> 14) e cercare
+        // "order === current - 1" fallirebbe lasciando il pulsante senza effetto.
+        const sorted = state.widgets.slice().sort((a, b) => a.order - b.order);
+        const idx = sorted.findIndex(x => x.id === wid);
+        if (idx > 0) {
+          const cur = sorted[idx];
+          const prev = sorted[idx - 1];
+          const tmp = cur.order;
+          cur.order = prev.order;
+          prev.order = tmp;
           refreshWidgetList();
         }
       });
@@ -2021,10 +2051,14 @@ window.GeneratoreHome = (function () {
     c.querySelectorAll('[data-widget-down]').forEach(btn => {
       btn.addEventListener('click', e => {
         const wid = e.currentTarget.getAttribute('data-widget-down');
-        const w = state.widgets.find(x => x.id === wid);
-        if (w && w.order < state.widgets.length - 1) {
-          const other = state.widgets.find(x => x.order === w.order + 1);
-          if (other) { w.order++; other.order--; }
+        const sorted = state.widgets.slice().sort((a, b) => a.order - b.order);
+        const idx = sorted.findIndex(x => x.id === wid);
+        if (idx >= 0 && idx < sorted.length - 1) {
+          const cur = sorted[idx];
+          const next = sorted[idx + 1];
+          const tmp = cur.order;
+          cur.order = next.order;
+          next.order = tmp;
           refreshWidgetList();
         }
       });
