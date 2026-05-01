@@ -22,17 +22,27 @@
  * v4.7.0 – Aggiunto widget VIDEO (singola istanza per homepage). Supporta YouTube (watch/youtu.be/embed/shorts), Vimeo e MP4 diretto (auto-detect dal formato URL). Due modalita': (A) autoplay muto con loop continuo, (B) click-to-play con audio. Opzionali titolo e sottotitolo IT/EN sopra il video. Layout 16:9 orizzontale con wrapper padding-top:56.25% (compatibile con tutti i browser, indipendente da "aspect-ratio" CSS). Runtime ZERO JS nell'HTML emesso: iframe passivi per YouTube/Vimeo (autoplay+loop via query string) e tag <video> nativo per MP4 (attributi autoplay/muted/loop/controls). Precauzioni GoodBarber menu-custom applicate: nessuna funzione con suffisso url/Url chiamata con (), nessun new URL(), nessun backslash nelle stringhe emesse, URL scritti solo come valori di attributo src, parsing video-id via string methods (split/indexOf/substring) e controllo cifre via charCodeAt.
  * v4.7.1 – Widget Video: aggiunto controllo aspetto cornice. Due stili: (A) "Angoli arrotondati" (default) con video ~720px centrato, border-radius 14px, padding laterale, ombra; (B) "Rettangolare pieno" edge-to-edge (max-width none, border-radius 0, box-shadow 0). Aggiunto color picker per scegliere il colore di sfondo del widget (visibile soprattutto con stile arrotondato), con hex input sincronizzato e pulsante "Nessuno" per tornare a trasparente. Nuovi campi state: videoWidget.frameStyle e videoWidget.sectionBg.
  * v4.7.2 – Fix riordino widget Banner Personalizzabili (e RSS Slider) nell'editor. Due bug correlati: (A) le frecce su/giu cercavano il vicino con "order === current ± 1" ma i default hanno gap (9, 13, 14: mancano 10/11/12), quindi un banner con order 13 non riusciva a salire sopra videoWidget perche order 12 non esisteva; sostituito con scambio per posizione nell'array ordinato. (B) syncBannerCustomWidgets() / syncRssSliderWidgets() rigeneravano i widget con order = maxOrder+1+i ad ogni call (load/add/remove), perdendo l'ordinamento utente; ora l'order ed enabled gia presenti vengono preservati e solo i widget nuovi ricevono un nuovo order in coda. Modifica interna all'editor CRM: ZERO impatto sull'HTML emesso e sul preprocessor GoodBarber.
- * v4.7.4 – UX widget Meteo (e Raccolta): fix animazione "tendina che oscilla".
- *   La keyframe rdSheen — applicata al pseudo-elemento ::after di entrambi i
- *   widget come "riflesso vetroso" — andava avanti e indietro (translateX
+ * v4.7.5 – UX widget Meteo: rimossa l'animazione di sfondo rdLiqFloat (era
+ *   il vero colpevole della "tendina scura che oscilla" segnalata dall'utente).
+ *   rdLiqFloat e' un keyframe lento (24s con modificatore "alternate" che
+ *   raddoppia il ciclo a 48s di andata-ritorno) applicato allo strato di
+ *   radial-gradient blu+bianco del pseudo-elemento ::before. Sul tema sunny
+ *   (sfondo arancione caldo) l'overlay blu sembra una "zona piu' fredda"
+ *   che si muove lateralmente a tendina. Rimossa SOLO dal widget Meteo
+ *   (riga 3171), il widget Raccolta Differenziata continua ad averla
+ *   perche' su sfondo verde non e' visivamente fastidiosa. I radial gradient
+ *   del Meteo restano (effetto vetroso premium) ma fermi.
+ * v4.7.4 – UX widget Meteo (e Raccolta): fix animazione rdSheen "tendina che
+ *   oscilla". La keyframe — applicata al pseudo-elemento ::after di entrambi
+ *   i widget come "riflesso vetroso" — andava avanti e indietro (translateX
  *   da -30% a +30% e ritorno) producendo un effetto pendolo brutto. Sostituita
  *   con un movimento UNIDIRECTIONAL: la luce entra da fuori a sinistra
  *   (translateX -110%, opacity 0), attraversa il widget col fade-in/out
  *   morbido (12%/88%), esce a destra (translateX +110%, opacity 0) e
  *   ricomincia. Mantiene l'effetto "premium glass" ma scorre in modo
- *   naturale invece di oscillare. ZERO impatto su widget non-meteo/raccolta:
- *   la keyframe e' usata solo dai loro pseudo-elementi ::after. Nessun
- *   pattern preprocessor-rischioso (CSS puro, nessuna funzione JS toccata).
+ *   naturale invece di oscillare. Nota: dopo i test in produzione l'utente
+ *   ha segnalato che restava una seconda "tendina scura": era rdLiqFloat,
+ *   sistemato in v4.7.5.
  * v4.7.3 – Hardening sicurezza output (defense-in-depth, 2 fix XSS preventivi):
  *   (A) href() runtime: aggiunto check esplicito che blocca i protocolli pericolosi
  *       (javascript:, vbscript:, data:text/html) restituendo '#'. Prima la logica
@@ -3168,7 +3178,7 @@ rssapp-ticker a{margin-right:50px!important;display:inline-block!important;color
 .w-meteo-wrapper .rd-card.theme-night .fc-header,.w-meteo-wrapper .rd-card.theme-storm .fc-header,.w-meteo-wrapper .rd-card.theme-rain .fc-header{border-bottom-color:rgba(255,255,255,.25);}
 .w-meteo-wrapper .rd-card.theme-night .forecast-row.today,.w-meteo-wrapper .rd-card.theme-storm .forecast-row.today,.w-meteo-wrapper .rd-card.theme-rain .forecast-row.today{background:#FFFFFF;border-color:rgba(255,255,255,.60);box-shadow:0 4px 14px rgba(0,0,0,.25);}
 .w-meteo-wrapper .rd-card.theme-night .forecast-row,.w-meteo-wrapper .rd-card.theme-storm .forecast-row,.w-meteo-wrapper .rd-card.theme-rain .forecast-row{border-color:rgba(255,255,255,.20);}
-.w-meteo-wrapper .rd-card::before{content:"";position:absolute;inset:-8%;border-radius:inherit;pointer-events:none;background:radial-gradient(220px 240px at 15% 0%,rgba(var(--blu-rgb),.12),transparent 60%),radial-gradient(240px 220px at 110% 10%,rgba(var(--blu-hover-rgb),.14),transparent 60%),radial-gradient(200px 240px at -10% 110%,rgba(255,255,255,.20),transparent 62%);filter:blur(18px) saturate(120%);mix-blend-mode:screen;z-index:0;animation:rdLiqFloat 24s ease-in-out infinite alternate;}
+.w-meteo-wrapper .rd-card::before{content:"";position:absolute;inset:-8%;border-radius:inherit;pointer-events:none;background:radial-gradient(220px 240px at 15% 0%,rgba(var(--blu-rgb),.12),transparent 60%),radial-gradient(240px 220px at 110% 10%,rgba(var(--blu-hover-rgb),.14),transparent 60%),radial-gradient(200px 240px at -10% 110%,rgba(255,255,255,.20),transparent 62%);filter:blur(18px) saturate(120%);mix-blend-mode:screen;z-index:0;}
 .w-meteo-wrapper .rd-card::after{content:"";position:absolute;inset:-30% -20%;border-radius:inherit;pointer-events:none;background:linear-gradient(130deg,rgba(255,255,255,0) 20%,rgba(255,255,255,.14) 40%,rgba(255,255,255,0) 60%);z-index:1;animation:rdSheen 6s ease-in-out infinite;}
 .w-meteo-wrapper .mw-screens{position:absolute;inset:0;z-index:2;display:flex;width:200%;transition:transform .38s cubic-bezier(.4,0,.2,1);}
 .w-meteo-wrapper .mw-screens.show-forecast{transform:translateX(-50%);}
