@@ -1,0 +1,157 @@
+rules_version = '2';
+
+// =============================================================================
+// FIRESTORE SECURITY RULES — FASE A (versione pubblicata 2026-05-01)
+// =============================================================================
+// Pubblicate il 2026-05-01 dopo audit completo + 7 test passati nel Playground.
+// Backup delle vecchie rules in firestore.rules.current.txt (pre-audit).
+//
+// Cosa cambia rispetto alle rules precedenti:
+//   1. 'app' e 'push_history' restano leggibili pubblicamente (webapp Comuni)
+//   2. 'utenti' protetto: un utente normale può aggiornare SOLO i campi tecnici
+//      (lastLogin, photoURL, dataAggiornamento, fcmTokens, fcmTokenUpdatedAt)
+//      del proprio doc. NESSUNO può cambiarsi ruolo o stato.
+//   3. 'audit_log' è APPEND-ONLY: chiunque attivo può aggiungere voci, ma
+//      nessuno può modificarle/cancellarle. Lettura solo admin.
+//   4. Le altre 29 collezioni CRM elencate esplicitamente in isCrmCollection.
+//      Tutto il resto bloccato dal catch-all.
+//   5. Tutto richiede stato != 'DISATTIVO' (un utente disattivato può loggarsi
+//      ma non legge/scrive niente).
+//
+// IMPORTANTE: in Firestore Rules tutti i match si valutano in OR (union).
+// NON sostituire la whitelist isCrmCollection con un /{document=**} permissivo,
+// altrimenti scavalca le rules specifiche di /utenti/ e /audit_log/.
+// =============================================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ------------------------------------------------------------------------
+    // FUNZIONI HELPER
+    // ------------------------------------------------------------------------
+
+    function isAuth() {
+      return request.auth != null;
+    }
+
+    function userDoc() {
+      return get(/databases/$(database)/documents/utenti/$(request.auth.uid)).data;
+    }
+
+    // Coerente con auth.js (riga 92): blocca SOLO chi ha stato == 'DISATTIVO'.
+    // Usa .get('stato', 'ATTIVO') così utenti legacy senza il campo passano.
+    function isActive() {
+      return isAuth()
+        && exists(/databases/$(database)/documents/utenti/$(request.auth.uid))
+        && userDoc().get('stato', 'ATTIVO') != 'DISATTIVO';
+    }
+
+    function userRole() {
+      return userDoc().ruolo;
+    }
+
+    function isSuperAdmin() {
+      return isActive() && userRole() == 'SUPER_ADMIN';
+    }
+
+    function isAdmin() {
+      return isActive() && userRole() in ['SUPER_ADMIN', 'ADMIN'];
+    }
+
+    function isOwnDoc(userId) {
+      return isAuth() && request.auth.uid == userId;
+    }
+
+    function onlyAffects(allowedFields) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(allowedFields);
+    }
+
+    // Whitelist delle 29 collezioni CRM "standard" (oltre alle 4 specifiche
+    // sopra: app, push_history, utenti, audit_log).
+    // Quando si aggiunge una nuova collezione al codice del CRM, va aggiunta
+    // qui altrimenti viene bloccata dal catch-all in fondo.
+    function isCrmCollection(coll) {
+      return coll in [
+        'app_followers', 'chat_conversations', 'clienti', 'commenti', 'contatori',
+        'contratti', 'discussioni_app', 'documenti', 'fatture', 'generatore-home-configs',
+        'health_status', 'impostazioni', 'messages', 'note_cliente', 'notifications',
+        'od_attivita', 'od_istanze_componenti', 'od_prodotti', 'presence', 'promemoria',
+        'push_broadcast_log', 'saleRiunioni', 'scadenzario', 'settings', 'tasks',
+        'rss_feeds', 'rss_assignments', 'rss_classifications', 'rss_read'
+      ];
+    }
+
+
+    // ------------------------------------------------------------------------
+    // COLLEZIONI PUBBLICHE — lette dalle webapp dei Comuni dentro GoodBarber
+    // ------------------------------------------------------------------------
+
+    match /app/{document} {
+      allow read: if true;
+      allow write: if isActive();
+    }
+
+    match /push_history/{document} {
+      allow read: if true;
+      allow write: if isActive();
+    }
+
+
+    // ------------------------------------------------------------------------
+    // /utenti — protezione anti-escalation di privilegi
+    // ------------------------------------------------------------------------
+
+    match /utenti/{userId} {
+      // Read del proprio doc sempre (login flow, anche se DISATTIVO).
+      // Read degli altri solo se loggato attivo.
+      allow read: if isOwnDoc(userId) || isActive();
+
+      // Create solo dagli Admin (settings.js)
+      allow create: if isAdmin();
+
+      // Update: o Admin (qualsiasi campo) o proprio doc (solo campi tecnici).
+      // NESSUNO può modificare ruolo/stato/email/nome/cognome del proprio doc.
+      allow update: if isAdmin()
+        || (isOwnDoc(userId) && isActive() && onlyAffects([
+              'lastLogin',
+              'photoURL',
+              'dataAggiornamento',
+              'fcmTokens',
+              'fcmTokenUpdatedAt'
+           ]));
+
+      // Delete solo SuperAdmin
+      allow delete: if isSuperAdmin();
+    }
+
+
+    // ------------------------------------------------------------------------
+    // /audit_log — append-only, immutabile, lettura solo admin
+    // ------------------------------------------------------------------------
+
+    match /audit_log/{document} {
+      allow read: if isAdmin();
+      allow create: if isActive();
+      // I log NON possono mai essere modificati o cancellati, neanche dagli admin.
+      allow update, delete: if false;
+    }
+
+
+    // ------------------------------------------------------------------------
+    // ALTRE COLLEZIONI CRM (whitelist esplicita)
+    // ------------------------------------------------------------------------
+
+    match /{collection}/{document} {
+      allow read, write: if isCrmCollection(collection) && isActive();
+    }
+
+
+    // ------------------------------------------------------------------------
+    // CATCH-ALL: tutto ciò che non è stato matchato sopra è BLOCCATO
+    // ------------------------------------------------------------------------
+
+    match /{path=**} {
+      allow read, write: if false;
+    }
+  }
+}

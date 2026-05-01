@@ -2240,6 +2240,21 @@ const DataService = {
 
                     if (!fatturaEsistente) {
                         const periodoLabel = this._getPeriodoLabel(contratto.periodicita, i + 1, numPeriodi);
+                        // Data di emissione suggerita: ULTIMO GIORNO DEL MESE in cui FINISCE
+                        // il periodo di competenza.
+                        //  - Mensile  01/01-31/01  → emissione 31/01
+                        //  - Mensile  14/01-13/02  → emissione 28/02 (ultimo del mese di feb)
+                        //  - Bimestr. 01/01-28/02  → emissione 28/02
+                        //  - Trimestr 01/04-30/06  → emissione 30/06
+                        // periodoAl è l'ultimo giorno del periodo. Prendiamo il suo mese e
+                        // costruiamo l'ultimo giorno di quel mese con Date(anno, mese+1, 0):
+                        // il giorno 0 del mese successivo coincide con l'ultimo del mese corrente.
+                        const dataEmissioneSuggerita = new Date(
+                            periodoAl.getFullYear(),
+                            periodoAl.getMonth() + 1,
+                            0
+                        );
+                        dataEmissioneSuggerita.setHours(0, 0, 0, 0);
                         result.push({
                             id: `emit_${contratto.id}_${anno}_${i}`,
                             tipo: 'FATTURA_EMISSIONE',
@@ -2247,7 +2262,7 @@ const DataService = {
                             clienteId: contratto.clienteId,
                             clienteRagioneSociale: contratto.clienteRagioneSociale || '',
                             numeroContratto: contratto.numeroContratto || '',
-                            dataScadenza: dataFatturazione.toISOString(),
+                            dataScadenza: dataEmissioneSuggerita.toISOString(),
                             competenzaDal: periodoDal.toISOString(),
                             competenzaAl: periodoAl.toISOString(),
                             importo: importoPerPeriodo,
