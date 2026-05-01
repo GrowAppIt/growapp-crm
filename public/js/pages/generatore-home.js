@@ -22,6 +22,17 @@
  * v4.7.0 – Aggiunto widget VIDEO (singola istanza per homepage). Supporta YouTube (watch/youtu.be/embed/shorts), Vimeo e MP4 diretto (auto-detect dal formato URL). Due modalita': (A) autoplay muto con loop continuo, (B) click-to-play con audio. Opzionali titolo e sottotitolo IT/EN sopra il video. Layout 16:9 orizzontale con wrapper padding-top:56.25% (compatibile con tutti i browser, indipendente da "aspect-ratio" CSS). Runtime ZERO JS nell'HTML emesso: iframe passivi per YouTube/Vimeo (autoplay+loop via query string) e tag <video> nativo per MP4 (attributi autoplay/muted/loop/controls). Precauzioni GoodBarber menu-custom applicate: nessuna funzione con suffisso url/Url chiamata con (), nessun new URL(), nessun backslash nelle stringhe emesse, URL scritti solo come valori di attributo src, parsing video-id via string methods (split/indexOf/substring) e controllo cifre via charCodeAt.
  * v4.7.1 – Widget Video: aggiunto controllo aspetto cornice. Due stili: (A) "Angoli arrotondati" (default) con video ~720px centrato, border-radius 14px, padding laterale, ombra; (B) "Rettangolare pieno" edge-to-edge (max-width none, border-radius 0, box-shadow 0). Aggiunto color picker per scegliere il colore di sfondo del widget (visibile soprattutto con stile arrotondato), con hex input sincronizzato e pulsante "Nessuno" per tornare a trasparente. Nuovi campi state: videoWidget.frameStyle e videoWidget.sectionBg.
  * v4.7.2 – Fix riordino widget Banner Personalizzabili (e RSS Slider) nell'editor. Due bug correlati: (A) le frecce su/giu cercavano il vicino con "order === current ± 1" ma i default hanno gap (9, 13, 14: mancano 10/11/12), quindi un banner con order 13 non riusciva a salire sopra videoWidget perche order 12 non esisteva; sostituito con scambio per posizione nell'array ordinato. (B) syncBannerCustomWidgets() / syncRssSliderWidgets() rigeneravano i widget con order = maxOrder+1+i ad ogni call (load/add/remove), perdendo l'ordinamento utente; ora l'order ed enabled gia presenti vengono preservati e solo i widget nuovi ricevono un nuovo order in coda. Modifica interna all'editor CRM: ZERO impatto sull'HTML emesso e sul preprocessor GoodBarber.
+ * v4.7.4 – UX widget Meteo (e Raccolta): fix animazione "tendina che oscilla".
+ *   La keyframe rdSheen — applicata al pseudo-elemento ::after di entrambi i
+ *   widget come "riflesso vetroso" — andava avanti e indietro (translateX
+ *   da -30% a +30% e ritorno) producendo un effetto pendolo brutto. Sostituita
+ *   con un movimento UNIDIRECTIONAL: la luce entra da fuori a sinistra
+ *   (translateX -110%, opacity 0), attraversa il widget col fade-in/out
+ *   morbido (12%/88%), esce a destra (translateX +110%, opacity 0) e
+ *   ricomincia. Mantiene l'effetto "premium glass" ma scorre in modo
+ *   naturale invece di oscillare. ZERO impatto su widget non-meteo/raccolta:
+ *   la keyframe e' usata solo dai loro pseudo-elementi ::after. Nessun
+ *   pattern preprocessor-rischioso (CSS puro, nessuna funzione JS toccata).
  * v4.7.3 – Hardening sicurezza output (defense-in-depth, 2 fix XSS preventivi):
  *   (A) href() runtime: aggiunto check esplicito che blocca i protocolli pericolosi
  *       (javascript:, vbscript:, data:text/html) restituendo '#'. Prima la logica
@@ -3098,7 +3109,7 @@ rssapp-ticker a{margin-right:50px!important;display:inline-block!important;color
 .w-raccolta-wrapper .rd-card::before{content:"";position:absolute;inset:-8%;pointer-events:none;border-radius:inherit;background:radial-gradient(200px 260px at 20% 0%,rgba(var(--verde-rgb),.22),transparent 60%),radial-gradient(240px 200px at 110% 10%,rgba(var(--blu-rgb),.22),transparent 60%),radial-gradient(220px 260px at -10% 110%,rgba(255,255,255,.25),transparent 62%);filter:blur(18px) saturate(120%);mix-blend-mode:screen;z-index:0;animation:rdLiqFloat 22s ease-in-out infinite alternate;}
 .w-raccolta-wrapper .rd-card::after{content:"";position:absolute;inset:-30% -20%;pointer-events:none;border-radius:inherit;background:linear-gradient(130deg,rgba(255,255,255,0) 20%,rgba(255,255,255,.18) 40%,rgba(255,255,255,0) 60%);z-index:1;animation:rdSheen 6s ease-in-out infinite;}
 @keyframes rdLiqFloat{0%{transform:translate3d(0,0,0) rotate(.2deg);}50%{transform:translate3d(-2%,1%,0) rotate(-.6deg);}100%{transform:translate3d(2%,-1%,0) rotate(.8deg);}}
-@keyframes rdSheen{0%{transform:translateX(-30%) rotate(.2deg);}50%{transform:translateX(30%) rotate(.2deg);}100%{transform:translateX(-30%) rotate(.2deg);}}
+@keyframes rdSheen{0%{transform:translateX(-110%) rotate(.2deg);opacity:0;}12%{opacity:1;}50%{transform:translateX(0%) rotate(.2deg);opacity:1;}88%{opacity:1;}100%{transform:translateX(110%) rotate(.2deg);opacity:0;}}
 .rd-header{display:flex;align-items:center;gap:clamp(8px,2.5vw,12px);margin-bottom:8px;}
 .rd-icon{width:clamp(38px,10vw,46px);height:clamp(38px,10vw,46px);display:grid;place-items:center;border-radius:14px;background:radial-gradient(80% 80% at 30% 20%,rgba(255,255,255,.22),rgba(255,255,255,0) 65%),linear-gradient(160deg,var(--verde),rgba(var(--verde-rgb),.85));color:#fff;box-shadow:inset 0 1px 8px rgba(255,255,255,.28),0 8px 18px rgba(0,0,0,.25);flex-shrink:0;}
 .rd-title{font-weight:700;font-size:var(--fs-lg);line-height:1.1;color:var(--blu);}

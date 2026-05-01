@@ -75,8 +75,9 @@ service cloud.firestore {
         'app_followers', 'chat_conversations', 'clienti', 'commenti', 'contatori',
         'contratti', 'discussioni_app', 'documenti', 'fatture', 'generatore-home-configs',
         'health_status', 'impostazioni', 'messages', 'note_cliente', 'notifications',
-        'od_attivita', 'od_istanze_componenti', 'od_prodotti', 'presence', 'promemoria',
-        'push_broadcast_log', 'saleRiunioni', 'scadenzario', 'settings', 'tasks',
+        'od_attivita', 'od_changelog', 'od_componenti', 'od_istanze_componenti', 'od_prodotti',
+        'presence', 'promemoria', 'push_broadcast_log', 'saleRiunioni', 'scadenzario',
+        'settings', 'tasks',
         'rss_feeds', 'rss_assignments', 'rss_classifications', 'rss_read'
       ];
     }
