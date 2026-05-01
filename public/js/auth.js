@@ -120,6 +120,43 @@ const AuthService = {
         }
     },
 
+    /**
+     * Invia all'utente un'email con il link per reimpostare la password.
+     * Firebase Auth invia direttamente la mail; il link nell'email apre una
+     * pagina (gestita da Firebase) dove l'utente sceglie la nuova password.
+     *
+     * Per privacy, in caso di email non registrata restituiamo comunque
+     * { success: true } in modo da non rivelare quali email esistono nel sistema.
+     */
+    async resetPassword(email) {
+        try {
+            // Imposta lingua italiana sull'email di reset (template Firebase)
+            try { auth.languageCode = 'it'; } catch (e) { /* ignora */ }
+
+            await auth.sendPasswordResetEmail(email);
+            return { success: true };
+        } catch (error) {
+            console.error('Errore reset password:', error);
+
+            // Privacy: se l'email non esiste, fingiamo successo per non
+            // rivelare informazioni a un attaccante che fa enumeration.
+            if (error.code === 'auth/user-not-found') {
+                return { success: true };
+            }
+
+            // Messaggi user-friendly per gli altri errori
+            let userMsg = error.message;
+            if (error.code === 'auth/invalid-email') {
+                userMsg = 'Indirizzo email non valido.';
+            } else if (error.code === 'auth/too-many-requests') {
+                userMsg = 'Troppi tentativi. Riprova tra qualche minuto.';
+            } else if (error.code === 'auth/network-request-failed') {
+                userMsg = 'Problema di rete. Verifica la connessione e riprova.';
+            }
+            return { success: false, error: userMsg };
+        }
+    },
+
     async logout() {
         try {
             // Audit: log uscita (prima di signOut, altrimenti perdiamo i dati utente)

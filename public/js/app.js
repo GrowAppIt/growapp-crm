@@ -57,6 +57,12 @@ const App = {
             loginForm.addEventListener('submit', (e) => this.handleLogin(e));
         }
 
+        // Link "Hai dimenticato la password?"
+        const forgotPasswordLink = document.getElementById('forgotPasswordLink');
+        if (forgotPasswordLink) {
+            forgotPasswordLink.addEventListener('click', (e) => this.handleForgotPassword(e));
+        }
+
         // Menu toggle
         // Logo → Dashboard
         const logoHome = document.getElementById('logoHome');
@@ -139,6 +145,55 @@ const App = {
         } else {
             UI.hideLoading();
             UI.showError('Errore di accesso: ' + result.error);
+        }
+    },
+
+    /**
+     * Gestisce il click su "Hai dimenticato la password?".
+     * - Prende l'email dal campo del form di login
+     * - Valida (non vuota + formato base)
+     * - Chiede conferma all'utente prima di mandare la mail
+     * - Invia il link di reset via Firebase Auth (AuthService.resetPassword)
+     */
+    async handleForgotPassword(e) {
+        e.preventDefault();
+
+        const emailInput = document.getElementById('email');
+        const email = (emailInput?.value || '').trim();
+
+        if (!email) {
+            UI.showError('Inserisci la tua email nel campo qui sopra, poi riclicca su "Hai dimenticato la password?".');
+            if (emailInput) emailInput.focus();
+            return;
+        }
+
+        // Validazione formato email base
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) {
+            UI.showError('Inserisci un indirizzo email valido (es. nome@dominio.it).');
+            if (emailInput) emailInput.focus();
+            return;
+        }
+
+        // Conferma esplicita prima di inviare
+        const conferma = confirm(
+            'Vuoi ricevere il link per reimpostare la password all’indirizzo:\n\n' +
+            email +
+            '\n\nDopo aver confermato controlla la tua casella di posta (anche lo spam).'
+        );
+        if (!conferma) return;
+
+        UI.showLoading();
+        const result = await AuthService.resetPassword(email);
+        UI.hideLoading();
+
+        if (result.success) {
+            UI.showSuccess(
+                'Email inviata a ' + email + '. ' +
+                'Controlla la casella di posta (anche lo spam) e segui il link per reimpostare la password.'
+            );
+        } else {
+            UI.showError('Impossibile inviare l’email: ' + result.error);
         }
     },
 
