@@ -22,6 +22,22 @@
  * v4.7.0 – Aggiunto widget VIDEO (singola istanza per homepage). Supporta YouTube (watch/youtu.be/embed/shorts), Vimeo e MP4 diretto (auto-detect dal formato URL). Due modalita': (A) autoplay muto con loop continuo, (B) click-to-play con audio. Opzionali titolo e sottotitolo IT/EN sopra il video. Layout 16:9 orizzontale con wrapper padding-top:56.25% (compatibile con tutti i browser, indipendente da "aspect-ratio" CSS). Runtime ZERO JS nell'HTML emesso: iframe passivi per YouTube/Vimeo (autoplay+loop via query string) e tag <video> nativo per MP4 (attributi autoplay/muted/loop/controls). Precauzioni GoodBarber menu-custom applicate: nessuna funzione con suffisso url/Url chiamata con (), nessun new URL(), nessun backslash nelle stringhe emesse, URL scritti solo come valori di attributo src, parsing video-id via string methods (split/indexOf/substring) e controllo cifre via charCodeAt.
  * v4.7.1 – Widget Video: aggiunto controllo aspetto cornice. Due stili: (A) "Angoli arrotondati" (default) con video ~720px centrato, border-radius 14px, padding laterale, ombra; (B) "Rettangolare pieno" edge-to-edge (max-width none, border-radius 0, box-shadow 0). Aggiunto color picker per scegliere il colore di sfondo del widget (visibile soprattutto con stile arrotondato), con hex input sincronizzato e pulsante "Nessuno" per tornare a trasparente. Nuovi campi state: videoWidget.frameStyle e videoWidget.sectionBg.
  * v4.7.2 – Fix riordino widget Banner Personalizzabili (e RSS Slider) nell'editor. Due bug correlati: (A) le frecce su/giu cercavano il vicino con "order === current ± 1" ma i default hanno gap (9, 13, 14: mancano 10/11/12), quindi un banner con order 13 non riusciva a salire sopra videoWidget perche order 12 non esisteva; sostituito con scambio per posizione nell'array ordinato. (B) syncBannerCustomWidgets() / syncRssSliderWidgets() rigeneravano i widget con order = maxOrder+1+i ad ogni call (load/add/remove), perdendo l'ordinamento utente; ora l'order ed enabled gia presenti vengono preservati e solo i widget nuovi ricevono un nuovo order in coda. Modifica interna all'editor CRM: ZERO impatto sull'HTML emesso e sul preprocessor GoodBarber.
+ * v4.7.6 – Ticker News: nuova modalita' URL feed RSS (oltre a quella esistente
+ *   con ID widget rss.app). Il campo "ID Widget RSS.app" del CRM accetta ora
+ *   ANCHE un URL completo del feed RSS (es. https://rss.app/feeds/abc.xml):
+ *   - Se inizia con "http", il runtime fa fetch+parse interno (proxy CRM
+ *     "crm.comune.digital/api/rss-proxy", stesso pattern del RSS Slider) e
+ *     renderizza i titoli su striscia BLU uniforme col header (testo bianco,
+ *     font Titillium Web 600, scroll seamless infinito). Niente piu'
+ *     dipendenza dal widget esterno widget.rss.app, supporta i feed che
+ *     fallivano in alcune app GoodBarber.
+ *   - Se non inizia con "http" (caso ID widget classico), comportamento
+ *     INVARIATO: viene usato il web component <rssapp-ticker> come prima.
+ *   Le configurazioni esistenti continuano a funzionare senza modifiche.
+ *   Modifiche: builder tickerBar (detection URL/ID), nuovo CSS .ticker-strip-feed
+ *   con keyframes tickerCdScroll, IIFE TICKER NEWS RUNTIME inserito subito
+ *   dopo l'IIFE del restyleTicker. Nessun pattern preprocessor-rischioso (no
+ *   *url(, no new URL(, no backslash escape, no regex con backslash).
  * v4.7.5 – UX widget Meteo: rimossa l'animazione di sfondo rdLiqFloat (era
  *   il vero colpevole della "tendina scura che oscilla" segnalata dall'utente).
  *   rdLiqFloat e' un keyframe lento (24s con modificatore "alternate" che
@@ -2988,6 +3004,19 @@ rssapp-ticker{display:block!important;width:100%!important;min-height:32px!impor
 rssapp-ticker,rssapp-ticker *,rssapp-ticker div,rssapp-ticker span,rssapp-ticker a{height:auto!important;max-height:none!important;line-height:1.6!important;font-size:var(--fs-sm)!important;vertical-align:top!important;padding-top:0!important;padding-bottom:2px!important;margin-top:0!important;margin-bottom:0!important;overflow:hidden!important;white-space:nowrap!important;font-family:'Titillium Web',sans-serif!important;}
 rssapp-ticker a{margin-right:50px!important;display:inline-block!important;color:var(--blu)!important;text-decoration:none!important;}
 @media(hover:hover){rssapp-ticker a:hover{text-decoration:underline!important;}}
+/* v4.7.6: stile della striscia ticker in modalita' URL feed.
+   Sfondo blu uniforme col header (niente piu' striscia bianca), testo bianco,
+   font Titillium Web. Scroll orizzontale infinito con loop seamless tramite
+   duplicazione degli items e animazione che torna a translateX(-50%). */
+.ticker-strip-feed{background:var(--blu);overflow:hidden;display:flex;align-items:center;min-height:34px;padding:6px 0;position:relative;}
+.ticker-strip-feed .ticker-track{display:flex;flex:1;overflow:hidden;min-width:0;}
+.ticker-strip-feed .ticker-content{display:inline-flex;gap:50px;animation:tickerCdScroll 60s linear infinite;flex-shrink:0;will-change:transform;padding-left:14px;}
+.ticker-strip-feed .ticker-content:hover{animation-play-state:paused;}
+.ticker-strip-feed .ticker-item{color:#fff;font-size:var(--fs-sm);font-weight:600;text-decoration:none;display:inline-flex;align-items:center;gap:10px;font-family:'Titillium Web',sans-serif;flex-shrink:0;white-space:nowrap;}
+.ticker-strip-feed .ticker-item-date{font-size:.85em;font-weight:400;opacity:.72;letter-spacing:.02em;}
+.ticker-strip-feed .ticker-item-title{font-weight:600;}
+.ticker-strip-feed .ticker-item:hover .ticker-item-title{text-decoration:underline;}
+@keyframes tickerCdScroll{from{transform:translateX(0);}to{transform:translateX(-50%);}}
 .w-slideshow{position:relative;width:100%;overflow:hidden;isolation:isolate;background:var(--blu);height:clamp(220px,56vw,300px);}
 .slide{position:absolute;inset:0;opacity:0;transition:opacity .6s ease-in-out;pointer-events:none;}
 .slide.active{opacity:1;pointer-events:auto;}
@@ -3497,22 +3526,38 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
       + '<span class="temp" id="temperature">--°C</span>'
       + '</div></div></header>',
 
-    tickerBar: () =>
-      '<section class="w-ticker" id="tickerBar" '
-      + 'aria-label="Notizie in scorrimento">'
-      + '<div class="ticker-header">'
-      + '<a href="' + esc(href(C.ticker.linkUrl)) + '" '
-      + 'target="_blank" rel="noopener">'
-      + '<span class="news-ico" aria-hidden="true">'
-      + '<span style="transform:translateY(1px);display:inline-block;">'
-      + '📰</span></span>'
-      + '<span class="header-title" data-i18n="ticker.title">'
-      + esc(t('ticker.title')) + '</span>'
-      + '<span class="arrow-link" aria-hidden="true"><i class="fa-solid fa-chevron-right" style="font-size:9px"></i></span>'
-      + '</a></div>'
-      + '<div class="ticker-strip">'
-      + '<rssapp-ticker id="' + esc(C.ticker.rssWidgetId) + '">'
-      + '</rssapp-ticker></div></section>',
+    tickerBar: () => {
+      /* v4.7.6: il campo "ID Widget RSS.app" del CRM puo' contenere o un ID
+         widget rss.app (vecchio metodo, web component esterno) o un URL feed
+         RSS completo (nuovo metodo, fetch+parse interno via proxy CRM, stesso
+         pattern del RSS Slider). Scegliamo qui in base al prefisso. */
+      const widgetId = (C.ticker.rssWidgetId || '').trim();
+      const isFeedUrl = widgetId.toLowerCase().indexOf('http') === 0;
+      const headerHtml = '<div class="ticker-header">'
+        + '<a href="' + esc(href(C.ticker.linkUrl)) + '" '
+        + 'target="_blank" rel="noopener">'
+        + '<span class="news-ico" aria-hidden="true">'
+        + '<span style="transform:translateY(1px);display:inline-block;">'
+        + '📰</span></span>'
+        + '<span class="header-title" data-i18n="ticker.title">'
+        + esc(t('ticker.title')) + '</span>'
+        + '<span class="arrow-link" aria-hidden="true"><i class="fa-solid fa-chevron-right" style="font-size:9px"></i></span>'
+        + '</a></div>';
+      const stripHtml = isFeedUrl
+        /* Modalita' URL feed: container vuoto, popolato dal runtime */
+        ? '<div class="ticker-strip-feed" data-feed-url="' + esc(widgetId) + '">'
+          + '<div class="ticker-track"></div>'
+          + '</div>'
+        /* Modalita' ID widget rss.app: web component esterno (vecchio) */
+        : '<div class="ticker-strip">'
+          + '<rssapp-ticker id="' + esc(widgetId) + '"></rssapp-ticker>'
+          + '</div>';
+      return '<section class="w-ticker" id="tickerBar" '
+        + 'aria-label="Notizie in scorrimento">'
+        + headerHtml
+        + stripHtml
+        + '</section>';
+    },
     slideshow: () => {
       const slides = C.slides || [];
       const hasContent = slides.some((s) => s.titleIt || s.bg);
@@ -5006,6 +5051,123 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
 
   setTimeout(restyleTicker, 2000);
   setInterval(restyleTicker, 3000);
+
+  /* TICKER NEWS RUNTIME (v4.7.6) — modalita' URL feed.
+     Si attiva SOLO se il builder ha emesso .ticker-strip-feed (cioe' quando
+     l'utente ha messo nel CRM un URL feed RSS invece di un ID rss.app).
+     Riusa lo stesso pattern del RSS Slider: fetch via proxy CRM, parse XML,
+     render seamless-scroll con duplicazione items per loop infinito. */
+  (() => {
+    const tickerStrip = document.querySelector('.ticker-strip-feed');
+    if (!tickerStrip) return; /* modalita' web component, niente da fare */
+    const feedTarget = tickerStrip.getAttribute('data-feed-url');
+    if (!feedTarget) return;
+
+    /* Proxy CRM come unica scelta: i CORS proxy pubblici sono ormai morti
+       (vedi commenti v4.5.5). Stesso endpoint del RSS Slider. */
+    const proxyEndpoint = 'https://crm.comune.digital/api/rss-proxy?url=';
+
+    const escTickerHtml = (s) => String(s)
+      .split('&').join('&amp;')
+      .split('<').join('&lt;')
+      .split('>').join('&gt;')
+      .split('"').join('&quot;');
+
+    const isSafeLink = (raw) => {
+      const lower = String(raw || '').toLowerCase().trim();
+      return lower.indexOf('http://') === 0 || lower.indexOf('https://') === 0;
+    };
+
+    const formatDate = (d) => {
+      const dd = String(d.getDate());
+      const mm = String(d.getMonth() + 1);
+      const yy = String(d.getFullYear());
+      return (dd.length < 2 ? '0' + dd : dd) + '.'
+           + (mm.length < 2 ? '0' + mm : mm) + '.' + yy;
+    };
+
+    const parseTickerXml = (xmlText) => {
+      const xml = new DOMParser().parseFromString(xmlText, 'text/xml');
+      if (xml.querySelector('parsererror')) return [];
+      const items = xml.getElementsByTagName('item');
+      const list = [];
+      for (let i = 0; i < items.length; i++) {
+        const it = items[i];
+        const title = ((it.getElementsByTagName('title')[0] || {}).textContent || '').trim();
+        const link = ((it.getElementsByTagName('link')[0] || {}).textContent || '').trim();
+        const pub = ((it.getElementsByTagName('pubDate')[0] || {}).textContent || '').trim();
+        let d = new Date(pub);
+        if (isNaN(d.getTime())) d = new Date();
+        if (title) list.push({ title: title, link: link, date: d });
+      }
+      list.sort((a, b) => b.date - a.date); /* piu' recenti per primi */
+      return list.slice(0, 20); /* massimo 20 items per non saturare il DOM */
+    };
+
+    const renderTicker = (items) => {
+      if (!items || !items.length) return;
+      const track = tickerStrip.querySelector('.ticker-track');
+      if (!track) return;
+      const itemHtml = items.map(it => {
+        const safeTitle = escTickerHtml(it.title);
+        const safeDate = escTickerHtml(formatDate(it.date));
+        const safeHref = isSafeLink(it.link) ? escTickerHtml(it.link) : '#';
+        return '<a class="ticker-item" href="' + safeHref + '" target="_blank" rel="noopener">'
+          + '<span class="ticker-item-date">' + safeDate + '</span>'
+          + '<span class="ticker-item-title">' + safeTitle + '</span>'
+          + '</a>';
+      }).join('');
+      /* Duplica gli items per loop seamless: l'animazione va da translateX(0)
+         a translateX(-50%), e la seconda meta' e' identica alla prima. */
+      track.innerHTML = '<div class="ticker-content">' + itemHtml + itemHtml + '</div>';
+    };
+
+    const cacheKey = 'cd_ticker_v1_' + feedTarget;
+
+    const renderFromCache = () => {
+      try {
+        const raw = localStorage.getItem(cacheKey);
+        if (!raw) return false;
+        const arr = JSON.parse(raw);
+        if (!arr || !arr.length) return false;
+        renderTicker(arr.map(x => ({
+          title: x.title || '', link: x.link || '', date: new Date(x.date)
+        })));
+        return true;
+      } catch (e) { return false; }
+    };
+
+    const saveCache = (items) => {
+      try {
+        localStorage.setItem(cacheKey, JSON.stringify(items.map(x => ({
+          title: x.title, link: x.link, date: x.date.toISOString()
+        }))));
+      } catch (e) {}
+    };
+
+    const loadTicker = () => {
+      const target = proxyEndpoint + encodeURIComponent(feedTarget);
+      fetch(target, { cache: 'no-store' })
+        .then(r => r.ok ? r.text() : Promise.reject(new Error('HTTP ' + r.status)))
+        .then(xml => {
+          const items = parseTickerXml(xml);
+          if (items.length) {
+            saveCache(items);
+            renderTicker(items);
+          }
+        })
+        .catch(() => {
+          /* fallback su cache localStorage se la rete fallisce */
+          renderFromCache();
+        });
+    };
+
+    /* Mostra subito la cache (se c'e') per evitare ticker vuoto durante il fetch */
+    renderFromCache();
+    loadTicker();
+    /* Refresh ogni 15 minuti */
+    setInterval(loadTicker, 15 * 60 * 1000);
+  })();
 
   /* SLIDESHOW */
   let sIdx = 0;
