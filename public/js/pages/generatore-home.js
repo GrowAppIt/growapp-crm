@@ -22,6 +22,25 @@
  * v4.7.0 – Aggiunto widget VIDEO (singola istanza per homepage). Supporta YouTube (watch/youtu.be/embed/shorts), Vimeo e MP4 diretto (auto-detect dal formato URL). Due modalita': (A) autoplay muto con loop continuo, (B) click-to-play con audio. Opzionali titolo e sottotitolo IT/EN sopra il video. Layout 16:9 orizzontale con wrapper padding-top:56.25% (compatibile con tutti i browser, indipendente da "aspect-ratio" CSS). Runtime ZERO JS nell'HTML emesso: iframe passivi per YouTube/Vimeo (autoplay+loop via query string) e tag <video> nativo per MP4 (attributi autoplay/muted/loop/controls). Precauzioni GoodBarber menu-custom applicate: nessuna funzione con suffisso url/Url chiamata con (), nessun new URL(), nessun backslash nelle stringhe emesse, URL scritti solo come valori di attributo src, parsing video-id via string methods (split/indexOf/substring) e controllo cifre via charCodeAt.
  * v4.7.1 – Widget Video: aggiunto controllo aspetto cornice. Due stili: (A) "Angoli arrotondati" (default) con video ~720px centrato, border-radius 14px, padding laterale, ombra; (B) "Rettangolare pieno" edge-to-edge (max-width none, border-radius 0, box-shadow 0). Aggiunto color picker per scegliere il colore di sfondo del widget (visibile soprattutto con stile arrotondato), con hex input sincronizzato e pulsante "Nessuno" per tornare a trasparente. Nuovi campi state: videoWidget.frameStyle e videoWidget.sectionBg.
  * v4.7.2 – Fix riordino widget Banner Personalizzabili (e RSS Slider) nell'editor. Due bug correlati: (A) le frecce su/giu cercavano il vicino con "order === current ± 1" ma i default hanno gap (9, 13, 14: mancano 10/11/12), quindi un banner con order 13 non riusciva a salire sopra videoWidget perche order 12 non esisteva; sostituito con scambio per posizione nell'array ordinato. (B) syncBannerCustomWidgets() / syncRssSliderWidgets() rigeneravano i widget con order = maxOrder+1+i ad ogni call (load/add/remove), perdendo l'ordinamento utente; ora l'order ed enabled gia presenti vengono preservati e solo i widget nuovi ricevono un nuovo order in coda. Modifica interna all'editor CRM: ZERO impatto sull'HTML emesso e sul preprocessor GoodBarber.
+ * v4.7.7 – Ticker News, miglioramenti UX configuratore CRM:
+ *   (A) Label del campo "ID Widget RSS.app" rinominato in "ID widget rss.app
+ *       oppure URL feed RSS" + helper text esplicativo che spiega le due
+ *       modalita' (ID -> widget esterno classico, URL -> nuovo ticker integrato).
+ *   (B) Aggiunto nuovo campo numerico "Numero massimo di notizie nel ticker"
+ *       (default 10, range 1-50). Si applica SOLO alla modalita' URL feed:
+ *       il vecchio widget rss.app gestisce le sue impostazioni autonomamente
+ *       dal cruscotto rss.app.
+ *   Modifiche: state.tickerMaxItems aggiunto al default, save/load Firestore
+ *   aggiornati, JSON config emesso in HTML output include ora ticker.maxItems
+ *   come number, runtime parseTickerXml usa quel valore per fare slice (con
+ *   bounds 1-50). Zero impatto sul widget rss.app esterno (modalita' ID).
+ *   (C) Truncate titoli a 80 caratteri + ellissi (…). I titoli social/Facebook
+ *       sono spesso lunghissimi e rendevano il ticker illeggibile.
+ *   (D) Velocita' adattiva animazione: invece dei 60s fissi, animation-duration
+ *       calcolata runtime come items.length * 5 secondi (bound 30s-90s),
+ *       applicata via inline style sul .ticker-content. Velocita' uniforme di
+ *       lettura indipendente dalla lunghezza totale del contenuto.
+ *   Tutto safe per preprocessor GoodBarber (no backslash, no *url(, no new URL().
  * v4.7.6 – Ticker News: nuova modalita' URL feed RSS (oltre a quella esistente
  *   con ID widget rss.app). Il campo "ID Widget RSS.app" del CRM accetta ora
  *   ANCHE un URL completo del feed RSS (es. https://rss.app/feeds/abc.xml):
@@ -344,7 +363,7 @@ window.GeneratoreHome = (function () {
       // Override manuali palette (vuoto = auto-calcolato)
       palettePrimarioOverride: { '900': '', '500': '', '300': '', '100': '' },
       paletteSecondarioOverride: { '900': '', '500': '', '300': '', '100': '' },
-      tickerRssId: '', tickerLinkUrl: 'social',
+      tickerRssId: '', tickerLinkUrl: 'social', tickerMaxItems: 10,
       slides: [{ titleIt: '', titleEn: '', href: '', bg: '' }],
       servizi: [{
         sectionIt: 'Servizi Comunali', sectionEn: 'Municipal Services',
@@ -599,9 +618,20 @@ window.GeneratoreHome = (function () {
 
     // === SEZ. 5: TICKER NEWS ===
     formHtml += makeSection('fa-newspaper', 'Ticker News',
-      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">' +
-        makeInput('ghTickerRssId','ID Widget RSS.app',state.tickerRssId,'hJedxhkIBuP2z3VP') +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:8px;">' +
+        makeInput('ghTickerRssId','ID widget rss.app oppure URL feed RSS',state.tickerRssId,'es. hJedxhkIBuP2z3VP  oppure  https://rss.app/feeds/abc.xml') +
         makeInput('ghTickerLinkUrl','Link Pagina Notizie',state.tickerLinkUrl,'social') +
+      '</div>' +
+      '<div style="background:#F0F6FB;border-left:3px solid #145284;padding:10px 14px;border-radius:6px;font-size:12.5px;color:#4A4A4A;line-height:1.5;margin-bottom:14px;">' +
+        '<strong style="color:#145284;">Due modalita disponibili:</strong><br>' +
+        '<strong>1.</strong> Solo ID widget rss.app (es. <code style="background:#fff;padding:1px 5px;border-radius:3px;">hJedxhkIBuP2z3VP</code>) -> usa il widget esterno classico (striscia bianca con testo blu).<br>' +
+        '<strong>2.</strong> URL completo del feed XML (es. <code style="background:#fff;padding:1px 5px;border-radius:3px;">https://rss.app/feeds/abc.xml</code>) -> usa il nuovo ticker integrato (testo bianco su fondo blu, scroll seamless, gestito interamente da noi). Il numero di notizie da mostrare e configurabile qui sotto.' +
+      '</div>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">' +
+        makeInput('ghTickerMaxItems','Numero massimo di notizie nel ticker',String(state.tickerMaxItems || 10),'10','number') +
+        '<div style="display:flex;align-items:center;font-size:12.5px;color:#9B9B9B;line-height:1.4;">' +
+          'Si applica solo alla modalita URL feed. Range consigliato: 5-30. Default: 10.' +
+        '</div>' +
       '</div>',
       false
     );
@@ -2460,6 +2490,12 @@ window.GeneratoreHome = (function () {
     });
     state.tickerRssId = v('ghTickerRssId');
     state.tickerLinkUrl = v('ghTickerLinkUrl');
+    /* Numero items ticker: range 1-50, default 10. Si applica solo alla
+       modalita URL feed; il widget rss.app esterno gestisce in autonomia. */
+    var _tmi = parseInt(v('ghTickerMaxItems'), 10);
+    if (isNaN(_tmi) || _tmi < 1) _tmi = 10;
+    if (_tmi > 50) _tmi = 50;
+    state.tickerMaxItems = _tmi;
     collectSlidesFromDOM();
     collectServiziFromDOM();
     collectSvFromDOM();
@@ -2548,6 +2584,7 @@ window.GeneratoreHome = (function () {
     if (csHex) csHex.value = state.coloreSecondario;
     set('ghTickerRssId', state.tickerRssId);
     set('ghTickerLinkUrl', state.tickerLinkUrl);
+    set('ghTickerMaxItems', state.tickerMaxItems || 10);
     syncBannerCustomWidgets();
     refreshBannerGroups(true); // skipCollect: lo state è già aggiornato dal load
     set('ghBannerNotificheEnabled', state.bannerNotificheEnabled);
@@ -2676,6 +2713,7 @@ window.GeneratoreHome = (function () {
     ticker: {
       rssWidgetId:  ${q(S.tickerRssId)},
       linkUrl:      ${q(S.tickerLinkUrl)},
+      maxItems:     ${parseInt(S.tickerMaxItems, 10) || 10},
     },
     slides: ${JSON.stringify(S.slides, null, 4)},
     servizi: ${serviziStr},
@@ -5093,15 +5131,28 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
       const list = [];
       for (let i = 0; i < items.length; i++) {
         const it = items[i];
-        const title = ((it.getElementsByTagName('title')[0] || {}).textContent || '').trim();
+        let title = ((it.getElementsByTagName('title')[0] || {}).textContent || '').trim();
         const link = ((it.getElementsByTagName('link')[0] || {}).textContent || '').trim();
         const pub = ((it.getElementsByTagName('pubDate')[0] || {}).textContent || '').trim();
+        /* Truncate titoli a max 80 caratteri + ellissi unicode (un solo char,
+           niente backslash escape per restare safe col preprocessor). I titoli
+           da Facebook/social tendono ad essere lunghissimi e renderebbero il
+           ticker illeggibile. 80 char e' un compromesso tra info e leggibilita'. */
+        if (title.length > 80) {
+          title = title.substring(0, 80).trim() + '…';
+        }
         let d = new Date(pub);
         if (isNaN(d.getTime())) d = new Date();
         if (title) list.push({ title: title, link: link, date: d });
       }
       list.sort((a, b) => b.date - a.date); /* piu' recenti per primi */
-      return list.slice(0, 20); /* massimo 20 items per non saturare il DOM */
+      /* Numero items configurabile dal CRM (campo "Numero massimo notizie").
+         Range 1-50, default 10 se il config non lo specifica. */
+      var maxN = (window.COMUNE_CONFIG && window.COMUNE_CONFIG.ticker
+                  && parseInt(window.COMUNE_CONFIG.ticker.maxItems, 10)) || 10;
+      if (maxN < 1) maxN = 1;
+      if (maxN > 50) maxN = 50;
+      return list.slice(0, maxN);
     };
 
     const renderTicker = (items) => {
@@ -5120,6 +5171,16 @@ body.has-tab-bar .a11y-bar{bottom:calc(clamp(14px,4vw,22px) + 86px);}
       /* Duplica gli items per loop seamless: l'animazione va da translateX(0)
          a translateX(-50%), e la seconda meta' e' identica alla prima. */
       track.innerHTML = '<div class="ticker-content">' + itemHtml + itemHtml + '</div>';
+      /* Velocita' adattiva: ~5 secondi per notizia, con bound 30s-90s.
+         Con i titoli truncati a 80 char la lunghezza e' uniforme e questa
+         formula da' una velocita' di lettura comoda su mobile. */
+      const content = track.querySelector('.ticker-content');
+      if (content) {
+        let duration = items.length * 5;
+        if (duration < 30) duration = 30;
+        if (duration > 90) duration = 90;
+        content.style.animationDuration = duration + 's';
+      }
     };
 
     const cacheKey = 'cd_ticker_v1_' + feedTarget;
