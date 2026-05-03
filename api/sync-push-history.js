@@ -106,43 +106,59 @@ async function getMonitoredApps(filterSlug = null) {
 }
 
 /**
- * Recupera l'ultimo push_id sincronizzato per una specifica app.
- * Serve per la sincronizzazione incrementale.
+ * Recupera l'INSIEME degli ultimi N gbPushId già sincronizzati per una specifica app.
  *
- * Prima prova con orderBy (più veloce, richiede indice composito su
- * appSlug+gbPushId). Se l'indice manca, fa un fallback scansionando
- * tutti i documenti dell'app e calcolando il massimo in memoria.
- * In questo modo il sync non salta mai per mancanza di indice.
+ * Serve per la sincronizzazione incrementale. NON è più sufficiente conoscere
+ * il "max id" perché GoodBarber NON garantisce gbPushId monotonicamente crescenti
+ * nel tempo: notifiche generate da template/eventi ricorrenti riusano l'ID del
+ * template originale, quindi una notifica spedita oggi può avere un ID più basso
+ * di una spedita la settimana scorsa. Usando un Set di ID già visti il sync
+ * riconosce correttamente le notifiche già importate indipendentemente dall'ordine.
+ *
+ * Restituisce sempre un Set (mai null/undefined). In caso di errore restituisce
+ * un Set vuoto: comportamento "prima sync", importa tutto quello che trova.
+ *
+ * Ordinato per sentAt desc (le notifiche più recenti hanno priorità nel Set):
+ * tipicamente bastano gli ultimi 500 doc per coprire molte settimane di storia
+ * e garantire che il sync incrementale non salti nulla.
  */
-async function getLastSyncedPushId(appSlug) {
+async function getRecentSyncedPushIds(appSlug, maxIds = 500) {
+    const seen = new Set();
     try {
         const snapshot = await db.collection('push_history')
             .where('appSlug', '==', appSlug)
-            .orderBy('gbPushId', 'desc')
-            .limit(1)
+            .orderBy('sentAt', 'desc')
+            .limit(maxIds)
             .get();
-
-        if (snapshot.empty) return 0;
-        return snapshot.docs[0].data().gbPushId || 0;
+        snapshot.forEach(doc => {
+            const gid = doc.data().gbPushId;
+            if (gid !== undefined && gid !== null) seen.add(gid);
+        });
+        return seen;
     } catch (e) {
-        console.warn(`[sync] getLastSyncedPushId: indice mancante per ${appSlug}, uso fallback. ${e.message}`);
+        console.warn(`[sync] getRecentSyncedPushIds: indice mancante per ${appSlug}, uso fallback. ${e.message}`);
         try {
-            // Fallback: carica tutti e trova il max manualmente.
+            // Fallback: scarica tutti i doc dell'app, ordina in memoria, prendi gli ultimi maxIds.
             // Costoso ma affidabile; evita di perdere sync per mancanza di indice.
             const snap = await db.collection('push_history')
                 .where('appSlug', '==', appSlug)
                 .get();
-            let maxId = 0;
+            const all = [];
             snap.forEach(doc => {
-                const gid = doc.data().gbPushId || 0;
-                if (gid > maxId) maxId = gid;
+                const data = doc.data();
+                all.push({
+                    id: data.gbPushId,
+                    ts: data.sentAt && data.sentAt.toDate ? data.sentAt.toDate().getTime() : 0
+                });
             });
-            return maxId;
+            all.sort((a, b) => b.ts - a.ts);
+            for (let i = 0; i < Math.min(all.length, maxIds); i++) {
+                if (all[i].id !== undefined && all[i].id !== null) seen.add(all[i].id);
+            }
+            return seen;
         } catch (e2) {
-            console.error(`[sync] getLastSyncedPushId fallback fallito per ${appSlug}:`, e2.message);
-            // Se anche il fallback fallisce, restituiamo 0 → comportamento "prima sync",
-            // quindi importa tutto quello che trova (meglio avere duplicati che niente).
-            return 0;
+            console.error(`[sync] getRecentSyncedPushIds fallback fallito per ${appSlug}:`, e2.message);
+            return seen; // Set vuoto → comportamento "prima sync"
         }
     }
 }
@@ -656,20 +672,46 @@ async function saveNotifications(notifications, appData) {
 }
 
 /**
- * Sincronizza le notifiche per una singola app
+ * Soglia di "convergenza" per il sync incrementale.
+ *
+ * Se troviamo K notifiche CONSECUTIVE che sono già nel Set di ID già visti,
+ * possiamo ragionevolmente assumere di essere arrivati alla zona "vecchia"
+ * della history e fermarci. Più alto è il valore = più robustezza contro
+ * notifiche interleaved con ID fuori ordine, ma più chiamate API.
+ *
+ * 30 è un buon compromesso: copre il caso reale Castel San Niccolò /
+ * Mezzolombardo dove ID più piccoli (template ricorrenti) erano interleaved
+ * fra ID più grandi recenti. Con il vecchio "stop al primo match" il sync
+ * saltava dozzine di notifiche.
+ */
+const STOP_AFTER_CONSECUTIVE_KNOWN = 30;
+
+/**
+ * Sincronizza le notifiche per una singola app.
+ *
+ * Logica incrementale (non full sync): scorre le pagine GoodBarber e per ogni
+ * notifica controlla se il suo gbPushId è già nel Set "seenIds". Si ferma quando
+ * trova STOP_AFTER_CONSECUTIVE_KNOWN notifiche consecutive già viste, oppure
+ * quando raggiunge l'ultima pagina o il limite maxPages.
+ *
+ * Questo approccio è ROBUSTO contro gbPushId non monotonici (caso reale: GoodBarber
+ * riusa l'ID di template ricorrenti, quindi una push di oggi può avere ID più basso
+ * di una push della settimana scorsa). Il vecchio approccio "stop al primo notif.id
+ * <= lastSyncedId" perdeva sistematicamente queste notifiche.
  */
 async function syncApp(appData, fullSync = false) {
     const maxPages = fullSync ? MAX_PAGES_FULL_SYNC : MAX_PAGES_PER_SYNC;
-    let lastSyncedId = fullSync ? 0 : await getLastSyncedPushId(appData.appSlug);
+    const seenIds = fullSync ? new Set() : await getRecentSyncedPushIds(appData.appSlug);
     let allNewNotifications = [];
     let page = 1;
-    let reachedExisting = false;
+    let consecutiveKnown = 0;
+    let convergedOnKnown = false;
     let reachedLastPage = false;
     let apiErrors = [];
 
-    console.log(`[sync] ${appData.comune} (${appData.appSlug}) — lastSyncedId: ${lastSyncedId}, fullSync: ${fullSync}`);
+    console.log(`[sync] ${appData.comune} (${appData.appSlug}) — seenIds: ${seenIds.size}, fullSync: ${fullSync}`);
 
-    while (page <= maxPages && !reachedExisting) {
+    while (page <= maxPages && !convergedOnKnown) {
         try {
             const data = await fetchPushHistory(appData.webzineId, appData.monitorUserId, page);
 
@@ -679,14 +721,26 @@ async function syncApp(appData, fullSync = false) {
             }
 
             for (const notif of data.result) {
-                if (!fullSync && notif.id <= lastSyncedId) {
-                    reachedExisting = true;
-                    break;
+                if (!fullSync && seenIds.has(notif.id)) {
+                    // Notifica già vista: incrementa il contatore di consecutive note.
+                    // NON aggiunge alle nuove (sarebbe comunque idempotente grazie al
+                    // doc id deterministico + merge:true, ma evitiamo lavoro inutile).
+                    consecutiveKnown++;
+                    if (consecutiveKnown >= STOP_AFTER_CONSECUTIVE_KNOWN) {
+                        convergedOnKnown = true;
+                        break;
+                    }
+                } else {
+                    // Notifica nuova: reset del contatore e accodala.
+                    // Aggiungiamo subito al Set per evitare di accodarla due volte
+                    // se per qualche ragione GB la rimanda nella pagina successiva.
+                    consecutiveKnown = 0;
+                    seenIds.add(notif.id);
+                    allNewNotifications.push(notif);
                 }
-                allNewNotifications.push(notif);
             }
 
-            // Se siamo all'ultima pagina, usciamo
+            // Se siamo all'ultima pagina dichiarata da GB, usciamo
             if (page >= (data.last_page_index || page)) {
                 reachedLastPage = true;
                 break;
@@ -695,7 +749,7 @@ async function syncApp(appData, fullSync = false) {
             page++;
 
             // Delay tra le richieste
-            if (page <= maxPages && !reachedExisting) {
+            if (page <= maxPages && !convergedOnKnown) {
                 await new Promise(r => setTimeout(r, DELAY_BETWEEN_REQUESTS));
             }
         } catch (error) {
@@ -705,17 +759,17 @@ async function syncApp(appData, fullSync = false) {
         }
     }
 
-    // Safety net: se abbiamo raggiunto il limite pagine SENZA trovare lastSyncedId
-    // e SENZA toccare l'ultima pagina dell'API, significa che ci sono buchi.
-    // Lo segnaliamo come warning nel doc app per poter lanciare un full sync manuale.
+    // Safety net: se abbiamo raggiunto il limite pagine SENZA convergere su una zona
+    // di notifiche già viste e SENZA toccare l'ultima pagina dell'API, significa che
+    // potremmo aver perso notifiche più vecchie. Lo segnaliamo come warning.
     const syncWarning = (
         !fullSync &&
-        !reachedExisting &&
+        !convergedOnKnown &&
         !reachedLastPage &&
         page > maxPages &&
-        lastSyncedId > 0
+        seenIds.size > 0
     )
-        ? `Limite pagine raggiunto (${maxPages}) senza trovare lastSyncedId ${lastSyncedId}. Possibile gap — considera un full sync.`
+        ? `Limite pagine raggiunto (${maxPages}) senza convergere su notifiche già viste. Considera un full sync.`
         : null;
 
     if (syncWarning) {
@@ -761,7 +815,7 @@ async function syncApp(appData, fullSync = false) {
             : null,
         pagesScanned: page,
         fullSync: fullSync,
-        reachedExisting: reachedExisting,
+        convergedOnKnown: convergedOnKnown,
         reachedLastPage: reachedLastPage,
         warning: finalWarning,
         errors: apiErrors.length > 0 ? apiErrors : null
