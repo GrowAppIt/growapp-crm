@@ -2,6 +2,10 @@
 
 > **LEGGI SEMPRE QUESTO FILE PER PRIMO** prima di toccare qualsiasi cosa nel progetto. Contiene contesto, regole tecniche critiche, lezioni apprese da bug reali e preferenze dell'utente Giancarlo.
 
+> 🔗 **Auth Bridge fra prodotti Comune.Digital**: vedi `AUTH-BRIDGE.md` nella root del repo. Documento condiviso (copia identica in CMS, Segnalazioni, Booking). Descrive il meccanismo di accesso unificato che evita login multipli quando si naviga fra CRM, CMS, Segnalazioni, Booking. **Fase 2 (CRM→CMS) ancora da implementare** — JWT firmato RSA, vedi sezione Fase 2 nel documento.
+
+> 👥 **Schema utenti CRM** (usato dal CMS per la sincronizzazione Team): collection `utenti`, campo `ruolo` (valori in MAIUSCOLO: `SUPER_ADMIN`, `ADMIN`, `MARKETING`, `AGENTE`, ...). Quando il CMS importa utenti dal CRM, esclude `ruolo === 'AGENTE'` e `stato === 'DISATTIVO'`. Le rules attuali in produzione (`firestore-security/firestore.rules.proposed.txt`) permettono ad un utente attivo di leggere tutta la collection `utenti`, quindi la sync funziona.
+
 ---
 
 ## 1. Cos'è questo progetto
