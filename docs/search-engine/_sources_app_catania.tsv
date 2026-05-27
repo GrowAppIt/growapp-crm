@@ -1,0 +1,65 @@
+section_id	category	depth	parent	name
+75764286	custom-page	2		Emergenza
+65617782	poi-layer	2		DAE
+71274407	custom-page	2		112
+74843682	external-link	3	Municipio e Cittadini	Notizie - News
+74730781	custom-page	3	Municipio e Cittadini	Amministrazione - Administration
+75706539	external-link	3	Municipio e Cittadini	Uffici - Offices
+64435083	poi-layer	3	Municipio e Cittadini	Uffici Comunali - Offices
+74801153	custom-page	3	Municipio e Cittadini	Catania Digitale - Services
+76215615	custom-page	3	Municipio e Cittadini	Pagamenti & Tributi
+74801014	custom-page	3	Municipio e Cittadini	Siti Tematici - Utilities
+74843791	external-link	3	Municipio e Cittadini	Catania Semplice - Requests
+74806960	external-link	3	Municipio e Cittadini	Segnala - Reports
+74710474	custom-page	3	Municipio e Cittadini	Contatti e Sedi - Contacts
+74863371	video	3	Municipio e Cittadini	YouTube Channel
+65618098	video	3	Municipio e Cittadini	Catania è Casa - Video
+65620414	external-link	3	Municipio e Cittadini	Sito Istituzionale - Website
+64440521	custom-page	3	Utilità e Servizi	Numeri Emergenza - Emergency
+64440767	poi-layer	3	Utilità e Servizi	Pubblica Utilità - Utilities
+74844354	custom-page	3	Utilità e Servizi	Metro - Subway
+75788227	custom-page	3	Utilità e Servizi	Trasporto Urbano - Public
+75720890	custom-page	3	Utilità e Servizi	Trasporti - Transports
+74862527	custom-page	3	Utilità e Servizi	Differenziata - Waste&Recycling
+72729431	poi-layer	3	Utilità e Servizi	Biblioteche - Libraries
+65621167	poi-layer	3	Utilità e Servizi	Colonnine - Charging Stations
+74842866	custom-page	3	Utilità e Servizi	Green City
+75765059	calendar	3	Utilità e Servizi	FarmaTurni
+71296567	custom-page	2		Città e Turismo
+75720066	custom-page	2		InfoApp
+75975424	video	2		Highlights Festa Sant'Agata 2026
+77257610	external-page	2		archivionotifiche
+75382246	custom-page	2		Festa di Sant'Agata
+64439724	poi-layer	2		Emergenze
+75819613	article-feed	2		News Flash
+75715462	article-feed	2		News
+75715533	article-feed	2		Comunicati
+75715537	article-feed	2		Avvisi
+75719906	custom-page	2		Benvenuti nell'App Catania
+59943794	custom-page	2		Magazine
+75391993	custom-page	2		Come abilitare le notifiche push
+71279498	static-page	2		ChatBot
+74862701	calendar	2		Notifiche Differenziata
+75715586	form	2		Dicci la tua sull'app
+64441980	poi-layer	2		Metropolitana - Subway
+65617907	article-feed	3	Green City	Stile di vita sostenibile
+65617996	custom-page	3	Green City	Poche Gocce, Tanti Risultati
+65617997	external-link	3	Green City	Calcolatore Impronta ecologica
+65617998	external-link	3	Green City	Riciclo e smaltimento rifiuti
+65617999	poi-layer	3	Green City	Connessi alla Natura
+65618022	form	3	Green City	Feedback: parla con noi
+71295381	form	2		Vista da Te
+65617837	calendar	2		Eventi
+68745688	calendar	2		Mostre
+74839499	custom-page	2		Eventi e Mostre
+67215803	poi-layer	3	Città e Turismo	Visit
+65617843	external-link	3	Città e Turismo	Around Catania
+65617848	poi-layer	3	Città e Turismo	Cultura
+77527423	gallery	2		I VostriScatti
+77575233	external-page	2		archivioeventi
+77598676	external-page	2		ctsemplice
+76589605	custom-page	2		crea cartolina
+65621137	poi-layer	2		Posteggi - Parking
+65621154	poi-layer	2		Istruzione - Education
+65621160	poi-layer	2		Stazioni Servizio - Gas Station
+65620395	form	2		Proponi un'Idea! - CivicPulse

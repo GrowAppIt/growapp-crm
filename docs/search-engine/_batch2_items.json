@@ -1,0 +1,658 @@
+[
+  {
+    "id": "dae",
+    "level": "L2",
+    "requires_intent": false,
+    "sensitive": true,
+    "triggers": {
+      "it": ["dae", "defibrillatore", "defibrillatori", "arresto cardiaco", "rianimazione cardiaca", "primo soccorso"],
+      "en": ["aed", "defibrillator", "cardiac arrest", "first aid", "heart attack"]
+    },
+    "response_type": "app_link",
+    "url": "https://catania.comune.digital/dae/",
+    "response": {
+      "it": "Mappa dei defibrillatori semiautomatici (DAE) installati e accessibili in città.",
+      "en": "Map of public access automated external defibrillators (AED) in the city."
+    }
+  },
+  {
+    "id": "uffici-comunali-mappa",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["uffici comunali", "dove sono uffici", "sedi uffici", "indirizzi uffici", "uffici comune"],
+      "en": ["municipal offices", "city offices", "where are offices", "office locations"]
+    },
+    "response_type": "app_link",
+    "url": "https://catania.comune.digital/uffici-comunali-offices/",
+    "response": {
+      "it": "Mappa degli uffici comunali con indirizzi, orari e contatti.",
+      "en": "Map of municipal offices with addresses, hours and contact info."
+    }
+  },
+  {
+    "id": "pubblica-utilita",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["pubblica utilità", "poste", "ufficio postale", "banche", "bancomat", "sportelli", "atm"],
+      "en": ["public utilities", "post office", "banks", "atm", "useful services"]
+    },
+    "response_type": "app_link",
+    "url": "https://catania.comune.digital/pubblica-utilita-utilities/",
+    "response": {
+      "it": "Mappa di servizi di pubblica utilità in città: poste, banche, sportelli automatici.",
+      "en": "Map of public utilities in the city: post offices, banks and ATMs."
+    }
+  },
+  {
+    "id": "metro-fermate-mappa",
+    "level": "L2",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["fermate metro", "stazioni metro", "mappa metro", "dove ferma metro", "linea metro"],
+      "en": ["metro stations", "subway map", "metro stops", "underground stations"]
+    },
+    "response_type": "app_link",
+    "url": "https://catania.comune.digital/metropolitana-subway/",
+    "response": {
+      "it": "Mappa delle stazioni della metropolitana di Catania.",
+      "en": "Map of Catania subway stations."
+    }
+  },
+  {
+    "id": "biblioteche",
+    "level": "L3",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["biblioteca", "biblioteche", "libri", "prestito libri", "lettura", "sala studio", "wifi gratis"],
+      "en": ["library", "libraries", "books", "reading", "study room", "free wifi"]
+    },
+    "response_type": "app_link",
+    "url": "https://catania.comune.digital/biblioteche-libraries/",
+    "response": {
+      "it": "Mappa delle biblioteche pubbliche di Catania con orari, contatti e servizi.",
+      "en": "Map of Catania public libraries with hours, contacts and services."
+    }
+  },
+  {
+    "id": "colonnine-ricarica",
+    "level": "L2",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["colonnine", "ricarica auto", "auto elettrica", "punto ricarica", "stazione ricarica", "ev"],
+      "en": ["charging stations", "ev charging", "electric car", "ev points"]
+    },
+    "response_type": "app_link",
+    "url": "https://catania.comune.digital/colonnine-charging-stations/",
+    "response": {
+      "it": "Mappa delle colonnine di ricarica per auto elettriche.",
+      "en": "Map of electric vehicle charging stations."
+    }
+  },
+  {
+    "id": "emergenze-mappa",
+    "level": "L2",
+    "requires_intent": false,
+    "sensitive": true,
+    "triggers": {
+      "it": ["punti emergenza", "ospedali", "pronto soccorso", "vigili del fuoco vicino", "carabinieri vicino", "polizia vicino"],
+      "en": ["emergency points", "hospitals", "er", "fire stations", "police stations"]
+    },
+    "response_type": "app_link",
+    "url": "https://catania.comune.digital/emergenze/",
+    "response": {
+      "it": "Mappa dei punti di emergenza in città: ospedali, pronto soccorso, caserme.",
+      "en": "Map of emergency points in the city: hospitals, ER and stations."
+    }
+  },
+  {
+    "id": "parchi-aree-verdi",
+    "level": "L3",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["parchi", "verde pubblico", "giardini", "aree verdi", "natura città", "passeggiata"],
+      "en": ["parks", "green areas", "gardens", "nature", "outdoor"]
+    },
+    "response_type": "app_link",
+    "url": "https://catania.comune.digital/connessi-alla-natura/",
+    "response": {
+      "it": "Mappa di parchi, giardini pubblici e aree verdi della città.",
+      "en": "Map of parks, public gardens and green areas in the city."
+    }
+  },
+  {
+    "id": "visit-poi",
+    "level": "L3",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["visit catania", "punti turistici", "luoghi turismo", "etna", "piazza duomo", "via etnea", "castello ursino", "teatro romano"],
+      "en": ["sightseeing", "tourist spots", "places to visit", "monuments", "etna"]
+    },
+    "response_type": "app_link",
+    "url": "https://catania.comune.digital/visit/",
+    "response": {
+      "it": "Mappa Visit Catania con i punti di interesse turistico della città.",
+      "en": "Visit Catania map with all city points of interest for tourists."
+    }
+  },
+  {
+    "id": "luoghi-cultura",
+    "level": "L3",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["musei", "teatri", "centri culturali", "luoghi cultura", "monumenti", "chiese", "palazzi storici"],
+      "en": ["museums", "theaters", "cultural places", "monuments", "churches"]
+    },
+    "response_type": "app_link",
+    "url": "https://catania.comune.digital/cultura/",
+    "response": {
+      "it": "Mappa dei luoghi di cultura: musei, teatri, biblioteche storiche e chiese monumentali.",
+      "en": "Map of cultural places: museums, theaters, historical libraries and monumental churches."
+    }
+  },
+  {
+    "id": "posteggi-parking",
+    "level": "L2",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["posteggi", "parcheggi", "dove parcheggio", "parcheggio auto", "parking", "strisce blu", "parcheggio gratis"],
+      "en": ["parking", "parking lots", "where to park", "free parking", "paid parking"]
+    },
+    "response_type": "app_link",
+    "url": "https://catania.comune.digital/posteggi-parking/",
+    "response": {
+      "it": "Mappa dei parcheggi auto: a pagamento, gratuiti e parcheggi scambiatori.",
+      "en": "Map of car parks: paid, free and park-and-ride."
+    }
+  },
+  {
+    "id": "scuole",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["scuole", "scuola", "asilo", "materna", "elementari", "medie", "superiori", "nido", "istituti scolastici"],
+      "en": ["schools", "kindergarten", "elementary", "middle school", "high school", "nursery"]
+    },
+    "response_type": "app_link",
+    "url": "https://catania.comune.digital/istruzione-education/",
+    "response": {
+      "it": "Mappa delle scuole di Catania: nido, materne, elementari, medie e superiori.",
+      "en": "Map of Catania schools: nursery, kindergarten, elementary, middle and high school."
+    }
+  },
+  {
+    "id": "stazioni-servizio",
+    "level": "L2",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["stazione servizio", "benzinaio", "carburante", "benzina", "diesel", "gas", "gpl", "metano"],
+      "en": ["gas station", "petrol station", "fuel", "diesel", "lpg"]
+    },
+    "response_type": "app_link",
+    "url": "https://catania.comune.digital/stazioni-servizio-gas-station/",
+    "response": {
+      "it": "Mappa delle stazioni di servizio per carburanti.",
+      "en": "Map of fuel service stations."
+    }
+  },
+  {
+    "id": "notizie-link",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["notizie sito", "ultime notizie comune", "news comune"],
+      "en": ["news site", "city news", "latest news"]
+    },
+    "response_type": "app_link",
+    "url": "https://catania.comune.digital/notizie-news/",
+    "response": {
+      "it": "Notizie dal Comune di Catania.",
+      "en": "News from the Catania Municipality."
+    }
+  },
+  {
+    "id": "uffici-link",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["elenco uffici", "lista uffici", "uffici dipartimenti", "dipartimenti comune"],
+      "en": ["offices list", "city departments", "departments"]
+    },
+    "response_type": "app_link",
+    "url": "https://catania.comune.digital/uffici-offices/",
+    "response": {
+      "it": "Elenco completo degli uffici del Comune di Catania.",
+      "en": "Full list of Catania Municipality offices."
+    }
+  },
+  {
+    "id": "catania-semplice",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["catania semplice", "richieste", "istanze online", "sportello digitale", "pratiche online", "richiesta certificato"],
+      "en": ["catania semplice", "online requests", "digital desk", "online procedures"]
+    },
+    "response_type": "app_link",
+    "url": "https://catania.comune.digital/catania-semplice-requests/",
+    "response": {
+      "it": "Sportello digitale Catania Semplice per richieste e istanze al Comune.",
+      "en": "Catania Semplice digital desk for requests and applications to the Municipality."
+    }
+  },
+  {
+    "id": "segnala",
+    "level": "L2",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["segnala", "segnalazione", "disservizio", "buca", "lampione rotto", "guasto", "problema strada", "rifiuti abbandonati"],
+      "en": ["report", "issue", "broken", "complaint", "service issue"]
+    },
+    "response_type": "app_link",
+    "url": "https://catania.comune.digital/segnala-reports/",
+    "response": {
+      "it": "Segnala disservizi e problemi sul territorio cittadino al Comune.",
+      "en": "Report issues and service problems in the city to the Municipality."
+    }
+  },
+  {
+    "id": "sito-istituzionale",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["sito comune", "sito istituzionale", "sito ufficiale", "comune.catania.it"],
+      "en": ["official website", "city website"]
+    },
+    "response_type": "app_link",
+    "url": "https://www.comune.catania.it/",
+    "response": {
+      "it": "Apri il sito istituzionale del Comune di Catania.",
+      "en": "Open the Catania Municipality official website."
+    }
+  },
+  {
+    "id": "calcolatore-impronta-ecologica",
+    "level": "L3",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["impronta ecologica", "calcolatore impronta", "carbon footprint", "consumo ambientale"],
+      "en": ["ecological footprint", "carbon footprint", "environmental impact"]
+    },
+    "response_type": "app_link",
+    "url": "https://catania.comune.digital/calcolatore-impronta-ecologica/",
+    "response": {
+      "it": "Calcola la tua impronta ecologica personale.",
+      "en": "Calculate your personal ecological footprint."
+    }
+  },
+  {
+    "id": "riciclo-rifiuti-speciali",
+    "level": "L2",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["riciclo", "smaltimento", "rifiuti speciali", "pile", "batterie", "olio esausto", "raee", "elettronica"],
+      "en": ["recycling", "waste disposal", "special waste", "batteries", "electronics"]
+    },
+    "response_type": "app_link",
+    "url": "https://catania.comune.digital/riciclo-e-smaltimento-rifiuti/",
+    "response": {
+      "it": "Come riciclare e smaltire correttamente rifiuti speciali e ingombranti.",
+      "en": "How to recycle and properly dispose of special and bulky waste."
+    }
+  },
+  {
+    "id": "around-catania",
+    "level": "L3",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["dintorni catania", "around catania", "gite", "etna escursione", "taormina", "costa ionica"],
+      "en": ["around catania", "day trips", "etna trip", "taormina", "ionian coast"]
+    },
+    "response_type": "app_link",
+    "url": "https://catania.comune.digital/around-catania/",
+    "response": {
+      "it": "Scopri cosa visitare nei dintorni di Catania.",
+      "en": "Discover what to visit around Catania."
+    }
+  },
+  {
+    "id": "archivio-notifiche",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["archivio notifiche", "notifiche passate", "notifiche storiche", "vecchie notifiche", "ricevute notifiche"],
+      "en": ["notification archive", "past notifications", "old notifications"]
+    },
+    "response_type": "app_link",
+    "url": "https://catania.comune.digital/archivionotifiche/",
+    "response": {
+      "it": "Archivio storico delle notifiche push ricevute dall'app.",
+      "en": "Archive of all push notifications received in the app."
+    }
+  },
+  {
+    "id": "archivio-eventi",
+    "level": "L3",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["archivio eventi", "eventi passati", "edizioni passate", "storico eventi"],
+      "en": ["events archive", "past events", "previous editions"]
+    },
+    "response_type": "app_link",
+    "url": "https://catania.comune.digital/archivioeventi/",
+    "response": {
+      "it": "Archivio storico degli eventi della città di Catania.",
+      "en": "Archive of past Catania city events."
+    }
+  },
+  {
+    "id": "feedback-ambiente",
+    "level": "L2",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["feedback ambiente", "proposte ambientali", "segnala problema ambientale", "iniziative green"],
+      "en": ["environmental feedback", "green proposals", "report environmental issue"]
+    },
+    "response_type": "app_link",
+    "url": "https://catania.comune.digital/feedback-parla-con-noi/",
+    "response": {
+      "it": "Invia feedback, proposte e segnalazioni ambientali al Comune.",
+      "en": "Send environmental feedback, proposals and reports to the Municipality."
+    }
+  },
+  {
+    "id": "proponi-idea",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["proponi idea", "proposta", "suggerimenti", "iniziativa cittadino", "partecipazione", "civic pulse"],
+      "en": ["propose idea", "suggestion", "citizen initiative", "civic engagement"]
+    },
+    "response_type": "app_link",
+    "url": "https://catania.comune.digital/proponi-un-idea-civicpulse/",
+    "response": {
+      "it": "Proponi al Comune di Catania un'idea o un'iniziativa per la città.",
+      "en": "Submit your idea or initiative for the city to the Catania Municipality."
+    }
+  },
+  {
+    "id": "vista-da-te",
+    "level": "L2",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["vista da te", "invia foto", "documentare problema", "foto città", "racconta città"],
+      "en": ["citizen photo", "report with photo", "city snapshot"]
+    },
+    "response_type": "app_link",
+    "url": "https://catania.comune.digital/vista-da-te/",
+    "response": {
+      "it": "Invia foto e segnalazioni della città direttamente dal tuo telefono.",
+      "en": "Send city photos and reports directly from your phone."
+    }
+  },
+  {
+    "id": "feedback-app",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["feedback app", "suggerimenti app", "miglioramenti app", "problema app", "bug app"],
+      "en": ["app feedback", "app suggestions", "app issue", "app bug"]
+    },
+    "response_type": "app_link",
+    "url": "https://catania.comune.digital/dicci-la-tua-sull-app/",
+    "response": {
+      "it": "Invia feedback, suggerimenti o segnalazioni di problemi sull'app.",
+      "en": "Send feedback, suggestions or bug reports about the app."
+    }
+  },
+  {
+    "id": "vostri-scatti",
+    "level": "L3",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["vostriscatti", "i vostri scatti", "foto cittadini", "galleria foto", "foto utenti"],
+      "en": ["citizen photos", "photo gallery", "user photos"]
+    },
+    "response_type": "app_link",
+    "url": "https://catania.comune.digital/i-vostriscatti/",
+    "response": {
+      "it": "Galleria delle foto della città scattate e condivise dai cittadini.",
+      "en": "Gallery of city photos taken and shared by citizens."
+    }
+  },
+  {
+    "id": "youtube-channel",
+    "level": "L3",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["youtube comune", "video comune", "canale youtube", "diretta youtube"],
+      "en": ["youtube channel", "city videos", "live stream"]
+    },
+    "response_type": "app_link",
+    "url": "https://catania.comune.digital/youtube-channel/",
+    "response": {
+      "it": "Canale YouTube ufficiale del Comune di Catania con video istituzionali.",
+      "en": "Catania Municipality official YouTube channel with institutional videos."
+    }
+  },
+  {
+    "id": "catania-e-casa-video",
+    "level": "L3",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["catania è casa", "rubrica video", "video città", "racconto catania"],
+      "en": ["catania video stories", "city video series"]
+    },
+    "response_type": "app_link",
+    "url": "https://catania.comune.digital/catania-e-casa-video/",
+    "response": {
+      "it": "Video della rubrica istituzionale Catania è Casa.",
+      "en": "Videos from the Catania è Casa institutional series."
+    }
+  },
+  {
+    "id": "highlights-sant-agata-2026",
+    "level": "L3",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["highlights sant'agata 2026", "video festa 2026", "candelore 2026", "fercolo 2026"],
+      "en": ["sant'agata highlights 2026", "festival videos 2026"]
+    },
+    "response_type": "app_link",
+    "url": "https://catania.comune.digital/highlights-festa-sant-agata-2026/",
+    "response": {
+      "it": "Video highlights della Festa di Sant'Agata 2026.",
+      "en": "Highlights of the 2026 Festival of Sant'Agata."
+    }
+  },
+  {
+    "id": "chatbot-info",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["chatbot", "assistente virtuale", "info chatbot", "come funziona chatbot", "ai assistant"],
+      "en": ["chatbot info", "virtual assistant", "how does chatbot work", "ai assistant"]
+    },
+    "response_type": "app_link",
+    "url": "https://catania.comune.digital/chatbot/",
+    "response": {
+      "it": "Informazioni sull'assistente virtuale dell'app del Comune di Catania.",
+      "en": "Info about the virtual assistant in the Catania municipal app."
+    }
+  },
+  {
+    "id": "agenda-eventi",
+    "level": "L3",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["agenda eventi", "calendario eventi", "manifestazioni", "concerti", "spettacoli", "sagre"],
+      "en": ["events calendar", "events schedule", "concerts", "shows"]
+    },
+    "response_type": "app_link",
+    "url": "https://catania.comune.digital/eventi/",
+    "response": {
+      "it": "Calendario degli eventi pubblici a Catania: concerti, sagre, manifestazioni.",
+      "en": "Calendar of public events in Catania: concerts, fairs and shows."
+    }
+  },
+  {
+    "id": "agenda-mostre",
+    "level": "L3",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["mostre", "esposizioni", "calendario mostre", "musei mostre", "esposizione arte"],
+      "en": ["exhibitions", "art shows", "exhibition schedule", "museum shows"]
+    },
+    "response_type": "app_link",
+    "url": "https://catania.comune.digital/mostre/",
+    "response": {
+      "it": "Calendario delle mostre temporanee a Catania.",
+      "en": "Schedule of temporary exhibitions in Catania."
+    }
+  },
+  {
+    "id": "calendario-notifiche-differenziata",
+    "level": "L2",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["notifiche differenziata", "promemoria differenziata", "avviso raccolta", "ricordami rifiuti"],
+      "en": ["recycling reminders", "waste collection reminders"]
+    },
+    "response_type": "app_link",
+    "url": "https://catania.comune.digital/notifiche-differenziata/",
+    "response": {
+      "it": "Calendario delle notifiche giornaliere per la raccolta differenziata.",
+      "en": "Calendar of daily reminders for waste collection."
+    }
+  },
+  {
+    "id": "farmaturni",
+    "level": "L2",
+    "requires_intent": false,
+    "sensitive": true,
+    "triggers": {
+      "it": ["farmacia di turno", "farmacia notturna", "farmacia aperta", "farmacie aperte ora", "farmaturni"],
+      "en": ["pharmacy on duty", "open pharmacy", "night pharmacy", "24h pharmacy"]
+    },
+    "response_type": "app_link",
+    "url": "https://catania.comune.digital/farmaturni/",
+    "response": {
+      "it": "Farmacie di turno aperte di giorno e di notte a Catania.",
+      "en": "Pharmacies on duty during the day and at night in Catania."
+    }
+  },
+  {
+    "id": "feed-news-flash",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["news flash", "flash news", "ultime breaking", "notizie veloci"],
+      "en": ["news flash", "breaking news", "quick news"]
+    },
+    "response_type": "app_link",
+    "url": "https://catania.comune.digital/news-flash/",
+    "response": {
+      "it": "Flash news brevi e tempestive del Comune di Catania.",
+      "en": "Short, timely news flashes from the Catania Municipality."
+    }
+  },
+  {
+    "id": "feed-news",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["news", "notizie", "ultime notizie", "novità città"],
+      "en": ["news", "city news", "updates"]
+    },
+    "response_type": "app_link",
+    "url": "https://catania.comune.digital/news/",
+    "response": {
+      "it": "Notizie ufficiali del Comune di Catania.",
+      "en": "Official news from the Catania Municipality."
+    }
+  },
+  {
+    "id": "feed-comunicati",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["comunicati", "comunicati stampa", "comunicato sindaco", "ufficio stampa"],
+      "en": ["press releases", "communications", "press office"]
+    },
+    "response_type": "app_link",
+    "url": "https://catania.comune.digital/comunicati/",
+    "response": {
+      "it": "Comunicati stampa del Comune di Catania.",
+      "en": "Press releases from the Catania Municipality."
+    }
+  },
+  {
+    "id": "feed-avvisi",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["avvisi", "bandi", "gare", "concorsi", "avvisi pubblici"],
+      "en": ["notices", "tenders", "public notices", "calls"]
+    },
+    "response_type": "app_link",
+    "url": "https://catania.comune.digital/avvisi/",
+    "response": {
+      "it": "Avvisi pubblici, bandi e gare del Comune di Catania.",
+      "en": "Public notices, tenders and calls from the Catania Municipality."
+    }
+  },
+  {
+    "id": "feed-stile-sostenibile",
+    "level": "L3",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["stile sostenibile", "consigli ecologia", "vivere green", "abitudini sostenibili"],
+      "en": ["sustainable lifestyle", "green tips", "eco habits"]
+    },
+    "response_type": "app_link",
+    "url": "https://catania.comune.digital/stile-di-vita-sostenibile/",
+    "response": {
+      "it": "Consigli e abitudini per uno stile di vita sostenibile a Catania.",
+      "en": "Tips and habits for a sustainable lifestyle in Catania."
+    }
+  }
+]

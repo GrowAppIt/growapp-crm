@@ -1,0 +1,353 @@
+[
+  {
+    "id": "emergenza",
+    "level": "L2",
+    "requires_intent": false,
+    "sensitive": true,
+    "triggers": {
+      "it": ["emergenza", "soccorso", "urgenza", "aiuto urgente", "chiamata di soccorso"],
+      "en": ["emergency", "rescue", "urgent help"]
+    },
+    "response_type": "app_link",
+    "url": "https://catania.comune.digital/emergenza/",
+    "response": {
+      "it": "Numeri e procedure per le emergenze a Catania.",
+      "en": "Emergency numbers and procedures in Catania."
+    }
+  },
+  {
+    "id": "numero-unico-112",
+    "level": "L2",
+    "requires_intent": false,
+    "sensitive": true,
+    "triggers": {
+      "it": ["112", "numero unico emergenza", "emergenza europea", "chiamata emergenza"],
+      "en": ["112", "european emergency number", "single emergency"]
+    },
+    "response_type": "quick_answer",
+    "response": {
+      "it": "Il **112** è il numero unico europeo per le emergenze. Usalo per qualsiasi emergenza sanitaria, di sicurezza o di soccorso.",
+      "en": "**112** is the European single emergency number. Use it for any health, safety or rescue emergency."
+    }
+  },
+  {
+    "id": "amministrazione",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["amministrazione", "comune", "giunta", "consiglio comunale", "assessori", "organi di governo"],
+      "en": ["administration", "city council", "city government", "deputies"]
+    },
+    "response_type": "app_link",
+    "url": "https://catania.comune.digital/amministrazione-administration/",
+    "response": {
+      "it": "Organi di governo del Comune di Catania: sindaco, giunta, consiglio comunale, assessori.",
+      "en": "Catania local government: mayor, executive board, city council, deputies."
+    }
+  },
+  {
+    "id": "catania-digitale",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["servizi digitali", "servizi online", "spid", "cie", "portale servizi", "fascicolo"],
+      "en": ["digital services", "online services", "spid", "digital portal"]
+    },
+    "response_type": "app_link",
+    "url": "https://catania.comune.digital/catania-digitale-services/",
+    "response": {
+      "it": "Hub dei servizi digitali del Comune: accedi con SPID o CIE per pratiche e richieste online.",
+      "en": "Digital services hub: log in with SPID or CIE for online procedures and requests."
+    }
+  },
+  {
+    "id": "pagamenti-tributi",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["pagamenti", "tributi", "tasse", "imu", "tari", "tassa rifiuti", "tassa casa", "imposta casa", "multa", "multe", "cartella", "cartelle", "pagopa"],
+      "en": ["payments", "taxes", "imu", "tari", "fines", "tax bill", "pagopa"]
+    },
+    "response_type": "app_link",
+    "url": "https://catania.comune.digital/pagamenti-tributi/",
+    "response": {
+      "it": "Paga online IMU, TARI, multe e tributi del Comune tramite PagoPA.",
+      "en": "Pay your IMU, TARI, fines and municipal taxes online via PagoPA."
+    }
+  },
+  {
+    "id": "siti-tematici",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["siti tematici", "portali comune", "altri siti", "collegamenti utili", "link utili"],
+      "en": ["thematic sites", "city portals", "useful links"]
+    },
+    "response_type": "app_link",
+    "url": "https://catania.comune.digital/siti-tematici-utilities/",
+    "response": {
+      "it": "Collegamenti ai portali tematici del Comune di Catania.",
+      "en": "Links to thematic portals of the Municipality of Catania."
+    }
+  },
+  {
+    "id": "contatti-e-sedi",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["contatti", "sedi", "uffici", "indirizzi", "centralino", "telefono comune", "pec comune", "email comune"],
+      "en": ["contacts", "offices", "addresses", "phone", "email", "switchboard"]
+    },
+    "response_type": "app_link",
+    "url": "https://catania.comune.digital/contatti-e-sedi-contacts/",
+    "response": {
+      "it": "Recapiti telefonici, email, PEC e sedi degli uffici del Comune di Catania.",
+      "en": "Phone numbers, emails, certified mail and addresses of the Catania Municipality offices."
+    }
+  },
+  {
+    "id": "numeri-emergenza",
+    "level": "L2",
+    "requires_intent": false,
+    "sensitive": true,
+    "triggers": {
+      "it": ["numeri emergenza", "numeri utili", "112", "113", "115", "118", "vigili del fuoco", "carabinieri", "polizia", "ambulanza"],
+      "en": ["emergency numbers", "useful numbers", "fire department", "police", "ambulance"]
+    },
+    "response_type": "app_link",
+    "url": "https://catania.comune.digital/numeri-emergenza-emergency/",
+    "response": {
+      "it": "Numeri di emergenza: **112** unica emergenza, **113** polizia, **115** vigili del fuoco, **118** ambulanze.",
+      "en": "Emergency numbers: **112** single emergency, **113** police, **115** fire department, **118** ambulance."
+    }
+  },
+  {
+    "id": "metro",
+    "level": "L2",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["metro", "metropolitana", "fce", "circumetnea", "fermate metro", "treno catania"],
+      "en": ["subway", "metro", "underground"]
+    },
+    "response_type": "app_link",
+    "url": "https://catania.comune.digital/metro-subway/",
+    "response": {
+      "it": "Linee, fermate, orari e biglietti della metropolitana di Catania (FCE).",
+      "en": "Catania subway (FCE): lines, stops, schedules and tickets."
+    }
+  },
+  {
+    "id": "trasporto-urbano",
+    "level": "L2",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["autobus", "bus", "pullman", "trasporto urbano", "amts", "fermata", "fermate", "biglietto bus"],
+      "en": ["bus", "city bus", "public transport", "amts"]
+    },
+    "response_type": "app_link",
+    "url": "https://catania.comune.digital/trasporto-urbano-public/",
+    "response": {
+      "it": "Trasporto pubblico urbano di Catania (AMTS): linee, fermate, orari e biglietti.",
+      "en": "Catania public bus service (AMTS): lines, stops, schedules and tickets."
+    }
+  },
+  {
+    "id": "trasporti",
+    "level": "L2",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["trasporti", "muoversi", "viaggiare", "come arrivare", "mezzi pubblici"],
+      "en": ["transport", "transports", "get around", "travel", "public transit"]
+    },
+    "response_type": "app_link",
+    "url": "https://catania.comune.digital/trasporti-transports/",
+    "response": {
+      "it": "Tutti i mezzi di trasporto a Catania: bus, metro, taxi, treni, aeroporto, porto.",
+      "en": "All means of transport in Catania: bus, metro, taxi, trains, airport, port."
+    }
+  },
+  {
+    "id": "raccolta-differenziata",
+    "level": "L2",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["differenziata", "raccolta differenziata", "rifiuti", "spazzatura", "monnezza", "umido", "plastica", "carta", "vetro", "secco", "indifferenziato", "calendario rifiuti", "ingombranti"],
+      "en": ["recycling", "garbage", "waste", "trash", "rubbish", "collection", "bins"]
+    },
+    "response_type": "app_link",
+    "url": "https://catania.comune.digital/differenziata-waste-recycling/",
+    "response": {
+      "it": "Calendario raccolta differenziata: quando esporre umido, plastica, carta, vetro e indifferenziato.",
+      "en": "Waste collection calendar: when to put out organic, plastic, paper, glass and unsorted waste."
+    }
+  },
+  {
+    "id": "green-city",
+    "level": "L2",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["ambiente", "ecologia", "sostenibilità", "green", "mobilità sostenibile"],
+      "en": ["environment", "green", "sustainability", "ecology"]
+    },
+    "response_type": "app_link",
+    "url": "https://catania.comune.digital/green-city/",
+    "response": {
+      "it": "Iniziative ambientali e di mobilità sostenibile del Comune di Catania.",
+      "en": "Environmental and sustainable mobility initiatives by the Catania Municipality."
+    }
+  },
+  {
+    "id": "citta-e-turismo",
+    "level": "L3",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["turismo", "visitare", "cosa vedere", "attrazioni", "monumenti", "etna", "duomo catania", "via etnea"],
+      "en": ["tourism", "visit", "things to see", "attractions", "sightseeing"]
+    },
+    "response_type": "app_link",
+    "url": "https://catania.comune.digital/citta-e-turismo/",
+    "response": {
+      "it": "Cosa visitare a Catania: monumenti, itinerari, eventi culturali e iniziative turistiche.",
+      "en": "What to see in Catania: monuments, itineraries, cultural events and tourism initiatives."
+    }
+  },
+  {
+    "id": "infoapp",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["info app", "guida app", "aiuto app", "tutorial app", "come usare l'app"],
+      "en": ["app info", "app help", "tutorial", "how to use"]
+    },
+    "response_type": "app_link",
+    "url": "https://catania.comune.digital/infoapp/",
+    "response": {
+      "it": "Informazioni e guide sull'utilizzo dell'app del Comune di Catania.",
+      "en": "Info and guides on using the Catania municipal app."
+    }
+  },
+  {
+    "id": "festa-sant-agata",
+    "level": "L3",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["sant'agata", "santa agata", "patrona catania", "festa patronale", "candelore", "fercolo", "via etnea festa", "tre febbraio", "cinque febbraio"],
+      "en": ["sant'agata", "patron saint", "religious festival", "patronal feast"]
+    },
+    "response_type": "app_link",
+    "url": "https://catania.comune.digital/festa-di-sant-agata/",
+    "response": {
+      "it": "Programma, percorsi e tradizioni della Festa di Sant'Agata, patrona di Catania.",
+      "en": "Program, route and traditions of the Festival of Sant'Agata, patron saint of Catania."
+    }
+  },
+  {
+    "id": "benvenuto",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["benvenuto", "bentornato", "primi passi", "iniziare"],
+      "en": ["welcome", "getting started"]
+    },
+    "response_type": "app_link",
+    "url": "https://catania.comune.digital/benvenuti-nell-app-catania/",
+    "response": {
+      "it": "Pagina di benvenuto nell'app del Comune di Catania.",
+      "en": "Welcome page of the Catania municipal app."
+    }
+  },
+  {
+    "id": "magazine",
+    "level": "L3",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["magazine", "rivista comune", "articoli comune", "approfondimenti città"],
+      "en": ["magazine", "city stories", "city features"]
+    },
+    "response_type": "app_link",
+    "url": "https://catania.comune.digital/magazine/",
+    "response": {
+      "it": "Magazine digitale di Catania: articoli, approfondimenti e iniziative cittadine.",
+      "en": "Catania digital magazine: articles, in-depth pieces and city initiatives."
+    }
+  },
+  {
+    "id": "abilitare-notifiche",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["notifiche", "notifiche push", "abilitare notifiche", "attivare notifiche", "ricevere notifiche", "notifiche app"],
+      "en": ["notifications", "push notifications", "enable notifications"]
+    },
+    "response_type": "app_link",
+    "url": "https://catania.comune.digital/come-abilitare-le-notifiche-push/",
+    "response": {
+      "it": "Guida per attivare le notifiche push dell'app su iOS e Android.",
+      "en": "Guide to enabling app push notifications on iOS and Android."
+    }
+  },
+  {
+    "id": "risparmio-idrico",
+    "level": "L2",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["risparmio acqua", "risparmio idrico", "consumo acqua", "spreco acqua", "rubinetto"],
+      "en": ["water saving", "water conservation", "water consumption"]
+    },
+    "response_type": "app_link",
+    "url": "https://catania.comune.digital/poche-gocce-tanti-risultati/",
+    "response": {
+      "it": "Campagna di sensibilizzazione sul risparmio idrico domestico.",
+      "en": "Awareness campaign on domestic water saving."
+    }
+  },
+  {
+    "id": "eventi-mostre",
+    "level": "L3",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["eventi", "mostre", "spettacoli", "concerti", "cosa fare", "weekend", "stasera", "questa sera", "agenda"],
+      "en": ["events", "exhibitions", "shows", "concerts", "things to do", "tonight", "weekend"]
+    },
+    "response_type": "app_link",
+    "url": "https://catania.comune.digital/eventi-e-mostre/",
+    "response": {
+      "it": "Tutti gli eventi e le mostre in corso a Catania.",
+      "en": "All current events and exhibitions in Catania."
+    }
+  },
+  {
+    "id": "crea-cartolina",
+    "level": "L3",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["cartolina", "creare cartolina", "saluti da catania", "ricordo catania"],
+      "en": ["postcard", "souvenir", "greetings from catania"]
+    },
+    "response_type": "app_link",
+    "url": "https://catania.comune.digital/crea-cartolina/",
+    "response": {
+      "it": "Crea una cartolina personalizzata di Catania da condividere.",
+      "en": "Create a personalized Catania postcard to share."
+    }
+  }
+]

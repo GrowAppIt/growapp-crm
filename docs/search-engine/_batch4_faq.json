@@ -1,0 +1,753 @@
+[
+  {
+    "id": "faq-sindaco",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["sindaco", "chi è il sindaco", "primo cittadino", "trantino", "enrico trantino"],
+      "en": ["mayor", "who is the mayor"]
+    },
+    "response_type": "quick_answer",
+    "response": {
+      "it": "Il Sindaco di Catania è **Enrico Trantino**, eletto nel 2022.",
+      "en": "The Mayor of Catania is **Enrico Trantino**, elected in 2022."
+    }
+  },
+  {
+    "id": "faq-vicesindaco-assessori",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["vicesindaco", "assessori", "chi sono assessori", "deleghe assessori"],
+      "en": ["deputy mayor", "deputies", "who are deputies"]
+    },
+    "response_type": "app_link",
+    "url": "https://www.comune.catania.it/amministrazione/organi-di-governo/default.aspx?unitaorganizzativa=30",
+    "response": {
+      "it": "Vicesindaco e assessori della Giunta di Catania, con le rispettive deleghe.",
+      "en": "Deputy mayor and council deputies of Catania with their portfolios."
+    }
+  },
+  {
+    "id": "faq-quando-si-vota",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["quando si vota", "data elezioni", "prossime elezioni", "elezioni comunali"],
+      "en": ["when to vote", "election date", "next elections"]
+    },
+    "response_type": "app_link",
+    "url": "https://www.comune.catania.it/altri-contenuti/elezioni/",
+    "response": {
+      "it": "Tutte le informazioni su elezioni, date e seggi nella sezione Elezioni del sito.",
+      "en": "All information on elections, dates and polling stations in the Elections section."
+    }
+  },
+  {
+    "id": "faq-municipi-quanti",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["quanti municipi", "circoscrizioni", "quartieri amministrativi", "consigli municipi"],
+      "en": ["how many districts", "city districts"]
+    },
+    "response_type": "app_link",
+    "url": "https://www.comune.catania.it/amministrazione/organi-di-governo/default.aspx?unitaorganizzativa=1068",
+    "response": {
+      "it": "Catania è suddivisa in più municipi (circoscrizioni). L'elenco completo nella sezione organi di governo.",
+      "en": "Catania is divided into several districts. Full list in the governing bodies section."
+    }
+  },
+  {
+    "id": "faq-cambio-residenza",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["cambio residenza", "cambiare residenza", "trasferire residenza", "iscrizione anagrafe", "nuovo indirizzo"],
+      "en": ["change of residence", "change address", "register address"]
+    },
+    "response_type": "app_link",
+    "url": "https://www.comune.catania.it/servizi/default.aspx?category=6",
+    "response": {
+      "it": "Il cambio di residenza si richiede online o presso gli uffici anagrafe. Servono documento d'identità e codice fiscale.",
+      "en": "Change of residence is requested online or at registry offices. ID and tax code are required."
+    }
+  },
+  {
+    "id": "faq-certificato-residenza",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["certificato residenza", "richiedere certificato residenza", "stampare certificato"],
+      "en": ["residence certificate", "request residence certificate"]
+    },
+    "response_type": "app_link",
+    "url": "https://www.comune.catania.it/servizi/default.aspx?category=6",
+    "response": {
+      "it": "Il certificato di residenza si richiede online tramite SPID o CIE, oppure presso gli uffici anagrafe.",
+      "en": "Residence certificate is requested online via SPID/CIE or at registry offices."
+    }
+  },
+  {
+    "id": "faq-cie-costo",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["costo carta identità", "quanto costa cie", "prezzo carta identità", "tariffa cie"],
+      "en": ["id card cost", "how much is id card", "cie price"]
+    },
+    "response_type": "quick_answer",
+    "response": {
+      "it": "La Carta d'Identità Elettronica (CIE) costa **22,21 €**, comprensivi dei diritti di segreteria. Il rilascio avviene presso l'ufficio anagrafe del Comune.",
+      "en": "The Electronic ID Card (CIE) costs **22.21 €**, including secretarial fees. It is issued at the Municipality registry office."
+    }
+  },
+  {
+    "id": "faq-cie-come-fare",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["fare carta identità", "rinnovo carta identità", "cie come si fa", "appuntamento cie"],
+      "en": ["how to get id card", "renew id card", "id appointment"]
+    },
+    "response_type": "app_link",
+    "url": "https://www.comune.catania.it/servizi/default.aspx?category=6",
+    "response": {
+      "it": "Il rilascio o rinnovo della Carta d'Identità Elettronica richiede appuntamento. Prenota online o presso gli uffici anagrafe.",
+      "en": "Electronic ID Card issuance or renewal requires an appointment. Book online or at registry offices."
+    }
+  },
+  {
+    "id": "faq-passaporto",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["passaporto", "fare passaporto", "rinnovo passaporto", "richiesta passaporto"],
+      "en": ["passport", "get passport", "renew passport"]
+    },
+    "response_type": "quick_answer",
+    "response": {
+      "it": "Il passaporto **non si richiede al Comune** ma alla **Questura**. Le pratiche si avviano sul portale della Polizia di Stato.",
+      "en": "Passports are **not issued by the Municipality** but by the **Questura** (police headquarters). Applications start on the State Police portal."
+    }
+  },
+  {
+    "id": "faq-codice-fiscale",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["codice fiscale", "richiedere codice fiscale", "duplicato codice fiscale", "tessera sanitaria"],
+      "en": ["tax code", "italian tax code", "codice fiscale"]
+    },
+    "response_type": "quick_answer",
+    "response": {
+      "it": "Il codice fiscale si richiede all'**Agenzia delle Entrate**, non al Comune. Si può ottenere online, allo sportello o tramite delegato.",
+      "en": "The Italian tax code is issued by the **Italian Revenue Agency**, not the Municipality. Available online, at desks, or via delegate."
+    }
+  },
+  {
+    "id": "faq-spid",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["spid", "ottenere spid", "richiedere spid", "credenziali spid"],
+      "en": ["spid", "digital identity", "italian digital id"]
+    },
+    "response_type": "quick_answer",
+    "response": {
+      "it": "Lo SPID si richiede a un **Identity Provider** accreditato (Poste, Aruba, Lepida, ecc.), non al Comune. La procedura è gratuita o a pagamento secondo il provider scelto.",
+      "en": "SPID is requested from an accredited **Identity Provider** (Poste, Aruba, Lepida, etc.), not the Municipality. The procedure may be free or paid depending on the provider."
+    }
+  },
+  {
+    "id": "faq-certificato-nascita",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["certificato nascita", "estratto nascita", "atto di nascita"],
+      "en": ["birth certificate", "birth record"]
+    },
+    "response_type": "app_link",
+    "url": "https://www.comune.catania.it/servizi/default.aspx?category=6",
+    "response": {
+      "it": "Il certificato o estratto di nascita si richiede online tramite SPID/CIE o presso gli uffici anagrafe.",
+      "en": "Birth certificate is requested online via SPID/CIE or at registry offices."
+    }
+  },
+  {
+    "id": "faq-tari-cosa",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["cos'è la tari", "cosa è tari", "definizione tari", "significato tari"],
+      "en": ["what is tari", "tari meaning"]
+    },
+    "response_type": "quick_answer",
+    "response": {
+      "it": "La **TARI** è la tassa sui rifiuti. Si paga per coprire il costo del servizio di raccolta e smaltimento. La pagano sia chi possiede sia chi occupa un immobile.",
+      "en": "**TARI** is the waste tax. It covers waste collection and disposal costs. Both owners and occupants of a property pay it."
+    }
+  },
+  {
+    "id": "faq-tari-pagare",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["pagare tari", "come si paga la tari", "scadenza tari", "rate tari", "tassa rifiuti pagamento"],
+      "en": ["pay tari", "tari deadline", "waste tax payment"]
+    },
+    "response_type": "app_link",
+    "url": "https://catania.comune.digital/pagamenti-tributi/",
+    "response": {
+      "it": "Paga la TARI online tramite PagoPA. Le scadenze e le rate vengono comunicate ogni anno dal Comune.",
+      "en": "Pay TARI online via PagoPA. Deadlines and installments are announced yearly by the Municipality."
+    }
+  },
+  {
+    "id": "faq-imu-cosa",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["cos'è imu", "cosa è imu", "imposta casa cosa è", "tassa proprietà"],
+      "en": ["what is imu", "imu meaning", "italian property tax"]
+    },
+    "response_type": "quick_answer",
+    "response": {
+      "it": "L'**IMU** è l'Imposta Municipale Unica sugli immobili. Si paga su seconde case, immobili commerciali e terreni edificabili. La prima casa di abitazione è in genere esente, salvo case di lusso.",
+      "en": "**IMU** is the municipal property tax. Paid on second homes, commercial properties and buildable land. Primary residences are usually exempt, except luxury homes."
+    }
+  },
+  {
+    "id": "faq-imu-pagare",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["pagare imu", "scadenza imu", "rate imu", "f24 imu"],
+      "en": ["pay imu", "imu deadline"]
+    },
+    "response_type": "app_link",
+    "url": "https://catania.comune.digital/pagamenti-tributi/",
+    "response": {
+      "it": "Paga l'IMU online tramite PagoPA. Le scadenze nazionali sono giugno (acconto) e dicembre (saldo).",
+      "en": "Pay IMU online via PagoPA. National deadlines are June (advance) and December (balance)."
+    }
+  },
+  {
+    "id": "faq-multa-pagare",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["pagare multa", "come si paga multa", "verbale multa", "contravvenzione pagamento"],
+      "en": ["pay fine", "pay ticket", "traffic fine"]
+    },
+    "response_type": "app_link",
+    "url": "https://catania.comune.digital/pagamenti-tributi/",
+    "response": {
+      "it": "Paga le multe online tramite PagoPA, in tabaccheria, alle Poste o nei punti convenzionati.",
+      "en": "Pay fines online via PagoPA, at tobacconists, post offices or affiliated points."
+    }
+  },
+  {
+    "id": "faq-multa-ricorso",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["ricorso multa", "fare ricorso", "contestare multa", "opporsi a multa"],
+      "en": ["appeal fine", "challenge fine", "fine objection"]
+    },
+    "response_type": "quick_answer",
+    "response": {
+      "it": "Per fare ricorso a una multa hai **60 giorni** per il Giudice di Pace, **30 giorni** per il Prefetto. Servono il verbale e una memoria scritta.",
+      "en": "To appeal a fine you have **60 days** to the Justice of the Peace, **30 days** to the Prefect. You need the ticket and a written submission."
+    }
+  },
+  {
+    "id": "faq-rateizzazione",
+    "level": "L1",
+    "requires_intent": true,
+    "sensitive": false,
+    "triggers": {
+      "it": ["rateizzazione tasse", "rateizzare cartella", "pagamento a rate", "piano rientro tasse"],
+      "en": ["tax installments", "payment plan"]
+    },
+    "response_type": "app_link",
+    "url": "https://www.comune.catania.it/servizi/default.aspx?category=9",
+    "response": {
+      "it": "La rateizzazione è possibile in alcuni casi. Le condizioni dipendono dal tipo di tributo e dall'importo.",
+      "en": "Installment plans are available in certain cases. Conditions depend on the tax type and amount."
+    }
+  },
+  {
+    "id": "faq-tasi",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["tasi", "cos'è tasi", "abolizione tasi"],
+      "en": ["tasi", "what is tasi"]
+    },
+    "response_type": "quick_answer",
+    "response": {
+      "it": "La **TASI** è stata abolita dal 2020 e accorpata nell'IMU. Da allora si paga solo l'IMU.",
+      "en": "**TASI** was abolished in 2020 and merged into IMU. Since then, only IMU is paid."
+    }
+  },
+  {
+    "id": "faq-cosap",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["cosap", "cos'è cosap", "occupazione suolo pubblico"],
+      "en": ["cosap", "public ground occupation fee"]
+    },
+    "response_type": "quick_answer",
+    "response": {
+      "it": "Il **COSAP** è il canone per l'occupazione di suolo pubblico (es. dehors, ponteggi, banchi mercato). Lo paga chi occupa temporaneamente o stabilmente lo spazio pubblico.",
+      "en": "**COSAP** is the fee for occupying public ground (e.g. outdoor seating, scaffolding, market stalls). Paid by those temporarily or permanently using public space."
+    }
+  },
+  {
+    "id": "faq-differenziata-quando",
+    "level": "L2",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["quando passa umido", "quando passa plastica", "calendario rifiuti casa", "giorno raccolta", "quando esporre rifiuti", "che giorno passano"],
+      "en": ["when is collection", "collection day", "when is recycling pickup"]
+    },
+    "response_type": "app_link",
+    "url": "https://catania.comune.digital/differenziata-waste-recycling/",
+    "response": {
+      "it": "Il calendario della raccolta dipende dalla zona. Consulta il calendario aggiornato nella sezione Differenziata dell'app.",
+      "en": "Collection schedule depends on your area. Check the updated calendar in the Recycling section of the app."
+    }
+  },
+  {
+    "id": "faq-ingombranti",
+    "level": "L2",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["ingombranti", "ritiro ingombranti", "buttare divano", "buttare materasso", "buttare frigo", "rifiuti grandi"],
+      "en": ["bulky waste", "furniture pickup", "large items disposal"]
+    },
+    "response_type": "app_link",
+    "url": "https://catania.comune.digital/differenziata-waste-recycling/",
+    "response": {
+      "it": "Il ritiro degli ingombranti si prenota tramite il Comune. Mai abbandonarli in strada.",
+      "en": "Bulky waste pickup is booked through the Municipality. Never leave items in the street."
+    }
+  },
+  {
+    "id": "faq-isola-ecologica",
+    "level": "L2",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["isola ecologica", "centro raccolta", "dove portare rifiuti", "discarica comunale"],
+      "en": ["recycling center", "waste drop-off", "ecological island"]
+    },
+    "response_type": "app_link",
+    "url": "https://catania.comune.digital/differenziata-waste-recycling/",
+    "response": {
+      "it": "Trovi le isole ecologiche e i centri di raccolta nella sezione Differenziata dell'app.",
+      "en": "Find recycling centers and drop-off points in the Recycling section of the app."
+    }
+  },
+  {
+    "id": "faq-umido-cosa-mettere",
+    "level": "L2",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["cosa va nell'umido", "umido cosa mettere", "compost casa", "scarti cucina"],
+      "en": ["what goes in organic", "organic waste", "compost"]
+    },
+    "response_type": "quick_answer",
+    "response": {
+      "it": "Nell'**umido** vanno: scarti di frutta e verdura, avanzi di cibo, gusci d'uovo, fondi di caffè, carta da cucina sporca di cibo, fiori recisi. **Niente** plastica, vetro, pannolini.",
+      "en": "**Organic** waste includes: fruit and vegetable scraps, food leftovers, eggshells, coffee grounds, food-soiled paper towels, cut flowers. **No** plastic, glass or diapers."
+    }
+  },
+  {
+    "id": "faq-bus-biglietto",
+    "level": "L2",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["biglietto bus", "comprare biglietto autobus", "abbonamento bus", "ticket autobus"],
+      "en": ["bus ticket", "buy bus ticket", "bus pass"]
+    },
+    "response_type": "app_link",
+    "url": "https://catania.comune.digital/trasporto-urbano-public/",
+    "response": {
+      "it": "I biglietti del bus si comprano in tabaccheria, edicole, biglietterie, app o a bordo (con maggiorazione).",
+      "en": "Bus tickets are sold at tobacconists, news-stands, ticket offices, apps, or on board (surcharge applies)."
+    }
+  },
+  {
+    "id": "faq-metro-attiva",
+    "level": "L2",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["c'è la metro a catania", "metro catania funziona", "linea metro", "fce"],
+      "en": ["is there metro in catania", "catania subway", "fce"]
+    },
+    "response_type": "app_link",
+    "url": "https://catania.comune.digital/metro-subway/",
+    "response": {
+      "it": "Sì, Catania ha una metropolitana gestita dalla Ferrovia Circumetnea (FCE). Linee, fermate e orari nell'app.",
+      "en": "Yes, Catania has a subway operated by Ferrovia Circumetnea (FCE). Lines, stops and schedules in the app."
+    }
+  },
+  {
+    "id": "faq-aeroporto-bus",
+    "level": "L2",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["aeroporto come arrivare", "bus aeroporto", "alibus", "fontanarossa bus", "navetta aeroporto"],
+      "en": ["how to get to airport", "airport bus", "fontanarossa", "alibus"]
+    },
+    "response_type": "quick_answer",
+    "response": {
+      "it": "L'aeroporto di Catania **Fontanarossa** è collegato dalla linea **Alibus** dell'AMTS, attiva dal centro città in poco più di 20 minuti.",
+      "en": "Catania **Fontanarossa** airport is served by the **Alibus** AMTS line, running from the city center in just over 20 minutes."
+    }
+  },
+  {
+    "id": "faq-camper-parcheggio",
+    "level": "L3",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["parcheggio camper", "area camper", "sosta camper", "dove dormire camper"],
+      "en": ["camper parking", "rv parking", "motorhome park"]
+    },
+    "response_type": "app_link",
+    "url": "https://catania.comune.digital/posteggi-parking/",
+    "response": {
+      "it": "Le aree per camper sono indicate nella mappa parcheggi. Verifica sempre i regolamenti locali prima di sostare.",
+      "en": "Camper areas are shown on the parking map. Always check local rules before parking."
+    }
+  },
+  {
+    "id": "faq-ztl-cosa",
+    "level": "L2",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["cos'è ztl", "ztl catania", "zona traffico limitato", "ztl orari", "permesso ztl"],
+      "en": ["what is ztl", "limited traffic zone", "ztl permit"]
+    },
+    "response_type": "app_link",
+    "url": "https://www.comune.catania.it/servizi/default.aspx?category=4",
+    "response": {
+      "it": "La **ZTL** è la Zona a Traffico Limitato. Per orari, permessi e mappa consulta i servizi di mobilità del Comune.",
+      "en": "**ZTL** is the Limited Traffic Zone. For hours, permits and map check the Municipality mobility services."
+    }
+  },
+  {
+    "id": "faq-pass-disabili",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": true,
+    "triggers": {
+      "it": ["pass disabili", "contrassegno disabili", "permesso disabili", "stallo disabili"],
+      "en": ["disability pass", "disabled parking permit"]
+    },
+    "response_type": "app_link",
+    "url": "https://www.comune.catania.it/servizi/default.aspx?category=4",
+    "response": {
+      "it": "Il pass disabili (contrassegno europeo) si richiede presso gli uffici del Comune con certificato medico.",
+      "en": "Disability parking pass (European badge) is requested at Municipality offices with medical certification."
+    }
+  },
+  {
+    "id": "faq-strisce-blu-bianche",
+    "level": "L2",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["strisce blu", "strisce bianche", "parcheggio gratis", "parcheggio a pagamento", "parchimetro"],
+      "en": ["blue lines", "white lines", "free parking", "paid parking"]
+    },
+    "response_type": "quick_answer",
+    "response": {
+      "it": "Le strisce **bianche** sono sosta gratuita. Le strisce **blu** sono sosta a pagamento. Le strisce **gialle** sono per disabili o categorie autorizzate.",
+      "en": "**White** lines are free parking. **Blue** lines are paid parking. **Yellow** lines are for disabled or authorized vehicles."
+    }
+  },
+  {
+    "id": "faq-eventi-stasera",
+    "level": "L3",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["cosa fare stasera", "eventi questa sera", "stasera catania", "cosa c'è stasera", "weekend a catania"],
+      "en": ["what to do tonight", "tonight in catania", "weekend events"]
+    },
+    "response_type": "app_link",
+    "url": "https://catania.comune.digital/eventi-e-mostre/",
+    "response": {
+      "it": "Tutti gli eventi e gli spettacoli di oggi e dei prossimi giorni a Catania.",
+      "en": "All events and shows for today and the upcoming days in Catania."
+    }
+  },
+  {
+    "id": "faq-sant-agata-date",
+    "level": "L3",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["quando sant'agata", "data festa sant'agata", "festa patronale catania quando", "tre febbraio", "cinque febbraio"],
+      "en": ["when sant'agata", "patron saint date", "catania feast day"]
+    },
+    "response_type": "quick_answer",
+    "response": {
+      "it": "La festa di **Sant'Agata** si celebra il **3, 4 e 5 febbraio**. Una seconda celebrazione, l'ottava, ricorre il **17 agosto**.",
+      "en": "**Sant'Agata** festival is celebrated on **3, 4 and 5 February**. A second celebration, the octave, takes place on **17 August**."
+    }
+  },
+  {
+    "id": "faq-etna-vedere",
+    "level": "L3",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["come vedere etna", "salire etna", "escursione etna", "rifugio sapienza", "vulcano catania"],
+      "en": ["see etna", "etna excursion", "etna tour", "etna refuge"]
+    },
+    "response_type": "app_link",
+    "url": "https://catania.comune.digital/visit/",
+    "response": {
+      "it": "L'Etna è visibile da gran parte di Catania. Per le escursioni in quota si parte dal Rifugio Sapienza, raggiungibile con autobus o auto.",
+      "en": "Etna is visible from much of Catania. High-altitude excursions start from Rifugio Sapienza, reachable by bus or car."
+    }
+  },
+  {
+    "id": "faq-iscrizione-asilo",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["iscrivere asilo", "iscrizione nido", "iscrizione materna", "scuola infanzia iscrizione", "domanda nido"],
+      "en": ["nursery enrollment", "kindergarten enrollment", "preschool registration"]
+    },
+    "response_type": "app_link",
+    "url": "https://www.comune.catania.it/servizi/default.aspx?category=1",
+    "response": {
+      "it": "Le iscrizioni al nido e alla scuola dell'infanzia si fanno nei periodi indicati dal Comune. Tutto nei servizi di istruzione.",
+      "en": "Nursery and kindergarten enrollments take place in periods set by the Municipality. All in the education services."
+    }
+  },
+  {
+    "id": "faq-mensa-scolastica",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["mensa scolastica", "iscrizione mensa", "tariffe mensa", "buoni pasto scuola"],
+      "en": ["school meals", "school canteen", "meal vouchers"]
+    },
+    "response_type": "app_link",
+    "url": "https://www.comune.catania.it/servizi/default.aspx?category=1",
+    "response": {
+      "it": "Iscrizione, tariffe e modalità della mensa scolastica nei servizi di istruzione del Comune.",
+      "en": "Enrollment, fees and details of school meals in the Municipality education services."
+    }
+  },
+  {
+    "id": "faq-scuolabus",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["scuolabus", "trasporto scolastico", "pulmino scuola", "iscrizione scuolabus"],
+      "en": ["school bus", "student transport"]
+    },
+    "response_type": "app_link",
+    "url": "https://www.comune.catania.it/servizi/default.aspx?category=1",
+    "response": {
+      "it": "Servizio scuolabus: iscrizione, fermate e tariffe nei servizi di istruzione.",
+      "en": "School bus: enrollment, stops and fees in education services."
+    }
+  },
+  {
+    "id": "faq-concorsi-comune",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["concorsi pubblici", "concorso comune", "lavorare al comune", "bandi assunzione", "concorsi catania"],
+      "en": ["public competitions", "municipal jobs", "work for city", "job notices"]
+    },
+    "response_type": "app_link",
+    "url": "https://www.comune.catania.it/servizi/default.aspx?category=3",
+    "response": {
+      "it": "Concorsi pubblici e bandi di assunzione del Comune nei servizi di vita lavorativa.",
+      "en": "Public competitions and recruitment notices from the Municipality in the work services section."
+    }
+  },
+  {
+    "id": "faq-farmacia-turno",
+    "level": "L2",
+    "requires_intent": false,
+    "sensitive": true,
+    "triggers": {
+      "it": ["farmacia di turno", "farmacia aperta ora", "farmacia notturna", "farmacia oggi", "dove c'è farmacia aperta"],
+      "en": ["pharmacy on duty", "open pharmacy now", "night pharmacy"]
+    },
+    "response_type": "app_link",
+    "url": "https://catania.comune.digital/farmaturni/",
+    "response": {
+      "it": "Le farmacie di turno aperte di giorno e di notte, aggiornate quotidianamente.",
+      "en": "Pharmacies on duty open day and night, updated daily."
+    }
+  },
+  {
+    "id": "faq-pronto-soccorso",
+    "level": "L2",
+    "requires_intent": false,
+    "sensitive": true,
+    "triggers": {
+      "it": ["pronto soccorso", "ospedale catania", "emergenza sanitaria", "118", "ambulanza"],
+      "en": ["emergency room", "er", "hospital", "118", "ambulance"]
+    },
+    "response_type": "quick_answer",
+    "response": {
+      "it": "Per emergenze sanitarie chiama il **118**. Vai al pronto soccorso più vicino solo per situazioni urgenti. Per problemi non urgenti contatta il tuo medico di base o la guardia medica.",
+      "en": "For medical emergencies call **118**. Go to the nearest ER only for urgent situations. For non-urgent issues contact your GP or out-of-hours doctor."
+    }
+  },
+  {
+    "id": "faq-assistenza-anziani",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": true,
+    "triggers": {
+      "it": ["assistenza anziani", "aiuto anziani", "servizi anziani", "badante comune", "assistenza domiciliare"],
+      "en": ["elderly assistance", "senior care", "home care services"]
+    },
+    "response_type": "app_link",
+    "url": "https://www.comune.catania.it/servizi/default.aspx?category=2",
+    "response": {
+      "it": "Servizi di assistenza per anziani: assistenza domiciliare, sostegno economico, centri diurni.",
+      "en": "Elderly care services: home assistance, financial support, day centers."
+    }
+  },
+  {
+    "id": "faq-aprire-attivita",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["aprire attività", "aprire negozio", "aprire bar", "avviare impresa", "suap", "pratica suap"],
+      "en": ["start business", "open shop", "open store", "suap"]
+    },
+    "response_type": "app_link",
+    "url": "https://www.comune.catania.it/servizi/default.aspx?category=12",
+    "response": {
+      "it": "Per aprire un'attività usa il SUAP, lo Sportello Unico per le Attività Produttive del Comune.",
+      "en": "To open a business use the SUAP, the One-Stop Shop for Productive Activities at the Municipality."
+    }
+  },
+  {
+    "id": "faq-licenza-commerciale",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["licenza commerciale", "autorizzazione commercio", "permesso vendita", "licenza taxi", "licenza ncc"],
+      "en": ["commercial license", "trade license", "taxi license"]
+    },
+    "response_type": "app_link",
+    "url": "https://www.comune.catania.it/servizi/default.aspx?category=12",
+    "response": {
+      "it": "Licenze e autorizzazioni commerciali nei servizi per imprese e commercio.",
+      "en": "Commercial licenses and permits in the business and commerce services."
+    }
+  },
+  {
+    "id": "faq-permesso-costruire",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["permesso di costruire", "ristrutturazione casa", "lavori in casa", "edilizia comune", "concessione edilizia"],
+      "en": ["building permit", "construction permit", "renovation permit"]
+    },
+    "response_type": "app_link",
+    "url": "https://www.comune.catania.it/servizi/default.aspx?category=5",
+    "response": {
+      "it": "Permesso di costruire e altre pratiche edilizie nei servizi di catasto e urbanistica.",
+      "en": "Building permits and other construction procedures in land registry and urban planning services."
+    }
+  },
+  {
+    "id": "faq-scia",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["cos'è scia", "scia edilizia", "segnalazione inizio attività", "scia commerciale"],
+      "en": ["what is scia", "certified start notice"]
+    },
+    "response_type": "quick_answer",
+    "response": {
+      "it": "La **SCIA** è la Segnalazione Certificata di Inizio Attività. Sostituisce molte autorizzazioni: si presenta e si può iniziare subito, salvo controlli successivi.",
+      "en": "**SCIA** is the Certified Start of Activity Notice. It replaces many permits: file it and start right away, subject to later checks."
+    }
+  },
+  {
+    "id": "faq-cosa-vedere-catania",
+    "level": "L3",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["cosa vedere", "cosa visitare", "attrazioni catania", "luoghi imperdibili", "tour catania"],
+      "en": ["what to see", "what to visit", "must see", "catania highlights"]
+    },
+    "response_type": "app_link",
+    "url": "https://catania.comune.digital/visit/",
+    "response": {
+      "it": "I luoghi imperdibili di Catania: Piazza Duomo, via Etnea, Castello Ursino, Teatro Romano, Etna.",
+      "en": "Catania must-sees: Piazza Duomo, via Etnea, Castello Ursino, Roman Theatre, Mount Etna."
+    }
+  },
+  {
+    "id": "faq-dove-dormire",
+    "level": "L3",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["dove dormire", "alloggio", "hotel catania", "bed and breakfast", "dove pernottare"],
+      "en": ["where to stay", "accommodation", "hotel", "bnb"]
+    },
+    "response_type": "quick_answer",
+    "response": {
+      "it": "Catania offre hotel, B&B, agriturismi e ostelli in diverse zone: il centro storico per la vita notturna, vicino al porto per i collegamenti, le aree balneari della Plaja per il mare.",
+      "en": "Catania offers hotels, B&Bs, farm stays and hostels in various areas: the old town for nightlife, near the port for transport links, Plaja beachfront for seaside stays."
+    }
+  }
+]

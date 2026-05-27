@@ -1,0 +1,674 @@
+[
+  {
+    "id": "sito-amministrazione",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["amministrazione comunale", "struttura comune", "organigramma", "sito amministrazione", "uffici comune sito"],
+      "en": ["administration site", "city structure", "organisation chart"]
+    },
+    "response_type": "app_link",
+    "url": "https://www.comune.catania.it/amministrazione/",
+    "response": {
+      "it": "Pagina del sito istituzionale dedicata alla struttura amministrativa: organi di governo, uffici, personale e documenti.",
+      "en": "Municipality website page on administrative structure: governing bodies, offices, staff and documents."
+    }
+  },
+  {
+    "id": "sito-novita",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["sito notizie comune", "novità sito ufficiale", "comunicazioni comune", "tutte le novità"],
+      "en": ["city news site", "official updates", "all news"]
+    },
+    "response_type": "app_link",
+    "url": "https://www.comune.catania.it/novita/",
+    "response": {
+      "it": "Hub novità del sito istituzionale: notizie, comunicati e avvisi del Comune.",
+      "en": "News hub on the official website: news, press releases and notices from the Municipality."
+    }
+  },
+  {
+    "id": "sito-servizi",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["servizi comune", "elenco servizi", "tutti servizi", "servizi al cittadino"],
+      "en": ["city services", "all services", "services for citizens"]
+    },
+    "response_type": "app_link",
+    "url": "https://www.comune.catania.it/servizi/",
+    "response": {
+      "it": "Catalogo completo dei servizi del Comune: anagrafe, tributi, lavoro, imprese, scuola, sport, cultura.",
+      "en": "Full catalog of municipal services: registry, taxes, work, business, schools, sports, culture."
+    }
+  },
+  {
+    "id": "sito-vivere-comune",
+    "level": "L3",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["vivere catania", "vita in città", "luoghi", "vivere il comune"],
+      "en": ["living in catania", "city life", "places"]
+    },
+    "response_type": "app_link",
+    "url": "https://www.comune.catania.it/vivere-il-comune/",
+    "response": {
+      "it": "Sezione del sito dedicata a luoghi, eventi e vita cittadina.",
+      "en": "Website section on places, events and city life."
+    }
+  },
+  {
+    "id": "sito-argomenti",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["argomenti", "temi", "categorie sito", "argomenti comune"],
+      "en": ["topics", "themes", "categories"]
+    },
+    "response_type": "app_link",
+    "url": "https://www.comune.catania.it/argomenti.aspx",
+    "response": {
+      "it": "Tutti i contenuti del sito organizzati per argomento o tema.",
+      "en": "All website content organized by topic or theme."
+    }
+  },
+  {
+    "id": "sito-documenti-dati",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["documenti", "atti", "delibere", "modulistica", "moduli", "regolamenti", "atti normativi", "documenti pubblici"],
+      "en": ["documents", "acts", "regulations", "forms", "official documents"]
+    },
+    "response_type": "app_link",
+    "url": "https://www.comune.catania.it/amministrazione/documenti-e-dati/",
+    "response": {
+      "it": "Documenti del Comune: atti normativi, modulistica, regolamenti e documenti di funzionamento interno.",
+      "en": "Municipality documents: regulations, forms, official acts and internal operation documents."
+    }
+  },
+  {
+    "id": "argomento-turismo",
+    "level": "L3",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["turismo argomento", "tema turismo", "tag turismo"],
+      "en": ["tourism topic"]
+    },
+    "response_type": "app_link",
+    "url": "https://www.comune.catania.it/argomento.aspx?argument=Turismo",
+    "response": {
+      "it": "Tutti i contenuti del sito sul tema turismo.",
+      "en": "All website content about tourism."
+    }
+  },
+  {
+    "id": "sito-comunicati",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["comunicati stampa sindaco", "comunicato ufficiale", "ufficio stampa comune"],
+      "en": ["press releases", "official communications", "press office"]
+    },
+    "response_type": "app_link",
+    "url": "https://www.comune.catania.it/novita/comunicati/",
+    "response": {
+      "it": "Tutti i comunicati stampa del Comune di Catania.",
+      "en": "All press releases from the Catania Municipality."
+    }
+  },
+  {
+    "id": "sito-notizie",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["notizie ufficiali", "notizie sito", "convocazioni consigli"],
+      "en": ["official news", "site news"]
+    },
+    "response_type": "app_link",
+    "url": "https://www.comune.catania.it/novita/notizie/",
+    "response": {
+      "it": "Notizie ufficiali del Comune: convocazioni di consigli e municipi, comunicazioni operative.",
+      "en": "Official news: council and district convocations, operational communications."
+    }
+  },
+  {
+    "id": "sito-avvisi",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["avvisi pubblici", "bandi pubblici", "gare pubbliche", "selezioni", "valutazioni ambientali"],
+      "en": ["public notices", "tenders", "public calls"]
+    },
+    "response_type": "app_link",
+    "url": "https://www.comune.catania.it/novita/avvisi/",
+    "response": {
+      "it": "Avvisi pubblici, bandi, gare e selezioni del Comune di Catania.",
+      "en": "Public notices, tenders, calls and selection procedures from the Municipality."
+    }
+  },
+  {
+    "id": "organi-giunta",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["giunta", "giunta comunale", "assessori", "vicesindaco", "esecutivo comune"],
+      "en": ["executive board", "deputies", "deputy mayor"]
+    },
+    "response_type": "app_link",
+    "url": "https://www.comune.catania.it/amministrazione/organi-di-governo/default.aspx?unitaorganizzativa=30",
+    "response": {
+      "it": "Giunta comunale di Catania: vicesindaco e assessori con relative deleghe.",
+      "en": "Catania executive board: deputy mayor and deputies with their portfolios."
+    }
+  },
+  {
+    "id": "organi-consiglio",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["consiglio comunale", "consiglieri", "commissioni consiliari", "presidente consiglio"],
+      "en": ["city council", "councillors", "council commissions"]
+    },
+    "response_type": "app_link",
+    "url": "https://www.comune.catania.it/amministrazione/organi-di-governo/default.aspx?unitaorganizzativa=31",
+    "response": {
+      "it": "Consiglio comunale di Catania: composizione, presidente, commissioni e attività.",
+      "en": "Catania city council: composition, president, commissions and activities."
+    }
+  },
+  {
+    "id": "organi-circoscrizionale",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["consiglio circoscrizionale", "municipi catania", "consigli municipi", "presidente municipio"],
+      "en": ["district council", "districts", "neighborhood council"]
+    },
+    "response_type": "app_link",
+    "url": "https://www.comune.catania.it/amministrazione/organi-di-governo/default.aspx?unitaorganizzativa=1068",
+    "response": {
+      "it": "Consigli circoscrizionali dei municipi di Catania.",
+      "en": "District councils of the Catania municipalities."
+    }
+  },
+  {
+    "id": "elezioni",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["elezioni", "voto", "seggi", "votare", "elezioni comunali", "tessera elettorale"],
+      "en": ["elections", "voting", "polling stations", "electoral card"]
+    },
+    "response_type": "app_link",
+    "url": "https://www.comune.catania.it/altri-contenuti/elezioni/",
+    "response": {
+      "it": "Informazioni su elezioni, seggi, tessera elettorale e procedure di voto.",
+      "en": "Info on elections, polling stations, electoral card and voting procedures."
+    }
+  },
+  {
+    "id": "sito-siti-tematici",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["siti tematici comune", "portali tematici", "altri siti istituzionali"],
+      "en": ["thematic sites", "topical portals"]
+    },
+    "response_type": "app_link",
+    "url": "https://www.comune.catania.it/siti-tematici/default.aspx",
+    "response": {
+      "it": "Portali tematici del Comune di Catania per argomenti specifici.",
+      "en": "Thematic portals of the Catania Municipality for specific topics."
+    }
+  },
+  {
+    "id": "organi-di-governo",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["organi governo", "organi politici", "tutti organi"],
+      "en": ["governing bodies", "political bodies"]
+    },
+    "response_type": "app_link",
+    "url": "https://www.comune.catania.it/amministrazione/organi-di-governo/",
+    "response": {
+      "it": "Tutti gli organi di governo del Comune di Catania: sindaco, giunta, consiglio, municipi.",
+      "en": "All Catania governing bodies: mayor, executive board, council, districts."
+    }
+  },
+  {
+    "id": "film-commission",
+    "level": "L3",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["film commission", "produzioni cinema", "girare a catania", "permessi riprese", "set cinematografico"],
+      "en": ["film commission", "filming permits", "shoot in catania"]
+    },
+    "response_type": "app_link",
+    "url": "https://www.comune.catania.it/servizi/default.aspx?servizio=3192",
+    "response": {
+      "it": "Catania Film Commission: supporto e autorizzazioni per produzioni cinematografiche e audiovisive.",
+      "en": "Catania Film Commission: support and permits for film and audiovisual productions."
+    }
+  },
+  {
+    "id": "sito-faq",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["faq", "domande frequenti", "domande comuni", "risposte"],
+      "en": ["faq", "frequently asked questions", "common questions"]
+    },
+    "response_type": "app_link",
+    "url": "https://www.comune.catania.it/faq/",
+    "response": {
+      "it": "Domande frequenti dei cittadini con le risposte ufficiali del Comune.",
+      "en": "Citizens' frequently asked questions with official Municipality answers."
+    }
+  },
+  {
+    "id": "richiesta-assistenza",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["richiesta assistenza", "aiuto comune", "supporto comune", "assistenza sito"],
+      "en": ["assistance", "help desk", "support request"]
+    },
+    "response_type": "app_link",
+    "url": "https://www.comune.catania.it/richiesta-assistenza/default.aspx",
+    "response": {
+      "it": "Richiedi assistenza al Comune per problemi sul sito o per servizi specifici.",
+      "en": "Request Municipality assistance for site issues or specific services."
+    }
+  },
+  {
+    "id": "segnalazione-disservizio",
+    "level": "L2",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["segnalazione disservizio", "disservizio sito", "problema servizio", "lamentela"],
+      "en": ["service complaint", "report issue", "service disruption"]
+    },
+    "response_type": "app_link",
+    "url": "https://www.comune.catania.it/segnalazione-disservizio/default.aspx",
+    "response": {
+      "it": "Segnala un disservizio al Comune di Catania.",
+      "en": "Report a service issue to the Catania Municipality."
+    }
+  },
+  {
+    "id": "aree-amministrative",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["aree amministrative", "direzioni comune", "settori comune"],
+      "en": ["administrative areas", "city departments", "directorates"]
+    },
+    "response_type": "app_link",
+    "url": "https://www.comune.catania.it/amministrazione/aree-amministrative/",
+    "response": {
+      "it": "Aree e direzioni amministrative del Comune di Catania.",
+      "en": "Administrative areas and directorates of the Catania Municipality."
+    }
+  },
+  {
+    "id": "uffici-elenco",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["uffici comune elenco", "lista uffici comunali", "tutti gli uffici", "rubrica uffici"],
+      "en": ["offices list", "all city offices", "office directory"]
+    },
+    "response_type": "app_link",
+    "url": "https://www.comune.catania.it/amministrazione/uffici/",
+    "response": {
+      "it": "Elenco completo degli uffici del Comune di Catania con riferimenti e competenze.",
+      "en": "Full list of Catania Municipality offices with contacts and competences."
+    }
+  },
+  {
+    "id": "enti-fondazioni",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["enti", "fondazioni", "partecipate", "società comunali"],
+      "en": ["entities", "foundations", "city-owned companies"]
+    },
+    "response_type": "app_link",
+    "url": "https://www.comune.catania.it/amministrazione/enti-e-fondazioni/",
+    "response": {
+      "it": "Enti, fondazioni e società partecipate del Comune di Catania.",
+      "en": "Entities, foundations and city-owned companies of the Catania Municipality."
+    }
+  },
+  {
+    "id": "politici",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["politici", "rappresentanti politici", "eletti comune"],
+      "en": ["politicians", "elected officials"]
+    },
+    "response_type": "app_link",
+    "url": "https://www.comune.catania.it/amministrazione/politici/",
+    "response": {
+      "it": "Elenco dei politici eletti negli organi del Comune di Catania.",
+      "en": "List of elected officials in Catania Municipality bodies."
+    }
+  },
+  {
+    "id": "personale-amministrativo",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["personale amministrativo", "dipendenti comune", "dirigenti", "funzionari"],
+      "en": ["administrative staff", "city employees", "officials"]
+    },
+    "response_type": "app_link",
+    "url": "https://www.comune.catania.it/amministrazione/personale-amministrativo/",
+    "response": {
+      "it": "Personale amministrativo del Comune di Catania: dirigenti e funzionari.",
+      "en": "Administrative staff of the Catania Municipality: directors and officials."
+    }
+  },
+  {
+    "id": "servizi-anagrafe",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["anagrafe", "stato civile", "residenza", "cambio residenza", "certificato residenza", "certificato nascita", "certificato morte", "carta identità", "cie"],
+      "en": ["civil registry", "residence", "id card", "birth certificate", "death certificate"]
+    },
+    "response_type": "app_link",
+    "url": "https://www.comune.catania.it/servizi/default.aspx?category=6",
+    "response": {
+      "it": "Servizi di anagrafe e stato civile: residenza, certificati, carta d'identità.",
+      "en": "Civil registry and vital records services: residence, certificates, ID card."
+    }
+  },
+  {
+    "id": "servizi-cultura",
+    "level": "L3",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["cultura", "tempo libero", "sport", "eventi culturali", "biblioteche servizi", "associazioni culturali"],
+      "en": ["culture", "leisure", "sport", "cultural events"]
+    },
+    "response_type": "app_link",
+    "url": "https://www.comune.catania.it/servizi/default.aspx?category=10",
+    "response": {
+      "it": "Servizi di cultura e tempo libero: biblioteche, sport, associazioni, eventi culturali.",
+      "en": "Culture and leisure services: libraries, sports, associations, cultural events."
+    }
+  },
+  {
+    "id": "servizi-lavoro",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["lavoro", "concorsi pubblici", "concorsi comune", "vita lavorativa", "selezioni personale", "graduatorie"],
+      "en": ["work", "public competitions", "job notices", "employment"]
+    },
+    "response_type": "app_link",
+    "url": "https://www.comune.catania.it/servizi/default.aspx?category=3",
+    "response": {
+      "it": "Servizi per la vita lavorativa: concorsi pubblici, graduatorie, opportunità di lavoro.",
+      "en": "Work-related services: public competitions, rankings, employment opportunities."
+    }
+  },
+  {
+    "id": "servizi-imprese",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["imprese", "commercio", "attività economiche", "esercizi commerciali", "suap", "apertura attività"],
+      "en": ["business", "commerce", "company permits", "business activities"]
+    },
+    "response_type": "app_link",
+    "url": "https://www.comune.catania.it/servizi/default.aspx?category=12",
+    "response": {
+      "it": "Servizi per imprese e commercio: avvio attività, autorizzazioni, SUAP.",
+      "en": "Services for business and commerce: start-up, permits, business one-stop shop."
+    }
+  },
+  {
+    "id": "servizi-appalti",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["appalti", "appalti pubblici", "gare", "forniture", "lavori pubblici"],
+      "en": ["public procurement", "tenders", "supplies", "public works"]
+    },
+    "response_type": "app_link",
+    "url": "https://www.comune.catania.it/servizi/default.aspx?category=14",
+    "response": {
+      "it": "Servizi per appalti pubblici: gare, forniture, lavori, procedure.",
+      "en": "Public procurement services: tenders, supplies, works, procedures."
+    }
+  },
+  {
+    "id": "servizi-catasto-urbanistica",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["catasto", "urbanistica", "edilizia", "permessi costruire", "scia edilizia", "piano regolatore"],
+      "en": ["land registry", "urban planning", "building permits"]
+    },
+    "response_type": "app_link",
+    "url": "https://www.comune.catania.it/servizi/default.aspx?category=5",
+    "response": {
+      "it": "Servizi di catasto e urbanistica: permessi di costruire, SCIA, piano regolatore.",
+      "en": "Land registry and urban planning services: building permits, SCIA, urban plan."
+    }
+  },
+  {
+    "id": "servizi-turismo",
+    "level": "L3",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["servizi turismo", "info turistiche", "ufficio turismo"],
+      "en": ["tourism services", "tourist info", "tourist office"]
+    },
+    "response_type": "app_link",
+    "url": "https://www.comune.catania.it/servizi/default.aspx?category=7",
+    "response": {
+      "it": "Servizi turistici del Comune: informazioni, autorizzazioni e supporto a operatori.",
+      "en": "Municipality tourism services: information, permits and operator support."
+    }
+  },
+  {
+    "id": "servizi-mobilita",
+    "level": "L2",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["mobilità", "trasporti servizi", "ztl", "permessi ztl", "pass disabili", "passi carrai", "permessi sosta"],
+      "en": ["mobility", "transport services", "ztl", "disability pass", "parking permits"]
+    },
+    "response_type": "app_link",
+    "url": "https://www.comune.catania.it/servizi/default.aspx?category=4",
+    "response": {
+      "it": "Servizi di mobilità e trasporti: ZTL, pass disabili, passi carrai, permessi sosta.",
+      "en": "Mobility and transport services: ZTL, disability passes, driveway passes, parking permits."
+    }
+  },
+  {
+    "id": "servizi-istruzione",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["istruzione", "scuole iscrizioni", "asilo iscrizione", "mensa scolastica", "scuolabus", "borse di studio"],
+      "en": ["education", "school enrollment", "school meals", "scholarships"]
+    },
+    "response_type": "app_link",
+    "url": "https://www.comune.catania.it/servizi/default.aspx?category=1",
+    "response": {
+      "it": "Servizi per istruzione e formazione: iscrizioni nido e materne, mensa, scuolabus, borse di studio.",
+      "en": "Education and training services: nursery and kindergarten enrollment, meals, school bus, scholarships."
+    }
+  },
+  {
+    "id": "servizi-giustizia-sicurezza",
+    "level": "L2",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["giustizia", "sicurezza", "polizia locale", "polizia municipale", "ordinanze sindaco"],
+      "en": ["justice", "security", "local police", "mayor orders"]
+    },
+    "response_type": "app_link",
+    "url": "https://www.comune.catania.it/servizi/default.aspx?category=8",
+    "response": {
+      "it": "Servizi di giustizia e sicurezza pubblica: polizia locale, ordinanze, sicurezza urbana.",
+      "en": "Justice and public safety services: local police, ordinances, urban safety."
+    }
+  },
+  {
+    "id": "servizi-tributi-multe",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["tributi sito", "finanze comunali", "contravvenzioni", "verbali multe", "ricorso multa", "rateizzazione tasse"],
+      "en": ["taxes site", "city finances", "fines appeal", "tax installments"]
+    },
+    "response_type": "app_link",
+    "url": "https://www.comune.catania.it/servizi/default.aspx?category=9",
+    "response": {
+      "it": "Servizi di tributi, finanze e contravvenzioni: ricorsi, rateizzazioni, autocertificazioni.",
+      "en": "Tax, finance and fines services: appeals, installments, self-certifications."
+    }
+  },
+  {
+    "id": "servizi-ambiente",
+    "level": "L2",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["ambiente servizi", "tutela ambientale", "rifiuti speciali servizi", "verde pubblico", "qualità aria"],
+      "en": ["environment services", "environmental protection", "special waste", "air quality"]
+    },
+    "response_type": "app_link",
+    "url": "https://www.comune.catania.it/servizi/default.aspx?category=11",
+    "response": {
+      "it": "Servizi ambientali del Comune: tutela ambiente, gestione rifiuti speciali, verde pubblico.",
+      "en": "Environmental services of the Municipality: protection, special waste management, public greenery."
+    }
+  },
+  {
+    "id": "servizi-sociali",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": true,
+    "triggers": {
+      "it": ["servizi sociali", "salute", "assistenza", "anziani", "famiglie disagio", "disabili", "welfare"],
+      "en": ["social services", "health", "welfare", "elderly", "disability"]
+    },
+    "response_type": "app_link",
+    "url": "https://www.comune.catania.it/servizi/default.aspx?category=2",
+    "response": {
+      "it": "Servizi di salute, benessere e assistenza: anziani, famiglie, disabili, sostegno sociale.",
+      "en": "Health, wellness and welfare services: elderly, families, disability, social support."
+    }
+  },
+  {
+    "id": "servizi-autorizzazioni",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["autorizzazioni", "licenze", "concessioni", "permessi vari"],
+      "en": ["permits", "licenses", "authorizations", "concessions"]
+    },
+    "response_type": "app_link",
+    "url": "https://www.comune.catania.it/servizi/default.aspx?category=13",
+    "response": {
+      "it": "Servizi di autorizzazioni, licenze e concessioni del Comune.",
+      "en": "Authorizations, licenses and concessions services from the Municipality."
+    }
+  },
+  {
+    "id": "servizi-agricoltura-pesca",
+    "level": "L1",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["agricoltura", "pesca", "aziende agricole", "pescatori"],
+      "en": ["agriculture", "fishing", "farming"]
+    },
+    "response_type": "app_link",
+    "url": "https://www.comune.catania.it/servizi/default.aspx?category=15",
+    "response": {
+      "it": "Servizi del Comune per agricoltura e pesca.",
+      "en": "Municipality services for agriculture and fishing."
+    }
+  },
+  {
+    "id": "sito-luoghi",
+    "level": "L3",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["luoghi catania", "siti culturali", "monumenti elenco", "patrimonio", "edifici storici"],
+      "en": ["places", "cultural sites", "monuments", "heritage buildings"]
+    },
+    "response_type": "app_link",
+    "url": "https://www.comune.catania.it/vivere-il-comune/luoghi/",
+    "response": {
+      "it": "Luoghi e siti culturali di Catania: musei, archivi, biblioteche, palazzi, castelli, aree archeologiche.",
+      "en": "Cultural places and sites of Catania: museums, archives, libraries, palaces, castles, archaeological sites."
+    }
+  },
+  {
+    "id": "sito-eventi",
+    "level": "L3",
+    "requires_intent": false,
+    "sensitive": false,
+    "triggers": {
+      "it": ["eventi sito", "calendario eventi sito", "manifestazioni ufficiali"],
+      "en": ["site events", "official events calendar"]
+    },
+    "response_type": "app_link",
+    "url": "https://www.comune.catania.it/vivere-il-comune/eventi/",
+    "response": {
+      "it": "Calendario degli eventi pubblici del Comune di Catania.",
+      "en": "Calendar of public events from the Catania Municipality."
+    }
+  }
+]
