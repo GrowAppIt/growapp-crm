@@ -1,22 +1,26 @@
 /**
- * 🗺️ MAPPA APP COMUNI — v3.9.0
+ * 🗺️ MAPPA APP COMUNI — v3.10.0
  *
- * Cambiamenti rispetto a v3.8.0:
+ * Cambiamenti rispetto a v3.9.0:
+ *   ✅ Heatmap di copertura regionale (toggle) — colora le regioni italiane
+ *      in scala in base al numero di app realizzate
+ *   ✅ Vista Satellite alternativa (Esri World Imagery, gratis, niente API key)
+ *   ✅ Modalità Fullscreen — utile per pitch su monitor grandi
+ *   ✅ Export PNG della mappa (html2canvas, già caricato globalmente)
+ *   ✅ Stat copertura nazionale: "X comuni su 7.909 ISTAT (Y%)" nella barra in fondo
+ *   ✅ Tooltip al passaggio del mouse: nome app senza dover cliccare
+ *
+ * Cambiamenti v3.9.0:
  *   ✅ Inferenza automatica del comune dal "nome" quando il campo comune è vuoto
- *      (es. "Comune di Mezzolombardo" → "Mezzolombardo")
- *   ✅ Pulsante "Geocodifica ora" nel popup "senza posizione" — ritenta Nominatim
- *      senza dover ricaricare la pagina
- *   ✅ Persistenza dei filtri (stato + cliente + search) in localStorage
- *   ✅ Clustering dei marker via Leaflet.markercluster (lazy-load da CDN)
- *   ✅ Badge "NUOVA" con anellino pulsante per le app create negli ultimi 30 giorni
+ *   ✅ Pulsante "Geocodifica ora" nel popup "senza posizione"
+ *   ✅ Persistenza filtri in localStorage
+ *   ✅ Clustering marker via Leaflet.markercluster (lazy-load CDN)
+ *   ✅ Badge "NUOVA" anellino pulsante (app ultimi 30 gg)
  *   ✅ Pannello laterale con search + click-to-zoom (bottom sheet su mobile)
- *   ✅ Filtro aggiuntivo per cliente pagante
- *   ✅ Stat "cittadini serviti" nella barra in fondo (somma popolazione app attive)
- *   ✅ Icone diverse per stato (📱⚙⏸✕🧪)
- *   ✅ Deep link ?app=<id> — apri direttamente l'app o condividi il link
- *
- * Visualizza sulla mappa d'Italia le app realizzate per i comuni.
- * Geolocalizza le app usando Nominatim (OpenStreetMap) e salva le coordinate su Firestore.
+ *   ✅ Filtro per cliente pagante
+ *   ✅ Stat "cittadini serviti" (somma popolazione app attive)
+ *   ✅ Icone differenziate per stato
+ *   ✅ Deep link ?app=<id>
  *
  * ⚡ PER RIMUOVERE: eliminare questo file + rimuovere le righe aggiunte in:
  *    - index.html (script + leaflet css/js + menu-item mappa)
@@ -28,14 +32,19 @@
 const MappaClienti = {
     map: null,
     markers: [],
-    markersById: {},          // appId → marker (per click dal pannello laterale)
-    markerClusterGroup: null, // gruppo Leaflet.markercluster
+    markersById: {},
+    markerClusterGroup: null,
+    tileLayerStreet: null,
+    tileLayerSatellite: null,
+    vistaSatellite: false,
+    heatmapLayer: null,
+    heatmapAttiva: false,
+    regionGeoJsonCache: null,
     apps: [],
     appsFiltrate: [],
     geocodeCache: {},
     _appSenzaPosizione: [],
 
-    // Stato filtri persistito su localStorage
     filtri: {
         stato: 'tutti',
         cliente: 'tutti',
@@ -45,57 +54,41 @@ const MappaClienti = {
 
     // Costanti
     GIORNI_NUOVA_APP: 30,
+    TOTALE_COMUNI_ISTAT: 7909, // Aggiornato da public/js/data/comuni-italiani.json
     PLUGIN_CLUSTER_JS: 'https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js',
     PLUGIN_CLUSTER_CSS_MAIN: 'https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css',
     PLUGIN_CLUSTER_CSS_THEME: 'https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css',
+    GEOJSON_REGIONI: 'https://cdn.jsdelivr.net/gh/openpolis/geojson-italy@master/geojson/limits_IT_regions.geojson',
 
     async render() {
         const mainContent = document.getElementById('mainContent');
-
-        // Carica filtri salvati
         this.caricaFiltri();
 
         mainContent.innerHTML = `
             <style>
-                /* Animazione pulse per badge "Nuova" */
                 @keyframes mappaPulseNuova {
                     0%   { box-shadow: 0 0 0 0 rgba(60, 164, 52, 0.7); }
                     70%  { box-shadow: 0 0 0 10px rgba(60, 164, 52, 0); }
                     100% { box-shadow: 0 0 0 0 rgba(60, 164, 52, 0); }
                 }
-                .mappa-marker-nuovo {
-                    animation: mappaPulseNuova 1.6s infinite;
-                    border-radius: 50%;
-                }
-                /* Highlight quando si clicca dal pannello laterale */
+                .mappa-marker-nuovo { animation: mappaPulseNuova 1.6s infinite; border-radius: 50%; }
                 @keyframes mappaHighlight {
                     0%   { transform: scale(1);   filter: brightness(1); }
                     50%  { transform: scale(1.8); filter: brightness(1.4); }
                     100% { transform: scale(1);   filter: brightness(1); }
                 }
-                .mappa-marker-highlight {
-                    animation: mappaHighlight 1.2s ease-in-out;
-                }
-                /* Badge "NUOVA" su pannello laterale */
+                .mappa-marker-highlight { animation: mappaHighlight 1.2s ease-in-out; }
                 .mappa-badge-nuova {
                     background: var(--verde-700, #3CA434);
-                    color: white;
-                    font-size: 0.65rem;
-                    font-weight: 700;
-                    padding: 1px 6px;
-                    border-radius: 8px;
-                    margin-left: 6px;
+                    color: white; font-size: 0.65rem; font-weight: 700;
+                    padding: 1px 6px; border-radius: 8px; margin-left: 6px;
                     letter-spacing: 0.5px;
                 }
-                /* Riga lista app */
                 .mappa-lista-riga {
-                    padding: 0.55rem 0.75rem;
-                    border-radius: 6px;
-                    cursor: pointer;
+                    padding: 0.55rem 0.75rem; border-radius: 6px; cursor: pointer;
                     border-left: 3px solid transparent;
                     transition: background 0.15s, border-color 0.15s;
-                    font-size: 0.85rem;
-                    line-height: 1.3;
+                    font-size: 0.85rem; line-height: 1.3;
                 }
                 .mappa-lista-riga:hover {
                     background: var(--blu-100, #D1E2F2);
@@ -108,49 +101,93 @@ const MappaClienti = {
                 }
                 .mappa-lista-comune {
                     color: var(--grigio-500, #9B9B9B);
-                    font-size: 0.75rem;
-                    margin-top: 2px;
+                    font-size: 0.75rem; margin-top: 2px;
                 }
-                /* Layout responsive pannello/mappa */
                 .mappa-layout {
-                    display: flex;
-                    flex: 1;
-                    min-height: 0;
-                    position: relative;
+                    display: flex; flex: 1; min-height: 0; position: relative;
                 }
                 .mappa-pannello {
-                    width: 320px;
-                    background: white;
+                    width: 320px; background: white;
                     border-right: 1px solid var(--grigio-300, #D9D9D9);
-                    display: flex;
-                    flex-direction: column;
-                    flex-shrink: 0;
+                    display: flex; flex-direction: column; flex-shrink: 0;
                 }
-                .mappa-pannello-toggle {
-                    display: none;
-                }
+                .mappa-pannello-toggle { display: none; }
                 @media (max-width: 768px) {
                     .mappa-pannello {
-                        position: absolute;
-                        top: 0; bottom: 0; left: 0;
-                        width: 85%;
-                        max-width: 320px;
+                        position: absolute; top: 0; bottom: 0; left: 0;
+                        width: 85%; max-width: 320px;
                         z-index: 1000;
                         transform: translateX(-100%);
                         transition: transform 0.25s ease;
                         box-shadow: 2px 0 12px rgba(0,0,0,0.15);
                     }
-                    .mappa-pannello.aperto {
-                        transform: translateX(0);
-                    }
-                    .mappa-pannello-toggle {
-                        display: inline-flex;
-                    }
+                    .mappa-pannello.aperto { transform: translateX(0); }
+                    .mappa-pannello-toggle { display: inline-flex; }
                 }
+                /* Toolbar mappa (vista, heatmap, fullscreen, export) */
+                .mappa-toolbar {
+                    position: absolute;
+                    top: 10px; right: 10px;
+                    z-index: 999;
+                    background: white;
+                    border-radius: 8px;
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+                    display: flex; flex-direction: column;
+                    overflow: hidden;
+                }
+                .mappa-toolbar button {
+                    background: white; border: none;
+                    padding: 0.55rem 0.7rem;
+                    cursor: pointer; font-size: 0.95rem;
+                    color: var(--blu-700, #145284);
+                    border-bottom: 1px solid var(--grigio-300, #D9D9D9);
+                    transition: background 0.15s;
+                    min-width: 38px;
+                    display: flex; align-items: center; justify-content: center;
+                }
+                .mappa-toolbar button:last-child { border-bottom: none; }
+                .mappa-toolbar button:hover { background: var(--blu-100, #D1E2F2); }
+                .mappa-toolbar button.attivo {
+                    background: var(--blu-700, #145284);
+                    color: white;
+                }
+                /* Legenda heatmap (overlay in basso a sinistra mappa) */
+                .mappa-heatmap-legenda {
+                    position: absolute;
+                    bottom: 18px; left: 12px;
+                    z-index: 999;
+                    background: white;
+                    padding: 0.55rem 0.7rem;
+                    border-radius: 6px;
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+                    font-size: 0.75rem;
+                    font-family: 'Titillium Web', sans-serif;
+                    color: var(--grigio-700, #4A4A4A);
+                    max-width: 230px;
+                }
+                .mappa-heatmap-legenda .scala {
+                    display: flex; align-items: center; gap: 4px;
+                    margin-top: 5px;
+                }
+                .mappa-heatmap-legenda .scala span {
+                    height: 10px; flex: 1;
+                }
+                /* Tooltip Leaflet personalizzato */
+                .leaflet-tooltip.mappa-tip {
+                    background: rgba(20, 82, 132, 0.92);
+                    color: white;
+                    border: none; padding: 4px 8px;
+                    font-family: 'Titillium Web', sans-serif;
+                    font-size: 0.8rem; font-weight: 600;
+                }
+                .leaflet-tooltip.mappa-tip::before { border-top-color: rgba(20, 82, 132, 0.92); }
+                /* Fullscreen */
+                .page-container:fullscreen { background: white; }
+                .page-container:-webkit-full-screen { background: white; }
             </style>
 
-            <div class="page-container" style="padding: 0; height: calc(100vh - var(--header-height)); display: flex; flex-direction: column;">
-                <!-- Header della pagina -->
+            <div class="page-container" id="mappaPageContainer" style="padding: 0; height: calc(100vh - var(--header-height)); display: flex; flex-direction: column;">
+                <!-- Header -->
                 <div style="padding: 1rem 1.5rem; background: white; border-bottom: 1px solid var(--grigio-300); flex-shrink: 0;">
                     <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
                         <div style="display: flex; align-items: center; gap: 0.5rem;">
@@ -215,7 +252,7 @@ const MappaClienti = {
                     </div>
                 </div>
 
-                <!-- Barra di progresso geocoding (nascosta di default) -->
+                <!-- Barra di progresso geocoding -->
                 <div id="geocodingProgress" class="hidden" style="padding: 0.5rem 1.5rem; background: var(--blu-100); border-bottom: 1px solid var(--grigio-300); flex-shrink: 0;">
                     <div style="display: flex; align-items: center; gap: 0.75rem;">
                         <i class="fas fa-search-location" style="color: var(--blu-700);"></i>
@@ -253,22 +290,36 @@ const MappaClienti = {
                                 <p>Caricamento mappa...</p>
                             </div>
                         </div>
+
+                        <!-- Toolbar mappa -->
+                        <div class="mappa-toolbar" id="mappaToolbar" style="display: none;">
+                            <button id="btnVistaSatellite" title="Vista satellite" onclick="MappaClienti.toggleVistaSatellite()">
+                                <i class="fas fa-satellite"></i>
+                            </button>
+                            <button id="btnHeatmap" title="Heatmap copertura regionale" onclick="MappaClienti.toggleHeatmap()">
+                                <i class="fas fa-fire"></i>
+                            </button>
+                            <button id="btnFullscreen" title="Modalità schermo intero" onclick="MappaClienti.toggleFullscreen()">
+                                <i class="fas fa-expand"></i>
+                            </button>
+                            <button id="btnExportPng" title="Esporta come immagine PNG" onclick="MappaClienti.esportaPng()">
+                                <i class="fas fa-camera"></i>
+                            </button>
+                        </div>
                     </div>
                 </div>
 
-                <!-- Stats bar in fondo -->
+                <!-- Stats bar -->
                 <div id="mappaStats" class="hidden" style="padding: 0.75rem 1.5rem; background: var(--blu-900, #0d3a5f); color: white; display: flex; justify-content: space-around; flex-wrap: wrap; gap: 0.5rem; flex-shrink: 0; font-size: 0.8rem;">
                 </div>
             </div>
         `;
 
-        // Ripristina valori filtri nel DOM
         const selStato = document.getElementById('mappaFiltroStato');
         if (selStato) selStato.value = this.filtri.stato;
         const inputSearch = document.getElementById('mappaSearch');
         if (inputSearch) inputSearch.value = this.filtri.search;
 
-        // Carica dati, plugin cluster e inizializza
         await this.caricaDati();
         await this.ensureClusterPlugin();
         this.inizializzaMappa();
@@ -277,11 +328,15 @@ const MappaClienti = {
         this.aggiornaStats();
         this.aggiornaListaPannello();
         this.gestisciDeepLink();
+
+        // Mostra la toolbar mappa solo quando la mappa è pronta
+        const toolbar = document.getElementById('mappaToolbar');
+        if (toolbar) toolbar.style.display = 'flex';
     },
 
-    // ───────────────────────────────────────────────────────────
+    // ═══════════════════════════════════════════════════════════
     // PERSISTENZA FILTRI
-    // ───────────────────────────────────────────────────────────
+    // ═══════════════════════════════════════════════════════════
     caricaFiltri() {
         try {
             const raw = localStorage.getItem(this.LS_KEY);
@@ -289,13 +344,11 @@ const MappaClienti = {
                 const saved = JSON.parse(raw);
                 this.filtri = Object.assign(this.filtri, saved);
             }
-        } catch (e) { /* ignora */ }
+        } catch (e) {}
     },
 
     salvaFiltri() {
-        try {
-            localStorage.setItem(this.LS_KEY, JSON.stringify(this.filtri));
-        } catch (e) { /* ignora */ }
+        try { localStorage.setItem(this.LS_KEY, JSON.stringify(this.filtri)); } catch (e) {}
     },
 
     async cambiaFiltro(campo, valore) {
@@ -304,16 +357,16 @@ const MappaClienti = {
         await this.posizionaMarkers();
         this.aggiornaListaPannello();
         this.aggiornaStats();
+        if (this.heatmapAttiva) this.aggiornaHeatmap();
     },
 
-    // ───────────────────────────────────────────────────────────
-    // CARICAMENTO DATI
-    // ───────────────────────────────────────────────────────────
+    // ═══════════════════════════════════════════════════════════
+    // DATI
+    // ═══════════════════════════════════════════════════════════
     async caricaDati() {
         try {
             const snapshot = await db.collection('app').get();
             this.apps = [];
-
             snapshot.forEach(doc => {
                 const data = doc.data();
                 this.apps.push({
@@ -336,7 +389,6 @@ const MappaClienti = {
                     lng: data.lng || null
                 });
             });
-
             console.log(`🗺️ Caricate ${this.apps.length} app`);
         } catch (error) {
             console.error('Errore caricamento app per mappa:', error);
@@ -354,7 +406,6 @@ const MappaClienti = {
             }
         });
         const ordinati = Array.from(set.entries()).sort((a, b) => a[1].localeCompare(b[1]));
-        // Mantiene la prima option "Tutti i clienti"
         sel.innerHTML = '<option value="tutti">Tutti i clienti</option>' +
             ordinati.map(([id, nome]) =>
                 `<option value="${id}">${nome.replace(/</g, '&lt;')}</option>`
@@ -362,13 +413,12 @@ const MappaClienti = {
         sel.value = this.filtri.cliente || 'tutti';
     },
 
-    // ───────────────────────────────────────────────────────────
-    // PLUGIN CLUSTER (lazy-load da CDN, una sola volta)
-    // ───────────────────────────────────────────────────────────
+    // ═══════════════════════════════════════════════════════════
+    // PLUGIN CLUSTER (lazy-load CDN)
+    // ═══════════════════════════════════════════════════════════
     async ensureClusterPlugin() {
         if (window.L && window.L.markerClusterGroup) return;
 
-        // CSS
         if (!document.querySelector(`link[href="${this.PLUGIN_CLUSTER_CSS_MAIN}"]`)) {
             const css1 = document.createElement('link');
             css1.rel = 'stylesheet';
@@ -382,7 +432,6 @@ const MappaClienti = {
             document.head.appendChild(css2);
         }
 
-        // JS
         return new Promise((resolve) => {
             const existing = document.querySelector(`script[src="${this.PLUGIN_CLUSTER_JS}"]`);
             if (existing) {
@@ -402,9 +451,9 @@ const MappaClienti = {
         });
     },
 
-    // ───────────────────────────────────────────────────────────
+    // ═══════════════════════════════════════════════════════════
     // ICONE
-    // ───────────────────────────────────────────────────────────
+    // ═══════════════════════════════════════════════════════════
     getColoreStato(statoApp) {
         switch (statoApp) {
             case 'ATTIVA':       return { bg: '#3CA434', border: '#2A752F' };
@@ -455,12 +504,9 @@ const MappaClienti = {
         return L.divIcon({
             className: 'custom-marker',
             html: `<div class="${nuovaClass}" style="
-                width: 20px; height: 20px;
-                border-radius: 50%;
-                background: ${colore.bg};
-                border: 2px solid ${colore.border};
-                box-shadow: 0 1px 4px rgba(0,0,0,0.3);
-                cursor: pointer;
+                width: 20px; height: 20px; border-radius: 50%;
+                background: ${colore.bg}; border: 2px solid ${colore.border};
+                box-shadow: 0 1px 4px rgba(0,0,0,0.3); cursor: pointer;
                 display: flex; align-items: center; justify-content: center;
             "><i class="fas ${iconClass}" style="color: white; font-size: 9px;"></i></div>`,
             iconSize: [20, 20],
@@ -469,12 +515,15 @@ const MappaClienti = {
         });
     },
 
-    // ───────────────────────────────────────────────────────────
-    // MAPPA
-    // ───────────────────────────────────────────────────────────
+    // ═══════════════════════════════════════════════════════════
+    // MAPPA + TILE LAYERS
+    // ═══════════════════════════════════════════════════════════
     inizializzaMappa() {
         const container = document.getElementById('mappaContainer');
+        // Mantieni la toolbar (.mappa-toolbar) anche dopo il reset
+        const toolbar = container.querySelector('.mappa-toolbar');
         container.innerHTML = '';
+        if (toolbar) container.appendChild(toolbar);
 
         this.map = L.map(container, {
             zoomControl: true,
@@ -482,32 +531,268 @@ const MappaClienti = {
             attributionControl: true
         }).setView([41.9, 12.5], 6);
 
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        // Tile layer "strada" (OpenStreetMap)
+        this.tileLayerStreet = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
             maxZoom: 18
-        }).addTo(this.map);
+        });
+        // Tile layer "satellite" (Esri World Imagery, gratis, niente API key)
+        this.tileLayerSatellite = L.tileLayer(
+            'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+            {
+                attribution: 'Tiles &copy; Esri — Source: Esri, USDA, USGS, AeroGRID, IGN, and the GIS User Community',
+                maxZoom: 19
+            }
+        );
+
+        if (this.vistaSatellite) {
+            this.tileLayerSatellite.addTo(this.map);
+        } else {
+            this.tileLayerStreet.addTo(this.map);
+        }
 
         setTimeout(() => { this.map.invalidateSize(); }, 200);
     },
 
-    // ───────────────────────────────────────────────────────────
-    // FILTRO APP (in memoria)
-    // ───────────────────────────────────────────────────────────
+    toggleVistaSatellite() {
+        this.vistaSatellite = !this.vistaSatellite;
+        if (!this.map) return;
+
+        if (this.vistaSatellite) {
+            this.map.removeLayer(this.tileLayerStreet);
+            this.tileLayerSatellite.addTo(this.map);
+        } else {
+            this.map.removeLayer(this.tileLayerSatellite);
+            this.tileLayerStreet.addTo(this.map);
+        }
+        const btn = document.getElementById('btnVistaSatellite');
+        if (btn) btn.classList.toggle('attivo', this.vistaSatellite);
+    },
+
+    // ═══════════════════════════════════════════════════════════
+    // FULLSCREEN
+    // ═══════════════════════════════════════════════════════════
+    toggleFullscreen() {
+        const container = document.getElementById('mappaPageContainer');
+        if (!container) return;
+
+        const fsEl = document.fullscreenElement || document.webkitFullscreenElement;
+        if (fsEl) {
+            (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+        } else {
+            const req = container.requestFullscreen || container.webkitRequestFullscreen;
+            if (req) {
+                req.call(container).then(() => {
+                    setTimeout(() => { if (this.map) this.map.invalidateSize(); }, 300);
+                }).catch(err => {
+                    console.warn('Fullscreen non disponibile:', err.message);
+                });
+            }
+        }
+
+        const btn = document.getElementById('btnFullscreen');
+        if (btn) {
+            setTimeout(() => {
+                const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement);
+                btn.classList.toggle('attivo', isFs);
+                btn.innerHTML = isFs ? '<i class="fas fa-compress"></i>' : '<i class="fas fa-expand"></i>';
+            }, 200);
+        }
+    },
+
+    // ═══════════════════════════════════════════════════════════
+    // EXPORT PNG (html2canvas già caricato)
+    // ═══════════════════════════════════════════════════════════
+    async esportaPng() {
+        if (typeof html2canvas === 'undefined') {
+            UI.showError('Libreria di export non ancora caricata, riprova tra qualche secondo');
+            return;
+        }
+        const container = document.getElementById('mappaContainer');
+        if (!container) return;
+
+        const btn = document.getElementById('btnExportPng');
+        const originalHtml = btn ? btn.innerHTML : '';
+        if (btn) { btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>'; btn.disabled = true; }
+
+        try {
+            // useCORS true per i tile (anche se Leaflet usa <img crossorigin>)
+            const canvas = await html2canvas(container, {
+                useCORS: true,
+                allowTaint: true,
+                logging: false,
+                backgroundColor: '#ffffff',
+                scale: 2 // qualità retina
+            });
+            const dataUrl = canvas.toDataURL('image/png');
+            const a = document.createElement('a');
+            const oggi = new Date().toISOString().slice(0, 10);
+            a.href = dataUrl;
+            a.download = `mappa-app-comune-digital-${oggi}.png`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            UI.showSuccess('Mappa esportata come PNG');
+        } catch (err) {
+            console.error('Errore export PNG:', err);
+            UI.showError('Errore durante l\'export: ' + err.message);
+        } finally {
+            if (btn) { btn.innerHTML = originalHtml; btn.disabled = false; }
+        }
+    },
+
+    // ═══════════════════════════════════════════════════════════
+    // HEATMAP COPERTURA REGIONALE
+    // ═══════════════════════════════════════════════════════════
+    async toggleHeatmap() {
+        this.heatmapAttiva = !this.heatmapAttiva;
+        const btn = document.getElementById('btnHeatmap');
+        if (btn) btn.classList.toggle('attivo', this.heatmapAttiva);
+
+        if (this.heatmapAttiva) {
+            await this.aggiornaHeatmap();
+        } else {
+            if (this.heatmapLayer) {
+                this.map.removeLayer(this.heatmapLayer);
+                this.heatmapLayer = null;
+            }
+            const leg = document.getElementById('mappaHeatmapLegenda');
+            if (leg) leg.remove();
+        }
+    },
+
+    /**
+     * Normalizza nome regione per match con GeoJSON (rimuove suffissi bilingue, lower-case)
+     */
+    _normalizzaRegione(nome) {
+        if (!nome) return '';
+        return nome.toLowerCase()
+            .replace(/\/.*$/g, '') // "trentino-alto adige/südtirol" → "trentino-alto adige"
+            .replace(/'/g, "'")
+            .replace(/\s+/g, ' ')
+            .trim();
+    },
+
+    async aggiornaHeatmap() {
+        if (!this.map) return;
+
+        // Mostra spinner sul pulsante mentre carica il GeoJSON la prima volta
+        const btn = document.getElementById('btnHeatmap');
+        const original = btn ? btn.innerHTML : '';
+        if (btn && !this.regionGeoJsonCache) {
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+        }
+
+        try {
+            if (!this.regionGeoJsonCache) {
+                const resp = await fetch(this.GEOJSON_REGIONI);
+                if (!resp.ok) throw new Error('GeoJSON fetch failed: ' + resp.status);
+                this.regionGeoJsonCache = await resp.json();
+            }
+        } catch (err) {
+            console.error('Errore caricamento GeoJSON regioni:', err);
+            UI.showError('Impossibile caricare la mappa delle regioni');
+            if (btn) btn.innerHTML = original;
+            this.heatmapAttiva = false;
+            if (btn) btn.classList.remove('attivo');
+            return;
+        }
+        if (btn) btn.innerHTML = original;
+
+        // Conta app per regione (usa le app filtrate per coerenza con filtri attivi)
+        const conteggio = {};
+        (this.appsFiltrate || this.apps).forEach(a => {
+            const r = this._normalizzaRegione(a.regione);
+            if (!r) return;
+            conteggio[r] = (conteggio[r] || 0) + 1;
+        });
+        const maxCount = Math.max(1, ...Object.values(conteggio));
+
+        // Rimuovi layer precedente
+        if (this.heatmapLayer) this.map.removeLayer(this.heatmapLayer);
+
+        // Funzione colore (scala verde Comune.Digital)
+        const colorPer = (count) => {
+            if (!count) return '#F5F5F5';
+            const t = Math.min(1, count / maxCount);
+            // interpola da verde-100 (#E2F8DE) a verde-700 (#3CA434)
+            const lerp = (a, b) => Math.round(a + (b - a) * t);
+            const r = lerp(0xE2, 0x3C);
+            const g = lerp(0xF8, 0xA4);
+            const b = lerp(0xDE, 0x34);
+            return `rgb(${r},${g},${b})`;
+        };
+
+        const self = this;
+        this.heatmapLayer = L.geoJSON(this.regionGeoJsonCache, {
+            style: (feature) => {
+                const nomeRegione = feature.properties.reg_name || feature.properties.name || feature.properties.NOME_REG || '';
+                const norm = self._normalizzaRegione(nomeRegione);
+                const count = conteggio[norm] || 0;
+                return {
+                    fillColor: colorPer(count),
+                    weight: 1.5,
+                    opacity: 1,
+                    color: '#145284',
+                    fillOpacity: count > 0 ? 0.65 : 0.25
+                };
+            },
+            onEachFeature: (feature, layer) => {
+                const nomeRegione = feature.properties.reg_name || feature.properties.name || feature.properties.NOME_REG || '';
+                const norm = self._normalizzaRegione(nomeRegione);
+                const count = conteggio[norm] || 0;
+                layer.bindTooltip(
+                    `<strong>${nomeRegione}</strong><br>${count} ${count === 1 ? 'app' : 'app'}`,
+                    { sticky: true, className: 'mappa-tip' }
+                );
+                layer.on('mouseover', function() { this.setStyle({ weight: 3, fillOpacity: 0.85 }); });
+                layer.on('mouseout', function() { self.heatmapLayer.resetStyle(this); });
+            }
+        });
+
+        this.heatmapLayer.addTo(this.map);
+        this.heatmapLayer.bringToBack(); // sotto ai marker
+
+        // Legenda overlay
+        let leg = document.getElementById('mappaHeatmapLegenda');
+        if (!leg) {
+            leg = document.createElement('div');
+            leg.id = 'mappaHeatmapLegenda';
+            leg.className = 'mappa-heatmap-legenda';
+            document.getElementById('mappaContainer').appendChild(leg);
+        }
+        leg.innerHTML = `
+            <div style="font-weight: 700; color: var(--blu-700);">App per regione</div>
+            <div class="scala">
+                <span style="background: #E2F8DE;"></span>
+                <span style="background: #A4E89A;"></span>
+                <span style="background: #59C64D;"></span>
+                <span style="background: #3CA434;"></span>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-top: 3px; font-size: 0.7rem;">
+                <span>0</span><span>${maxCount}</span>
+            </div>
+            <div style="font-size: 0.7rem; margin-top: 4px; color: var(--grigio-500);">
+                Passa sopra una regione per il dettaglio
+            </div>
+        `;
+    },
+
+    // ═══════════════════════════════════════════════════════════
+    // FILTRO APP
+    // ═══════════════════════════════════════════════════════════
     filtraApp() {
         const f = this.filtri;
         const search = (f.search || '').toLowerCase().trim();
         return this.apps.filter(a => {
-            // Stato
             if (f.stato === 'SENZA_STATO') {
                 if (a.statoApp && a.statoApp !== '') return false;
             } else if (f.stato && f.stato !== 'tutti') {
                 if (a.statoApp !== f.stato) return false;
             }
-            // Cliente
             if (f.cliente && f.cliente !== 'tutti') {
                 if (a.clientePaganteId !== f.cliente) return false;
             }
-            // Search
             if (search) {
                 const haystack = (a.nome + ' ' + a.comune + ' ' + a.provincia + ' ' + a.regione + ' ' + a.clientePaganteRagioneSociale).toLowerCase();
                 if (haystack.indexOf(search) === -1) return false;
@@ -516,14 +801,13 @@ const MappaClienti = {
         });
     },
 
-    // ───────────────────────────────────────────────────────────
+    // ═══════════════════════════════════════════════════════════
     // POSIZIONAMENTO MARKER
-    // ───────────────────────────────────────────────────────────
+    // ═══════════════════════════════════════════════════════════
     async posizionaMarkers(opzioni) {
         opzioni = opzioni || {};
         const forceGeo = !!opzioni.forceGeocode;
 
-        // Rimuovi cluster/markers precedenti
         if (this.markerClusterGroup) {
             this.map.removeLayer(this.markerClusterGroup);
             this.markerClusterGroup = null;
@@ -532,7 +816,6 @@ const MappaClienti = {
         this.markers = [];
         this.markersById = {};
 
-        // Crea il cluster group (se plugin disponibile)
         if (window.L && L.markerClusterGroup) {
             this.markerClusterGroup = L.markerClusterGroup({
                 showCoverageOnHover: false,
@@ -545,7 +828,6 @@ const MappaClienti = {
         const appFiltrate = this.filtraApp();
         this.appsFiltrate = appFiltrate;
 
-        // Conta quante app devono essere geocodificate
         const daGeocodificare = appFiltrate.filter(a => !a.lat || !a.lng);
         const totDaGeo = daGeocodificare.length;
         let geoProcessati = 0;
@@ -572,7 +854,6 @@ const MappaClienti = {
                 coords = { lat: app.lat, lng: app.lng };
             } else {
                 coords = await this.geocodificaESalva(app);
-
                 geoProcessati++;
                 if (progressDiv && totDaGeo > 0) {
                     const perc = Math.round((geoProcessati / totDaGeo) * 100);
@@ -589,10 +870,17 @@ const MappaClienti = {
                 });
 
                 marker.bindPopup(this.buildPopupHtml(app), { maxWidth: 320 });
-                marker.appId = app.id;
-                marker.on('popupopen', () => {
-                    this.aggiornaUrlConApp(app.id);
+                // Tooltip al passaggio del mouse: nome + comune
+                const tipText = app.nome + (app.comune && app.comune !== app.nome ? ` — ${app.comune}` : '');
+                marker.bindTooltip(tipText, {
+                    direction: 'top',
+                    offset: [0, -8],
+                    className: 'mappa-tip',
+                    opacity: 0.95
                 });
+
+                marker.appId = app.id;
+                marker.on('popupopen', () => { this.aggiornaUrlConApp(app.id); });
 
                 if (this.markerClusterGroup) {
                     this.markerClusterGroup.addLayer(marker);
@@ -608,14 +896,11 @@ const MappaClienti = {
             }
         }
 
-        if (this.markerClusterGroup) {
-            this.map.addLayer(this.markerClusterGroup);
-        }
+        if (this.markerClusterGroup) this.map.addLayer(this.markerClusterGroup);
 
         if (progressDiv) {
             if (totDaGeo > 0) {
-                document.getElementById('geocodingText').textContent =
-                    `✅ Geolocalizzazione completata.`;
+                document.getElementById('geocodingText').textContent = `✅ Geolocalizzazione completata.`;
                 document.getElementById('geocodingBar').style.width = '100%';
                 document.getElementById('geocodingBar').style.background = 'var(--verde-700)';
                 setTimeout(() => { progressDiv.classList.add('hidden'); }, 2500);
@@ -624,7 +909,6 @@ const MappaClienti = {
             }
         }
 
-        // Aggiorna contatore in alto
         const contatore = document.getElementById('mappaContatore');
         if (contatore) {
             contatore.innerHTML = `<i class="fas fa-mobile-alt"></i> ${posizionati} su mappa`;
@@ -636,21 +920,18 @@ const MappaClienti = {
             }
         }
 
-        // Zoom per contenere tutti i markers
         if (this.markers.length > 0) {
             const group = L.featureGroup(this.markers);
             this.map.fitBounds(group.getBounds().pad(0.1));
         }
 
-        console.log(`🗺️ App posizionate: ${posizionati}, non trovate: ${nonPosizionati}`);
+        console.log(`🗺️ v3.10.0 App posizionate: ${posizionati}, non trovate: ${nonPosizionati}`);
     },
 
     buildPopupHtml(app) {
         const statoLabel = this.getStatoLabel(app.statoApp);
         const colore = this.getColoreStato(app.statoApp);
-        const badgeNuova = this.isNuova(app)
-            ? '<span class="mappa-badge-nuova">NUOVA</span>'
-            : '';
+        const badgeNuova = this.isNuova(app) ? '<span class="mappa-badge-nuova">NUOVA</span>' : '';
 
         let dataCreazioneFmt = '';
         if (app.dataCreazione) {
@@ -659,7 +940,7 @@ const MappaClienti = {
                 if (!isNaN(d.getTime())) {
                     dataCreazioneFmt = d.toLocaleDateString('it-IT', { day: 'numeric', month: 'short', year: 'numeric' });
                 }
-            } catch (e) { /* ignora */ }
+            } catch (e) {}
         }
 
         return `
@@ -702,20 +983,12 @@ const MappaClienti = {
         `;
     },
 
-    // ───────────────────────────────────────────────────────────
+    // ═══════════════════════════════════════════════════════════
     // GEOCODING + AUTO-INFER COMUNE
-    // ───────────────────────────────────────────────────────────
-    /**
-     * Estrae il nome del comune dal campo "nome" quando il campo "comune" è vuoto.
-     * Es: "Comune di Mezzolombardo" → "Mezzolombardo"
-     *     "App Città di Trento" → "Trento"
-     *     "Municipio di Roma Capitale" → "Roma Capitale"
-     * Se non riesce a inferire ritorna stringa vuota.
-     */
+    // ═══════════════════════════════════════════════════════════
     inferisciComuneDaNome(app) {
         const nome = (app.nome || '').trim();
         if (!nome) return '';
-        // Pattern principali, dal più al meno specifico
         const patterns = [
             /(?:^|\b)comune\s+di\s+(.+?)(?:\s*[-–—]|$)/i,
             /(?:^|\b)citt[àa']\s+di\s+(.+?)(?:\s*[-–—]|$)/i,
@@ -725,10 +998,7 @@ const MappaClienti = {
         for (const re of patterns) {
             const m = nome.match(re);
             if (m && m[1]) {
-                let cand = m[1].trim()
-                    .replace(/\s+/g, ' ')
-                    .replace(/[,.;:]+$/g, '');
-                // Scarta candidati troppo corti o troppo lunghi
+                let cand = m[1].trim().replace(/\s+/g, ' ').replace(/[,.;:]+$/g, '');
                 if (cand.length >= 2 && cand.length <= 60) return cand;
             }
         }
@@ -736,7 +1006,6 @@ const MappaClienti = {
     },
 
     async geocodificaESalva(app) {
-        // Provo prima il campo comune; se vuoto inferisco dal nome
         let nomeComune = (app.comune || '')
             .replace(/^Comune di\s+/i, '')
             .replace(/^Citt[àa']\s+di\s+/i, '')
@@ -752,9 +1021,7 @@ const MappaClienti = {
             }
         }
 
-        if (!nomeComune) {
-            return this.fallbackProvincia(app);
-        }
+        if (!nomeComune) return this.fallbackProvincia(app);
 
         if (this.geocodeCache[nomeComune]) {
             const cached = this.geocodeCache[nomeComune];
@@ -796,7 +1063,6 @@ const MappaClienti = {
         } catch (error) {
             console.warn(`⚠️ Errore geocoding per "${nomeComune}":`, error.message);
         }
-
         return this.fallbackProvincia(app);
     },
 
@@ -812,15 +1078,10 @@ const MappaClienti = {
         return null;
     },
 
-    /**
-     * Salva lat/lng. Se comuneInferito è valorizzato, salva anche il campo
-     * `comune` su Firestore (popolato dall'inferenza dal nome).
-     */
     async salvaCoordinateSuFirestore(appId, lat, lng, comuneInferito) {
         try {
             const payload = {
-                lat: lat,
-                lng: lng,
+                lat: lat, lng: lng,
                 geocodificatoIl: new Date().toISOString()
             };
             if (comuneInferito) {
@@ -844,36 +1105,22 @@ const MappaClienti = {
         this._lastNominatimCall = Date.now();
     },
 
-    /**
-     * Ritenta la geocodifica per tutte le app senza posizione (chiamato dal popup).
-     */
     async geocodificaSenzaPosizione() {
-        // Resetta in memoria lat/lng delle app filtrate senza posizione
         const ids = (this._appSenzaPosizione || []).map(x => x.id);
-        if (ids.length === 0) {
-            UI.showSuccess('Nessuna app da rigeocodificare');
-            return;
-        }
+        if (ids.length === 0) { UI.showSuccess('Nessuna app da rigeocodificare'); return; }
         this.apps.forEach(a => {
-            if (ids.indexOf(a.id) !== -1) {
-                a.lat = null;
-                a.lng = null;
-            }
+            if (ids.indexOf(a.id) !== -1) { a.lat = null; a.lng = null; }
         });
-        // Pulisce cache nominatim per dare un'altra chance
         this.geocodeCache = {};
-        // Chiude modal se aperta
-        if (typeof FormsManager !== 'undefined' && FormsManager.closeModal) {
-            FormsManager.closeModal();
-        }
+        if (typeof FormsManager !== 'undefined' && FormsManager.closeModal) FormsManager.closeModal();
         await this.posizionaMarkers({ forceGeocode: true });
         this.aggiornaListaPannello();
         this.aggiornaStats();
     },
 
-    // ───────────────────────────────────────────────────────────
+    // ═══════════════════════════════════════════════════════════
     // PANNELLO LATERALE
-    // ───────────────────────────────────────────────────────────
+    // ═══════════════════════════════════════════════════════════
     togglePannello() {
         const p = document.getElementById('mappaPannello');
         if (p) p.classList.toggle('aperto');
@@ -885,7 +1132,6 @@ const MappaClienti = {
         if (!lista) return;
 
         const apps = (this.appsFiltrate || []).slice().sort((a, b) => {
-            // Prima le "nuove", poi alfabetico per nome
             const an = this.isNuova(a) ? 0 : 1;
             const bn = this.isNuova(b) ? 0 : 1;
             if (an !== bn) return an - bn;
@@ -893,9 +1139,7 @@ const MappaClienti = {
         });
 
         if (contatore) {
-            contatore.textContent = apps.length === 1
-                ? '1 app trovata'
-                : `${apps.length} app trovate`;
+            contatore.textContent = apps.length === 1 ? '1 app trovata' : `${apps.length} app trovate`;
         }
 
         if (apps.length === 0) {
@@ -928,27 +1172,21 @@ const MappaClienti = {
 
     selezionaApp(appId) {
         const marker = this.markersById[appId];
-        if (!marker) {
-            // Magari l'app è "senza posizione" — apri la scheda
-            UI.showPage('dettaglio-app', appId);
-            return;
-        }
+        if (!marker) { UI.showPage('dettaglio-app', appId); return; }
 
         const apriPopupConPulse = () => {
-            try { marker.openPopup(); } catch (e) { /* ignora */ }
-            // Pulse highlight
+            try { marker.openPopup(); } catch (e) {}
             const el = marker.getElement();
             if (el) {
                 const inner = el.firstElementChild;
                 if (inner) {
                     inner.classList.remove('mappa-marker-highlight');
-                    void inner.offsetWidth; // restart animation
+                    void inner.offsetWidth;
                     inner.classList.add('mappa-marker-highlight');
                 }
             }
         };
 
-        // Se il marker è dentro un cluster, espandilo prima
         if (this.markerClusterGroup && this.markerClusterGroup.hasLayer(marker)) {
             this.markerClusterGroup.zoomToShowLayer(marker, apriPopupConPulse);
         } else {
@@ -957,13 +1195,11 @@ const MappaClienti = {
             setTimeout(apriPopupConPulse, 300);
         }
 
-        // Su mobile chiudi il pannello
         if (window.innerWidth <= 768) {
             const p = document.getElementById('mappaPannello');
             if (p) p.classList.remove('aperto');
         }
 
-        // Aggiorna riga "attiva"
         const righe = document.querySelectorAll('#mappaLista .mappa-lista-riga');
         righe.forEach(r => r.classList.remove('attiva'));
         const idx = (this.appsFiltrate || []).slice().sort((a, b) => {
@@ -977,15 +1213,15 @@ const MappaClienti = {
         this.aggiornaUrlConApp(appId);
     },
 
-    // ───────────────────────────────────────────────────────────
+    // ═══════════════════════════════════════════════════════════
     // DEEP LINK ?app=<id>
-    // ───────────────────────────────────────────────────────────
+    // ═══════════════════════════════════════════════════════════
     aggiornaUrlConApp(appId) {
         try {
             const url = new URL(window.location.href);
             url.searchParams.set('app', appId);
             window.history.replaceState({}, '', url.toString());
-        } catch (e) { /* ignora */ }
+        } catch (e) {}
     },
 
     gestisciDeepLink() {
@@ -995,7 +1231,7 @@ const MappaClienti = {
             if (appId && this.markersById[appId]) {
                 setTimeout(() => this.selezionaApp(appId), 500);
             }
-        } catch (e) { /* ignora */ }
+        } catch (e) {}
     },
 
     copiaDeepLink(appId) {
@@ -1004,11 +1240,8 @@ const MappaClienti = {
             url.searchParams.set('app', appId);
             const text = url.toString();
             if (navigator.clipboard && navigator.clipboard.writeText) {
-                navigator.clipboard.writeText(text).then(() => {
-                    UI.showSuccess('Link copiato negli appunti');
-                });
+                navigator.clipboard.writeText(text).then(() => UI.showSuccess('Link copiato negli appunti'));
             } else {
-                // Fallback
                 const ta = document.createElement('textarea');
                 ta.value = text;
                 document.body.appendChild(ta);
@@ -1017,14 +1250,12 @@ const MappaClienti = {
                 document.body.removeChild(ta);
                 UI.showSuccess('Link copiato negli appunti');
             }
-        } catch (e) {
-            UI.showError('Impossibile copiare il link');
-        }
+        } catch (e) { UI.showError('Impossibile copiare il link'); }
     },
 
-    // ───────────────────────────────────────────────────────────
+    // ═══════════════════════════════════════════════════════════
     // STATS BAR
-    // ───────────────────────────────────────────────────────────
+    // ═══════════════════════════════════════════════════════════
     aggiornaStats() {
         const statsBar = document.getElementById('mappaStats');
         if (!statsBar) return;
@@ -1041,14 +1272,20 @@ const MappaClienti = {
         const regioni = new Set(this.apps.map(a => a.regione).filter(Boolean));
         const province = new Set(this.apps.map(a => a.provincia).filter(Boolean));
 
-        // Cittadini serviti: somma popolazione delle app ATTIVE
+        // Comuni unici serviti (case-insensitive, trim)
+        const comuniUnici = new Set(
+            this.apps
+                .map(a => (a.comune || '').toLowerCase().trim())
+                .filter(Boolean)
+        );
+        const numComuniServiti = comuniUnici.size;
+        const percCopertura = ((numComuniServiti / this.TOTALE_COMUNI_ISTAT) * 100).toFixed(2);
+
+        // Cittadini serviti
         const cittadini = this.apps
             .filter(a => a.statoApp === 'ATTIVA' && a.popolazione)
             .reduce((s, a) => s + a.popolazione, 0);
-
-        const cittadiniFmt = cittadini > 0
-            ? cittadini.toLocaleString('it-IT')
-            : null;
+        const cittadiniFmt = cittadini > 0 ? cittadini.toLocaleString('it-IT') : null;
 
         statsBar.innerHTML = `
             <span><i class="fas fa-mobile-alt"></i> <strong>${totale}</strong> App totali</span>
@@ -1058,18 +1295,21 @@ const MappaClienti = {
             <span style="color: #EF9A9A;"><i class="fas fa-times-circle"></i> <strong>${disattivate}</strong> Disattivate</span>
             <span style="color: #CE93D8;"><i class="fas fa-flask"></i> <strong>${demo}</strong> Demo</span>
             ${senzaStato > 0 ? `<span style="color: #CCCCCC;"><i class="fas fa-question-circle"></i> <strong>${senzaStato}</strong> Senza stato</span>` : ''}
-            ${nuove > 0 ? `<span style="color: #A4E89A;"><i class="fas fa-sparkles"></i> <strong>${nuove}</strong> Nuove (${this.GIORNI_NUOVA_APP}gg)</span>` : ''}
+            ${nuove > 0 ? `<span style="color: #A4E89A;"><i class="fas fa-star"></i> <strong>${nuove}</strong> Nuove (${this.GIORNI_NUOVA_APP}gg)</span>` : ''}
             <span><i class="fas fa-map"></i> <strong>${regioni.size}</strong> Regioni</span>
             <span><i class="fas fa-map-pin"></i> <strong>${province.size}</strong> Province</span>
+            <span style="color: #A4E89A;" title="Comuni unici serviti su ${this.TOTALE_COMUNI_ISTAT.toLocaleString('it-IT')} comuni italiani (ISTAT)">
+                <i class="fas fa-landmark"></i> <strong>${numComuniServiti}</strong>/${this.TOTALE_COMUNI_ISTAT.toLocaleString('it-IT')} comuni (${percCopertura}%)
+            </span>
             ${cittadiniFmt ? `<span style="color: #FFE082;"><i class="fas fa-users"></i> <strong>${cittadiniFmt}</strong> Cittadini serviti</span>` : ''}
         `;
         statsBar.classList.remove('hidden');
         statsBar.style.display = 'flex';
     },
 
-    // ───────────────────────────────────────────────────────────
-    // MODAL "APP SENZA POSIZIONE"
-    // ───────────────────────────────────────────────────────────
+    // ═══════════════════════════════════════════════════════════
+    // MODAL "SENZA POSIZIONE"
+    // ═══════════════════════════════════════════════════════════
     mostraAppSenzaPosizione() {
         const lista = this._appSenzaPosizione || [];
         if (lista.length === 0) return;
@@ -1078,7 +1318,7 @@ const MappaClienti = {
             <div style="padding: 0.5rem 0;">
                 <p style="color: var(--grigio-700); font-size: 0.875rem; margin: 0 0 0.75rem;">
                     Queste app non sono state geolocalizzate. Verifica che il campo <strong>Comune</strong> sia compilato nella scheda dell'app,
-                    oppure clicca il pulsante qui sotto per ritentare la geocodifica (può richiedere fino a 1 secondo per app).
+                    oppure clicca il pulsante qui sotto per ritentare la geocodifica.
                 </p>
                 <div style="margin: 0.75rem 0;">
                     <button onclick="MappaClienti.geocodificaSenzaPosizione()"
@@ -1105,85 +1345,65 @@ const MappaClienti = {
         );
     },
 
-    // ───────────────────────────────────────────────────────────
-    // 📍 COORDINATE PROVINCE ITALIANE (fallback)
-    // ───────────────────────────────────────────────────────────
+    // ═══════════════════════════════════════════════════════════
+    // 📍 COORDINATE PROVINCE (fallback)
+    // ═══════════════════════════════════════════════════════════
     coordProvince: {
-        // Piemonte
         'TO': { lat: 45.0703, lng: 7.6869 }, 'VC': { lat: 45.3257, lng: 8.4189 },
         'NO': { lat: 45.4515, lng: 8.6217 }, 'CN': { lat: 44.3842, lng: 7.5424 },
         'AT': { lat: 44.9004, lng: 8.2067 }, 'AL': { lat: 44.9122, lng: 8.6154 },
         'BI': { lat: 45.5628, lng: 8.0581 }, 'VB': { lat: 45.9219, lng: 8.5519 },
-        // Valle d'Aosta
         'AO': { lat: 45.7372, lng: 7.3209 },
-        // Lombardia
         'VA': { lat: 45.8206, lng: 8.8257 }, 'CO': { lat: 45.8080, lng: 9.0852 },
         'SO': { lat: 46.1699, lng: 9.8782 }, 'MI': { lat: 45.4642, lng: 9.1900 },
         'BG': { lat: 45.6983, lng: 9.6773 }, 'BS': { lat: 45.5416, lng: 10.2118 },
         'PV': { lat: 45.1847, lng: 9.1582 }, 'CR': { lat: 45.1364, lng: 10.0227 },
         'MN': { lat: 45.1564, lng: 10.7914 }, 'LC': { lat: 45.8566, lng: 9.3976 },
         'LO': { lat: 45.3097, lng: 9.5015 }, 'MB': { lat: 45.5845, lng: 9.2744 },
-        // Trentino-Alto Adige
         'BZ': { lat: 46.4983, lng: 11.3548 }, 'TN': { lat: 46.0748, lng: 11.1217 },
-        // Veneto
         'VR': { lat: 45.4384, lng: 10.9916 }, 'VI': { lat: 45.5455, lng: 11.5354 },
         'BL': { lat: 46.1427, lng: 12.2162 }, 'TV': { lat: 45.6669, lng: 12.2430 },
         'VE': { lat: 45.4408, lng: 12.3155 }, 'PD': { lat: 45.4064, lng: 11.8768 },
         'RO': { lat: 45.0711, lng: 11.7901 },
-        // Friuli Venezia Giulia
         'UD': { lat: 46.0711, lng: 13.2346 }, 'GO': { lat: 45.9415, lng: 13.6219 },
         'TS': { lat: 45.6495, lng: 13.7768 }, 'PN': { lat: 45.9564, lng: 12.6565 },
-        // Liguria
         'IM': { lat: 43.8868, lng: 8.0265 }, 'SV': { lat: 44.3069, lng: 8.4806 },
         'GE': { lat: 44.4056, lng: 8.9463 }, 'SP': { lat: 44.1025, lng: 9.8241 },
-        // Emilia-Romagna
         'PC': { lat: 45.0526, lng: 9.6930 }, 'PR': { lat: 44.8015, lng: 10.3279 },
         'RE': { lat: 44.6973, lng: 10.6297 }, 'MO': { lat: 44.6471, lng: 10.9252 },
         'BO': { lat: 44.4949, lng: 11.3426 }, 'FE': { lat: 44.8381, lng: 11.6198 },
         'RA': { lat: 44.4184, lng: 12.2035 }, 'FC': { lat: 44.2225, lng: 12.0408 },
         'RN': { lat: 44.0594, lng: 12.5683 },
-        // Toscana
         'MS': { lat: 44.0357, lng: 10.1396 }, 'LU': { lat: 43.8376, lng: 10.4951 },
         'PT': { lat: 43.9321, lng: 10.9132 }, 'FI': { lat: 43.7696, lng: 11.2558 },
         'LI': { lat: 43.5485, lng: 10.3106 }, 'PI': { lat: 43.7228, lng: 10.4017 },
         'AR': { lat: 43.4633, lng: 11.8817 }, 'SI': { lat: 43.3188, lng: 11.3308 },
         'GR': { lat: 42.7635, lng: 11.1126 }, 'PO': { lat: 43.8777, lng: 11.1023 },
-        // Umbria
         'PG': { lat: 43.1107, lng: 12.3908 }, 'TR': { lat: 42.5636, lng: 12.6427 },
-        // Marche
         'PU': { lat: 43.7205, lng: 12.6368 }, 'AN': { lat: 43.6158, lng: 13.5189 },
         'MC': { lat: 43.2984, lng: 13.4531 }, 'AP': { lat: 42.8543, lng: 13.5749 },
         'FM': { lat: 43.1602, lng: 13.7181 },
-        // Lazio
         'VT': { lat: 42.4206, lng: 12.1075 }, 'RI': { lat: 42.4025, lng: 12.8568 },
         'RM': { lat: 41.9028, lng: 12.4964 }, 'LT': { lat: 41.4676, lng: 12.9035 },
         'FR': { lat: 41.6400, lng: 13.3490 },
-        // Abruzzo
         'AQ': { lat: 42.3498, lng: 13.3995 }, 'TE': { lat: 42.6612, lng: 13.6987 },
         'PE': { lat: 42.4618, lng: 14.2141 }, 'CH': { lat: 42.3510, lng: 14.1689 },
-        // Molise
         'CB': { lat: 41.5602, lng: 14.6685 }, 'IS': { lat: 41.5932, lng: 14.2331 },
-        // Campania
         'CE': { lat: 41.0740, lng: 14.3339 }, 'BN': { lat: 41.1297, lng: 14.7822 },
         'NA': { lat: 40.8518, lng: 14.2681 }, 'AV': { lat: 40.9146, lng: 14.7906 },
         'SA': { lat: 40.6824, lng: 14.7681 },
-        // Puglia
         'FG': { lat: 41.4622, lng: 15.5447 }, 'BA': { lat: 41.1171, lng: 16.8719 },
         'TA': { lat: 40.4764, lng: 17.2297 }, 'BR': { lat: 40.6327, lng: 17.9420 },
         'LE': { lat: 40.3516, lng: 18.1750 }, 'BT': { lat: 41.2269, lng: 16.2951 },
-        // Basilicata
         'PZ': { lat: 40.6396, lng: 15.8056 }, 'MT': { lat: 40.6664, lng: 16.6043 },
-        // Calabria
         'CS': { lat: 39.3068, lng: 16.2534 }, 'CZ': { lat: 38.9100, lng: 16.5879 },
         'KR': { lat: 39.0839, lng: 17.1275 }, 'VV': { lat: 38.6760, lng: 16.1003 },
         'RC': { lat: 38.1096, lng: 15.6435 },
-        // Sicilia
         'TP': { lat: 38.0174, lng: 12.5148 }, 'PA': { lat: 38.1157, lng: 13.3615 },
         'ME': { lat: 38.1938, lng: 15.5540 }, 'AG': { lat: 37.3111, lng: 13.5766 },
         'CL': { lat: 37.4901, lng: 14.0625 }, 'EN': { lat: 37.5676, lng: 14.2795 },
         'CT': { lat: 37.5079, lng: 15.0830 }, 'RG': { lat: 36.9253, lng: 14.7250 },
         'SR': { lat: 37.0755, lng: 15.2866 },
-        // Sardegna
         'SS': { lat: 40.7259, lng: 8.5590 }, 'NU': { lat: 40.3210, lng: 9.3311 },
         'CA': { lat: 39.2238, lng: 9.1217 }, 'OR': { lat: 39.9062, lng: 8.5886 },
         'SU': { lat: 39.5642, lng: 8.9455 }
