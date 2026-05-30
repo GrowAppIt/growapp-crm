@@ -2111,21 +2111,12 @@ const DataService = {
             const importoAnnuale = parseFloat(contratto.importoAnnuale) || 0;
             if (importoAnnuale <= 0) continue;
 
-            // Calcola periodi e intervallo
-            let numPeriodi = 1, intervalloMesi = 12;
-            switch (contratto.periodicita) {
-                case 'MENSILE':      numPeriodi = 12; intervalloMesi = 1; break;
-                case 'BIMENSILE':    numPeriodi = 6;  intervalloMesi = 2; break;
-                case 'TRIMESTRALE':  numPeriodi = 4;  intervalloMesi = 3; break;
-                case 'SEMESTRALE':   numPeriodi = 2;  intervalloMesi = 6; break;
-                case 'ANNUALE':      numPeriodi = 1;  intervalloMesi = 12; break;
-                case 'BIENNALE':     numPeriodi = 1;  intervalloMesi = 24; break;
-                case 'TRIENNALE':    numPeriodi = 1;  intervalloMesi = 36; break;
-                case 'QUADRIENNALE': numPeriodi = 1;  intervalloMesi = 48; break;
-                case 'QUINQUENNALE': numPeriodi = 1;  intervalloMesi = 60; break;
-            }
-
-            const importoPerPeriodo = Math.round((importoAnnuale / numPeriodi) * 100) / 100;
+            // Periodi e importo per periodo — logica CENTRALIZZATA in BillingPeriods
+            // (billing-periods.js). Niente più deriva fine-mese, e identica a quella
+            // usata dal form Nuova Fattura: le due viste non possono più divergere.
+            const intervalloMesi = BillingPeriods.getIntervalloMesi(contratto.periodicita);
+            const periodiAnno = BillingPeriods.getPeriodiAnno(contratto.periodicita);
+            const importoPerPeriodo = Math.round((importoAnnuale / periodiAnno) * 100) / 100;
 
             // Raccogli le fatture che possono corrispondere a questo contratto:
             // 1) Fatture con contrattoId esplicito di QUESTO contratto
@@ -2140,137 +2131,119 @@ const DataService = {
 
             // Match primario: fatture dirette + senza contratto
             const tutteLeFatture = [...fattureDirecte, ...fattureCliente];
-            // Match secondario (fallback): anche fatture di altri contratti dello stesso cliente
-            const tutteLeFattureConFallback = [...tutteLeFatture, ...fattureClienteAltriContratti];
 
-            // Genera solo i periodi dell'anno corrente e del prossimo
-            // (non tutto lo storico — quello è già fatturato)
-            const annoCorrente = oggi.getFullYear();
-            const annoInizio = Math.max(new Date(contratto.dataInizio).getFullYear(), annoCorrente - 1);
-            const annoFine = Math.min(dataScadenza.getFullYear(), annoCorrente + 1);
+            // Finestra temporale: salta i periodi troppo vecchi (lookback storico).
+            const lookbackDate = new Date(oggi);
+            lookbackDate.setDate(lookbackDate.getDate() - (_sys.giorniLookbackStorico || 180));
 
-            for (let anno = annoInizio; anno <= annoFine; anno++) {
-                for (let i = 0; i < numPeriodi; i++) {
-                    const dataFatturazione = new Date(dataInizio);
+            // Genera i periodi del contratto fino al limite futuro.
+            // BillingPeriods tronca già alla scadenza del contratto.
+            const periodiContratto = BillingPeriods.generaPeriodi(contratto, { finoA: limite });
 
-                    // Per anni successivi al primo, partiamo dall'anniversario
-                    if (anno > dataInizio.getFullYear()) {
-                        dataFatturazione.setFullYear(anno);
-                        dataFatturazione.setMonth(dataInizio.getMonth());
-                        dataFatturazione.setDate(dataInizio.getDate());
-                    }
+            for (const periodo of periodiContratto) {
+                const periodoDal = new Date(periodo.dal);
+                periodoDal.setHours(0, 0, 0, 0);
+                const periodoAl = new Date(periodo.al);
+                periodoAl.setHours(23, 59, 59, 999);
 
-                    const meseTarget = dataFatturazione.getMonth() + (intervalloMesi * i);
-                    dataFatturazione.setMonth(meseTarget);
-                    // Correggi fine mese (es. 31 gen → 28 feb)
-                    const giornoOriginale = new Date(dataInizio).getDate();
-                    if (dataFatturazione.getDate() !== giornoOriginale) {
-                        dataFatturazione.setDate(0);
-                    }
+                // Mostra solo periodi rilevanti: non troppo nel futuro, non troppo vecchi
+                if (periodoDal > limite) continue;
+                if (periodoDal < lookbackDate) continue;
 
-                    // Deve essere nel range del contratto
-                    if (dataFatturazione > dataScadenza) break;
-                    // Mostra solo periodi fino a 90 giorni nel futuro
-                    if (dataFatturazione > limite) continue;
-                    // Salta periodi troppo vecchi (lookback da impostazioni)
-                    const lookbackDate = new Date(oggi);
-                    lookbackDate.setDate(lookbackDate.getDate() - (_sys.giorniLookbackStorico || 180));
-                    if (dataFatturazione < lookbackDate) continue;
+                // Verifica se esiste già una fattura per questo periodo.
+                // _matchFatturaPeriodo controlla:
+                //   1. Overlap di periodi competenzaDal/Al (priorità)
+                //   2. Match competenzaDal ±5 giorni (se manca competenzaAl)
+                //   3. Fallback fuzzy per data emissione (se manca competenza)
+                const _matchFatturaPeriodo = (f) => {
+                    if (f.competenzaDal) {
+                        const fDal = new Date(f.competenzaDal);
+                        fDal.setHours(0, 0, 0, 0);
 
-                    // Calcola i limiti del periodo di competenza per questo ciclo
-                    const periodoDal = new Date(dataFatturazione);
-                    const periodoAl = new Date(dataFatturazione);
-                    periodoAl.setMonth(periodoAl.getMonth() + intervalloMesi);
-                    periodoAl.setDate(periodoAl.getDate() - 1);
-                    periodoAl.setHours(23, 59, 59, 999);
-
-                    // Verifica se esiste già una fattura per questo periodo.
-                    // La funzione _matchFatturaPeriodo controlla:
-                    //   1. Overlap di periodi competenzaDal/Al (priorità)
-                    //   2. Match competenzaDal ±5 giorni (se manca competenzaAl)
-                    //   3. Fallback fuzzy per data emissione (se manca competenza)
-                    const _matchFatturaPeriodo = (f) => {
-                        if (f.competenzaDal) {
-                            const fDal = new Date(f.competenzaDal);
-                            fDal.setHours(0, 0, 0, 0);
-
-                            // Se la fattura ha anche competenzaAl, usa overlap dei periodi
-                            if (f.competenzaAl) {
-                                const fAl = new Date(f.competenzaAl);
-                                fAl.setHours(23, 59, 59, 999);
-                                return fDal <= periodoAl && fAl >= periodoDal;
-                            }
-
-                            // Fallback: solo competenzaDal, usa tolleranza ±5 giorni
-                            const dalMin = new Date(periodoDal);
-                            dalMin.setDate(dalMin.getDate() - 5);
-                            const dalMax = new Date(periodoDal);
-                            dalMax.setDate(dalMax.getDate() + 5);
-                            return fDal >= dalMin && fDal <= dalMax;
-                        }
-
-                        // Fallback: match fuzzy per data emissione (fatture senza competenza)
-                        const dataRef = f.dataEmissione || f.dataFattura || f.dataScadenza;
-                        if (!dataRef) return false;
-                        const de = new Date(dataRef);
-                        const giorniFinestra = Math.max(Math.floor(intervalloMesi * 15), 20);
-                        const dataMin = new Date(dataFatturazione);
-                        dataMin.setDate(dataMin.getDate() - giorniFinestra);
-                        const dataMax = new Date(dataFatturazione);
-                        dataMax.setDate(dataMax.getDate() + giorniFinestra);
-                        return de >= dataMin && de <= dataMax;
-                    };
-
-                    // STEP 1: Cerca tra fatture dirette (stesso contratto) e senza contratto
-                    let fatturaEsistente = tutteLeFatture.some(_matchFatturaPeriodo);
-
-                    // STEP 2: Se non trovata, cerca tra le fatture dello stesso cliente
-                    // linkate ad altri contratti (fatture consolidate o linkate per errore).
-                    // Usa SOLO overlap di periodo competenza (match rigoroso).
-                    if (!fatturaEsistente) {
-                        fatturaEsistente = fattureClienteAltriContratti.some(f => {
-                            if (!f.competenzaDal || !f.competenzaAl) return false;
-                            const fDal = new Date(f.competenzaDal);
-                            fDal.setHours(0, 0, 0, 0);
+                        // Se la fattura ha anche competenzaAl, usa overlap dei periodi
+                        if (f.competenzaAl) {
                             const fAl = new Date(f.competenzaAl);
                             fAl.setHours(23, 59, 59, 999);
                             return fDal <= periodoAl && fAl >= periodoDal;
-                        });
+                        }
+
+                        // Fallback: solo competenzaDal, usa tolleranza ±5 giorni
+                        const dalMin = new Date(periodoDal);
+                        dalMin.setDate(dalMin.getDate() - 5);
+                        const dalMax = new Date(periodoDal);
+                        dalMax.setDate(dalMax.getDate() + 5);
+                        return fDal >= dalMin && fDal <= dalMax;
                     }
 
-                    if (!fatturaEsistente) {
-                        const periodoLabel = this._getPeriodoLabel(contratto.periodicita, i + 1, numPeriodi);
-                        // Data di emissione suggerita: ULTIMO GIORNO DEL MESE in cui FINISCE
-                        // il periodo di competenza.
-                        //  - Mensile  01/01-31/01  → emissione 31/01
-                        //  - Mensile  14/01-13/02  → emissione 28/02 (ultimo del mese di feb)
-                        //  - Bimestr. 01/01-28/02  → emissione 28/02
-                        //  - Trimestr 01/04-30/06  → emissione 30/06
-                        // periodoAl è l'ultimo giorno del periodo. Prendiamo il suo mese e
-                        // costruiamo l'ultimo giorno di quel mese con Date(anno, mese+1, 0):
-                        // il giorno 0 del mese successivo coincide con l'ultimo del mese corrente.
-                        const dataEmissioneSuggerita = new Date(
-                            periodoAl.getFullYear(),
-                            periodoAl.getMonth() + 1,
-                            0
-                        );
-                        dataEmissioneSuggerita.setHours(0, 0, 0, 0);
-                        result.push({
-                            id: `emit_${contratto.id}_${anno}_${i}`,
-                            tipo: 'FATTURA_EMISSIONE',
-                            contrattoId: contratto.id,
-                            clienteId: contratto.clienteId,
-                            clienteRagioneSociale: contratto.clienteRagioneSociale || '',
-                            numeroContratto: contratto.numeroContratto || '',
-                            dataScadenza: dataEmissioneSuggerita.toISOString(),
-                            competenzaDal: periodoDal.toISOString(),
-                            competenzaAl: periodoAl.toISOString(),
-                            importo: importoPerPeriodo,
-                            agente: contratto.agente || '',
-                            descrizione: `Fattura da emettere: ${periodoLabel} ${anno} — ${contratto.numeroContratto}`,
-                            isComputed: true
-                        });
-                    }
+                    // Fallback: match fuzzy per data emissione (fatture senza competenza)
+                    const dataRef = f.dataEmissione || f.dataFattura || f.dataScadenza;
+                    if (!dataRef) return false;
+                    const de = new Date(dataRef);
+                    const giorniFinestra = Math.max(Math.floor(intervalloMesi * 15), 20);
+                    const dataMin = new Date(periodoDal);
+                    dataMin.setDate(dataMin.getDate() - giorniFinestra);
+                    const dataMax = new Date(periodoDal);
+                    dataMax.setDate(dataMax.getDate() + giorniFinestra);
+                    return de >= dataMin && de <= dataMax;
+                };
+
+                // STEP 1: Cerca tra fatture dirette (stesso contratto) e senza contratto
+                let fatturaEsistente = tutteLeFatture.some(_matchFatturaPeriodo);
+
+                // STEP 2: Se non trovata, cerca tra le fatture dello stesso cliente
+                // linkate ad ALTRI contratti (fatture consolidate o linkate per errore).
+                // FIX BUG-3: oltre all'overlap di competenza si richiede una GUARDIA
+                // SULL'IMPORTO: una fattura "consolidata" che copre anche questo
+                // contratto deve valere almeno quanto il periodo di questo contratto.
+                // Se vale meno, NON può coprirlo → il periodo resta DA EMETTERE.
+                // Così una fattura piccola di un altro contratto non "nasconde" più
+                // un periodo non fatturato (evita ricavi persi silenziosamente).
+                if (!fatturaEsistente) {
+                    fatturaEsistente = fattureClienteAltriContratti.some(f => {
+                        if (!f.competenzaDal || !f.competenzaAl) return false;
+                        const fDal = new Date(f.competenzaDal);
+                        fDal.setHours(0, 0, 0, 0);
+                        const fAl = new Date(f.competenzaAl);
+                        fAl.setHours(23, 59, 59, 999);
+                        if (!(fDal <= periodoAl && fAl >= periodoDal)) return false;
+                        const importoFattura = parseFloat(f.imponibile || f.importo || f.totale || 0) || 0;
+                        if (importoFattura > 0 && importoFattura < importoPerPeriodo * 0.95) return false;
+                        return true;
+                    });
+                }
+
+                if (!fatturaEsistente) {
+                    const annoPeriodo = periodoAl.getFullYear();
+                    const numeroNelloAnno = (periodo.indice % periodiAnno) + 1;
+                    // Per i mensili la competenza è un mese di calendario: usa il
+                    // nome del mese reale del periodo (non l'indice progressivo).
+                    const periodoLabel = (contratto.periodicita === 'MENSILE')
+                        ? BillingPeriods.getPeriodoLabel('MENSILE', periodoDal.getMonth() + 1, 12)
+                        : BillingPeriods.getPeriodoLabel(contratto.periodicita, numeroNelloAnno, periodiAnno);
+                    // Data di emissione suggerita: ULTIMO GIORNO DEL MESE in cui FINISCE
+                    // il periodo di competenza. Date(anno, mese+1, 0) = ultimo giorno
+                    // del mese corrente.
+                    const dataEmissioneSuggerita = new Date(
+                        periodoAl.getFullYear(),
+                        periodoAl.getMonth() + 1,
+                        0
+                    );
+                    dataEmissioneSuggerita.setHours(0, 0, 0, 0);
+                    result.push({
+                        id: `emit_${contratto.id}_${periodo.indice}`,
+                        tipo: 'FATTURA_EMISSIONE',
+                        contrattoId: contratto.id,
+                        clienteId: contratto.clienteId,
+                        clienteRagioneSociale: contratto.clienteRagioneSociale || '',
+                        numeroContratto: contratto.numeroContratto || '',
+                        dataScadenza: BillingPeriods.formatLocalISO(dataEmissioneSuggerita),
+                        competenzaDal: BillingPeriods.formatLocalISO(periodoDal),
+                        competenzaAl: BillingPeriods.formatLocalISO(periodoAl),
+                        importo: importoPerPeriodo,
+                        agente: contratto.agente || '',
+                        descrizione: `Fattura da emettere: ${periodoLabel} ${annoPeriodo} — ${contratto.numeroContratto}`,
+                        isComputed: true
+                    });
                 }
             }
         }

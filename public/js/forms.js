@@ -1530,12 +1530,17 @@ const FormsManager = {
         }
 
         try {
-            // Calcola intervallo mesi dalla periodicità
-            const intervalloMesi = this._getIntervalloMesi(contratto.periodicita);
+            // Tutta la logica dei periodi è centralizzata in BillingPeriods
+            // (vedi billing-periods.js). Niente più deriva fine-mese.
+            const intervalloMesi = BillingPeriods.getIntervalloMesi(contratto.periodicita);
             if (intervalloMesi === 0) {
                 // UNA_TANTUM: competenza = tutto il contratto
-                dalInput.value = contratto.dataInizio.split('T')[0];
-                alInput.value = contratto.dataScadenza ? contratto.dataScadenza.split('T')[0] : contratto.dataInizio.split('T')[0];
+                const inizioUT = BillingPeriods.parseLocalDate(contratto.dataInizio);
+                const fineUT = contratto.dataScadenza
+                    ? BillingPeriods.parseLocalDate(contratto.dataScadenza)
+                    : inizioUT;
+                dalInput.value = BillingPeriods.formatLocalISO(inizioUT);
+                alInput.value = BillingPeriods.formatLocalISO(fineUT);
                 return;
             }
 
@@ -1543,16 +1548,24 @@ const FormsManager = {
             const fatture = await DataService.getFatture();
             const fattureContratto = fatture.filter(f => f.contrattoId === contrattoId && f.competenzaDal);
 
-            // Genera tutti i periodi del contratto
-            const periodi = this._generaPeriodiContratto(contratto, intervalloMesi);
+            // Genera tutti i periodi del contratto (fonte unica)
+            const periodi = BillingPeriods.generaPeriodi(contratto);
 
-            // Trova il primo periodo non coperto da una fattura
+            // Trova il primo periodo non coperto da una fattura.
+            // FIX BUG-2: si usa l'OVERLAP di date, non più l'uguaglianza esatta
+            // al millisecondo (che bastava 1 giorno di scarto per fallire).
             let periodoScoperto = null;
             for (const periodo of periodi) {
                 const coperto = fattureContratto.some(f => {
-                    const fDal = new Date(f.competenzaDal);
+                    const fDal = BillingPeriods.parseLocalDate(f.competenzaDal);
                     fDal.setHours(0, 0, 0, 0);
-                    return fDal.getTime() === periodo.dal.getTime();
+                    if (f.competenzaAl) {
+                        const fAl = BillingPeriods.parseLocalDate(f.competenzaAl);
+                        fAl.setHours(23, 59, 59, 999);
+                        return BillingPeriods.periodiSovrapposti(fDal, fAl, periodo.dal, periodo.al);
+                    }
+                    // Solo competenzaDal: coperto se cade dentro il periodo
+                    return fDal >= periodo.dal && fDal <= periodo.al;
                 });
                 if (!coperto) {
                     periodoScoperto = periodo;
@@ -1565,13 +1578,13 @@ const FormsManager = {
             if (!periodoScoperto) {
                 const dataEmissione = document.getElementById('dataEmissione')?.value;
                 if (dataEmissione) {
-                    periodoScoperto = this._calcolaPeriodoDaData(contratto, intervalloMesi, new Date(dataEmissione));
+                    periodoScoperto = this._calcolaPeriodoDaData(contratto, new Date(dataEmissione));
                 }
             }
 
             if (periodoScoperto) {
-                dalInput.value = periodoScoperto.dal.toISOString().split('T')[0];
-                alInput.value = periodoScoperto.al.toISOString().split('T')[0];
+                dalInput.value = BillingPeriods.formatLocalISO(periodoScoperto.dal);
+                alInput.value = BillingPeriods.formatLocalISO(periodoScoperto.al);
             }
         } catch (e) {
             console.warn('Errore calcolo competenza automatico:', e);
@@ -1579,65 +1592,11 @@ const FormsManager = {
     },
 
     /**
-     * Restituisce l'intervallo in mesi per una data periodicità
+     * Dato un contratto e una data, calcola in quale periodo cade.
+     * (La logica dei periodi è in BillingPeriods — vedi billing-periods.js.)
      */
-    _getIntervalloMesi(periodicita) {
-        switch (periodicita) {
-            case 'MENSILE': return 1;
-            case 'BIMENSILE': return 2;
-            case 'TRIMESTRALE': return 3;
-            case 'SEMESTRALE': return 6;
-            case 'ANNUALE': return 12;
-            case 'BIENNALE': return 24;
-            case 'TRIENNALE': return 36;
-            case 'QUADRIENNALE': return 48;
-            case 'QUINQUENNALE': return 60;
-            case 'UNA_TANTUM': return 0;
-            default: return 12;
-        }
-    },
-
-    /**
-     * Genera tutti i periodi di competenza di un contratto
-     */
-    _generaPeriodiContratto(contratto, intervalloMesi) {
-        const periodi = [];
-        const dataInizio = new Date(contratto.dataInizio);
-        dataInizio.setHours(0, 0, 0, 0);
-        const dataScadenza = contratto.dataScadenza ? new Date(contratto.dataScadenza) : null;
-        if (dataScadenza) dataScadenza.setHours(23, 59, 59, 999);
-
-        let current = new Date(dataInizio);
-        const maxPeriodi = 120; // Sicurezza: max 10 anni mensili
-        let count = 0;
-
-        while (count < maxPeriodi) {
-            const dal = new Date(current);
-            const al = new Date(current);
-            al.setMonth(al.getMonth() + intervalloMesi);
-            al.setDate(al.getDate() - 1); // Ultimo giorno del periodo
-            al.setHours(23, 59, 59, 999);
-
-            // Se il periodo va oltre la scadenza, tronca
-            if (dataScadenza && dal > dataScadenza) break;
-            if (dataScadenza && al > dataScadenza) {
-                al.setTime(dataScadenza.getTime());
-            }
-
-            periodi.push({ dal: new Date(dal), al: new Date(al) });
-
-            // Prossimo periodo
-            current.setMonth(current.getMonth() + intervalloMesi);
-            count++;
-        }
-        return periodi;
-    },
-
-    /**
-     * Dato un contratto e una data, calcola in quale periodo cade
-     */
-    _calcolaPeriodoDaData(contratto, intervalloMesi, data) {
-        const periodi = this._generaPeriodiContratto(contratto, intervalloMesi);
+    _calcolaPeriodoDaData(contratto, data) {
+        const periodi = BillingPeriods.generaPeriodi(contratto, { finoA: data });
         for (const p of periodi) {
             if (data >= p.dal && data <= p.al) return p;
         }

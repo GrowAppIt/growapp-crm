@@ -70,7 +70,7 @@ const Settings = {
                         class="settings-tab ${this.currentTab === 'bonifica' ? 'active' : ''}"
                         onclick="Settings.switchTab('bonifica')"
                     >
-                        <i class="fas fa-wrench"></i> Bonifica Fatture
+                        <i class="fas fa-file-excel"></i> Controllo Fatturazione
                     </button>
                     ` : ''}
                     ${AuthService.hasPermission('manage_settings') ? `
@@ -1992,45 +1992,264 @@ const Settings = {
         return `${giorni[target.getDay()]} ${target.getDate()} ${mesi[target.getMonth()]} ${target.getFullYear()}`;
     },
 
-    // === TAB BONIFICA FATTURE ===
+    // === TAB CONTROLLO FATTURAZIONE ===
+    // Estrae un Excel con, per ogni contratto, l'ultimo mese di competenza
+    // fatturato, così da fare controlli incrociati e individuare contratti per
+    // cui manca una fattura. NON modifica nessun dato (solo lettura + export).
     renderBonificaTab() {
         return `
             <div class="card fade-in">
                 <div class="card-header">
                     <h2 class="card-title">
-                        <i class="fas fa-wrench"></i> Bonifica Numeri Fattura (PA/PR)
+                        <i class="fas fa-file-excel"></i> Controllo Fatturazione
                     </h2>
                 </div>
                 <div style="padding: 1.5rem;">
-                    <div style="padding: 1rem; background: #FFF3E0; border-left: 4px solid #FFCC00; border-radius: 8px; margin-bottom: 1.5rem;">
-                        <h3 style="font-size: 1rem; font-weight: 700; color: #E65100; margin-bottom: 0.5rem;">
-                            <i class="fas fa-exclamation-triangle"></i> Cosa fa questa bonifica?
+                    <div style="padding: 1rem; background: var(--blu-100); border-left: 4px solid var(--blu-700); border-radius: 8px; margin-bottom: 1.5rem;">
+                        <h3 style="font-size: 1rem; font-weight: 700; color: var(--blu-700); margin-bottom: 0.5rem;">
+                            <i class="fas fa-info-circle"></i> Cosa estrae questo report?
                         </h3>
                         <p style="color: #4A4A4A; margin: 0; font-size: 0.9rem; line-height: 1.6;">
-                            Questa operazione aggiorna <strong>tutte le fatture esistenti</strong> aggiungendo il suffisso <strong>/PA</strong> o <strong>/PR</strong> al numero fattura,
-                            in base al tipo del cliente associato.<br/>
-                            Esempio: <code>2026/005</code> diventa <code>2026/005/PA</code> o <code>2026/005/PR</code>.<br/><br/>
-                            <strong>Attenzione:</strong> le fatture che hanno già il suffisso /PA o /PR non verranno modificate.
+                            Genera un file <strong>Excel</strong> con una riga per ogni contratto e, in colonna,
+                            <strong>l'ultimo mese di competenza fatturato</strong>, la prossima competenza ancora da fatturare,
+                            il numero di periodi arretrati e un <strong>esito di controllo</strong>
+                            (<span style="color:var(--verde-700);font-weight:700;">OK</span> /
+                            <span style="color:#E65100;font-weight:700;">DA VERIFICARE</span> /
+                            <span style="color:#D32F2F;font-weight:700;">NESSUNA FATTURA</span>).<br/>
+                            Serve per i controlli incrociati: individuare a colpo d'occhio i contratti per cui, per qualche
+                            ragione, non è stata emessa una fattura. <strong>Nessun dato viene modificato.</strong>
                         </p>
                     </div>
 
-                    <div style="display: flex; gap: 1rem; margin-bottom: 1.5rem;">
-                        <button class="btn btn-primary" onclick="Settings.anteprimaBonifica()">
-                            <i class="fas fa-search"></i> Anteprima modifiche
-                        </button>
-                        <button class="btn btn-success" id="btnEseguiBonifica" onclick="Settings.eseguiBonificaFatture()" style="display: none;">
-                            <i class="fas fa-play"></i> Esegui Bonifica
+                    <div style="display: flex; gap: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap;">
+                        <button class="btn btn-success" id="btnExportCompetenza" onclick="Settings.exportUltimaCompetenza()">
+                            <i class="fas fa-file-excel"></i> Esporta Excel ultima competenza
                         </button>
                     </div>
 
-                    <div id="bonificaResults" style="display: none;">
-                        <div id="bonificaStats" style="margin-bottom: 1rem;"></div>
-                        <div id="bonificaList" style="max-height: 400px; overflow-y: auto;"></div>
-                    </div>
-                    <div id="bonificaProgress" style="display: none;"></div>
+                    <div id="competenzaStatus"></div>
                 </div>
             </div>
         `;
+    },
+
+    // Costruisce ed esporta il report Excel "ultima competenza fatturata per
+    // contratto". Usa la STESSA logica dei periodi del resto del CRM
+    // (BillingPeriods) e lo stesso matching fattura-periodo dello scadenzario,
+    // così i numeri sono coerenti con quanto mostrato altrove.
+    async exportUltimaCompetenza() {
+        const statusDiv = document.getElementById('competenzaStatus');
+        const btn = document.getElementById('btnExportCompetenza');
+        const setStatus = (html) => { if (statusDiv) statusDiv.innerHTML = html; };
+
+        if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generazione in corso...'; }
+        setStatus('<p style="color: var(--grigio-500);"><i class="fas fa-spinner fa-spin"></i> Carico contratti e fatture...</p>');
+
+        try {
+            // Assicura che la libreria Excel (SheetJS) sia caricata
+            await this._assicuraXLSX();
+
+            // Carica dati (sola lettura)
+            const [contratti, fatture, clienti] = await Promise.all([
+                DataService.getContratti(),
+                DataService.getFatture({ limit: 10000 }),
+                DataService.getClienti()
+            ]);
+
+            const clientiMap = {};
+            clienti.forEach(c => { clientiMap[c.id] = c.ragioneSociale || ''; });
+
+            // Indicizza fatture per contratto e per cliente
+            const perContratto = {};
+            const perCliente = {};
+            fatture.forEach(f => {
+                if (f.contrattoId) {
+                    (perContratto[f.contrattoId] = perContratto[f.contrattoId] || []).push(f);
+                }
+                if (f.clienteId) {
+                    (perCliente[f.clienteId] = perCliente[f.clienteId] || []).push(f);
+                }
+            });
+
+            const oggi = new Date();
+            oggi.setHours(23, 59, 59, 999);
+            const MESI = ['Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
+            const fmtIT = (d) => {
+                if (!d) return '';
+                const x = (d instanceof Date) ? d : BillingPeriods.parseLocalDate(d);
+                if (isNaN(x.getTime())) return '';
+                return ('0'+x.getDate()).slice(-2)+'/'+('0'+(x.getMonth()+1)).slice(-2)+'/'+x.getFullYear();
+            };
+            const meseLabel = (d) => d ? (MESI[d.getMonth()] + ' ' + d.getFullYear()) : '—';
+
+            const righe = [];
+
+            for (const c of contratti) {
+                if (!c.dataInizio || !c.periodicita) continue;
+
+                const importoAnnuale = parseFloat(c.importoAnnuale) || 0;
+                const periodiAnno = BillingPeriods.getPeriodiAnno(c.periodicita);
+                const importoPerPeriodo = periodiAnno > 0 ? Math.round((importoAnnuale / periodiAnno) * 100) / 100 : importoAnnuale;
+
+                const fattureDir = (perContratto[c.id] || []);
+                const fattureCliNoCtr = (perCliente[c.clienteId] || []).filter(f => !f.contrattoId);
+                const fattureCliAltri = (perCliente[c.clienteId] || []).filter(f => f.contrattoId && f.contrattoId !== c.id);
+
+                // Periodi dovuti fino a oggi (già trascorsi/da emettere)
+                const periodi = BillingPeriods.generaPeriodi(c, { finoA: oggi });
+
+                // Coverage di un periodo (stessa logica dello scadenzario)
+                const coperto = (periodo) => {
+                    const pDal = periodo.dal, pAl = periodo.al;
+                    const matchBase = (f) => {
+                        if (f.competenzaDal) {
+                            const fDal = BillingPeriods.parseLocalDate(f.competenzaDal); fDal.setHours(0,0,0,0);
+                            if (f.competenzaAl) {
+                                const fAl = BillingPeriods.parseLocalDate(f.competenzaAl); fAl.setHours(23,59,59,999);
+                                return BillingPeriods.periodiSovrapposti(fDal, fAl, pDal, pAl);
+                            }
+                            const dalMin = new Date(pDal); dalMin.setDate(dalMin.getDate()-5);
+                            const dalMax = new Date(pDal); dalMax.setDate(dalMax.getDate()+5);
+                            return fDal >= dalMin && fDal <= dalMax;
+                        }
+                        const dataRef = f.dataEmissione || f.dataFattura || f.dataScadenza;
+                        if (!dataRef) return false;
+                        const de = BillingPeriods.parseLocalDate(dataRef);
+                        const giorni = Math.max(Math.floor(BillingPeriods.getIntervalloMesi(c.periodicita) * 15), 20);
+                        const dMin = new Date(pDal); dMin.setDate(dMin.getDate()-giorni);
+                        const dMax = new Date(pDal); dMax.setDate(dMax.getDate()+giorni);
+                        return de >= dMin && de <= dMax;
+                    };
+                    if (fattureDir.some(matchBase) || fattureCliNoCtr.some(matchBase)) return true;
+                    // Cross-contratto con guardia importo (come nello scadenzario)
+                    return fattureCliAltri.some(f => {
+                        if (!f.competenzaDal || !f.competenzaAl) return false;
+                        const fDal = BillingPeriods.parseLocalDate(f.competenzaDal); fDal.setHours(0,0,0,0);
+                        const fAl = BillingPeriods.parseLocalDate(f.competenzaAl); fAl.setHours(23,59,59,999);
+                        if (!BillingPeriods.periodiSovrapposti(fDal, fAl, pDal, pAl)) return false;
+                        const imp = parseFloat(f.imponibile || f.importo || f.totale || 0) || 0;
+                        if (imp > 0 && imp < importoPerPeriodo * 0.95) return false;
+                        return true;
+                    });
+                };
+
+                let ultimaCoperta = null;     // ultimo periodo fatturato
+                let primaScoperta = null;     // primo periodo dovuto e non fatturato
+                let arretrati = 0;
+                for (const p of periodi) {
+                    if (coperto(p)) {
+                        if (!ultimaCoperta || p.al > ultimaCoperta.al) ultimaCoperta = p;
+                    } else if (p.al <= oggi) {
+                        arretrati++;
+                        if (!primaScoperta) primaScoperta = p;
+                    }
+                }
+
+                // Ultima fattura realmente emessa (data + numero) tra quelle collegate
+                let ultimaFattura = null;
+                fattureDir.forEach(f => {
+                    const d = BillingPeriods.parseLocalDate(f.dataEmissione || f.dataFattura || f.competenzaAl || f.competenzaDal);
+                    if (!isNaN(d.getTime()) && (!ultimaFattura || d > ultimaFattura.d)) {
+                        ultimaFattura = { d, num: f.numeroFatturaCompleto || f.numeroFattura || '' };
+                    }
+                });
+
+                const nFattureColl = fattureDir.length;
+                let esito, note = '';
+                if (arretrati > 0) {
+                    if (nFattureColl === 0) {
+                        esito = 'NESSUNA FATTURA';
+                        note = 'Nessuna fattura collegata a questo contratto.';
+                    } else {
+                        esito = 'DA VERIFICARE';
+                    }
+                } else {
+                    esito = 'OK';
+                }
+                if (fattureCliNoCtr.length > 0) {
+                    note += (note ? ' ' : '') + fattureCliNoCtr.length + ' fattura/e del cliente senza contratto collegato.';
+                }
+                if (fattureCliAltri.length > 0 && arretrati > 0) {
+                    note += (note ? ' ' : '') + 'Verificare eventuali fatture consolidate su altri contratti.';
+                }
+
+                righe.push({
+                    'N° Contratto': c.numeroContratto || c.id || '',
+                    'Cliente': c.clienteRagioneSociale || clientiMap[c.clienteId] || c.clienteId || '',
+                    'Stato': c.stato || '',
+                    'Periodicità': c.periodicita || '',
+                    'Data Inizio': fmtIT(c.dataInizio),
+                    'Data Scadenza': fmtIT(c.dataScadenza),
+                    'Importo Annuale': importoAnnuale || '',
+                    'Importo per Periodo': importoPerPeriodo || '',
+                    'N° Fatture Collegate': nFattureColl,
+                    'Ultimo Mese Competenza Fatturato': ultimaCoperta ? meseLabel(ultimaCoperta.al) : '—',
+                    'Ultima Competenza (Al)': ultimaCoperta ? fmtIT(ultimaCoperta.al) : '',
+                    'Ultima Fattura Emessa': ultimaFattura ? (fmtIT(ultimaFattura.d) + (ultimaFattura.num ? ' (' + ultimaFattura.num + ')' : '')) : '',
+                    'Prossima Competenza da Fatturare': primaScoperta ? fmtIT(primaScoperta.dal) : '—',
+                    'Periodi Arretrati': arretrati,
+                    'Esito Controllo': esito,
+                    'Note': note
+                });
+            }
+
+            // Ordina: prima i casi da verificare (più arretrati in cima), poi gli OK
+            const rank = { 'NESSUNA FATTURA': 0, 'DA VERIFICARE': 1, 'OK': 2 };
+            righe.sort((a, b) => {
+                const r = (rank[a['Esito Controllo']] ?? 3) - (rank[b['Esito Controllo']] ?? 3);
+                if (r !== 0) return r;
+                return (b['Periodi Arretrati'] || 0) - (a['Periodi Arretrati'] || 0);
+            });
+
+            if (righe.length === 0) {
+                setStatus('<p style="color:#E65100;"><i class="fas fa-exclamation-triangle"></i> Nessun contratto con periodicità e data inizio trovato.</p>');
+                if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-file-excel"></i> Esporta Excel ultima competenza'; }
+                return;
+            }
+
+            // Costruisci il foglio Excel
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.json_to_sheet(righe);
+            ws['!cols'] = [
+                { wch: 16 }, { wch: 34 }, { wch: 12 }, { wch: 14 }, { wch: 12 }, { wch: 12 },
+                { wch: 14 }, { wch: 16 }, { wch: 12 }, { wch: 26 }, { wch: 14 }, { wch: 26 },
+                { wch: 24 }, { wch: 12 }, { wch: 16 }, { wch: 50 }
+            ];
+            XLSX.utils.book_append_sheet(wb, ws, 'Ultima Competenza');
+
+            const oggiStr = new Date().toISOString().split('T')[0];
+            XLSX.writeFile(wb, `Controllo_Fatturazione_${oggiStr}.xlsx`);
+
+            const daVerificare = righe.filter(r => r['Esito Controllo'] !== 'OK').length;
+            setStatus(`
+                <div style="padding: 1rem; background: var(--verde-100); border-left: 4px solid var(--verde-700); border-radius: 8px;">
+                    <p style="margin:0; color: var(--grigio-700);">
+                        <i class="fas fa-check-circle" style="color: var(--verde-700);"></i>
+                        Report generato: <strong>${righe.length}</strong> contratti analizzati,
+                        di cui <strong style="color:#E65100;">${daVerificare}</strong> da verificare.
+                        Il file Excel è stato scaricato.
+                    </p>
+                </div>
+            `);
+            if (typeof UI !== 'undefined' && UI.showSuccess) UI.showSuccess('Report fatturazione esportato!');
+        } catch (error) {
+            console.error('Errore export ultima competenza:', error);
+            setStatus(`<p style="color:#D32F2F;"><i class="fas fa-times-circle"></i> Errore: ${error.message}</p>`);
+        } finally {
+            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-file-excel"></i> Esporta Excel ultima competenza'; }
+        }
+    },
+
+    // Carica SheetJS on-demand se non ancora disponibile (è caricato in lazy).
+    _assicuraXLSX() {
+        if (typeof XLSX !== 'undefined') return Promise.resolve();
+        return new Promise((resolve, reject) => {
+            const s = document.createElement('script');
+            s.src = 'https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js';
+            s.onload = () => resolve();
+            s.onerror = () => reject(new Error('Impossibile caricare la libreria Excel'));
+            document.body.appendChild(s);
+        });
     },
 
     async anteprimaBonifica() {
