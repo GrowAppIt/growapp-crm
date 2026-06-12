@@ -1477,7 +1477,7 @@ const ReportGoodBarber = {
         <div style="padding:18px 44px 8px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:18px;">
 
           ${metricCard('fas fa-bell', 'Notifiche attive', fmtNum(m.consensiPush), '#3CA434', 'cittadini che ricevono gli avvisi del Comune')}
-          ${metricCard('fas fa-mobile-alt', 'Aperture app', fmtNum(m.launchesMonth), '#145284', 'volte che i cittadini hanno aperto l’app')}
+          ${metricCard('fas fa-mobile-alt', 'Aperture app', fmtNum(m.launchesMonth), '#145284', 'volte che i cittadini hanno aperto l’app negli ultimi 30 giorni')}
 
           <!-- Card piattaforme iOS/Android -->
           <div style="background:#ffffff;border-radius:18px;padding:26px 20px 24px;text-align:left;
@@ -1500,7 +1500,7 @@ const ReportGoodBarber = {
             </div>
           </div>
 
-          ${metricCard('fas fa-eye', 'Pagine consultate', fmtNum(m.pageViewsMonth), '#0288D1', 'contenuti letti dai cittadini nell’app')}
+          ${metricCard('fas fa-eye', 'Pagine consultate', fmtNum(m.pageViewsMonth), '#0288D1', 'contenuti letti dai cittadini negli ultimi 30 giorni')}
           ${metricCard('fas fa-book-open', 'Pagine per visita', fmtDec(m.engagement, 1), '#E67E22', 'quanto i cittadini approfondiscono in media')}
           ${metricCard('fas fa-users', 'Diffusione', fmtDec(m.penetrazione, 1) + '%', '#2E6DA8', 'quota di abitanti che ha scaricato l’app')}
 
