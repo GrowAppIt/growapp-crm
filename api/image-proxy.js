@@ -55,6 +55,8 @@ module.exports = async function handler(req, res) {
         '.rss.app',             // RSS.app hosted images
         'rss.app',
         '.comune.digital',      // Nostre immagini
+        '.googleapis.com',      // Firebase Storage (firebasestorage.googleapis.com) — icone app
+        '.appspot.com',         // Bucket Firebase Storage (storage <bucket>.appspot.com)
         '.googleusercontent.com', // Google (YouTube thumbnails ecc.)
         '.ytimg.com',           // YouTube thumbnails
         '.ggpht.com',           // Google profile pics

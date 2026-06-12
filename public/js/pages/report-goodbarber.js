@@ -1226,21 +1226,50 @@ const ReportGoodBarber = {
       // Calcola metriche
       const m = this.calcReportMetrics(app, stats);
 
-      // Pre-carica icona come base64 per evitare problemi CORS con html2canvas
+      // Pre-carica icona come base64 per evitare problemi CORS con html2canvas.
+      // Le icone stanno su Firebase Storage (firebasestorage.googleapis.com) che
+      // NON invia header CORS: il fetch diretto dei byte fallisce (anche se l'<img>
+      // si vede). Strategia: 1) provo il fetch diretto; 2) se fallisce, riprovo
+      // attraverso il proxy lato server del CRM (/api/image-proxy) che restituisce
+      // l'immagine con CORS aperto.
       let iconBase64 = '';
       if (app.iconaUrl) {
+        const blobToBase64 = (blob) => new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result);
+          reader.onerror = () => resolve('');
+          reader.readAsDataURL(blob);
+        });
+
+        // Tentativo 1 — fetch diretto (funziona se l'host invia gli header CORS)
         try {
           const resp = await fetch(app.iconaUrl);
-          const blob = await resp.blob();
-          iconBase64 = await new Promise((resolve) => {
-            const reader = new FileReader();
-            reader.onloadend = () => resolve(reader.result);
-            reader.onerror = () => resolve('');
-            reader.readAsDataURL(blob);
-          });
+          if (resp.ok) {
+            const blob = await resp.blob();
+            if (blob && blob.type && blob.type.indexOf('image/') === 0) {
+              iconBase64 = await blobToBase64(blob);
+            }
+          }
         } catch (e) {
-          console.warn('Icona non caricabile, uso placeholder:', e);
-          iconBase64 = '';
+          // CORS o rete: si passa al proxy qui sotto
+        }
+
+        // Tentativo 2 — proxy CRM (bypassa il CORS di Firebase Storage)
+        if (!iconBase64) {
+          try {
+            const proxyUrl = '/api/image-proxy?url=' + encodeURIComponent(app.iconaUrl);
+            const resp = await fetch(proxyUrl);
+            if (resp.ok) {
+              const blob = await resp.blob();
+              if (blob && blob.type && blob.type.indexOf('image/') === 0) {
+                iconBase64 = await blobToBase64(blob);
+              }
+            } else {
+              console.warn('Icona via proxy non disponibile (HTTP ' + resp.status + '), uso placeholder.');
+            }
+          } catch (e) {
+            console.warn('Icona non caricabile nemmeno via proxy, uso placeholder:', e);
+          }
         }
       }
 
