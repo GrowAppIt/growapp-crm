@@ -1343,146 +1343,152 @@ const ReportGoodBarber = {
     const fmtNum = (n) => new Intl.NumberFormat('it-IT').format(Math.round(n));
     const fmtDec = (n, d) => n.toFixed(d).replace('.', ',');
 
-    // Funzione per generare una singola card metrica
+    // ── Card metrica secondaria (numero + etichetta + spiegazione in italiano semplice) ──
     const metricCard = (icon, label, value, color, subtitle) => `
-      <div style="background:#ffffff;border-radius:16px;padding:28px 18px;text-align:center;
-                  box-shadow:0 2px 12px rgba(0,0,0,0.06);border:1px solid #E8EDF2;">
-        <div style="width:56px;height:56px;border-radius:14px;background:${color}15;
-                    display:flex;align-items:center;justify-content:center;margin:0 auto 14px;">
-          <i class="${icon}" style="font-size:28px;color:${color};"></i>
+      <div style="background:#ffffff;border-radius:18px;padding:26px 20px 24px;text-align:left;
+                  box-shadow:0 6px 18px rgba(16,40,70,0.06);border:1px solid #E6ECF2;
+                  border-top:4px solid ${color};">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+          <div style="width:48px;height:48px;border-radius:13px;background:${color}14;
+                      display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+            <i class="${icon}" style="font-size:24px;color:${color};"></i>
+          </div>
+          <div style="font-size:16px;font-weight:700;color:#103A5E;line-height:1.2;text-transform:uppercase;letter-spacing:0.4px;">
+            ${label}
+          </div>
         </div>
-        <div style="font-size:44px;font-weight:700;color:#1E1E1E;line-height:1.1;margin-bottom:8px;">
+        <div style="font-size:46px;font-weight:700;color:#0E2E4A;line-height:1;margin-bottom:6px;">
           ${value}
         </div>
-        <div style="font-size:17px;font-weight:600;color:#4A4A4A;text-transform:uppercase;letter-spacing:0.5px;">
-          ${label}
-        </div>
-        ${subtitle ? `<div style="font-size:15px;color:#9B9B9B;margin-top:5px;">${subtitle}</div>` : ''}
+        ${subtitle ? `<div style="font-size:15px;color:#7C8A99;line-height:1.3;">${subtitle}</div>` : ''}
       </div>
     `;
 
     return `
       <div id="reportCardCanvas" style="width:800px;font-family:'Titillium Web',Arial,Helvetica,sans-serif;
-           background:#ffffff;overflow:hidden;">
+           background:#EEF3F8;overflow:hidden;">
 
         <!-- ▓▓ HEADER ▓▓ -->
-        <div style="background:linear-gradient(135deg,#145284 0%,#0D3A5C 100%);padding:48px 40px 42px;text-align:center;position:relative;">
+        <div style="background:linear-gradient(135deg,#145284 0%,#0D3A5C 100%);padding:46px 44px 40px;position:relative;">
           <!-- Pattern decorativo -->
-          <div style="position:absolute;top:0;right:0;width:200px;height:200px;
-                      background:radial-gradient(circle at 100% 0%,rgba(255,255,255,0.06) 0%,transparent 70%);"></div>
+          <div style="position:absolute;top:0;right:0;width:260px;height:260px;
+                      background:radial-gradient(circle at 100% 0%,rgba(60,164,52,0.18) 0%,transparent 65%);"></div>
 
-          ${iconSrc ? `
-          <img src="${iconSrc}"
-               style="width:100px;height:100px;border-radius:22px;border:3px solid rgba(255,255,255,0.3);
-                      margin-bottom:20px;object-fit:cover;" />
-          ` : `
-          <div style="width:100px;height:100px;border-radius:22px;background:rgba(255,255,255,0.15);
-                      margin:0 auto 20px;display:flex;align-items:center;justify-content:center;">
-            <i class="fas fa-mobile-alt" style="font-size:46px;color:rgba(255,255,255,0.7);"></i>
-          </div>
-          `}
-
-          <div style="font-size:56px;font-weight:700;color:#ffffff;margin-bottom:10px;line-height:1.15;">
-            ${this.escapeHtml(app.nome || 'App')}
-          </div>
-          <div style="font-size:22px;color:rgba(255,255,255,0.85);font-weight:400;">
-            ${this.escapeHtml(location)}
-          </div>
-          ${dataLancio ? `
-          <div style="font-size:18px;color:rgba(255,255,255,0.6);margin-top:12px;">
-            <i class="fas fa-rocket" style="margin-right:5px;"></i> Attiva dal ${dataLancio}
-          </div>` : ''}
-        </div>
-
-        <!-- ▓▓ TITOLO SEZIONE ▓▓ -->
-        <div style="padding:30px 40px 12px;display:flex;align-items:center;justify-content:space-between;">
-          <div style="display:flex;align-items:center;gap:12px;">
-            <div style="width:6px;height:36px;border-radius:3px;background:#3CA434;"></div>
-            <div style="font-size:26px;font-weight:700;color:#145284;text-transform:uppercase;letter-spacing:1px;">
-              Report Analytics
+          <div style="display:flex;align-items:center;gap:24px;position:relative;">
+            ${iconSrc ? `
+            <img src="${iconSrc}"
+                 style="width:104px;height:104px;border-radius:24px;border:3px solid rgba(255,255,255,0.25);
+                        object-fit:cover;flex-shrink:0;" />
+            ` : `
+            <div style="width:104px;height:104px;border-radius:24px;background:rgba(255,255,255,0.15);
+                        display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+              <i class="fas fa-mobile-alt" style="font-size:48px;color:rgba(255,255,255,0.7);"></i>
+            </div>
+            `}
+            <div style="flex:1;">
+              <div style="font-size:18px;font-weight:600;color:#9FD497;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px;">
+                Report dell'app comunale
+              </div>
+              <div style="font-size:50px;font-weight:700;color:#ffffff;line-height:1.1;margin-bottom:8px;">
+                ${this.escapeHtml(app.nome || 'App')}
+              </div>
+              <div style="font-size:20px;color:rgba(255,255,255,0.8);font-weight:400;">
+                <i class="fas fa-map-marker-alt" style="margin-right:6px;opacity:0.8;"></i>${this.escapeHtml(location)}
+              </div>
+              ${dataLancio ? `
+              <div style="font-size:16px;color:rgba(255,255,255,0.6);margin-top:10px;">
+                <i class="fas fa-rocket" style="margin-right:5px;"></i> Online dal ${dataLancio}
+              </div>` : ''}
             </div>
           </div>
-          <div style="font-size:17px;color:#9B9B9B;font-weight:400;">
+        </div>
+
+        <!-- ▓▓ TITOLO SEZIONE + PERIODO ▓▓ -->
+        <div style="padding:32px 44px 4px;display:flex;align-items:flex-end;justify-content:space-between;">
+          <div style="display:flex;align-items:center;gap:14px;">
+            <div style="width:6px;height:38px;border-radius:3px;background:#3CA434;"></div>
+            <div>
+              <div style="font-size:28px;font-weight:700;color:#103A5E;line-height:1.1;">
+                Come sta andando l'app
+              </div>
+              <div style="font-size:16px;font-weight:600;color:#7C8A99;margin-top:3px;">
+                <i class="fas fa-clock" style="margin-right:5px;"></i> Dati aggiornati agli ultimi 30 giorni
+              </div>
+            </div>
+          </div>
+          <div style="font-size:15px;color:#9BAABA;font-weight:400;text-align:right;">
             <i class="fas fa-calendar-alt" style="margin-right:5px;"></i> ${now}
           </div>
         </div>
 
-        <!-- ▓▓ SOTTO-TITOLO PERIODO ▓▓ -->
-        <div style="padding:8px 40px 8px;">
-          <div style="font-size:17px;font-weight:600;color:#9B9B9B;letter-spacing:0.5px;">
-            <i class="fas fa-clock" style="margin-right:5px;"></i> Dati ultimi 30 giorni
+        <!-- ▓▓ NUMERO PRINCIPALE: DOWNLOADS TOTALI ▓▓ -->
+        <div style="padding:22px 44px 8px;">
+          <div style="background:linear-gradient(135deg,#145284 0%,#1C6AA8 100%);border-radius:20px;
+                      padding:30px 36px;display:flex;align-items:center;gap:26px;
+                      box-shadow:0 10px 28px rgba(20,82,132,0.25);">
+            <div style="width:72px;height:72px;border-radius:18px;background:rgba(255,255,255,0.18);
+                        display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+              <i class="fas fa-download" style="font-size:34px;color:#ffffff;"></i>
+            </div>
+            <div style="flex:1;">
+              <div style="font-size:18px;font-weight:600;color:rgba(255,255,255,0.85);text-transform:uppercase;letter-spacing:0.6px;">
+                Download totali dell'app
+              </div>
+              <div style="font-size:72px;font-weight:700;color:#ffffff;line-height:1;margin:4px 0 4px;">
+                ${fmtNum(m.downloads)}
+              </div>
+              <div style="font-size:16px;color:rgba(255,255,255,0.7);">installazioni complessive da quando l'app è online</div>
+            </div>
           </div>
         </div>
 
         <!-- ▓▓ GRIGLIA METRICHE (3x2) ▓▓ -->
-        <div style="padding:18px 40px 30px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px;">
+        <div style="padding:18px 44px 8px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:18px;">
 
-          ${metricCard('fas fa-bell', 'Consensi Push', fmtNum(m.consensiPush), '#3CA434', 'utenti con notifiche attive')}
-          ${metricCard('fas fa-sync-alt', 'Sessioni', fmtNum(m.launchesMonth), '#145284', 'aperture dell\'app')}
+          ${metricCard('fas fa-bell', 'Notifiche attive', fmtNum(m.consensiPush), '#3CA434', 'cittadini che ricevono gli avvisi del Comune')}
+          ${metricCard('fas fa-mobile-alt', 'Aperture app', fmtNum(m.launchesMonth), '#145284', 'volte che i cittadini hanno aperto l’app')}
 
           <!-- Card piattaforme iOS/Android -->
-          <div style="background:#ffffff;border-radius:16px;padding:28px 18px;text-align:center;
-                      box-shadow:0 2px 12px rgba(0,0,0,0.06);border:1px solid #E8EDF2;">
-            <div style="font-size:17px;font-weight:600;color:#4A4A4A;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:18px;">
-              Piattaforme
+          <div style="background:#ffffff;border-radius:18px;padding:26px 20px 24px;text-align:left;
+                      box-shadow:0 6px 18px rgba(16,40,70,0.06);border:1px solid #E6ECF2;border-top:4px solid #6C7A89;">
+            <div style="font-size:16px;font-weight:700;color:#103A5E;text-transform:uppercase;letter-spacing:0.4px;margin-bottom:18px;">
+              Dispositivi
             </div>
-            <div style="display:flex;align-items:center;justify-content:center;gap:32px;margin-bottom:14px;">
-              <div style="text-align:center;">
-                <i class="fab fa-apple" style="font-size:32px;color:#1E1E1E;display:block;margin-bottom:8px;"></i>
-                <div style="font-size:38px;font-weight:700;color:#1E1E1E;">${m.iosPerc}%</div>
-                <div style="font-size:16px;color:#9B9B9B;">iOS</div>
+            <div style="display:flex;align-items:center;justify-content:space-between;">
+              <div style="text-align:center;flex:1;">
+                <i class="fab fa-apple" style="font-size:30px;color:#1E1E1E;display:block;margin-bottom:6px;"></i>
+                <div style="font-size:34px;font-weight:700;color:#0E2E4A;line-height:1;">${m.iosPerc}%</div>
+                <div style="font-size:15px;color:#7C8A99;margin-top:3px;">iPhone</div>
               </div>
-              <div style="width:1px;height:60px;background:#D9D9D9;"></div>
-              <div style="text-align:center;">
-                <i class="fab fa-android" style="font-size:32px;color:#3CA434;display:block;margin-bottom:8px;"></i>
-                <div style="font-size:38px;font-weight:700;color:#1E1E1E;">${m.androidPerc}%</div>
-                <div style="font-size:16px;color:#9B9B9B;">Android</div>
+              <div style="width:1px;height:64px;background:#E0E6EC;"></div>
+              <div style="text-align:center;flex:1;">
+                <i class="fab fa-android" style="font-size:30px;color:#3CA434;display:block;margin-bottom:6px;"></i>
+                <div style="font-size:34px;font-weight:700;color:#0E2E4A;line-height:1;">${m.androidPerc}%</div>
+                <div style="font-size:15px;color:#7C8A99;margin-top:3px;">Android</div>
               </div>
-            </div>
-            <div style="font-size:15px;color:#9B9B9B;">distribuzione dispositivi</div>
-          </div>
-
-          ${metricCard('fas fa-eye', 'Pagine Viste', fmtNum(m.pageViewsMonth), '#0288D1', 'contenuti consultati')}
-          ${metricCard('fas fa-file-alt', 'Engagement', fmtDec(m.engagement, 1), '#E67E22', 'pagine per sessione')}
-          ${metricCard('fas fa-chart-line', 'Penetrazione', fmtDec(m.penetrazione, 1) + '%', '#2E6DA8', 'downloads / abitanti')}
-
-        </div>
-
-        <!-- ▓▓ BARRA DOWNLOADS TOTALI (evidenziata) ▓▓ -->
-        <div style="padding:0 40px 34px;">
-          <div style="background:linear-gradient(135deg,#D1E2F2 0%,#E2F8DE 100%);border-radius:16px;
-                      padding:28px 34px;display:flex;align-items:center;gap:24px;
-                      border:1px solid #7BA7CE;">
-            <div style="width:64px;height:64px;border-radius:16px;background:#145284;
-                        display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-              <i class="fas fa-download" style="font-size:30px;color:#ffffff;"></i>
-            </div>
-            <div style="flex:1;">
-              <div style="font-size:19px;font-weight:600;color:#4A4A4A;text-transform:uppercase;letter-spacing:0.5px;">
-                Downloads Totali
-              </div>
-              <div style="font-size:64px;font-weight:700;color:#145284;line-height:1.1;">
-                ${fmtNum(m.downloads)}
-              </div>
-              <div style="font-size:16px;color:#9B9B9B;">installazioni complessive dell'app</div>
             </div>
           </div>
+
+          ${metricCard('fas fa-eye', 'Pagine consultate', fmtNum(m.pageViewsMonth), '#0288D1', 'contenuti letti dai cittadini nell’app')}
+          ${metricCard('fas fa-book-open', 'Pagine per visita', fmtDec(m.engagement, 1), '#E67E22', 'quanto i cittadini approfondiscono in media')}
+          ${metricCard('fas fa-users', 'Diffusione', fmtDec(m.penetrazione, 1) + '%', '#2E6DA8', 'quota di abitanti che ha scaricato l’app')}
+
         </div>
 
         <!-- ▓▓ FOOTER ▓▓ -->
-        <div style="background:#F5F5F5;padding:24px 40px;display:flex;align-items:center;justify-content:space-between;
-                    border-top:1px solid #D9D9D9;">
+        <div style="background:#ffffff;margin-top:18px;padding:24px 44px;display:flex;align-items:center;justify-content:space-between;
+                    border-top:1px solid #E0E6EC;">
           <div style="display:flex;align-items:center;gap:14px;">
-            <div style="width:40px;height:40px;border-radius:10px;background:#145284;
+            <div style="width:42px;height:42px;border-radius:11px;background:#145284;
                         display:flex;align-items:center;justify-content:center;">
-              <i class="fas fa-city" style="font-size:18px;color:#ffffff;"></i>
+              <i class="fas fa-city" style="font-size:19px;color:#ffffff;"></i>
             </div>
             <div>
-              <div style="font-size:20px;font-weight:700;color:#145284;">Comune.Digital</div>
-              <div style="font-size:15px;color:#9B9B9B;">Analytics Report</div>
+              <div style="font-size:20px;font-weight:700;color:#145284;line-height:1.1;">Comune.Digital</div>
+              <div style="font-size:14px;color:#9BAABA;">L'app del tuo Comune</div>
             </div>
           </div>
-          <div style="font-size:15px;color:#9B9B9B;text-align:right;">
+          <div style="font-size:14px;color:#9BAABA;text-align:right;">
             Powered by Growapp S.r.l.
           </div>
         </div>
