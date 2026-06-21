@@ -25,10 +25,10 @@
     <!-- Custom CSS — ?v=VERSIONE per invalidare cache browser -->
     <link rel="stylesheet" href="css/styles.css?v=3.8.0">
 
-    <!-- 🔄 Cache Busting Automatico — cambia APP_VERSION per forzare reload globale  v4.0.3 -->
+    <!-- 🔄 Cache Busting Automatico — cambia APP_VERSION per forzare reload globale  v10.1.1 -->
     <script>
     (function() {
-        var APP_VERSION = '4.0.3';
+        var APP_VERSION = '10.1.1';
         var storedVersion = localStorage.getItem('crm_app_version');
         if (storedVersion && storedVersion !== APP_VERSION) {
             localStorage.setItem('crm_app_version', APP_VERSION);
@@ -192,6 +192,9 @@
                 <li class="menu-item" data-page="report-app">
                     <i class="fas fa-chart-line"></i> <span>Report App</span>
                 </li>
+                <li class="menu-item" data-page="pubblicazioni-app">
+                    <i class="fas fa-paper-plane"></i> <span>Pubblicazioni sulle app</span>
+                </li>
                 <li class="menu-item" data-page="push-broadcast">
                     <i class="fas fa-broadcast-tower"></i> <span>Push Broadcast</span>
                 </li>
@@ -348,6 +351,7 @@
     <script src="js/pages/sala-riunioni.js?v=3.8.0"></script>
     <script src="js/goodbarber-service.js?v=3.8.0"></script>
     <script src="js/pages/report-goodbarber.js?v=3.8.0"></script>
+    <script src="js/pages/pubblicazioni-app.js?v=3.8.0"></script>
     <script src="js/pages/push-broadcast.js?v=3.8.0"></script>
     <script src="js/pages/storico-push.js?v=3.8.0"></script>
     <script src="js/push-history-service.js?v=3.8.0"></script>

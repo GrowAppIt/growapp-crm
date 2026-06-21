@@ -131,6 +131,9 @@ const UI = {
             case 'report-app':
                 ReportGoodBarber.render();
                 break;
+            case 'pubblicazioni-app':
+                PubblicazioniApp.render();
+                break;
             case 'push-broadcast':
                 PushBroadcast.render();
                 break;

@@ -343,6 +343,7 @@ const AuthService = {
             'impostazioni': ['*', 'manage_settings', 'manage_users', 'view_company_info', 'manage_business_card'], // ✅ Tutti possono vedere Impostazioni (almeno le card base)
             'monitor-rss': ['*', 'view_all_data', 'manage_apps', 'manage_app_content'], // Monitor RSS: NO agenti (esclusi view_clients, manage_clients che ha l'agente)
             'report-app': ['*', 'view_all_data', 'view_apps', 'manage_apps', 'manage_app_content'],
+            'pubblicazioni-app': ['*', 'view_all_data', 'manage_apps', 'manage_app_content'],
             'push-broadcast': ['*', 'view_all_data', 'manage_apps'],
             'storico-push': ['*', 'view_all_data', 'manage_apps'],
             'aggiorna-push': ['*', 'view_all_data', 'manage_apps'],
