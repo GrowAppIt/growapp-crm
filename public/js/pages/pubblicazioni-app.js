@@ -18,7 +18,8 @@ const PubblicazioniApp = {
   // Stato interno
   apps: [],
   currentApp: null,        // app selezionata per la chat
-  _messages: [],           // cronologia chat dell'app corrente
+  _messages: [],           // cronologia chat dell'app corrente (formato API Claude)
+  _sending: false,         // true mentre attendiamo la risposta dal backend
 
   // ============================================================================
   // Render principale — griglia delle app
@@ -102,7 +103,7 @@ const PubblicazioniApp = {
     const nome = this.escapeHtml(app.nome || 'App senza nome');
     const comune = this.escapeHtml(app.comune || app.nomeComune || '');
     const attiva = app.statoApp === 'ATTIVA';
-    const collegabile = !!(app.goodbarberWebzineId && app.goodbarberToken);
+    const collegabile = !!(app.mcpServerUrl && app.mcpApiKey);
 
     const icona = app.iconaUrl
       ? `<img src="${this.escapeHtml(app.iconaUrl)}" alt="" class="pub-card-icon" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
@@ -119,8 +120,8 @@ const PubblicazioniApp = {
             <span class="pub-tag ${attiva ? 'pub-tag-green' : 'pub-tag-grey'}">
               ${attiva ? 'Attiva' : this.escapeHtml(app.statoApp || 'N/D')}
             </span>
-            <span class="pub-tag ${collegabile ? 'pub-tag-blue' : 'pub-tag-grey'}" title="${collegabile ? 'Credenziali GoodBarber presenti' : 'Manca il token GoodBarber'}">
-              <i class="fas ${collegabile ? 'fa-link' : 'fa-unlink'}"></i> ${collegabile ? 'Collegabile' : 'Senza token'}
+            <span class="pub-tag ${collegabile ? 'pub-tag-blue' : 'pub-tag-grey'}" title="${collegabile ? 'Collegamento MCP configurato' : 'Manca URL o chiave MCP (configura nella scheda app)'}">
+              <i class="fas ${collegabile ? 'fa-link' : 'fa-unlink'}"></i> ${collegabile ? 'Collegata' : 'Da collegare'}
             </span>
           </div>
         </div>
@@ -145,7 +146,7 @@ const PubblicazioniApp = {
     const mainContent = document.getElementById('mainContent');
     const nome = this.escapeHtml(app.nome || 'App');
     const comune = this.escapeHtml(app.comune || app.nomeComune || '');
-    const collegabile = !!(app.goodbarberWebzineId && app.goodbarberToken);
+    const collegabile = !!(app.mcpServerUrl && app.mcpApiKey);
 
     mainContent.innerHTML = `
       <div class="pub-wrap pub-chat-wrap">
@@ -165,7 +166,7 @@ const PubblicazioniApp = {
         ${!collegabile ? `
           <div class="pub-banner pub-banner-warn">
             <i class="fas fa-exclamation-triangle"></i>
-            <div>Questa app non ha ancora le credenziali GoodBarber salvate: la pubblicazione non sarà possibile finché non vengono aggiunte.</div>
+            <div>Questa app non ha ancora il <strong>Collegamento MCP</strong> configurato. Aprila nella sezione <em>App → scheda app → Configurazione App → Collegamento MCP</em> e inserisci URL e chiave. Finché manca, la chat non potrà leggere o scrivere.</div>
           </div>` : ''}
 
         <div class="pub-chat-box">
@@ -210,28 +211,29 @@ const PubblicazioniApp = {
         <div class="pub-msg-avatar"><i class="fas fa-robot"></i></div>
         <div class="pub-msg-bubble">
           Ciao! Sto lavorando sull'app <strong>${this.escapeHtml(this.currentApp.nome || '')}</strong>.
-          Dammi il materiale di un evento (email, testo, link o locandina) e preparerò una bozza da rivedere insieme.
+          Dammi il materiale di un evento (email, testo, link o locandina) e preparerò una <strong>bozza</strong> da rivedere insieme.
           <br><br>
           <span style="color:var(--grigio-500);font-size:.85rem;">
-            <i class="fas fa-info-circle"></i> Anteprima dell'interfaccia: il collegamento per scrivere davvero sull'app verrà attivato a breve.
+            <i class="fas fa-shield-alt"></i> Creo sempre bozze; per pubblicare o cancellare ti chiederò conferma.
           </span>
         </div>
       </div>
     `;
   },
 
-  _sendMessage() {
+  async _sendMessage() {
     const input = document.getElementById('pubChatInput');
     const box = document.getElementById('pubChatMessages');
+    const sendBtn = document.getElementById('pubChatSend');
     if (!input || !box) return;
 
     const text = input.value.trim();
-    if (!text) return;
+    if (!text || this._sending) return;
 
-    // Messaggio utente
+    // Messaggio utente in UI + in cronologia (formato API)
     box.insertAdjacentHTML('beforeend', `
       <div class="pub-msg pub-msg-user">
-        <div class="pub-msg-bubble">${this.escapeHtml(text)}</div>
+        <div class="pub-msg-bubble">${this.escapeHtml(text).replace(/\n/g, '<br>')}</div>
         <div class="pub-msg-avatar"><i class="fas fa-user"></i></div>
       </div>
     `);
@@ -240,18 +242,54 @@ const PubblicazioniApp = {
     input.value = '';
     input.style.height = 'auto';
 
-    // Risposta segnaposto (non ancora collegato al backend)
+    // Indicatore di attesa
+    this._sending = true;
+    if (sendBtn) sendBtn.disabled = true;
+    const loadingId = 'pub-loading-' + Date.now();
     box.insertAdjacentHTML('beforeend', `
-      <div class="pub-msg pub-msg-assistant">
+      <div class="pub-msg pub-msg-assistant" id="${loadingId}">
         <div class="pub-msg-avatar"><i class="fas fa-robot"></i></div>
-        <div class="pub-msg-bubble" style="border:1px dashed var(--grigio-300);background:var(--grigio-100);">
-          <i class="fas fa-tools" style="color:var(--blu-500);"></i>
-          Interfaccia in costruzione: il collegamento all'app (per leggere le sezioni e creare la bozza) non è ancora attivo.
-          Appena agganciato, qui vedrai l'anteprima della bozza pronta da confermare.
-        </div>
+        <div class="pub-msg-bubble"><i class="fas fa-spinner fa-spin"></i> Sto lavorando…</div>
       </div>
     `);
     box.scrollTop = box.scrollHeight;
+
+    try {
+      const resp = await fetch('/api/app-publish-chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ appId: this.currentApp.id, messages: this._messages })
+      });
+
+      const data = await resp.json().catch(() => ({}));
+      const loadingEl = document.getElementById(loadingId);
+
+      if (!resp.ok) {
+        const msg = (data && (data.detail || data.error)) || ('Errore ' + resp.status);
+        if (loadingEl) loadingEl.querySelector('.pub-msg-bubble').innerHTML =
+          `<span style="color:var(--rosso-errore,#c0392b);"><i class="fas fa-exclamation-triangle"></i> ${this.escapeHtml(msg)}</span>`;
+        return;
+      }
+
+      // Mostra la risposta e salva il turno assistant nella cronologia (formato API)
+      const answer = data.answer || '(nessuna risposta)';
+      if (loadingEl) loadingEl.querySelector('.pub-msg-bubble').innerHTML =
+        this.escapeHtml(answer).replace(/\n/g, '<br>');
+      if (Array.isArray(data.content)) {
+        this._messages.push({ role: 'assistant', content: data.content });
+      } else {
+        this._messages.push({ role: 'assistant', content: answer });
+      }
+    } catch (e) {
+      const loadingEl = document.getElementById(loadingId);
+      if (loadingEl) loadingEl.querySelector('.pub-msg-bubble').innerHTML =
+        `<span style="color:var(--rosso-errore,#c0392b);"><i class="fas fa-exclamation-triangle"></i> Errore di rete. Riprova.</span>`;
+      console.error('[PubblicazioniApp] errore invio:', e);
+    } finally {
+      this._sending = false;
+      if (sendBtn) sendBtn.disabled = false;
+      box.scrollTop = box.scrollHeight;
+    }
   },
 
   // ============================================================================

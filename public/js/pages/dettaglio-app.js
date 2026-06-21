@@ -1561,6 +1561,32 @@ const DettaglioApp = {
                             </div>
                         </div>
 
+                        <!-- Collegamento MCP (Pubblicazioni) -->
+                        <div style="margin-bottom: 1.5rem; border-top: 1px solid var(--grigio-200, #e5e5e5); padding-top: 1.25rem;">
+                            <label style="display:block; font-size:0.85rem; font-weight:700; color:var(--grigio-700); margin-bottom:0.4rem;">
+                                <i class="fas fa-paper-plane" style="color:var(--blu-700);"></i> Collegamento MCP (Pubblicazioni)
+                            </label>
+                            <p style="font-size:0.78rem; color:var(--grigio-500); margin:0 0 0.85rem;">
+                                Serve alla sezione "Pubblicazioni sulle app". Trovi URL e chiave nel back-office GoodBarber → Impostazioni → MCP Server &amp; API pubbliche. Usa una chiave con permesso CMS in scrittura (R-W).
+                            </p>
+                            <div style="margin-bottom: 0.85rem;">
+                                <label style="display:block; font-size:0.8rem; font-weight:600; color:var(--grigio-600); margin-bottom:0.3rem;">URL Server MCP</label>
+                                <input type="url" id="configMcpUrl" value="${app.mcpServerUrl || ''}" placeholder="https://mcp.ww-api.com/000000/mcp/sse"
+                                    style="width:100%; padding:0.6rem; border:1px solid var(--grigio-300); border-radius:6px; font-family:'Titillium Web',sans-serif; font-size:0.9rem;" />
+                            </div>
+                            <div>
+                                <label style="display:block; font-size:0.8rem; font-weight:600; color:var(--grigio-600); margin-bottom:0.3rem;">
+                                    Chiave API (R-W) ${app.mcpApiKey ? '<span style="color:var(--verde-successo,#2e7d32); font-weight:700;">• salvata</span>' : ''}
+                                </label>
+                                <input type="password" id="configMcpKey" value="" autocomplete="new-password"
+                                    placeholder="${app.mcpApiKey ? '•••••••••• (chiave presente) — lascia vuoto per mantenerla' : 'Incolla qui la chiave API'}"
+                                    style="width:100%; padding:0.6rem; border:1px solid var(--grigio-300); border-radius:6px; font-family:'Titillium Web',sans-serif; font-size:0.9rem;" />
+                                <p style="font-size:0.72rem; color:var(--grigio-500); margin-top:0.3rem;">
+                                    <i class="fas fa-lock"></i> Salvata in modo sicuro; usata solo dal server, mai mostrata in chiaro.
+                                </p>
+                            </div>
+                        </div>
+
                         <!-- Pulsante Salva -->
                         <button id="btnSalvaConfigApp" class="btn btn-primary" onclick="DettaglioApp.salvaConfigApp()" style="width: 100%;">
                             <i class="fas fa-save"></i> Salva Configurazione
@@ -1630,6 +1656,8 @@ const DettaglioApp = {
         try {
             const urlSito = document.getElementById('configUrlSito')?.value?.trim() || '';
             const urlCruscotto = document.getElementById('configUrlCruscotto')?.value?.trim() || '';
+            const mcpServerUrl = document.getElementById('configMcpUrl')?.value?.trim() || '';
+            const mcpKeyInput = document.getElementById('configMcpKey')?.value?.trim() || '';
             const fileInput = document.getElementById('configIconaFile');
             let iconaUrl = this.app.iconaUrl || '';
 
@@ -1647,16 +1675,25 @@ const DettaglioApp = {
             }
 
             // Salva su Firestore
-            await db.collection('app').doc(this.appId).update({
+            const updateData = {
                 iconaUrl: iconaUrl,
                 urlSito: urlSito,
-                urlCruscotto: urlCruscotto
-            });
+                urlCruscotto: urlCruscotto,
+                mcpServerUrl: mcpServerUrl
+            };
+            // La chiave si aggiorna solo se l'utente ne ha digitata una nuova
+            // (campo vuoto = mantieni quella esistente, non la sovrascrive)
+            if (mcpKeyInput) {
+                updateData.mcpApiKey = mcpKeyInput;
+            }
+            await db.collection('app').doc(this.appId).update(updateData);
 
             // Aggiorna dati locali
             this.app.iconaUrl = iconaUrl;
             this.app.urlSito = urlSito;
             this.app.urlCruscotto = urlCruscotto;
+            this.app.mcpServerUrl = mcpServerUrl;
+            if (mcpKeyInput) this.app.mcpApiKey = mcpKeyInput;
 
             UI.showSuccess('Configurazione salvata!');
 

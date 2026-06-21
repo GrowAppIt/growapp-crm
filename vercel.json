@@ -7,6 +7,10 @@
       "maxDuration": 30,
       "memory": 1024
     },
+    "api/app-publish-chat.js": {
+      "maxDuration": 60,
+      "memory": 1024
+    },
     "api/sync-push-history.js": {
       "maxDuration": 300,
       "memory": 512
