@@ -103,7 +103,7 @@ const PubblicazioniApp = {
     const nome = this.escapeHtml(app.nome || 'App senza nome');
     const comune = this.escapeHtml(app.comune || app.nomeComune || '');
     const attiva = app.statoApp === 'ATTIVA';
-    const collegabile = !!(app.mcpServerUrl && app.mcpApiKey);
+    const collegabile = !!(app.mcpServerUrl && app.mcpClientId && app.mcpRefreshToken);
 
     const icona = app.iconaUrl
       ? `<img src="${this.escapeHtml(app.iconaUrl)}" alt="" class="pub-card-icon" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
@@ -146,7 +146,7 @@ const PubblicazioniApp = {
     const mainContent = document.getElementById('mainContent');
     const nome = this.escapeHtml(app.nome || 'App');
     const comune = this.escapeHtml(app.comune || app.nomeComune || '');
-    const collegabile = !!(app.mcpServerUrl && app.mcpApiKey);
+    const collegabile = !!(app.mcpServerUrl && app.mcpClientId && app.mcpRefreshToken);
 
     mainContent.innerHTML = `
       <div class="pub-wrap pub-chat-wrap">

@@ -59,6 +59,45 @@ function buildSystemPrompt(appName) {
   ].join('\n');
 }
 
+// --- OAuth: la base del server di autorizzazione si ricava dall'URL MCP ---
+// (es. https://mcp.ww-api.com/376069/mcp/sse -> https://mcp.ww-api.com/376069)
+function authBaseFromMcpUrl(mcpUrl) {
+  return mcpUrl.replace(/\/mcp\/sse\/?$/, '').replace(/\/sse\/?$/, '');
+}
+
+// Ottiene un access_token FRESCO dal refresh_token (grant OAuth refresh_token).
+// Il server MCP GoodBarber è OAuth: NON accetta chiavi statiche, solo questo.
+// Ritorna { accessToken, newRefreshToken|null } (newRefreshToken se è stato ruotato).
+async function mintAccessToken({ mcpUrl, clientId, refreshToken }) {
+  const tokenEndpoint = authBaseFromMcpUrl(mcpUrl) + '/token';
+  const body = new URLSearchParams({
+    grant_type: 'refresh_token',
+    refresh_token: refreshToken,
+    client_id: clientId,
+    resource: mcpUrl
+  }).toString();
+
+  const r = await fetch(tokenEndpoint, {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded', 'accept': 'application/json' },
+    body
+  });
+  const text = await r.text().catch(() => '');
+  if (!r.ok) {
+    const e = new Error(`Refresh token rifiutato dal server MCP (HTTP ${r.status}). ${text.slice(0, 300)}`);
+    e.code = 'MCP_AUTH';
+    throw e;
+  }
+  let j; try { j = JSON.parse(text); } catch (_) { j = {}; }
+  if (!j.access_token) {
+    const e = new Error('Risposta OAuth senza access_token.');
+    e.code = 'MCP_AUTH';
+    throw e;
+  }
+  const newRefreshToken = (j.refresh_token && j.refresh_token !== refreshToken) ? j.refresh_token : null;
+  return { accessToken: j.access_token, newRefreshToken };
+}
+
 // --- CORS ---
 function setCors(res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -91,13 +130,32 @@ module.exports = async function handler(req, res) {
     const app = doc.data() || {};
 
     const mcpUrl = (app.mcpServerUrl || '').trim();
-    const mcpKey = (app.mcpApiKey || '').trim();
+    const clientId = (app.mcpClientId || '').trim();
+    const refreshToken = (app.mcpRefreshToken || '').trim();
     const appName = app.nome || 'App';
 
-    if (!mcpUrl || !mcpKey) {
+    if (!mcpUrl || !clientId || !refreshToken) {
       return res.status(400).json({
         error: 'Collegamento MCP non configurato per questa app.',
-        detail: 'Inserisci URL del server MCP e Chiave API nella scheda dell\'app (Configurazione App → Collegamento MCP).'
+        detail: 'Esegui il login MCP (scripts/mcp-login.js) e incolla Client ID e Refresh Token nella scheda dell\'app (Configurazione App → Collegamento MCP).'
+      });
+    }
+
+    // Il server MCP GoodBarber è OAuth: ottieni un access_token fresco dal refresh_token.
+    let accessToken;
+    try {
+      const minted = await mintAccessToken({ mcpUrl, clientId, refreshToken });
+      accessToken = minted.accessToken;
+      // Se il server ha ruotato il refresh_token, salva quello nuovo per le prossime volte
+      if (minted.newRefreshToken) {
+        await db.collection('app').doc(String(appId)).update({ mcpRefreshToken: minted.newRefreshToken });
+      }
+    } catch (e) {
+      console.error('[app-publish-chat] mintAccessToken', e.message);
+      return res.status(502).json({
+        error: 'Autenticazione MCP fallita.',
+        detail: e.message,
+        hint: 'Il refresh token potrebbe essere scaduto o revocato: rifai il login con scripts/mcp-login.js e aggiorna Client ID e Refresh Token nella scheda dell\'app.'
       });
     }
 
@@ -107,7 +165,7 @@ module.exports = async function handler(req, res) {
       max_tokens: 4096,
       system: buildSystemPrompt(appName),
       mcp_servers: [
-        { type: 'url', name: 'goodbarber', url: mcpUrl, authorization_token: mcpKey }
+        { type: 'url', name: 'goodbarber', url: mcpUrl, authorization_token: accessToken }
       ],
       tools: [
         { type: 'mcp_toolset', mcp_server_name: 'goodbarber' }

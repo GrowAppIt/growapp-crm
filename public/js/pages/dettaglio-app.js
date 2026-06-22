@@ -1567,22 +1567,30 @@ const DettaglioApp = {
                                 <i class="fas fa-paper-plane" style="color:var(--blu-700);"></i> Collegamento MCP (Pubblicazioni)
                             </label>
                             <p style="font-size:0.78rem; color:var(--grigio-500); margin:0 0 0.85rem;">
-                                Serve alla sezione "Pubblicazioni sulle app". Trovi URL e chiave nel back-office GoodBarber → Impostazioni → MCP Server &amp; API pubbliche. Usa una chiave con permesso CMS in scrittura (R-W).
+                                Serve alla sezione "Pubblicazioni sulle app". Il server MCP di GoodBarber usa OAuth: esegui una volta il login con <code>scripts/mcp-login.js</code> e incolla qui sotto <strong>Client ID</strong> e <strong>Refresh Token</strong> che lo script ti dà. Il server rinnova il token da solo: il login si fa una volta sola.
                             </p>
                             <div style="margin-bottom: 0.85rem;">
                                 <label style="display:block; font-size:0.8rem; font-weight:600; color:var(--grigio-600); margin-bottom:0.3rem;">URL Server MCP</label>
                                 <input type="url" id="configMcpUrl" value="${app.mcpServerUrl || ''}" placeholder="https://mcp.ww-api.com/000000/mcp/sse"
                                     style="width:100%; padding:0.6rem; border:1px solid var(--grigio-300); border-radius:6px; font-family:'Titillium Web',sans-serif; font-size:0.9rem;" />
                             </div>
+                            <div style="margin-bottom: 0.85rem;">
+                                <label style="display:block; font-size:0.8rem; font-weight:600; color:var(--grigio-600); margin-bottom:0.3rem;">
+                                    Client ID ${app.mcpClientId ? '<span style="color:var(--verde-successo,#2e7d32); font-weight:700;">• salvato</span>' : ''}
+                                </label>
+                                <input type="text" id="configMcpClientId" value="${app.mcpClientId || ''}" autocomplete="off"
+                                    placeholder="Es: c73a88747b604258846b901c47e8f9ac"
+                                    style="width:100%; padding:0.6rem; border:1px solid var(--grigio-300); border-radius:6px; font-family:'Titillium Web',sans-serif; font-size:0.9rem;" />
+                            </div>
                             <div>
                                 <label style="display:block; font-size:0.8rem; font-weight:600; color:var(--grigio-600); margin-bottom:0.3rem;">
-                                    Chiave API (R-W) ${app.mcpApiKey ? '<span style="color:var(--verde-successo,#2e7d32); font-weight:700;">• salvata</span>' : ''}
+                                    Refresh Token ${app.mcpRefreshToken ? '<span style="color:var(--verde-successo,#2e7d32); font-weight:700;">• salvato</span>' : ''}
                                 </label>
-                                <input type="password" id="configMcpKey" value="" autocomplete="new-password"
-                                    placeholder="${app.mcpApiKey ? '•••••••••• (chiave presente) — lascia vuoto per mantenerla' : 'Incolla qui la chiave API'}"
+                                <input type="password" id="configMcpRefresh" value="" autocomplete="new-password"
+                                    placeholder="${app.mcpRefreshToken ? '•••••••••• (presente) — lascia vuoto per mantenerlo' : 'Incolla qui il Refresh Token'}"
                                     style="width:100%; padding:0.6rem; border:1px solid var(--grigio-300); border-radius:6px; font-family:'Titillium Web',sans-serif; font-size:0.9rem;" />
                                 <p style="font-size:0.72rem; color:var(--grigio-500); margin-top:0.3rem;">
-                                    <i class="fas fa-lock"></i> Salvata in modo sicuro; usata solo dal server, mai mostrata in chiaro.
+                                    <i class="fas fa-lock"></i> Salvato in modo sicuro; usato solo dal server per rinnovare l'accesso, mai mostrato in chiaro.
                                 </p>
                             </div>
                         </div>
@@ -1657,7 +1665,8 @@ const DettaglioApp = {
             const urlSito = document.getElementById('configUrlSito')?.value?.trim() || '';
             const urlCruscotto = document.getElementById('configUrlCruscotto')?.value?.trim() || '';
             const mcpServerUrl = document.getElementById('configMcpUrl')?.value?.trim() || '';
-            const mcpKeyInput = document.getElementById('configMcpKey')?.value?.trim() || '';
+            const mcpClientId = document.getElementById('configMcpClientId')?.value?.trim() || '';
+            const mcpRefreshInput = document.getElementById('configMcpRefresh')?.value?.trim() || '';
             const fileInput = document.getElementById('configIconaFile');
             let iconaUrl = this.app.iconaUrl || '';
 
@@ -1679,12 +1688,13 @@ const DettaglioApp = {
                 iconaUrl: iconaUrl,
                 urlSito: urlSito,
                 urlCruscotto: urlCruscotto,
-                mcpServerUrl: mcpServerUrl
+                mcpServerUrl: mcpServerUrl,
+                mcpClientId: mcpClientId
             };
-            // La chiave si aggiorna solo se l'utente ne ha digitata una nuova
-            // (campo vuoto = mantieni quella esistente, non la sovrascrive)
-            if (mcpKeyInput) {
-                updateData.mcpApiKey = mcpKeyInput;
+            // Il refresh token si aggiorna solo se l'utente ne ha incollato uno nuovo
+            // (campo vuoto = mantieni quello esistente, non lo sovrascrive)
+            if (mcpRefreshInput) {
+                updateData.mcpRefreshToken = mcpRefreshInput;
             }
             await db.collection('app').doc(this.appId).update(updateData);
 
@@ -1693,7 +1703,8 @@ const DettaglioApp = {
             this.app.urlSito = urlSito;
             this.app.urlCruscotto = urlCruscotto;
             this.app.mcpServerUrl = mcpServerUrl;
-            if (mcpKeyInput) this.app.mcpApiKey = mcpKeyInput;
+            this.app.mcpClientId = mcpClientId;
+            if (mcpRefreshInput) this.app.mcpRefreshToken = mcpRefreshInput;
 
             UI.showSuccess('Configurazione salvata!');
 
