@@ -3,6 +3,10 @@
  * Analytics and ranking of all apps using GoodBarber API stats
  * CRM Comune.Digital by Growapp S.r.l.
  *
+ * Versione: allineata alla versione globale del CRM (window.CRM_APP_VERSION,
+ * definita in public/index.html). Mostrata nell'header della pagina.
+ * Le modifiche qui sotto sono incluse a partire dal CRM v10.1.4.
+ *
  * Changelog:
  *  - Fix Top/Bottom: le liste "Top" e "Da Migliorare" ora sono sempre
  *    disgiunte (prima, con meno di 20 app attive, mostravano le stesse app).
@@ -10,6 +14,16 @@
  *    sotto-dato "N con statistiche" (prima contava solo quelle con API GB).
  *  - Fix modal aggiornamento: rimosso sempre via finally, anche in errore
  *    (prima l'overlay restava a coprire lo schermo se l'update falliva).
+ *  - Mobile: aggiunto selettore "Ordina per..." (su mobile le intestazioni
+ *    della tabella sono nascoste, quindi non si poteva ordinare).
+ *  - Pulizia: rimosso codice morto (countPositiveTrend / trendPositive) e
+ *    riscritto il commento dello scoring perché rispecchi i pesi reali.
+ *  - Sicurezza HTML: nuovo escapeAttr() per gli attributi (title/value), che
+ *    escapeHtml() non copriva (apici).
+ *  - Performance: autoFillPopolazioneISTAT ora gira una sola volta (prima
+ *    ri-scriveva su Firestore ad ogni apertura della pagina).
+ *  - Report Card: export più robusto (useCORS+allowTaint:false, toDataURL
+ *    protetto) e parsing distribuzione iOS/Android tollerante ai vari formati.
  */
 
 const ReportGoodBarber = {
@@ -102,6 +116,10 @@ const ReportGoodBarber = {
    * Salva direttamente su Firestore così il dato resta persistente.
    */
   async autoFillPopolazioneISTAT() {
+    // Esegui una sola volta per sessione: prima girava ad OGNI apertura della
+    // pagina Report, ri-scrivendo su Firestore. Dopo la prima compilazione i
+    // dati sono persistiti, quindi non serve ripetere.
+    if (this._popolazioneAutoFillDone) return;
     try {
       await ComuniService.load();
 
@@ -124,6 +142,9 @@ const ReportGoodBarber = {
       if (aggiornate > 0) {
         console.log(`Popolazione ISTAT auto-compilata per ${aggiornate} app`);
       }
+      // Marca come completato solo se l'intero ciclo è andato a buon fine
+      // (se ComuniService.load() lancia, riproveremo alla prossima apertura).
+      this._popolazioneAutoFillDone = true;
     } catch (error) {
       console.warn('Errore auto-fill popolazione ISTAT:', error);
     }
@@ -229,6 +250,9 @@ const ReportGoodBarber = {
           font-size: 1.1rem; font-weight: 700; color: var(--blu-700);
           margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem;
         }
+        /* Selettore ordinamento: visibile SOLO su mobile (su desktop si ordina
+           cliccando le intestazioni della tabella, che però lì sono nascoste). */
+        .rpt-mobile-sort { display: none; }
         .rpt-table-wrap {
           overflow-x: auto; border-radius: 10px;
           box-shadow: 0 1px 4px rgba(0,0,0,0.06); background: #fff;
@@ -328,6 +352,14 @@ const ReportGoodBarber = {
           .rpt-kpi-value { font-size: 1.4rem; }
           .rpt-filters { flex-direction: column; }
 
+          /* Mostra il selettore di ordinamento su mobile */
+          .rpt-mobile-sort {
+            display: inline-block; width: auto; max-width: 55%;
+            padding: 0.35rem 0.5rem; border: 1px solid var(--grigio-300);
+            border-radius: 8px; font-size: 0.78rem; background: #fff;
+            font-family: 'Titillium Web', sans-serif; color: var(--grigio-900);
+          }
+
           /* ── TABELLA → CARD MOBILE ────────────────────── */
           .rpt-table-wrap { overflow-x: hidden; }
           .rpt-table { table-layout: auto; display: block; }
@@ -401,7 +433,7 @@ const ReportGoodBarber = {
       <div class="rpt-page">
         <div class="rpt-header">
           <div>
-            <h1><i class="fas fa-chart-bar"></i> Report App — Analytics</h1>
+            <h1><i class="fas fa-chart-bar"></i> Report App — Analytics <span style="font-size:0.7rem;font-weight:600;color:var(--grigio-500);vertical-align:middle;">CRM v${window.CRM_APP_VERSION || '10.1.4'}</span></h1>
             <div class="rpt-subtitle" id="lastUpdateSubtitle">Ultimo aggiornamento: mai</div>
           </div>
           <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
@@ -420,7 +452,19 @@ const ReportGoodBarber = {
         <div id="filtersSection"></div>
 
         <div>
-          <div class="rpt-section-title"><i class="fas fa-trophy"></i> Ranking App</div>
+          <div class="rpt-section-title" style="justify-content:space-between;">
+            <span><i class="fas fa-trophy"></i> Ranking App</span>
+            <select id="mobileSortSelect" class="rpt-mobile-sort" aria-label="Ordina la classifica">
+              <option value="score">Ordina: Score</option>
+              <option value="downloads">Ordina: Download</option>
+              <option value="pushConsents">Ordina: Consensi Push</option>
+              <option value="penetrazione">Ordina: Penetrazione</option>
+              <option value="launchesMonth">Ordina: Lanci/mese</option>
+              <option value="pageViewsMonth">Ordina: Views/mese</option>
+              <option value="popolazione">Ordina: Abitanti</option>
+              <option value="nome">Ordina: Nome (A-Z)</option>
+            </select>
+          </div>
           <div class="rpt-table-wrap">
             <table class="rpt-table" id="rankingTable">
               <thead>
@@ -456,6 +500,20 @@ const ReportGoodBarber = {
     // Attach event listeners
     document.getElementById('updateAllButton').addEventListener('click', () => this.updateAllData());
     document.getElementById('goAggiornaPush')?.addEventListener('click', () => UI.showPage('aggiorna-push'));
+
+    // Selettore di ordinamento per mobile (su desktop si usano le intestazioni)
+    const mobileSort = document.getElementById('mobileSortSelect');
+    if (mobileSort) {
+      mobileSort.value = this.sortKey;
+      mobileSort.addEventListener('change', (e) => {
+        this.sortKey = e.target.value;
+        // Nome in ordine alfabetico (A-Z), tutto il resto dal più alto al più basso
+        this.sortOrder = (e.target.value === 'nome') ? 'asc' : 'desc';
+        this.applyFiltersAndSort();
+        this.renderRankingTable();
+        this.renderTopBottomSections();
+      });
+    }
   },
 
   /**
@@ -517,57 +575,39 @@ const ReportGoodBarber = {
   },
 
   /**
-   * Calcola lo score di un'app (0-100) come media ponderata di 6 componenti.
+   * Calcola lo score di un'app (0-100) come media ponderata di 8 componenti.
    *
-   * COMPONENTI E PESI:
-   *   30% Penetrazione     – downloads / popolazione
-   *   25% Retention         – utenti unici attivi / downloads (con scala logaritmica)
-   *   15% Engagement        – pagine viste per sessione
-   *   15% Opt-in Push       – consensi push / downloads
-   *   10% Qualità Turistica – SOLO se indiceTuristicita > 0, pushRatio pesato
-   *    5% Momentum Crescita – velocità download/mese rapportata alla popolazione
+   * PESI NOMINALI (questi sono i valori esatti usati nel codice, vedi array
+   * `components` più sotto). Nota: la somma è 1,05, NON 1,00 — ma è voluto e
+   * innocuo, perché lo score finale viene normalizzato dividendo per la somma
+   * dei pesi dei soli componenti effettivamente disponibili (`totalActiveWeight`).
+   * Se un dato manca (es. niente consensi push), il suo peso viene ridistribuito
+   * automaticamente sugli altri.
    *
-   * CORRETTIVO VOLUME (soglia minima download):
-   *   Le metriche basate su rapporti (retention, optInPush) sono statisticamente
-   *   instabili con pochi download. Es: 16/29 = 55% non è significativo come
-   *   2649/7331 = 36%. Per evitare che micro-app con pochi utenti ottengano
-   *   score gonfiati, applichiamo un fattore di smorzamento:
-   *     volumeFactor = min(1, log10(downloads) / log10(SOGLIA))
-   *   dove SOGLIA = 100 download. Sotto i 100 download, i rapporti vengono
-   *   ridotti proporzionalmente. Es: 29 download → factor 0.73 → il 55% diventa 40%.
+   *   22%  Penetrazione   – sqrt(downloads / popolazione). Curva morbida:
+   *                          50% penetraz → ~71 pt, 100% → 100 pt.
+   *   20%  Retention      – utenti unici/mese ÷ download "effettivi", × volumeFactor.
+   *   19%  Opt-in Push    – consensi push ÷ download "effettivi", × volumeFactor.
+   *   13%  Engagement     – pagine viste per sessione (satura a 7 pag = 100 pt).
+   *   10%  Qualità Turist. – SOLO se indiceTuristicita > 0; altrimenti peso = 0
+   *                          e ridistribuito. Premia i comuni turistici "veri".
+   *    8%  Bonus Volume   – log10(downloads): premia i numeri assoluti
+   *                          (500 DL ≈ 65 pt, 2.000 ≈ 79, 15.000+ = 100).
+   *    8%  Momentum       – velocità download/mese vs target ~popolazione,
+   *                          con cap a 36 mesi di anzianità dell'app.
+   *    5%  Bonus Floor    – piccolo "pavimento" per app con attività reale.
    *
-   * RETENTION con scala logaritmica:
-   *   Il rapporto grezzo uniqueLaunches/downloads penalizza le app grandi
-   *   (impossibile che tutti i 7000 utenti usino l'app ogni mese).
-   *   Applichiamo una normalizzazione logaritmica che tiene conto del volume:
-   *     retention = rawRetention * volumeFactor
-   *   Così un retention 93% con 29 download (volumeFactor 0.73) diventa 68%,
-   *   mentre un retention 27% con 7331 download (volumeFactor 1.0) resta 27%
-   *   ma ha un peso strutturalmente più solido.
+   * CORRETTIVO VOLUME (volumeFactor):
+   *   I rapporti (retention, opt-in) sono instabili con pochi download
+   *   (16/29 = 55% non vale come 2649/7331 = 36%). Li smorziamo con
+   *     volumeFactor = min(1, log10(downloads) / log10(100))
+   *   Sotto i 100 download i rapporti vengono ridotti proporzionalmente
+   *   (es. 29 download → factor 0.73).
    *
-   * QUALITÀ TURISTICA (10%):
-   *   Attiva SOLO quando indiceTuristicita > 0. Se il comune non è turistico,
-   *   il peso viene redistribuito agli altri componenti.
-   *   Il pushRatio (consensiPush/downloads) pesato per turistFactor misura
-   *   quanto i download sono "reali" vs "turisti di passaggio".
-   *
-   * MOMENTUM DI CRESCITA (5%):
-   *   Velocità download/mese vs target proporzionale alla popolazione.
-   */
-  /**
-   * Algoritmo di scoring v3 — Più generoso e bilanciato
-   *
-   * Tre miglioramenti rispetto a v1:
-   * 1. Correzione turistica: per comuni turistici, i download "in eccesso"
-   *    rispetto alla popolazione vengono scontati dal denominatore di
-   *    retention e optInPush (30-60% in base all'indice di turisticità).
-   * 2. Bonus Volume (10%): premia i numeri assoluti di download con scala
-   *    logaritmica. 500 DL ≈ 65pt, 2000 DL ≈ 79pt, 15.000+ DL = 100pt.
-   * 3. Curva sqrt sulla penetrazione + engagement più morbido (sat a 7 pag/sessione).
-   *    La penetrazione al 50% vale ~71 punti invece di 50.
-   *
-   * Pesi: Penetraz 22%, Retention 20%, OptInPush 19%, Engagement 13%,
-   *        QualitàTuristica 10%, VolumBonus 8%, Momentum 8%, BonusFloor 5%
+   * CORREZIONE TURISTICA (downloadEffettivi):
+   *   Nei comuni turistici i download "in eccesso" rispetto alla popolazione
+   *   gonfiano i denominatori di retention/opt-in. Scontiamo dal 30% al 60%
+   *   dell'eccesso in base all'indice di turisticità.
    */
   calcolaScore(app, stats) {
     try {
@@ -736,8 +776,6 @@ const ReportGoodBarber = {
       return sum + (app.popolazione || 0);
     }, 0);
 
-    const trendPositive = this.countPositiveTrend();
-
     const kpiHtml = `
       <div class="rpt-kpi">
         <div class="rpt-kpi-icon" style="color: var(--blu-500);"><i class="fas fa-cube"></i></div>
@@ -771,18 +809,6 @@ const ReportGoodBarber = {
   },
 
   /**
-   * Count apps with positive trend (launches this month > last month)
-   * Placeholder: would need more detailed monthly data from API
-   */
-  countPositiveTrend() {
-    // For now, count apps with launchesMonth > 0
-    return this.allApps.filter(app => {
-      const stats = this.allStats[app.id] || {};
-      return (stats.launchesMonth || 0) > 0;
-    }).length;
-  },
-
-  /**
    * Render filter dropdowns
    */
   renderFilters() {
@@ -811,7 +837,7 @@ const ReportGoodBarber = {
             <i class="fas fa-search"></i>
             <input type="text" id="filterSearch" class="rpt-filter-input"
                    placeholder="Cerca per nome app o comune..."
-                   value="${this.currentFilters.searchQuery || ''}">
+                   value="${this.escapeAttr(this.currentFilters.searchQuery || '')}">
           </div>
         </div>
         <div style="display: flex; align-items: flex-end;">
@@ -946,7 +972,7 @@ const ReportGoodBarber = {
       html += `
         <tr class="ranking-row" data-app-id="${app.id}">
           <td class="col-rank">${index + 1}</td>
-          <td class="col-nome" title="${this.escapeHtml(app.nome || '')}">${this.escapeHtml(app.nome || 'N/A')}</td>
+          <td class="col-nome" title="${this.escapeAttr(app.nome || '')}">${this.escapeHtml(app.nome || 'N/A')}</td>
           <td class="col-regione">${this.escapeHtml(app.regione || 'N/A')}</td>
           <td class="col-score">
             <span class="rpt-badge ${scoreClass}">${score}</span>
@@ -1226,6 +1252,15 @@ const ReportGoodBarber = {
     return div.innerHTML;
   },
 
+  /**
+   * Escape per valori inseriti dentro attributi HTML (title="", value="" …).
+   * escapeHtml() gestisce solo &, <, > ma NON gli apici: dentro un attributo
+   * fra virgolette doppie un " spezzerebbe l'HTML. Qui copriamo anche " e '.
+   */
+  escapeAttr(text) {
+    return this.escapeHtml(text).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  },
+
   // ═══════════════════════════════════════════════════════════
   // REPORT CARD — Generazione infografica PNG per i comuni
   // ═══════════════════════════════════════════════════════════
@@ -1308,15 +1343,28 @@ const ReportGoodBarber = {
 
       const canvas = await html2canvas(cardEl, {
         scale: 2,
-        useCORS: false,
-        allowTaint: true,
+        // useCORS:true + allowTaint:false => un'eventuale immagine esterna
+        // senza header CORS NON "sporca" il canvas (verrebbe solo saltata),
+        // così toDataURL() resta sempre esportabile. L'icona dell'app è
+        // comunque già pre-caricata in base64 più sopra.
+        useCORS: true,
+        allowTaint: false,
         backgroundColor: '#ffffff',
         logging: false
       });
 
-      // Download PNG
+      // Download PNG. toDataURL() lancia un SecurityError se il canvas è
+      // "tainted": lo intercettiamo per dare un messaggio comprensibile
+      // invece di un errore generico.
+      let dataUrl;
+      try {
+        dataUrl = canvas.toDataURL('image/png');
+      } catch (taintErr) {
+        console.error('Canvas non esportabile (immagine esterna senza CORS):', taintErr);
+        throw new Error('Immagine dell\'app non accessibile: report non esportabile');
+      }
       const link = document.createElement('a');
-      link.href = canvas.toDataURL('image/png');
+      link.href = dataUrl;
       const nomeFile = (app.nome || 'App').replace(/[^a-zA-Z0-9À-ÿ]/g, '_');
       const oggi = new Date().toISOString().split('T')[0];
       link.download = `ReportCard_${nomeFile}_${oggi}.png`;
@@ -1354,11 +1402,20 @@ const ReportGoodBarber = {
     const penetrazione = popolazione > 0 ? Math.min(100, (downloads / popolazione) * 100) : 0;
     const engagement = launchesMonth > 0 ? (pageViewsMonth / launchesMonth) : 0;
 
-    // Distribuzione piattaforme (da rawData o cache dettaglio)
+    // Distribuzione piattaforme. La risposta API può arrivare in forme diverse
+    // a seconda di chi ha scritto la cache:
+    //   - report (updateAllData)  → stats.rawData.mobile_os_distribution (grezzo)
+    //   - dettaglio app           → stats.osDistribution (già estratto)
+    // Inoltre l'oggetto può essere piatto { ios_devices_percentage, ... } oppure
+    // annidato { mobile_os_distribution: { ... } }, con valori anche stringa o
+    // con chiavi brevi (ios/android). Normalizziamo tutti questi casi.
     const rawData = stats.rawData || {};
-    const osDist = rawData.mobile_os_distribution || stats.osDistribution || {};
-    const iosPerc = osDist.ios_devices_percentage || 0;
-    const androidPerc = osDist.android_devices_percentage || 0;
+    let osDist = rawData.mobile_os_distribution || stats.osDistribution || {};
+    if (osDist && osDist.mobile_os_distribution && osDist.ios_devices_percentage === undefined) {
+      osDist = osDist.mobile_os_distribution;
+    }
+    const iosPerc = Math.round(parseFloat(osDist.ios_devices_percentage ?? osDist.ios ?? 0) || 0);
+    const androidPerc = Math.round(parseFloat(osDist.android_devices_percentage ?? osDist.android ?? 0) || 0);
 
     return {
       downloads,
