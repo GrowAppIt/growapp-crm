@@ -16,6 +16,13 @@
  *  - Chicca 6: grafico distribuzione score del parco app (Chart.js).
  *  (Chicca 3 — refresh automatico via cron — prevista come passo successivo.)
  *
+ * v10.1.6:
+ *  - Badge benchmark: niente più "top 1%, 2%, 3%…" granulare. Ora mostra fasce
+ *    leggibili (n.1, top 10%, top 25%, sopra la media). Vedi badgePercentileLabel().
+ *  - Chicca 3 ATTIVA: nuova funzione serverless api/refresh-gb-stats.js + cron
+ *    giornaliero (vercel.json) che aggiorna gbStatsCache/gbStatsHistory in
+ *    automatico per tutte le app attive (esclusi i consensi push, manuali).
+ *
  * Changelog:
  *  - Fix Top/Bottom: le liste "Top" e "Da Migliorare" ora sono sempre
  *    disgiunte (prima, con meno di 20 app attive, mostravano le stesse app).
@@ -446,7 +453,7 @@ const ReportGoodBarber = {
       <div class="rpt-page">
         <div class="rpt-header">
           <div>
-            <h1><i class="fas fa-chart-bar"></i> Report App — Analytics <span style="font-size:0.7rem;font-weight:600;color:var(--grigio-500);vertical-align:middle;">CRM v${window.CRM_APP_VERSION || '10.1.5'}</span></h1>
+            <h1><i class="fas fa-chart-bar"></i> Report App — Analytics <span style="font-size:0.7rem;font-weight:600;color:var(--grigio-500);vertical-align:middle;">CRM v${window.CRM_APP_VERSION || '10.1.6'}</span></h1>
             <div class="rpt-subtitle" id="lastUpdateSubtitle">Ultimo aggiornamento: mai</div>
           </div>
           <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
@@ -652,10 +659,25 @@ const ReportGoodBarber = {
     const scores = this.allApps.map(a => a.score || 0);
     if (scores.length < 4) return null;
     const my = app.score || 0;
-    const below = scores.filter(s => s < my).length;       // quante app stanno sotto
-    const fractionBelow = below / (scores.length - 1);      // 0..1
-    const topPct = Math.max(1, Math.round((1 - fractionBelow) * 100));
-    return { topPct };
+    const total = scores.length;
+    const rank = scores.filter(s => s > my).length + 1;     // posizione 1-based
+    const topPct = (rank / total) * 100;                    // 0..100 (più basso = meglio)
+    return { topPct, rank, total };
+  },
+
+  /**
+   * Trasforma il percentile in una "fascia" leggibile per la Report Card,
+   * evitando il granulare ridicolo (top 1%, 2%, 3%…). Ritorna '' se l'app
+   * NON è almeno sopra la media (così il badge resta nascosto).
+   */
+  badgePercentileLabel(app) {
+    const perc = this.calcPercentile(app);
+    if (!perc) return '';
+    if (perc.rank === 1)      return 'L\'app comunale n.1 di Comune.Digital';
+    if (perc.topPct <= 10)    return 'Tra il 10% delle app più performanti';
+    if (perc.topPct <= 25)    return 'Tra il 25% delle app più performanti';
+    if (perc.topPct <= 50)    return 'Sopra la media dei Comuni Comune.Digital';
+    return '';
   },
 
   /**
@@ -1678,14 +1700,15 @@ const ReportGoodBarber = {
     const fmtNum = (n) => new Intl.NumberFormat('it-IT').format(Math.round(n));
     const fmtDec = (n, d) => n.toFixed(d).replace('.', ',');
 
-    // ── Badge benchmark (chicca 4): mostrato SOLO se l'app è nel top 50% ──
-    const perc = this.calcPercentile(app);
-    const percBadge = (perc && perc.topPct <= 50)
+    // ── Badge benchmark (chicca 4): fascia leggibile, mostrato solo se l'app
+    //    è almeno sopra la media (niente più "top 1%, 2%, 3%…" granulare). ──
+    const percLabel = this.badgePercentileLabel(app);
+    const percBadge = percLabel
       ? `<div style="display:inline-flex;align-items:center;gap:8px;margin-top:14px;background:rgba(60,164,52,0.18);
                   border:1px solid rgba(159,212,151,0.5);border-radius:30px;padding:7px 16px;">
            <i class="fas fa-trophy" style="font-size:15px;color:#9FD497;"></i>
            <span style="font-size:15px;font-weight:700;color:#ffffff;letter-spacing:0.3px;">
-             Tra il top ${perc.topPct}% dei Comuni Comune.Digital
+             ${percLabel}
            </span>
          </div>`
       : '';
