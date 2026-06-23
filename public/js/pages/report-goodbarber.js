@@ -23,6 +23,12 @@
  *    giornaliero (vercel.json) che aggiorna gbStatsCache/gbStatsHistory in
  *    automatico per tutte le app attive (esclusi i consensi push, manuali).
  *
+ * v10.1.7:
+ *  - Fix export "PDF Tutte": con molte app il PDF in PNG ad alta risoluzione
+ *    diventava enorme e il download falliva in silenzio. Ora risoluzione ridotta
+ *    (scale 1.5) + JPEG compresso + PDF compresso, conferma se >30 app, feedback
+ *    chiaro a fine generazione e fallback "apri in nuova scheda".
+ *
  * Changelog:
  *  - Fix Top/Bottom: le liste "Top" e "Da Migliorare" ora sono sempre
  *    disgiunte (prima, con meno di 20 app attive, mostravano le stesse app).
@@ -453,7 +459,7 @@ const ReportGoodBarber = {
       <div class="rpt-page">
         <div class="rpt-header">
           <div>
-            <h1><i class="fas fa-chart-bar"></i> Report App — Analytics <span style="font-size:0.7rem;font-weight:600;color:var(--grigio-500);vertical-align:middle;">CRM v${window.CRM_APP_VERSION || '10.1.6'}</span></h1>
+            <h1><i class="fas fa-chart-bar"></i> Report App — Analytics <span style="font-size:0.7rem;font-weight:600;color:var(--grigio-500);vertical-align:middle;">CRM v${window.CRM_APP_VERSION || '10.1.7'}</span></h1>
             <div class="rpt-subtitle" id="lastUpdateSubtitle">Ultimo aggiornamento: mai</div>
           </div>
           <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
@@ -1505,7 +1511,7 @@ const ReportGoodBarber = {
    * Renderizza la Report Card di un'app in un <canvas> e lo ritorna.
    * Estratto da generateReportCard per essere riusato dall'export di gruppo.
    */
-  async _renderAppCardCanvas(app) {
+  async _renderAppCardCanvas(app, scale) {
     const stats = this.allStats[app.id] || {};
     const m = this.calcReportMetrics(app, stats);
 
@@ -1564,7 +1570,7 @@ const ReportGoodBarber = {
       await new Promise(r => setTimeout(r, 600)); // attesa rendering font
       const cardEl = wrapper.querySelector('#reportCardCanvas');
       return await html2canvas(cardEl, {
-        scale: 2,
+        scale: scale || 2, // PNG singolo: 2 (qualità); PDF di gruppo: più basso
         useCORS: true,
         allowTaint: false,
         backgroundColor: '#ffffff',
@@ -1587,6 +1593,11 @@ const ReportGoodBarber = {
       return;
     }
 
+    // Conferma se sono tante (il PDF può essere pesante e richiedere tempo)
+    if (apps.length > 30 && !window.confirm(`Stai per generare un PDF con ${apps.length} pagine. Può richiedere un po’ di tempo. Procedere?`)) {
+      return;
+    }
+
     const libReady = await this._ensureLib(() => window.jspdf && window.jspdf.jsPDF);
     if (!libReady) {
       UI.showError('Libreria PDF non ancora pronta, riprova tra qualche secondo');
@@ -1596,41 +1607,66 @@ const ReportGoodBarber = {
     const progress = this.showUpdateProgress(apps.length);
     progress.querySelector('h3').innerHTML = '<i class="fas fa-file-pdf" style="margin-right:0.5rem;"></i> Generazione PDF';
     let pdf = null;
+    let pagine = 0;
+    let saltate = 0;
     try {
       for (let i = 0; i < apps.length; i++) {
         this.updateUpdateProgress(progress, i + 1, apps.length);
         let canvas;
         try {
-          canvas = await this._renderAppCardCanvas(apps[i]);
+          // scale 1.5 (non 2): risoluzione adeguata al PDF ma file molto più leggero
+          canvas = await this._renderAppCardCanvas(apps[i], 1.5);
         } catch (e) {
           console.warn('Card saltata per', apps[i].nome, e);
-          continue; // salta l'app problematica, prosegui con le altre
+          saltate++;
+          continue;
         }
         let imgData;
         try {
-          imgData = canvas.toDataURL('image/png');
+          // JPEG qualità 0.85: per una card (sfondi piatti + testo) è ottimo e
+          // pesa ~5-10x meno del PNG → evita PDF da centinaia di MB con molte app.
+          imgData = canvas.toDataURL('image/jpeg', 0.85);
         } catch (e) {
           console.warn('Canvas non esportabile per', apps[i].nome, e);
+          saltate++;
           continue;
         }
         const w = canvas.width, h = canvas.height;
         const orient = w > h ? 'l' : 'p';
         if (!pdf) {
           const { jsPDF } = window.jspdf;
-          pdf = new jsPDF({ orientation: orient, unit: 'px', format: [w, h] });
+          pdf = new jsPDF({ orientation: orient, unit: 'px', format: [w, h], compress: true });
         } else {
           pdf.addPage([w, h], orient);
         }
-        pdf.addImage(imgData, 'PNG', 0, 0, w, h);
+        pdf.addImage(imgData, 'JPEG', 0, 0, w, h);
+        pagine++;
       }
 
-      if (!pdf) {
+      if (!pdf || pagine === 0) {
         UI.showError('Nessuna Report Card generata');
         return;
       }
+
       const oggi = new Date().toISOString().split('T')[0];
-      pdf.save(`ReportCard_TutteLeApp_${oggi}.pdf`);
-      UI.showSuccess(`PDF generato con ${pdf.getNumberOfPages()} report`);
+      const nomeFile = `ReportCard_TutteLeApp_${oggi}.pdf`;
+
+      // Salvataggio robusto: se pdf.save() fallisce (es. blob troppo grande o
+      // download bloccato), apriamo il PDF in una nuova scheda come fallback.
+      try {
+        pdf.save(nomeFile);
+        UI.showSuccess(`PDF scaricato: ${pagine} report${saltate ? ' (' + saltate + ' saltate)' : ''}`);
+      } catch (saveErr) {
+        console.error('pdf.save fallito, provo apertura in nuova scheda:', saveErr);
+        try {
+          const blobUrl = pdf.output('bloburl');
+          window.open(blobUrl, '_blank');
+          UI.showSuccess(`PDF aperto in una nuova scheda: ${pagine} report (salvalo da lì)`);
+        } catch (openErr) {
+          console.error('Anche il fallback è fallito:', openErr);
+          UI.showError('PDF generato ma non scaricabile: probabilmente troppo grande. Riduci le app coi filtri e riprova.');
+        }
+      }
     } catch (err) {
       console.error('Errore generazione PDF di gruppo:', err);
       UI.showError('Errore nella generazione del PDF');
