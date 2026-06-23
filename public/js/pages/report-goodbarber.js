@@ -7,6 +7,15 @@
  * definita in public/index.html). Mostrata nell'header della pagina.
  * Le modifiche qui sotto sono incluse a partire dal CRM v10.1.4.
  *
+ * v10.1.5:
+ *  - Tabella: colonna Nome più stretta, più aria alle altre colonne, font più grande.
+ *  - Chicca 1: freccia di crescita download (mostrata SOLO quando in crescita),
+ *    con storico snapshot salvato in gbStatsHistory ad ogni "Aggiorna Tutti i Dati".
+ *  - Chicca 4: badge "top X%" nella Report Card, solo se l'app è nel top 50%.
+ *  - Chicca 5: export "PDF Tutte" (una pagina per Comune, via jsPDF).
+ *  - Chicca 6: grafico distribuzione score del parco app (Chart.js).
+ *  (Chicca 3 — refresh automatico via cron — prevista come passo successivo.)
+ *
  * Changelog:
  *  - Fix Top/Bottom: le liste "Top" e "Da Migliorare" ora sono sempre
  *    disgiunte (prima, con meno di 20 app attive, mostravano le stesse app).
@@ -258,13 +267,13 @@ const ReportGoodBarber = {
           box-shadow: 0 1px 4px rgba(0,0,0,0.06); background: #fff;
         }
         .rpt-table {
-          width: 100%; border-collapse: collapse; font-size: 0.8rem;
+          width: 100%; border-collapse: collapse; font-size: 0.9rem;
           table-layout: fixed;
         }
         .rpt-table thead th {
           background: var(--blu-900); color: #fff;
-          padding: 0.6rem 0.5rem; text-align: left; font-weight: 600;
-          font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.3px;
+          padding: 0.7rem 0.6rem; text-align: left; font-weight: 600;
+          font-size: 0.76rem; text-transform: uppercase; letter-spacing: 0.3px;
           white-space: nowrap; cursor: pointer; user-select: none;
           position: sticky; top: 0;
         }
@@ -276,19 +285,23 @@ const ReportGoodBarber = {
         }
         .rpt-table tbody tr:hover { background: var(--blu-100); cursor: pointer; }
         .rpt-table tbody td {
-          padding: 0.55rem 0.5rem; color: var(--grigio-900); white-space: nowrap;
+          padding: 0.65rem 0.7rem; color: var(--grigio-900); white-space: nowrap;
           overflow: hidden; text-overflow: ellipsis;
         }
-        .rpt-table .col-rank { text-align: center; width: 32px; font-weight: 700; color: var(--grigio-500); }
-        .rpt-table tbody .col-nome { font-weight: 700; color: var(--blu-900); max-width: 200px; overflow: hidden; text-overflow: ellipsis; }
-        .rpt-table .col-regione { width: 70px; max-width: 70px; overflow: hidden; text-overflow: ellipsis; font-size: 0.75rem; }
-        .rpt-table .col-score { text-align: center; width: 60px; }
+        /* Larghezze in percentuale: la colonna Nome è ridotta (~19%) e lo spazio
+           liberato è ridistribuito alle altre colonne, che ora respirano di più. */
+        .rpt-table .col-rank { text-align: center; width: 4%; font-weight: 700; color: var(--grigio-500); }
+        .rpt-table tbody .col-nome { font-weight: 700; color: var(--blu-900); overflow: hidden; text-overflow: ellipsis; }
+        .rpt-table .col-nome { width: 19%; }
+        .rpt-table .col-regione { width: 9%; overflow: hidden; text-overflow: ellipsis; font-size: 0.82rem; }
+        .rpt-table .col-score { text-align: center; width: 8%; }
         .rpt-table .col-downloads,
         .rpt-table .col-consensi,
         .rpt-table .col-penetrazione,
         .rpt-table .col-lanci,
         .rpt-table .col-pageviews,
-        .rpt-table .col-popolazione { text-align: right; font-variant-numeric: tabular-nums; width: 80px; }
+        .rpt-table .col-popolazione { text-align: right; font-variant-numeric: tabular-nums; width: 9.6%; }
+        .rpt-table .col-card { width: 5%; }
 
         .rpt-badge {
           display: inline-block; padding: 0.2rem 0.6rem; border-radius: 20px;
@@ -433,13 +446,17 @@ const ReportGoodBarber = {
       <div class="rpt-page">
         <div class="rpt-header">
           <div>
-            <h1><i class="fas fa-chart-bar"></i> Report App — Analytics <span style="font-size:0.7rem;font-weight:600;color:var(--grigio-500);vertical-align:middle;">CRM v${window.CRM_APP_VERSION || '10.1.4'}</span></h1>
+            <h1><i class="fas fa-chart-bar"></i> Report App — Analytics <span style="font-size:0.7rem;font-weight:600;color:var(--grigio-500);vertical-align:middle;">CRM v${window.CRM_APP_VERSION || '10.1.5'}</span></h1>
             <div class="rpt-subtitle" id="lastUpdateSubtitle">Ultimo aggiornamento: mai</div>
           </div>
           <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
             <button class="rpt-btn-update" id="goAggiornaPush" style="background:var(--verde-700);"
                     title="Aggiorna i consensi push delle app">
               <i class="fas fa-bell"></i> Consensi Push
+            </button>
+            <button class="rpt-btn-update" id="exportAllPdfButton" style="background:#0288D1;"
+                    title="Scarica un PDF con la Report Card di tutte le app filtrate">
+              <i class="fas fa-file-pdf"></i> PDF Tutte
             </button>
             <button class="rpt-btn-update" id="updateAllButton">
               <i class="fas fa-sync-alt"></i> Aggiorna Tutti i Dati
@@ -491,6 +508,14 @@ const ReportGoodBarber = {
           <div class="rpt-tb-section" id="top5Section"></div>
           <div class="rpt-tb-section" id="bottom5Section"></div>
         </div>
+
+        <!-- CHICCA 6 — Distribuzione degli score del parco app -->
+        <div class="rpt-tb-section" id="scoreChartSection" style="margin-top:1.5rem;">
+          <div class="rpt-tb-title"><i class="fas fa-chart-column" style="color:var(--blu-700);"></i> Distribuzione Score (app filtrate)</div>
+          <div style="position:relative;height:260px;">
+            <canvas id="scoreDistChart"></canvas>
+          </div>
+        </div>
       </div>
     `;
 
@@ -500,6 +525,7 @@ const ReportGoodBarber = {
     // Attach event listeners
     document.getElementById('updateAllButton').addEventListener('click', () => this.updateAllData());
     document.getElementById('goAggiornaPush')?.addEventListener('click', () => UI.showPage('aggiorna-push'));
+    document.getElementById('exportAllPdfButton')?.addEventListener('click', () => this.generateAllReportCardsPDF());
 
     // Selettore di ordinamento per mobile (su desktop si usano le intestazioni)
     const mobileSort = document.getElementById('mobileSortSelect');
@@ -572,6 +598,80 @@ const ReportGoodBarber = {
     if (!app.popolazione || app.popolazione === 0) return 0;
     const downloads = stats.totalDownloads || 0;
     return Math.min(100, (downloads / app.popolazione) * 100);
+  },
+
+  // ═══════════════════════════════════════════════════════════
+  // HELPER: storico trend, trend crescita, percentile, attesa-libreria
+  // ═══════════════════════════════════════════════════════════
+
+  /**
+   * Aggiunge uno snapshot allo storico dell'app (1 per giorno, cap 24 voci).
+   * Ritorna il nuovo array storico (non muta quello originale a sorpresa).
+   * Formato voce: { d:'YYYY-MM-DD', dl:download, pv:pageViews, push:consensi }
+   */
+  appendStatsHistory(app, snap) {
+    const today = new Date().toISOString().split('T')[0];
+    const voce = {
+      d: today,
+      dl: snap.totalDownloads || 0,
+      pv: snap.pageViewsMonth || 0,
+      push: snap.consensiPush || 0
+    };
+    let history = Array.isArray(app.gbStatsHistory) ? app.gbStatsHistory.slice() : [];
+    if (history.length && history[history.length - 1].d === today) {
+      history[history.length - 1] = voce; // sovrascrivi lo snapshot di oggi
+    } else {
+      history.push(voce);
+    }
+    if (history.length > 24) history = history.slice(-24);
+    return history;
+  },
+
+  /**
+   * Calcola il trend di crescita dei download rispetto al rilevamento precedente.
+   * Ritorna null se NON in crescita (così la freccia si mostra SOLO in crescita)
+   * o se non ci sono almeno 2 snapshot.
+   */
+  getDownloadTrend(app) {
+    const h = Array.isArray(app.gbStatsHistory) ? app.gbStatsHistory : [];
+    if (h.length < 2) return null;
+    const last = h[h.length - 1].dl || 0;
+    const prev = h[h.length - 2].dl || 0;
+    if (last <= prev) return null;
+    const delta = last - prev;
+    const pct = prev > 0 ? Math.round((delta / prev) * 100) : null;
+    return { delta, pct };
+  },
+
+  /**
+   * Calcola il percentile dell'app per score rispetto a tutte le app attive.
+   * Ritorna { topPct } dove topPct = "è tra il top X%". Es. topPct=15 → top 15%.
+   * Ritorna null se non ci sono abbastanza app per un confronto sensato.
+   */
+  calcPercentile(app) {
+    const scores = this.allApps.map(a => a.score || 0);
+    if (scores.length < 4) return null;
+    const my = app.score || 0;
+    const below = scores.filter(s => s < my).length;       // quante app stanno sotto
+    const fractionBelow = below / (scores.length - 1);      // 0..1
+    const topPct = Math.max(1, Math.round((1 - fractionBelow) * 100));
+    return { topPct };
+  },
+
+  /**
+   * Attende che una libreria lazy-loaded sia disponibile (es. jsPDF, Chart.js).
+   * check() deve ritornare true quando la libreria è pronta. Risolve false al timeout.
+   */
+  _ensureLib(check, timeoutMs) {
+    timeoutMs = timeoutMs || 8000;
+    return new Promise((resolve) => {
+      if (check()) return resolve(true);
+      const start = Date.now();
+      const iv = setInterval(() => {
+        if (check()) { clearInterval(iv); resolve(true); }
+        else if (Date.now() - start > timeoutMs) { clearInterval(iv); resolve(false); }
+      }, 150);
+    });
   },
 
   /**
@@ -969,6 +1069,12 @@ const ReportGoodBarber = {
       const scoreClass = score >= 70 ? 'rpt-badge-success' :
                         score >= 40 ? 'rpt-badge-warning' : 'rpt-badge-danger';
 
+      // Freccia di crescita (chicca 1): mostrata SOLO quando i download crescono
+      const trend = this.getDownloadTrend(app);
+      const trendHtml = trend
+        ? ` <span title="In crescita rispetto al rilevamento precedente" style="color:var(--verde-700);font-weight:700;font-size:0.82em;white-space:nowrap;"><i class="fas fa-arrow-trend-up"></i> +${this.formatNumber(trend.delta)}${trend.pct != null ? ' (' + trend.pct + '%)' : ''}</span>`
+        : '';
+
       html += `
         <tr class="ranking-row" data-app-id="${app.id}">
           <td class="col-rank">${index + 1}</td>
@@ -977,7 +1083,7 @@ const ReportGoodBarber = {
           <td class="col-score">
             <span class="rpt-badge ${scoreClass}">${score}</span>
           </td>
-          <td class="col-downloads">${this.formatNumber(downloads)}</td>
+          <td class="col-downloads">${this.formatNumber(downloads)}${trendHtml}</td>
           <td class="col-consensi">${this.formatNumber(pushConsents)}</td>
           <td class="col-penetrazione">${penetrazione.toFixed(1)}%</td>
           <td class="col-lanci">${this.formatNumber(launchesMonth)}</td>
@@ -1043,6 +1149,10 @@ const ReportGoodBarber = {
    * Render top 5 and bottom 5 sections
    */
   renderTopBottomSections() {
+    // Aggiorna anche il grafico distribuzione score (chicca 6): qui passano
+    // tutte le ri-renderizzazioni che cambiano l'insieme di app filtrate.
+    this.renderScoreChart();
+
     const container = document.getElementById('topBottomContainer');
 
     // Solo app con stato ATTIVA, ordinate per score
@@ -1114,6 +1224,61 @@ const ReportGoodBarber = {
   },
 
   /**
+   * CHICCA 6 — Disegna l'istogramma della distribuzione degli score delle app
+   * filtrate, in 5 fasce (0-20, 21-40, 41-60, 61-80, 81-100). Usa Chart.js
+   * (lazy-loaded): se non è ancora pronto, riprova senza bloccare nulla.
+   */
+  renderScoreChart() {
+    const canvas = document.getElementById('scoreDistChart');
+    const section = document.getElementById('scoreChartSection');
+    if (!canvas) return;
+
+    // Se Chart.js non è ancora caricato, ritenta a breve (max ~8s).
+    if (typeof window.Chart === 'undefined') {
+      this._ensureLib(() => typeof window.Chart !== 'undefined').then((ok) => {
+        if (ok) this.renderScoreChart();
+      });
+      return;
+    }
+
+    // Conteggio per fascia
+    const fasce = [0, 0, 0, 0, 0]; // 0-20,21-40,41-60,61-80,81-100
+    this.filteredApps.forEach(a => {
+      const s = a.score || 0;
+      const idx = s <= 20 ? 0 : s <= 40 ? 1 : s <= 60 ? 2 : s <= 80 ? 3 : 4;
+      fasce[idx]++;
+    });
+
+    // Nascondi la sezione se non c'è nulla da mostrare
+    const totale = fasce.reduce((s, n) => s + n, 0);
+    if (section) section.style.display = totale === 0 ? 'none' : '';
+    if (totale === 0) return;
+
+    const data = {
+      labels: ['0-20', '21-40', '41-60', '61-80', '81-100'],
+      datasets: [{
+        label: 'N° app',
+        data: fasce,
+        backgroundColor: ['#D32F2F', '#FFCC00', '#7BA7CE', '#59C64D', '#3CA434'],
+        borderRadius: 6
+      }]
+    };
+    const options = {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { beginAtZero: true, ticks: { precision: 0 }, title: { display: true, text: 'N° app' } },
+        x: { title: { display: true, text: 'Fascia di score' } }
+      }
+    };
+
+    // Distruggi il grafico precedente prima di ridisegnare (evita memory leak)
+    if (this._scoreChart) { this._scoreChart.destroy(); this._scoreChart = null; }
+    this._scoreChart = new window.Chart(canvas.getContext('2d'), { type: 'bar', data, options });
+  },
+
+  /**
    * Update all data from GoodBarber API
    */
   async updateAllData() {
@@ -1162,11 +1327,22 @@ const ReportGoodBarber = {
             rawData: allStats
           };
 
-          // Update app document
-          await DataService.updateApp(app.id, { gbStatsCache: statsCache });
+          // ── STORICO per il TREND (chicca 1) ──────────────────────────
+          // Appendiamo uno snapshot giornaliero (max 1 al giorno) così da poter
+          // calcolare la crescita rispetto al rilevamento precedente. Cap a 24
+          // voci per non gonfiare il documento Firestore.
+          const history = this.appendStatsHistory(app, {
+            totalDownloads: totalDownloads,
+            pageViewsMonth: pageViewsMonth,
+            consensiPush: app.consensiPush || 0
+          });
 
-          // Cache the stats locally
+          // Update app document (cache stats + storico trend)
+          await DataService.updateApp(app.id, { gbStatsCache: statsCache, gbStatsHistory: history });
+
+          // Cache the stats locali
           this.allStats[app.id] = statsCache;
+          app.gbStatsHistory = history;
 
           // Recalculate score
           app.score = this.calcolaScore(app, statsCache);
@@ -1271,91 +1447,13 @@ const ReportGoodBarber = {
   async generateReportCard(appId) {
     const app = this.allApps.find(a => a.id === appId);
     if (!app) { UI.showError('App non trovata'); return; }
-    const stats = this.allStats[appId] || {};
 
     UI.showLoading('Generazione Report Card…');
-
     try {
-      // Calcola metriche
-      const m = this.calcReportMetrics(app, stats);
-
-      // Pre-carica icona come base64 per evitare problemi CORS con html2canvas.
-      // Le icone stanno su Firebase Storage (firebasestorage.googleapis.com) che
-      // NON invia header CORS: il fetch diretto dei byte fallisce (anche se l'<img>
-      // si vede). Strategia: 1) provo il fetch diretto; 2) se fallisce, riprovo
-      // attraverso il proxy lato server del CRM (/api/image-proxy) che restituisce
-      // l'immagine con CORS aperto.
-      let iconBase64 = '';
-      if (app.iconaUrl) {
-        const blobToBase64 = (blob) => new Promise((resolve) => {
-          const reader = new FileReader();
-          reader.onloadend = () => resolve(reader.result);
-          reader.onerror = () => resolve('');
-          reader.readAsDataURL(blob);
-        });
-
-        // Tentativo 1 — fetch diretto (funziona se l'host invia gli header CORS)
-        try {
-          const resp = await fetch(app.iconaUrl);
-          if (resp.ok) {
-            const blob = await resp.blob();
-            if (blob && blob.type && blob.type.indexOf('image/') === 0) {
-              iconBase64 = await blobToBase64(blob);
-            }
-          }
-        } catch (e) {
-          // CORS o rete: si passa al proxy qui sotto
-        }
-
-        // Tentativo 2 — proxy CRM (bypassa il CORS di Firebase Storage)
-        if (!iconBase64) {
-          try {
-            const proxyUrl = '/api/image-proxy?url=' + encodeURIComponent(app.iconaUrl);
-            const resp = await fetch(proxyUrl);
-            if (resp.ok) {
-              const blob = await resp.blob();
-              if (blob && blob.type && blob.type.indexOf('image/') === 0) {
-                iconBase64 = await blobToBase64(blob);
-              }
-            } else {
-              console.warn('Icona via proxy non disponibile (HTTP ' + resp.status + '), uso placeholder.');
-            }
-          } catch (e) {
-            console.warn('Icona non caricabile nemmeno via proxy, uso placeholder:', e);
-          }
-        }
-      }
-
-      // Genera HTML della card (con icona già in base64)
-      const cardHTML = this.buildReportCardHTML(app, m, iconBase64);
-
-      // Crea container nascosto
-      const wrapper = document.createElement('div');
-      wrapper.id = 'rc-offscreen-wrapper';
-      wrapper.style.cssText = 'position:fixed;left:-9999px;top:0;z-index:-1;';
-      wrapper.innerHTML = cardHTML;
-      document.body.appendChild(wrapper);
-
-      // Attendi rendering font
-      await new Promise(r => setTimeout(r, 600));
-
-      const cardEl = wrapper.querySelector('#reportCardCanvas');
-
-      const canvas = await html2canvas(cardEl, {
-        scale: 2,
-        // useCORS:true + allowTaint:false => un'eventuale immagine esterna
-        // senza header CORS NON "sporca" il canvas (verrebbe solo saltata),
-        // così toDataURL() resta sempre esportabile. L'icona dell'app è
-        // comunque già pre-caricata in base64 più sopra.
-        useCORS: true,
-        allowTaint: false,
-        backgroundColor: '#ffffff',
-        logging: false
-      });
+      const canvas = await this._renderAppCardCanvas(app);
 
       // Download PNG. toDataURL() lancia un SecurityError se il canvas è
-      // "tainted": lo intercettiamo per dare un messaggio comprensibile
-      // invece di un errore generico.
+      // "tainted": lo intercettiamo per dare un messaggio comprensibile.
       let dataUrl;
       try {
         dataUrl = canvas.toDataURL('image/png');
@@ -1372,17 +1470,150 @@ const ReportGoodBarber = {
       link.click();
       document.body.removeChild(link);
 
-      // Cleanup
-      wrapper.remove();
       UI.hideLoading();
       UI.showSuccess('Report Card scaricata!');
-
     } catch (err) {
       console.error('Errore generazione Report Card:', err);
       UI.hideLoading();
       UI.showError('Errore nella generazione del report');
-      const old = document.getElementById('rc-offscreen-wrapper');
-      if (old) old.remove();
+    }
+  },
+
+  /**
+   * Renderizza la Report Card di un'app in un <canvas> e lo ritorna.
+   * Estratto da generateReportCard per essere riusato dall'export di gruppo.
+   */
+  async _renderAppCardCanvas(app) {
+    const stats = this.allStats[app.id] || {};
+    const m = this.calcReportMetrics(app, stats);
+
+    // Pre-carica icona come base64 per evitare problemi CORS con html2canvas.
+    // Le icone stanno su Firebase Storage che NON invia header CORS: il fetch
+    // diretto dei byte fallisce. Strategia: 1) fetch diretto; 2) proxy CRM.
+    let iconBase64 = '';
+    if (app.iconaUrl) {
+      const blobToBase64 = (blob) => new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result);
+        reader.onerror = () => resolve('');
+        reader.readAsDataURL(blob);
+      });
+
+      // Tentativo 1 — fetch diretto
+      try {
+        const resp = await fetch(app.iconaUrl);
+        if (resp.ok) {
+          const blob = await resp.blob();
+          if (blob && blob.type && blob.type.indexOf('image/') === 0) {
+            iconBase64 = await blobToBase64(blob);
+          }
+        }
+      } catch (e) {
+        // CORS o rete: si passa al proxy
+      }
+
+      // Tentativo 2 — proxy CRM
+      if (!iconBase64) {
+        try {
+          const proxyUrl = '/api/image-proxy?url=' + encodeURIComponent(app.iconaUrl);
+          const resp = await fetch(proxyUrl);
+          if (resp.ok) {
+            const blob = await resp.blob();
+            if (blob && blob.type && blob.type.indexOf('image/') === 0) {
+              iconBase64 = await blobToBase64(blob);
+            }
+          } else {
+            console.warn('Icona via proxy non disponibile (HTTP ' + resp.status + '), uso placeholder.');
+          }
+        } catch (e) {
+          console.warn('Icona non caricabile nemmeno via proxy, uso placeholder:', e);
+        }
+      }
+    }
+
+    const cardHTML = this.buildReportCardHTML(app, m, iconBase64);
+    const wrapper = document.createElement('div');
+    wrapper.className = 'rc-offscreen-wrapper';
+    wrapper.style.cssText = 'position:fixed;left:-9999px;top:0;z-index:-1;';
+    wrapper.innerHTML = cardHTML;
+    document.body.appendChild(wrapper);
+
+    try {
+      await new Promise(r => setTimeout(r, 600)); // attesa rendering font
+      const cardEl = wrapper.querySelector('#reportCardCanvas');
+      return await html2canvas(cardEl, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: false,
+        backgroundColor: '#ffffff',
+        logging: false
+      });
+    } finally {
+      wrapper.remove();
+    }
+  },
+
+  /**
+   * CHICCA 5 — Esporta le Report Card di TUTTE le app filtrate in un unico PDF
+   * multi-pagina (una pagina per Comune). Usa jsPDF (lazy-loaded).
+   */
+  async generateAllReportCardsPDF() {
+    // Solo app con statistiche disponibili
+    const apps = this.filteredApps.filter(a => a.goodbarberWebzineId && a.goodbarberToken && a.gbStatsCache);
+    if (apps.length === 0) {
+      UI.showError('Nessuna app con statistiche da esportare');
+      return;
+    }
+
+    const libReady = await this._ensureLib(() => window.jspdf && window.jspdf.jsPDF);
+    if (!libReady) {
+      UI.showError('Libreria PDF non ancora pronta, riprova tra qualche secondo');
+      return;
+    }
+
+    const progress = this.showUpdateProgress(apps.length);
+    progress.querySelector('h3').innerHTML = '<i class="fas fa-file-pdf" style="margin-right:0.5rem;"></i> Generazione PDF';
+    let pdf = null;
+    try {
+      for (let i = 0; i < apps.length; i++) {
+        this.updateUpdateProgress(progress, i + 1, apps.length);
+        let canvas;
+        try {
+          canvas = await this._renderAppCardCanvas(apps[i]);
+        } catch (e) {
+          console.warn('Card saltata per', apps[i].nome, e);
+          continue; // salta l'app problematica, prosegui con le altre
+        }
+        let imgData;
+        try {
+          imgData = canvas.toDataURL('image/png');
+        } catch (e) {
+          console.warn('Canvas non esportabile per', apps[i].nome, e);
+          continue;
+        }
+        const w = canvas.width, h = canvas.height;
+        const orient = w > h ? 'l' : 'p';
+        if (!pdf) {
+          const { jsPDF } = window.jspdf;
+          pdf = new jsPDF({ orientation: orient, unit: 'px', format: [w, h] });
+        } else {
+          pdf.addPage([w, h], orient);
+        }
+        pdf.addImage(imgData, 'PNG', 0, 0, w, h);
+      }
+
+      if (!pdf) {
+        UI.showError('Nessuna Report Card generata');
+        return;
+      }
+      const oggi = new Date().toISOString().split('T')[0];
+      pdf.save(`ReportCard_TutteLeApp_${oggi}.pdf`);
+      UI.showSuccess(`PDF generato con ${pdf.getNumberOfPages()} report`);
+    } catch (err) {
+      console.error('Errore generazione PDF di gruppo:', err);
+      UI.showError('Errore nella generazione del PDF');
+    } finally {
+      if (progress) progress.remove();
     }
   },
 
@@ -1447,6 +1678,18 @@ const ReportGoodBarber = {
     const fmtNum = (n) => new Intl.NumberFormat('it-IT').format(Math.round(n));
     const fmtDec = (n, d) => n.toFixed(d).replace('.', ',');
 
+    // ── Badge benchmark (chicca 4): mostrato SOLO se l'app è nel top 50% ──
+    const perc = this.calcPercentile(app);
+    const percBadge = (perc && perc.topPct <= 50)
+      ? `<div style="display:inline-flex;align-items:center;gap:8px;margin-top:14px;background:rgba(60,164,52,0.18);
+                  border:1px solid rgba(159,212,151,0.5);border-radius:30px;padding:7px 16px;">
+           <i class="fas fa-trophy" style="font-size:15px;color:#9FD497;"></i>
+           <span style="font-size:15px;font-weight:700;color:#ffffff;letter-spacing:0.3px;">
+             Tra il top ${perc.topPct}% dei Comuni Comune.Digital
+           </span>
+         </div>`
+      : '';
+
     // ── Card metrica secondaria (numero + etichetta + spiegazione in italiano semplice) ──
     const metricCard = (icon, label, value, color, subtitle) => `
       <div style="background:#ffffff;border-radius:18px;padding:26px 20px 24px;text-align:left;
@@ -1503,6 +1746,7 @@ const ReportGoodBarber = {
               <div style="font-size:16px;color:rgba(255,255,255,0.6);margin-top:10px;">
                 <i class="fas fa-rocket" style="margin-right:5px;"></i> Online dal ${dataLancio}
               </div>` : ''}
+              ${percBadge}
             </div>
           </div>
         </div>
