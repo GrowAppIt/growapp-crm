@@ -94,6 +94,30 @@
  *       reali in produzione (Facebook CDN, WordPress, Instagram, GoodBarber
  *       syndication) usano https:// o path relativi: zero regressioni attese.
  *       Anche qui solo indexOf su lowercase, preprocessor-safe.
+ * v4.8.0 – ROBUSTEZZA (due incidenti reali risolti).
+ *   (1) PAGINA BIANCA da input utente. Il testo dei campi finiva nello script
+ *       emesso (window.COMUNE_CONFIG) tramite JSON.stringify, ma GoodBarber
+ *       "menu custom" STRIPPA i backslash annullando l'escaping JSON: una
+ *       virgoletta doppia (") diventava \" -> " non escappata -> SyntaxError
+ *       fatale -> pagina bianca (PWA + native). Aggiunta sanitizzazione di
+ *       TUTTI i campi testo in fase di generazione (deepSanitize in buildConfig):
+ *       " -> virgoletta tipografica, backslash rimosso, "</script" neutralizzato,
+ *       caratteri di controllo/newline -> spazio. Cosi' nessun contenuto puo'
+ *       piu' rompere lo script. Aggiunto inoltre uno SCAN di sicurezza finale
+ *       sull'HTML generato (scanGeneratedHtml): se trova pattern pericolosi per
+ *       GoodBarber (*url( come chiamata, new URL() ) avvisa prima del download.
+ *   (2) HOME DEL COMUNE SBAGLIATO. L'identita' della config era il solo nome
+ *       (campo testo libero) -> docId. L'autosave silenzioso (ogni 60s/input)
+ *       salvava l'intera form su un docId derivato dal nome CORRENTE con
+ *       merge:true: caricando il Comune A e cambiando solo il nome in B nasceva
+ *       un doc "B" pieno dei dati di A. Fix: (a) l'autosave aggiorna SOLO una
+ *       config gia' caricata/salvata (currentLoadedDocId), niente piu' doc
+ *       fantasma; (b) saveConfig rileva la rinomina e chiede conferma, e avvisa
+ *       prima di sovrascrivere una config esistente; (c) guardia in fase di
+ *       generazione: se il Base URL non contiene lo slug del Nome Comune,
+ *       avvisa (probabile mix di Comuni); (d) commento identificativo del
+ *       Comune in cima all'HTML generato. Tutte le modifiche del punto 2 sono
+ *       lato editor CRM: zero impatto sul preprocessor GoodBarber.
  * Si integra nel CRM come sezione dell'Officina Digitale.
  */
 window.GeneratoreHome = (function () {
@@ -1088,7 +1112,20 @@ window.GeneratoreHome = (function () {
       collectState();
       if (!state.nomeComune) { alert('Inserisci il nome del comune!'); return; }
       if (!state.baseUrl) { alert('Inserisci il Base URL!'); return; }
+      // Guardia anti "Comune sbagliato": il Base URL deve contenere lo slug del nome.
+      // Intercetta il caso classico: config riusata cambiando solo il nome ma non l'URL.
+      var _norm = function (x) { return (x || '').toLowerCase().replace(/[^a-z0-9]/g, ''); };
+      var _slug = _norm(state.nomeComune);
+      var _base = _norm(state.baseUrl);
+      if (_slug && _base && _base.indexOf(_slug) === -1) {
+        if (!confirm('ATTENZIONE: il Nome Comune è "' + state.nomeComune + '" ma il Base URL (' + state.baseUrl + ') non sembra corrispondere.\n\nRischi di mettere la home di un Comune dentro l’app di un altro.\n\nGenerare comunque?')) return;
+      }
       const html = generateHTML();
+      // Scan di sicurezza: pattern che GoodBarber può trasformare in pagina bianca
+      var _danger = scanGeneratedHtml(html);
+      if (_danger.length) {
+        if (!confirm('ATTENZIONE: l’HTML generato contiene pattern che GoodBarber "menu custom" potrebbe trasformare causando una PAGINA BIANCA:\n\n- ' + _danger.join('\n- ') + '\n\nScaricare comunque?')) return;
+      }
       const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
@@ -1231,9 +1268,20 @@ window.GeneratoreHome = (function () {
       if (!isFirebaseAvailable()) return;
       collectState();
       if (!state.nomeComune) return; // niente da salvare se non c'è il nome
+      // ROBUSTEZZA: l'autosave aggiorna SOLO una configurazione gia' caricata o
+      // salvata (currentLoadedDocId). Non deriva piu' il docId dal nome corrente,
+      // cosi' rinominare/riusare una config non crea documenti "fantasma" pieni
+      // dei dati di un altro Comune. Una config nuova va salvata con "Salva".
+      if (!currentLoadedDocId) {
+        if (autoSaveIndicator) {
+          autoSaveIndicator.textContent = 'Salva manualmente per attivare l’auto-save';
+          autoSaveIndicator.style.color = '#856404';
+        }
+        return;
+      }
       try {
         const db = firebase.firestore();
-        const docId = state.nomeComune.toLowerCase().replace(/\s+/g, '-');
+        const docId = currentLoadedDocId;
         const userEmail = AuthService.getUserEmail() || 'unknown';
         await db.collection('generatore-home-configs').doc(docId).set({
           config: state,
@@ -1266,13 +1314,11 @@ window.GeneratoreHome = (function () {
     autoSaveTimer = setInterval(autoSave, 60000);
 
     // Salva anche quando l'utente sta per lasciare la pagina
+    // (solo se c'è una config gia' caricata/salvata: vedi autoSave)
     window.addEventListener('beforeunload', () => {
-      if (autoSaveDirty && isFirebaseAvailable() && state.nomeComune) {
-        // Tentativo sincrono best-effort con sendBeacon
+      if (autoSaveDirty && isFirebaseAvailable() && currentLoadedDocId) {
         try {
           collectState();
-          const docId = state.nomeComune.toLowerCase().replace(/\s+/g, '-');
-          // sendBeacon non supporta Firestore, ma facciamo l'autoSave sincrono
           autoSave();
         } catch(e) {}
       }
@@ -2204,7 +2250,28 @@ window.GeneratoreHome = (function () {
     if (!state.nomeComune) { alert('Inserisci il nome del comune!'); return; }
     try {
       const db = firebase.firestore();
-      const docId = state.nomeComune.toLowerCase().replace(/\s+/g, '-');
+      const nameDocId = state.nomeComune.toLowerCase().replace(/\s+/g, '-');
+      // Decide su QUALE documento salvare, in modo da non mescolare Comuni.
+      let docId = currentLoadedDocId || nameDocId;
+
+      // Caso RINOMINA: ho una config caricata ma il nome ora produce un id diverso.
+      if (currentLoadedDocId && nameDocId !== currentLoadedDocId) {
+        const creaNuova = confirm(
+          'Hai caricato la configurazione "' + currentLoadedDocId + '" ma il Nome Comune ora è "' + state.nomeComune + '".\n\n' +
+          'OK = crea/aggiorna una NUOVA configurazione "' + nameDocId + '" con questi dati.\n' +
+          'Annulla = continua a salvare sulla configurazione caricata "' + currentLoadedDocId + '".'
+        );
+        docId = creaNuova ? nameDocId : currentLoadedDocId;
+      }
+
+      // Caso NUOVA config che però collide con una esistente: chiedi conferma.
+      if (!currentLoadedDocId || docId !== currentLoadedDocId) {
+        const existing = await db.collection('generatore-home-configs').doc(docId).get();
+        if (existing.exists) {
+          if (!confirm('Esiste già una configurazione "' + docId + '". Vuoi sovrascriverla con i dati attuali?')) return;
+        }
+      }
+
       const userEmail = AuthService.getUserEmail() || 'unknown';
       const timestamp = new Date();
       await db.collection('generatore-home-configs').doc(docId).set({
@@ -2213,8 +2280,12 @@ window.GeneratoreHome = (function () {
         updatedAt: timestamp,
         createdBy: userEmail
       }, { merge: true });
+      // Aggancia la sessione a questo documento: d'ora in poi l'auto-save aggiorna lui.
+      currentLoadedDocId = docId;
       alert('Configurazione salvata!');
       await loadConfigList();
+      const sel = document.getElementById('ghConfigSelect');
+      if (sel) sel.value = docId;
     } catch (err) {
       console.error('Error saving config:', err);
       alert('Errore durante il salvataggio: ' + err.message);
@@ -2696,7 +2767,53 @@ window.GeneratoreHome = (function () {
   /* ============================================================
      BUILD CONFIG OBJECT (as JS string)
      ============================================================ */
+  /* ------------------------------------------------------------------
+     SANITIZZAZIONE INPUT PER L'HTML EMESSO (anti pagina bianca).
+     GoodBarber "menu custom" strippa i backslash: l'escaping di JSON
+     (es. " -> \") viene annullato e rompe lo script. Quindi NON deve
+     mai uscire un carattere che richieda l'escaping con backslash.
+     Queste funzioni girano nel CRM (admin), NON nell'HTML emesso:
+     i backslash nelle loro regex sono quindi sicuri.
+  ------------------------------------------------------------------ */
+  function sanitizeStr(s) {
+    if (s == null) return s;
+    s = String(s);
+    s = s.split('\\').join('/');                 // backslash -> slash
+    s = s.split('"').join('”');             // " dritta -> " tipografica
+    s = s.replace(/<\/(\s*script)/gi, '< /$1');  // neutralizza chiusura <script>
+    s = s.replace(/[\u0000-\u001F]+/g, ' '); // control chars / newline -> spazio
+    return s;
+  }
+  function deepSanitize(v) {
+    if (typeof v === 'string') return sanitizeStr(v);
+    if (Array.isArray(v)) return v.map(deepSanitize);
+    if (v && typeof v === 'object') {
+      const o = {};
+      for (const k in v) { if (Object.prototype.hasOwnProperty.call(v, k)) o[k] = deepSanitize(v[k]); }
+      return o;
+    }
+    return v;
+  }
+
+  /* Rete di sicurezza: scansiona l'HTML generato per i pattern che il
+     preprocessor GoodBarber "menu custom" trasforma rompendo lo script
+     (= pagina bianca). Ritorna la lista dei problemi trovati (vuota = ok).
+     NB: il CSS "url(" legittimo NON viene segnalato perche' preceduto da
+     ":" / spazio / virgola (non da un carattere di identificatore). */
+  function scanGeneratedHtml(html) {
+    const issues = [];
+    if (/[A-Za-z0-9_]url\(/i.test(html)) {
+      issues.push('chiamata di funzione che termina in "url(" (macro GoodBarber)');
+    }
+    if (/\bnew\s+URL\s*\(/.test(html) || /[^A-Za-z0-9_.]URL\(/.test(html)) {
+      issues.push('uso del costruttore "URL(" / "new URL("');
+    }
+    return issues;
+  }
+
   function buildConfig(S, BASE) {
+    // Pulisce TUTTI i campi testo prima dell'emissione (copia nuova, non muta state)
+    S = deepSanitize(S);
     const q = s => JSON.stringify(s);
     const serviziStr = JSON.stringify(S.servizi.map(sec => ({
       sectionIt: sec.sectionIt, sectionEn: sec.sectionEn,
@@ -2848,8 +2965,12 @@ window.GeneratoreHome = (function () {
     const BASE = S.baseUrl.replace(/\/+$/, '');
     const terminiUrl = S.footerTerminiUrl || BASE + '/termini-e-condizioni-del-servizio';
     const privacyUrl = S.footerPrivacyUrl || BASE + '/privacy-policy';
+    // Etichetta identificativa in cima all'HTML: serve a riconoscere a colpo
+    // d'occhio per quale Comune e' stata generata la home (anti "Comune sbagliato").
+    const commentSafe = (x) => String(x == null ? '' : x).replace(/[<>-]+/g, ' ');
 
     return `<!DOCTYPE html>
+<!-- Comune.Digital | Home generata per: ${commentSafe(S.nomeComune)} | base: ${commentSafe(BASE)} -->
 <html lang="it">
 <head>
   <meta charset="UTF-8" />

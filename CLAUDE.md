@@ -68,7 +68,7 @@ webapp/
 ```
 
 ### File chiave su cui Claude lavora di solito
-- **`public/js/pages/generatore-home.js`** ← il file più importante. È il generatore della homepage del Comune. Produce HTML completi che vanno copiati in GoodBarber. **Versione attuale: v4.5.10**.
+- **`public/js/pages/generatore-home.js`** ← il file più importante. È il generatore della homepage del Comune. Produce HTML completi che vanno copiati in GoodBarber. **Versione attuale: v4.8.0**.
 - `public/js/pages/generatore-webapp.js` — generatore di altre webapp embedded
 - `public/js/pages/officina-digitale.js` — hub che contiene il Generatore Home come tab
 - `public/js/data-service.js` — accesso dati centralizzato, contiene `calcolaFattureDaEmettere()` (vedi sezione 9)
@@ -115,6 +115,8 @@ Più widget dinamici aggiunti dall'utente: `rssSlider_*`, `bannerCustom_*`.
 - v4.5.5 — **Fix RSS Slider eventi in menù custom**: il fetch verso `/syndication/<feed>/` veniva intercettato dal Service Worker dell'app GoodBarber e ritornava la SPA shell HTML 404; tutti e 3 i CORS proxy pubblici (allorigins, corsproxy.io, codetabs) ormai falliscono per limiti free / blocchi UA. Aggiunto come PRIMA scelta della catena fetch il proxy server-side `/api/rss-proxy.js` sul CRM, che bypassa il SW (è cross-origin) e usa un User-Agent browser-like. Vedi sezione 3.4.
 - v4.5.6–v4.5.9 — Restyle card RSS Slider (più grandi), tracking pubblicazione homepage, supporto `<media:content>` per feed rss.app, hotlink protection Facebook CDN
 - v4.5.10 — **Fix CRITICO pagina bianca**: `new URL(imgSrc)` introdotto in v4.5.9 veniva matchato dal preprocessor GB come macro `URL(` → SyntaxError fatale → pagina bianca. Sostituito con `document.createElement('a').hostname`. Vedi sezione 3.1.
+- v4.6.0–v4.7.7 — Drag&drop riordino editor, widget Video (YouTube/Vimeo/MP4), ticker news modalità URL feed + max items, vari fix UX widget Meteo.
+- v4.8.0 — **ROBUSTEZZA, due incidenti reali**: (1) pagina bianca da input utente — `JSON.stringify` + stripping backslash di GB; aggiunte `sanitizeStr`/`deepSanitize` in `buildConfig` + scan `scanGeneratedHtml` (vedi 3.5). (2) home del Comune sbagliato — autosave su docId derivato dal nome; ora autosave legato a `currentLoadedDocId`, conferma su rinomina/sovrascrittura, guardia slug↔baseUrl in generazione, commento identificativo nell'HTML (vedi 3.6).
 
 ---
 
@@ -222,6 +224,25 @@ Nel runtime di `generatore-home.js`, dentro l'IIFE `RSS SLIDERS RUNTIME`, `CORS_
 La funzione `extractXml(raw)` gestisce sia XML raw sia il wrapper JSON di allorigins, e scarta SPA shell HTML.
 
 **Lezione**: per qualunque feed RSS chiamato da dentro l'iframe del menù custom, NON contare su un fetch same-origin, NON contare sui CORS proxy pubblici. Usare sempre prima il proxy CRM.
+
+### 3.5 ⚠️ Pagina bianca da input utente: GoodBarber strippa i backslash → vanifica l'escaping JSON (fix v4.8.0)
+
+**Causa CONFERMATA di "home che funzionava e diventa bianca dopo un edit di contenuto"**: il testo dei campi (titoli, sottotitoli, eco-tips, etichette…) viene serializzato nello script emesso `window.COMUNE_CONFIG` tramite `JSON.stringify` (funzione `q` in `buildConfig`). Ma il preprocessor di GoodBarber **toglie i backslash**, quindi l'escaping di JSON viene annullato:
+
+- una **virgoletta doppia** `"` digitata in un campo → `JSON.stringify` la scrive `\"` → GB toglie il `\` → resta `"` non escappata → la stringa si chiude in anticipo → **SyntaxError fatale → pagina bianca** (PWA + native, identica).
+- stesso problema con `\` letterale, e con la sequenza `</script>` (chiude lo script inline).
+
+**REGOLA**: l'escaping a backslash NON è affidabile su GoodBarber. Qualunque dato utente che finisce nel JS emesso va sanificato PRIMA, in modo che non resti alcun carattere che richieda backslash. In v4.8.0 introdotte `sanitizeStr`/`deepSanitize` (applicate a `S` in cima a `buildConfig`): `"` → `”` tipografica, `\` → `/`, `</script` neutralizzato, caratteri di controllo/newline → spazio. Più una rete di sicurezza `scanGeneratedHtml(html)` chiamata dal pulsante "Genera": avvisa se nell'output compaiono ancora `*url(` (chiamata) o `URL(` (regressioni del preprocessor).
+
+### 3.6 ⚠️ "Home del Comune sbagliato": identità config = nome testo libero + autosave (fix v4.8.0)
+
+**Causa CONFERMATA**: l'identità di una configurazione era il solo campo testo libero "Nome Comune" (docId = nome minuscolo, spazi→`-`). L'**autosave silenzioso** (ogni 60s, su `input`, e su `beforeunload`) salvava l'INTERA form sul docId derivato dal nome CORRENTE con `merge:true`. Scenario tipico: apri "Mezzolombardo" → per riusare il layout cambi SOLO il nome in "Valledolmo" → entro 60s nasce un doc `valledolmo` pieno dei dati di Mezzolombardo (baseUrl, stemma, slug, slide…) → generi e incolli nell'app Valledolmo → **appare la home di Mezzolombardo**.
+
+**Fix v4.8.0**:
+- l'autosave aggiorna **solo** una config già caricata/salvata (`currentLoadedDocId`): niente più documenti "fantasma". Una config nuova richiede un "Salva" esplicito.
+- `saveConfig` rileva la **rinomina** (nome → docId diverso da quello caricato) e chiede se creare una nuova config o aggiornare quella caricata; avvisa anche prima di **sovrascrivere** una config esistente; aggancia `currentLoadedDocId` dopo il salvataggio.
+- **guardia in fase di generazione**: se il Base URL (normalizzato) non contiene lo slug del Nome Comune, avvisa ("rischi di mettere la home di un Comune nell'app di un altro").
+- commento identificativo `<!-- Home generata per: <Comune> | base: <url> -->` in cima all'HTML emesso.
 
 ### 3.3 Verifica obbligatoria prima di rilasciare in produzione
 
