@@ -2,6 +2,14 @@
  * Report GoodBarber Page Module
  * Analytics and ranking of all apps using GoodBarber API stats
  * CRM Comune.Digital by Growapp S.r.l.
+ *
+ * Changelog:
+ *  - Fix Top/Bottom: le liste "Top" e "Da Migliorare" ora sono sempre
+ *    disgiunte (prima, con meno di 20 app attive, mostravano le stesse app).
+ *  - Fix KPI "App Attive": ora mostra il numero reale di app attive, con
+ *    sotto-dato "N con statistiche" (prima contava solo quelle con API GB).
+ *  - Fix modal aggiornamento: rimosso sempre via finally, anche in errore
+ *    (prima l'overlay restava a coprire lo schermo se l'update falliva).
  */
 
 const ReportGoodBarber = {
@@ -734,7 +742,8 @@ const ReportGoodBarber = {
       <div class="rpt-kpi">
         <div class="rpt-kpi-icon" style="color: var(--blu-500);"><i class="fas fa-cube"></i></div>
         <div class="rpt-kpi-label">App Attive</div>
-        <div class="rpt-kpi-value">${configuredApps}</div>
+        <div class="rpt-kpi-value">${this.allApps.length}</div>
+        <div style="font-size:0.7rem;color:var(--grigio-500);margin-top:0.25rem;">${configuredApps} con statistiche</div>
       </div>
       <div class="rpt-kpi green">
         <div class="rpt-kpi-icon" style="color: var(--verde-700);"><i class="fas fa-download"></i></div>
@@ -1020,12 +1029,17 @@ const ReportGoodBarber = {
     }
     if (container) container.style.display = '';
 
-    const sorted = [...attive].sort((a, b) => (b.score || 0) - (a.score || 0));
-    const top10 = sorted.slice(0, 10);
-    const bottom10 = sorted.slice(-10).reverse();
+    // Quante app mostrare per lato: al massimo 10, ma mai più della metà
+    // delle app disponibili. Così "Top" e "Da Migliorare" non condividono
+    // mai le stesse app (prima, con meno di 20 app, si sovrapponevano).
+    const perSide = Math.min(10, Math.floor(attive.length / 2));
 
-    // Top 10
-    let topHtml = '<div class="rpt-tb-title"><i class="fas fa-crown" style="color: var(--giallo-avviso);"></i> Top 10 App Attive</div>';
+    const sorted = [...attive].sort((a, b) => (b.score || 0) - (a.score || 0));
+    const top10 = sorted.slice(0, perSide);
+    const bottom10 = sorted.slice(attive.length - perSide).reverse();
+
+    // Top (le migliori `perSide`)
+    let topHtml = `<div class="rpt-tb-title"><i class="fas fa-crown" style="color: var(--giallo-avviso);"></i> Top ${perSide} App Attive</div>`;
     top10.forEach((app, index) => {
       const score = app.score || 0;
       topHtml += `
@@ -1077,6 +1091,7 @@ const ReportGoodBarber = {
    * Update all data from GoodBarber API
    */
   async updateAllData() {
+    let progressModal = null;
     try {
       if (!AuthService.hasPermission('manage_apps') && !AuthService.hasPermission('*')) {
         UI.showError('Non hai i permessi per aggiornare i dati');
@@ -1091,7 +1106,7 @@ const ReportGoodBarber = {
       }
 
       UI.showLoading();
-      const progressModal = this.showUpdateProgress(appsToUpdate.length);
+      progressModal = this.showUpdateProgress(appsToUpdate.length);
 
       for (let i = 0; i < appsToUpdate.length; i++) {
         const app = appsToUpdate[i];
@@ -1141,10 +1156,6 @@ const ReportGoodBarber = {
         }
       }
 
-      // Close progress modal
-      progressModal.remove();
-      UI.hideLoading();
-
       // Re-render the page
       this.applyFiltersAndSort();
       this.renderKPICards();
@@ -1160,6 +1171,11 @@ const ReportGoodBarber = {
     } catch (error) {
       console.error('Error updating all data:', error);
       UI.showError('Errore nell\'aggiornamento dei dati');
+    } finally {
+      // Rimuove SEMPRE il modal di avanzamento e lo spinner, anche se
+      // l'aggiornamento va in errore a metà: altrimenti l'overlay scuro
+      // resterebbe a coprire lo schermo bloccando la pagina.
+      if (progressModal) progressModal.remove();
       UI.hideLoading();
     }
   },
