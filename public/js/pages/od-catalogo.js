@@ -1172,9 +1172,15 @@ const OdCatalogo = (() => {
                 autoreNome: c.autoreNome || ''
             }));
 
+            // v10.1.8: allega il Firebase ID token (l'endpoint ora richiede autenticazione)
+            const _aiHeaders = { 'Content-Type': 'application/json' };
+            try {
+                const _u = (typeof firebase !== 'undefined' && firebase.auth) ? firebase.auth().currentUser : null;
+                if (_u) { const _t = await _u.getIdToken(); if (_t) _aiHeaders['Authorization'] = 'Bearer ' + _t; }
+            } catch (e) { console.warn('[Catalogo AI] ID token non disponibile:', e.message); }
             const response = await fetch('/api/ai-chat', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: _aiHeaders,
                 body: JSON.stringify({
                     question: `Sei l'assistente AI dell'Officina Digitale di Comune.Digital. L'utente sta cercando componenti nel catalogo usando linguaggio naturale. Il catalogo contiene ${catalogoPerAI.length} componenti.
 
@@ -1358,13 +1364,14 @@ ISTRUZIONI:
         panel.innerHTML = `<div style="text-align:center;padding:0.5rem;"><i class="fas fa-spinner fa-spin" style="color:var(--blu-500);"></i> <span style="font-size:0.8rem;color:var(--grigio-500);">Caricamento...</span></div>`;
 
         try {
+            const _ghHeaders = await CRM_authHeaders(); // v10.1.8: github-proxy ora richiede autenticazione
             const [commitsRes, issuesRes] = await Promise.allSettled([
                 fetch('/api/github-proxy', {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    method: 'POST', headers: _ghHeaders,
                     body: JSON.stringify({ action: 'last_commits', owner: parsed.owner, repo: parsed.repo })
                 }).then(r => r.json()),
                 fetch('/api/github-proxy', {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    method: 'POST', headers: _ghHeaders,
                     body: JSON.stringify({ action: 'open_issues', owner: parsed.owner, repo: parsed.repo })
                 }).then(r => r.json())
             ]);
@@ -1421,7 +1428,7 @@ ISTRUZIONI:
         try {
             UI.showLoading();
             const res = await fetch('/api/github-proxy', {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                method: 'POST', headers: await CRM_authHeaders(),
                 body: JSON.stringify({ action: 'file_content', owner: parsed.owner, repo: parsed.repo, path: filePath })
             });
             const data = await res.json();

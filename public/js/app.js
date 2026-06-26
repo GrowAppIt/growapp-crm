@@ -1,4 +1,16 @@
 // Main App Controller
+
+// FIX sicurezza (v10.1.8): helper globale per allegare il Firebase ID token alle chiamate /api
+// che ora richiedono autenticazione. Ritorna gli header (con Authorization se l'utente è loggato).
+window.CRM_authHeaders = async function(extra) {
+    const headers = Object.assign({ 'Content-Type': 'application/json' }, extra || {});
+    try {
+        const u = (typeof firebase !== 'undefined' && firebase.auth) ? firebase.auth().currentUser : null;
+        if (u) { const t = await u.getIdToken(); if (t) headers['Authorization'] = 'Bearer ' + t; }
+    } catch (e) { /* senza token la richiesta verrà rifiutata dal server */ }
+    return headers;
+};
+
 const App = {
     init() {
 
@@ -611,10 +623,10 @@ const NotificationUI = {
                     </div>
                     <div style="flex:1;min-width:0;">
                         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
-                            <strong style="font-size:0.875rem;color:var(--grigio-900);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${notif.title}</strong>
+                            <strong style="font-size:0.875rem;color:var(--grigio-900);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${this._escapeHtml(notif.title || '')}</strong>
                             ${!notif.read ? '<span style="width:8px;height:8px;background:var(--blu-700);border-radius:50%;flex-shrink:0;"></span>' : ''}
                         </div>
-                        <p style="font-size:0.8125rem;color:var(--grigio-700);margin:2px 0 4px;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">${notif.message}</p>
+                        <p style="font-size:0.8125rem;color:var(--grigio-700);margin:2px 0 4px;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">${this._escapeHtml(notif.message || '')}</p>
                         <span style="font-size:0.6875rem;color:var(--grigio-500);"><i class="fas fa-clock"></i> ${timeAgo}</span>
                     </div>
                 </div>

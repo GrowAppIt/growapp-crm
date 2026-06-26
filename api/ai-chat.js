@@ -253,15 +253,48 @@ function buildContestoExtra(contesto) {
 
 // === HANDLER PRINCIPALE ===
 
+// FIX C5 (v10.1.8): Firebase Admin per verificare l'ID token del chiamante.
+const admin = require('firebase-admin');
+if (!admin.apps.length) {
+  try {
+    if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+      admin.initializeApp({ credential: admin.credential.cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)) });
+    } else if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY) {
+      admin.initializeApp({ credential: admin.credential.cert({
+        projectId: process.env.FIREBASE_PROJECT_ID,
+        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+        privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n')
+      }) });
+    } else {
+      admin.initializeApp();
+    }
+  } catch (e) {
+    console.error('[ai-chat] Errore init Firebase Admin:', e.message);
+  }
+}
+
 module.exports = async function handler(req, res) {
 
   // CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Metodo non consentito. Usa POST.' });
+
+  // FIX C5 (v10.1.8): autenticazione obbligatoria. L'endpoint riceve dati sensibili del CRM
+  // e usa la chiave Anthropic: solo utenti loggati (ID token valido) possono chiamarlo.
+  const _authHeader = req.headers.authorization || '';
+  const _idToken = _authHeader.startsWith('Bearer ') ? _authHeader.slice(7) : '';
+  if (!_idToken) {
+    return res.status(401).json({ error: 'Non autorizzato: token Firebase mancante.' });
+  }
+  try {
+    await admin.auth().verifyIdToken(_idToken);
+  } catch (e) {
+    return res.status(401).json({ error: 'Non autorizzato: token Firebase non valido.' });
+  }
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {

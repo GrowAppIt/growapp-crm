@@ -1088,21 +1088,22 @@ textarea.od-input { resize: vertical; }
 
         try {
             // Chiamate parallele
+            const _ghHeaders = await CRM_authHeaders(); // v10.1.8: github-proxy ora richiede autenticazione
             const [repoRes, commitsRes, issuesRes, readmeRes] = await Promise.allSettled([
                 fetch('/api/github-proxy', {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    method: 'POST', headers: _ghHeaders,
                     body: JSON.stringify({ action: 'repo_info', owner: parsed.owner, repo: parsed.repo })
                 }).then(r => r.json()),
                 fetch('/api/github-proxy', {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    method: 'POST', headers: _ghHeaders,
                     body: JSON.stringify({ action: 'last_commits', owner: parsed.owner, repo: parsed.repo })
                 }).then(r => r.json()),
                 fetch('/api/github-proxy', {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    method: 'POST', headers: _ghHeaders,
                     body: JSON.stringify({ action: 'open_issues', owner: parsed.owner, repo: parsed.repo })
                 }).then(r => r.json()),
                 fetch('/api/github-proxy', {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    method: 'POST', headers: _ghHeaders,
                     body: JSON.stringify({ action: 'readme', owner: parsed.owner, repo: parsed.repo })
                 }).then(r => r.json())
             ]);

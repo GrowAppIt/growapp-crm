@@ -1325,13 +1325,26 @@ const DataService = {
     },
 
 
+    // === NOTE DI CREDITO — fonte unica di verità (v10.1.8) ===
+    // Una fattura è Nota di Credito se ha tipoDocumento NOTA_DI_CREDITO oppure
+    // numeroFatturaCompleto che inizia con 'NC-'. Le NC vanno SEMPRE sottratte dal fatturato.
+    // Usare SEMPRE questi due helper per evitare definizioni divergenti tra report/dashboard/export.
+    isNotaCredito(f) {
+        if (!f) return false;
+        return f.tipoDocumento === 'NOTA_DI_CREDITO' || String(f.numeroFatturaCompleto || '').startsWith('NC-');
+    },
+    importoFatturaConSegno(f) {
+        const importo = (f && f.importoTotale) ? f.importoTotale : 0;
+        return this.isNotaCredito(f) ? -Math.abs(importo) : importo;
+    },
+
     // === STATISTICHE ===
     async getStatistiche() {
         try {
             // Carica clienti con stato calcolato dai contratti
             const [clienti, fattureRecenti, scadenze, app, contratti] = await Promise.all([
                 this.getClientiConStato(),
-                this.getFatture({ limit: 500 }),  // Solo le 500 più recenti
+                this.getFatture({ limit: 5000 }),  // FIX (v10.1.8): era 500 -> sottostimava i totali. Allineato a scadenzario/report (5000).
                 this.getScadenze(),
                 this.getApps(),
                 this.getContratti()
@@ -1350,17 +1363,15 @@ const DataService = {
                 fatturePerStato[f.statoPagamento] = (fatturePerStato[f.statoPagamento] || 0) + 1;
             });
 
-            // Fatturato totale (le note di credito sottraggono)
+            // Fatturato INCASSATO (le note di credito sottraggono). v10.1.8: riconoscimento NC
+            // centralizzato sia nel FILTRO sia nel SEGNO. Prima una NC marcata solo col prefisso
+            // 'NC-' (senza tipoDocumento) e non PAGATA veniva esclusa dal filtro e quindi NON sottratta.
             const fatturatoTotale = fatture
-                .filter(f => f.statoPagamento === 'PAGATA' || f.tipoDocumento === 'NOTA_DI_CREDITO')
-                .reduce((sum, f) => {
-                    const importo = f.importoTotale || 0;
-                    const isNC = f.tipoDocumento === 'NOTA_DI_CREDITO' || (f.numeroFatturaCompleto || '').startsWith('NC-');
-                    return sum + (isNC ? -Math.abs(importo) : importo);
-                }, 0);
+                .filter(f => f.statoPagamento === 'PAGATA' || this.isNotaCredito(f))
+                .reduce((sum, f) => sum + this.importoFatturaConSegno(f), 0);
 
             // Fatture non pagate (include PARZIALMENTE_PAGATA, escluse note di credito)
-            const fattureNonPagate = fatture.filter(f => (f.statoPagamento === 'NON_PAGATA' || f.statoPagamento === 'PARZIALMENTE_PAGATA') && f.tipoDocumento !== 'NOTA_DI_CREDITO');
+            const fattureNonPagate = fatture.filter(f => (f.statoPagamento === 'NON_PAGATA' || f.statoPagamento === 'PARZIALMENTE_PAGATA') && !this.isNotaCredito(f));
             const importoNonPagato = fattureNonPagate.reduce((sum, f) => {
                 // Per parzialmente pagate, calcola il saldo residuo
                 if (f.statoPagamento === 'PARZIALMENTE_PAGATA') {
@@ -1556,16 +1567,12 @@ const DataService = {
             });
 
             const fatturatoTotale = fatture
-                .filter(f => f.statoPagamento === 'PAGATA' || f.tipoDocumento === 'NOTA_DI_CREDITO')
-                .reduce((sum, f) => {
-                    const importo = f.importoTotale || 0;
-                    const isNC = f.tipoDocumento === 'NOTA_DI_CREDITO' || (f.numeroFatturaCompleto || '').startsWith('NC-');
-                    return sum + (isNC ? -Math.abs(importo) : importo);
-                }, 0);
+                .filter(f => f.statoPagamento === 'PAGATA' || this.isNotaCredito(f))
+                .reduce((sum, f) => sum + this.importoFatturaConSegno(f), 0);
 
             // Importo non pagato (include PARZIALMENTE_PAGATA con saldo residuo)
             const importoNonPagato = fatture
-                .filter(f => (f.statoPagamento === 'NON_PAGATA' || f.statoPagamento === 'PARZIALMENTE_PAGATA') && f.tipoDocumento !== 'NOTA_DI_CREDITO')
+                .filter(f => (f.statoPagamento === 'NON_PAGATA' || f.statoPagamento === 'PARZIALMENTE_PAGATA') && !this.isNotaCredito(f))
                 .reduce((sum, f) => {
                     if (f.statoPagamento === 'PARZIALMENTE_PAGATA') {
                         const totAcconti = (f.acconti || []).reduce((s, a) => s + (a.importo || 0), 0);
@@ -1749,22 +1756,69 @@ const DataService = {
             const contatoreRef = db.collection('contatori').doc('fatture');
             const auditFields = this._getAuditFields();
 
+            // FIX C1/F1 (v10.1.8): GUARDIA ANTI-DUPLICATO. La numerazione resta manuale, ma se il
+            // numero proposto dall'utente è già usato (o è vuoto) lo ricomponiamo al primo numero
+            // libero dell'anno usando il contatore atomico. Le NC (prefisso diverso) non collidono.
+            const annoKeyGuard = String(anno);
+            const numeriEsistenti = new Set();
+            let maxSeqAnno = 0;
+            try {
+                const fattureEsistenti = await this.getFatture({ limit: 5000 });
+                fattureEsistenti.forEach(f => {
+                    const nfc = f.numeroFatturaCompleto || f.numeroFattura || '';
+                    if (nfc) numeriEsistenti.add(nfc);
+                    if (String(f.anno) === annoKeyGuard) {
+                        const m = nfc.match(/\/(\d+)\//) || nfc.match(/\/(\d+)$/);
+                        if (m) { const n = parseInt(m[1], 10); if (n > maxSeqAnno) maxSeqAnno = n; }
+                    }
+                });
+            } catch (e) { console.warn('Guardia numero fattura: precaricamento fatture fallito', e); }
+            const _sysFat = (typeof SettingsService !== 'undefined' && SettingsService.getSystemSettingsSync) ? SettingsService.getSystemSettingsSync() : {};
+            const _padFat = _sysFat.paddingNumeroFattura || 3;
+            const _fmtFat = _sysFat.formatoNumeroFattura || '{ANNO}/{NUM}/{TIPO}';
+            const _prefNCFat = _sysFat.prefissoNotaCredito || 'NC-';
+            let _suffissoFat = '';
+            try {
+                const _cli = (await this.getClienti()).find(c => c.id === cleanData.clienteId);
+                const _tipoCli = (_cli && _cli.tipo) ? _cli.tipo : '';
+                _suffissoFat = _tipoCli === 'PA' ? 'PA' : (_tipoCli ? 'PR' : '');
+            } catch (e) { /* suffisso vuoto se cliente non determinabile */ }
+            const _prefissoFat = (cleanData.tipoDocumento === 'NOTA_DI_CREDITO') ? _prefNCFat : '';
+            const componiNumeroFat = (seq) => {
+                const numPad = String(seq).padStart(_padFat, '0');
+                let s = _fmtFat.replace('{ANNO}', annoKeyGuard).replace('{NUM}', numPad).replace('{TIPO}', _suffissoFat);
+                if (!_suffissoFat) s = s.replace(/\/+$/, '').replace(/-+$/, '');
+                return _prefissoFat + s;
+            };
+
             const result = await db.runTransaction(async (transaction) => {
                 const contatoreDoc = await transaction.get(contatoreRef);
                 let contatori = contatoreDoc.exists ? contatoreDoc.data() : {};
                 const annoKey = String(anno);
                 const nuovoProgressivo = (contatori[annoKey] || 0) + 1;
 
+                // Guardia anti-duplicato: tieni il numero dell'utente se libero, altrimenti
+                // ricomponi al primo numero libero (>= contatore atomico e > max esistente).
+                let numeroFinale = cleanData.numeroFatturaCompleto;
+                let progressivoFinale = nuovoProgressivo;
+                if (!numeroFinale || numeriEsistenti.has(numeroFinale)) {
+                    let seq = Math.max(nuovoProgressivo, maxSeqAnno + 1);
+                    while (numeriEsistenti.has(componiNumeroFat(seq))) seq++;
+                    numeroFinale = componiNumeroFat(seq);
+                    progressivoFinale = seq;
+                }
+
                 // Aggiorna contatore (solo il campo anno, non rispread tutto il doc)
-                transaction.set(contatoreRef, { [annoKey]: nuovoProgressivo }, { merge: true });
+                transaction.set(contatoreRef, { [annoKey]: progressivoFinale }, { merge: true });
 
                 // Crea la fattura
                 const newDocRef = db.collection('fatture').doc();
                 transaction.set(newDocRef, {
                     ...cleanData,
+                    numeroFatturaCompleto: numeroFinale,
                     dataCreazione: new Date().toISOString(),
                     statoPagamento: cleanData.statoPagamento || 'NON_PAGATA',
-                    progressivoAtomico: nuovoProgressivo,
+                    progressivoAtomico: progressivoFinale,
                     ...auditFields
                 });
 

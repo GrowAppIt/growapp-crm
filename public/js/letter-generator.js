@@ -599,7 +599,7 @@ const LetterGenerator = {
 
             const response = await fetch(baseUrl + '/api/generate-letter', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: await CRM_authHeaders(),
                 body: JSON.stringify(payload)
             });
 

@@ -332,7 +332,7 @@ const ExportManager = {
                 ['STATISTICHE GENERALI'],
                 ['Totale Clienti', clienti.length],
                 ['Totale Fatture', fatture.length],
-                ['Fatturato Totale', stats.fatture.fatturatoTotale],
+                ['Fatturato Incassato', stats.fatture.fatturatoTotale],
                 ['Da Incassare', stats.fatture.importoNonPagato],
                 ['Scadenze Attive', scadenze.length],
                 [],

@@ -227,7 +227,7 @@ const DettaglioContratto = {
                 <div style="display: flex; justify-content: space-between; align-items: center;">
                     <div>
                         <div style="font-weight: 600; color: var(--grigio-900);">
-                            ${f.numeroFattura || 'N/A'} • ${f.dataEmissione ? DataService.formatDate(f.dataEmissione) : 'N/A'}
+                            ${f.numeroFatturaCompleto || 'N/A'} • ${f.dataEmissione ? DataService.formatDate(f.dataEmissione) : 'N/A'}
                         </div>
                         <div style="font-size: 0.875rem; color: var(--grigio-500); margin-top: 0.25rem;">
                             ${f.descrizione || 'Nessuna descrizione'}
@@ -235,10 +235,10 @@ const DettaglioContratto = {
                     </div>
                     <div style="text-align: right;">
                         <div style="font-weight: 700; color: var(--blu-700); font-size: 1.1rem;">
-                            ${f.importo ? DataService.formatCurrency(f.importo) : '-'}
+                            ${f.importoTotale ? DataService.formatCurrency(f.importoTotale) : '-'}
                         </div>
-                        <span class="badge ${DataService.getStatoBadgeClass(f.stato)}">
-                            ${f.stato || 'N/A'}
+                        <span class="badge ${DataService.getStatoBadgeClass(f.statoPagamento)}">
+                            ${f.statoPagamento || 'N/A'}
                         </span>
                     </div>
                 </div>
@@ -398,14 +398,15 @@ const DettaglioContratto = {
 
         // 2) Fatture da incassare (non pagate di questo contratto)
         const fattureDaIncassare = this.fatture.filter(f =>
-            f.stato === 'NON_PAGATA' || f.stato === 'PARZIALMENTE_PAGATA'
+            f.statoPagamento === 'NON_PAGATA' || f.statoPagamento === 'PARZIALMENTE_PAGATA'
         );
 
         let fattureIncassoHtml = '';
         if (fattureDaIncassare.length > 0) {
             const totaleNonPagato = fattureDaIncassare.reduce((sum, f) => {
-                const importo = f.importo || 0;
-                const pagato = f.importoPagato || 0;
+                const importo = f.importoTotale || 0;
+                // FIX F3 (v10.1.8): il pagato parziale è la somma degli acconti[], non un campo importoPagato (inesistente).
+                const pagato = Array.isArray(f.acconti) ? f.acconti.reduce((s, a) => s + (a.importo || 0), 0) : 0;
                 return sum + (importo - pagato);
             }, 0);
 
@@ -428,11 +429,11 @@ const DettaglioContratto = {
                         <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.5rem; border-bottom: 1px solid var(--grigio-300); cursor: pointer;"
                              onclick="UI.showPage('dettaglio-fattura', '${f.id}')">
                             <div>
-                                <div style="font-size: 0.85rem; font-weight: 600; color: var(--grigio-900);">${f.numeroFattura || 'N/A'}</div>
+                                <div style="font-size: 0.85rem; font-weight: 600; color: var(--grigio-900);">${f.numeroFatturaCompleto || 'N/A'}</div>
                                 <div style="font-size: 0.75rem; color: var(--grigio-500);">${f.dataEmissione ? DataService.formatDate(f.dataEmissione) : ''}</div>
                             </div>
                             <div style="font-size: 0.85rem; font-weight: 700; color: var(--rosso-errore);">
-                                ${DataService.formatCurrency(f.importo || 0)}
+                                ${DataService.formatCurrency(f.importoTotale || 0)}
                             </div>
                         </div>
                     `).join('')}
@@ -479,10 +480,10 @@ const DettaglioContratto = {
         }
 
         // 4) Fatture pagate (conteggio rapido)
-        const fatturePagate = this.fatture.filter(f => f.stato === 'PAGATA');
+        const fatturePagate = this.fatture.filter(f => f.statoPagamento === 'PAGATA');
         let fatturePagateHtml = '';
         if (fatturePagate.length > 0) {
-            const totalePagato = fatturePagate.reduce((sum, f) => sum + (f.importo || 0), 0);
+            const totalePagato = fatturePagate.reduce((sum, f) => sum + (f.importoTotale || 0), 0);
             fatturePagateHtml = `
                 <div style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; border-radius: 8px; background: #E2F8DE;">
                     <i class="fas fa-check-circle" style="color: var(--verde-700); font-size: 1.25rem; flex-shrink: 0;"></i>

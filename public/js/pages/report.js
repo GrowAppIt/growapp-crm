@@ -50,6 +50,15 @@ const Report = {
                 <!-- KPI Cards Animate -->
                 ${this.renderKPICards()}
 
+                <!-- Ricavo Ricorrente MRR/ARR -->
+                ${this.renderMRR()}
+
+                <!-- Crediti & Incassi: Aging + DSO -->
+                ${this.renderAging()}
+
+                <!-- Performance & Provvigioni per Agente -->
+                ${this.renderAgenti()}
+
                 <!-- Previsione Fatturato Fine Anno -->
                 ${this.renderPrevisioneFatturato()}
 
@@ -100,6 +109,336 @@ const Report = {
             UI.hideLoading();
             UI.showError('Errore nel caricamento dei report');
         }
+    },
+
+    // === RICAVO RICORRENTE (MRR / ARR) — v10.1.8 ===
+    // Calcola il valore ricorrente del portafoglio contratti (non basato sulle fatture emesse).
+    calcolaMRR() {
+        const contratti = (this.datiCache && this.datiCache.contratti) || [];
+        // Annuo normalizzato del contratto: importoAnnuale, altrimenti importoMensile×12.
+        const annuoDi = (c) => {
+            const a = Number(c.importoAnnuale);
+            if (a && !isNaN(a)) return a;
+            const m = Number(c.importoMensile);
+            if (m && !isNaN(m)) return m * 12;
+            return 0;
+        };
+        const ricorrenti = contratti.filter(c =>
+            (c.stato === 'ATTIVO' || c.stato === 'IN_RINNOVO') && c.periodicita !== 'UNA_TANTUM'
+        );
+        const oggi = new Date();
+        const tra90 = new Date(); tra90.setDate(tra90.getDate() + 90);
+        const perPeriodicita = {};
+        let arr = 0, arrARischio = 0, nARischio = 0;
+        ricorrenti.forEach(c => {
+            const a = annuoDi(c);
+            arr += a;
+            const p = c.periodicita || 'N/D';
+            perPeriodicita[p] = (perPeriodicita[p] || 0) + a;
+            if (c.dataScadenza) {
+                const ds = new Date(c.dataScadenza);
+                if (!isNaN(ds.getTime()) && ds >= oggi && ds <= tra90) { arrARischio += a; nARischio++; }
+            }
+        });
+        // Una-tantum dell'anno selezionato (informativo, escluso dall'MRR)
+        const annoSel = Number(this.filtri ? this.filtri.anno : oggi.getFullYear());
+        let unaTantum = 0;
+        contratti.forEach(c => {
+            if (c.periodicita === 'UNA_TANTUM' && c.dataInizio) {
+                const di = new Date(c.dataInizio);
+                if (!isNaN(di.getTime()) && di.getFullYear() === annoSel) {
+                    unaTantum += Number(c.importoAnnuale || c.importoMensile || 0) || 0;
+                }
+            }
+        });
+        return { mrr: arr / 12, arr, nRicorrenti: ricorrenti.length, perPeriodicita, arrARischio, nARischio, unaTantum };
+    },
+
+    renderMRR() {
+        const m = this.calcolaMRR();
+        const fmt = (v) => DataService.formatCurrency(v);
+        const ordine = ['MENSILE', 'BIMESTRALE', 'TRIMESTRALE', 'SEMESTRALE', 'ANNUALE'];
+        const labelP = { MENSILE: 'Mensile', BIMESTRALE: 'Bimestrale', TRIMESTRALE: 'Trimestrale', SEMESTRALE: 'Semestrale', ANNUALE: 'Annuale' };
+        const tot = m.arr || 1;
+        const barre = ordine.filter(p => m.perPeriodicita[p]).map(p => {
+            const v = m.perPeriodicita[p];
+            const pct = Math.round(v / tot * 100);
+            return `
+                <div style="margin-bottom:0.75rem;">
+                    <div style="display:flex;justify-content:space-between;font-size:0.85rem;margin-bottom:0.25rem;">
+                        <span style="font-weight:600;color:var(--grigio-700);">${labelP[p]}</span>
+                        <span style="color:var(--grigio-500);">${fmt(v)} ARR · ${pct}%</span>
+                    </div>
+                    <div style="background:var(--grigio-100);border-radius:6px;height:10px;overflow:hidden;">
+                        <div style="width:${pct}%;height:100%;background:linear-gradient(90deg,var(--blu-700),var(--blu-500));"></div>
+                    </div>
+                </div>`;
+        }).join('') || '<p style="color:var(--grigio-500);font-size:0.9rem;">Nessun contratto ricorrente attivo.</p>';
+
+        const kpi = (icon, label, val, color, sub) => `
+            <div style="flex:1;min-width:160px;background:white;border-radius:10px;padding:1rem;border:1px solid var(--grigio-300);">
+                <div style="font-size:0.72rem;text-transform:uppercase;color:var(--grigio-500);font-weight:700;letter-spacing:0.5px;"><i class="fas ${icon}" style="color:${color};"></i> ${label}</div>
+                <div style="font-size:1.6rem;font-weight:900;color:${color};margin-top:0.25rem;">${val}</div>
+                ${sub ? `<div style="font-size:0.72rem;color:var(--grigio-500);margin-top:0.15rem;">${sub}</div>` : ''}
+            </div>`;
+
+        return `
+            <div class="card fade-in" style="margin-top:1.5rem;box-shadow:0 8px 24px rgba(0,0,0,0.08);">
+                <div class="card-header" style="background:linear-gradient(135deg,var(--verde-700) 0%,var(--verde-500) 100%);color:white;">
+                    <h2 style="margin:0;font-size:1.25rem;font-weight:700;"><i class="fas fa-sync-alt"></i> Ricavo Ricorrente (MRR / ARR)</h2>
+                    <p style="margin:0.25rem 0 0;font-size:0.8rem;opacity:0.9;">Valore ricorrente del portafoglio contratti attivi/in rinnovo (una-tantum esclusi). Indipendente da quando si emettono le fatture.</p>
+                </div>
+                <div style="padding:1.5rem;">
+                    <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:1.25rem;">
+                        ${kpi('fa-calendar-day', 'MRR', fmt(m.mrr), 'var(--verde-700)', m.nRicorrenti + ' contratti ricorrenti')}
+                        ${kpi('fa-calendar', 'ARR', fmt(m.arr), 'var(--blu-700)', 'Ricavo annuo ricorrente')}
+                        ${kpi('fa-triangle-exclamation', 'ARR a rischio (90gg)', fmt(m.arrARischio), '#E08600', m.nARischio + ' contratti in scadenza')}
+                        ${m.unaTantum ? kpi('fa-bolt', 'Una-tantum ' + (this.filtri ? this.filtri.anno : ''), fmt(m.unaTantum), 'var(--grigio-700)', 'Non ricorrente, escluso da MRR') : ''}
+                    </div>
+                    <div style="font-size:0.8rem;font-weight:700;color:var(--grigio-700);margin-bottom:0.75rem;text-transform:uppercase;letter-spacing:0.5px;">ARR per periodicità</div>
+                    ${barre}
+                </div>
+            </div>`;
+    },
+
+    // === CREDITI & INCASSI — AGING + DSO — v10.1.8 ===
+    calcolaAging() {
+        const fatture = (this.datiCache && this.datiCache.fatture) || [];
+        const oggi = new Date(); oggi.setHours(0, 0, 0, 0);
+        const fasce = { nonScaduto: 0, f0_30: 0, f31_60: 0, f61_90: 0, f90plus: 0 };
+        const countFasce = { nonScaduto: 0, f0_30: 0, f31_60: 0, f61_90: 0, f90plus: 0 };
+        const perCliente = {};
+        let totaleCredito = 0, totaleScaduto = 0;
+        fatture.forEach(f => {
+            const nonPagata = f.statoPagamento === 'NON_PAGATA' || f.statoPagamento === 'PARZIALMENTE_PAGATA';
+            if (!nonPagata || DataService.isNotaCredito(f)) return;
+            const acconti = Array.isArray(f.acconti) ? f.acconti.reduce((s, a) => s + (Number(a.importo) || 0), 0) : 0;
+            const residuo = Math.max(0, (Number(f.importoTotale) || 0) - acconti);
+            if (residuo <= 0) return;
+            totaleCredito += residuo;
+            let giorni = null;
+            if (f.dataScadenza) {
+                const ds = new Date(f.dataScadenza); ds.setHours(0, 0, 0, 0);
+                if (!isNaN(ds.getTime())) giorni = Math.floor((oggi - ds) / 86400000);
+            }
+            let fascia;
+            if (giorni === null || giorni < 0) {
+                fascia = 'nonScaduto';
+            } else {
+                totaleScaduto += residuo;
+                if (giorni <= 30) fascia = 'f0_30';
+                else if (giorni <= 60) fascia = 'f31_60';
+                else if (giorni <= 90) fascia = 'f61_90';
+                else fascia = 'f90plus';
+            }
+            fasce[fascia] += residuo; countFasce[fascia]++;
+            const cid = f.clienteId || 'sconosciuto';
+            if (!perCliente[cid]) perCliente[cid] = { clienteId: cid, nome: f.clienteRagioneSociale || 'Sconosciuto', totale: 0, scaduto: 0, giorniMax: 0 };
+            perCliente[cid].totale += residuo;
+            if (giorni !== null && giorni > 0) {
+                perCliente[cid].scaduto += residuo;
+                if (giorni > perCliente[cid].giorniMax) perCliente[cid].giorniMax = giorni;
+            }
+        });
+        // DSO: media giorni di incasso (dataSaldo - dataEmissione) sulle fatture PAGATE
+        let dsoSum = 0, dsoN = 0;
+        fatture.forEach(f => {
+            if (f.statoPagamento === 'PAGATA' && f.dataEmissione && f.dataSaldo && !DataService.isNotaCredito(f)) {
+                const de = new Date(f.dataEmissione), dsl = new Date(f.dataSaldo);
+                if (!isNaN(de.getTime()) && !isNaN(dsl.getTime())) {
+                    const d = Math.floor((dsl - de) / 86400000);
+                    if (d >= 0 && d < 3650) { dsoSum += d; dsoN++; }
+                }
+            }
+        });
+        const dso = dsoN > 0 ? Math.round(dsoSum / dsoN) : null;
+        const topClienti = Object.values(perCliente).filter(c => c.scaduto > 0).sort((a, b) => b.scaduto - a.scaduto).slice(0, 10);
+        return { fasce, countFasce, totaleCredito, totaleScaduto, dso, dsoN, topClienti };
+    },
+
+    renderAging() {
+        const a = this.calcolaAging();
+        const fmt = (v) => DataService.formatCurrency(v);
+        const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const fasceDef = [
+            { key: 'nonScaduto', label: 'Non ancora scaduto', color: 'var(--verde-700)' },
+            { key: 'f0_30', label: 'Scaduto 0-30 gg', color: '#E0A800' },
+            { key: 'f31_60', label: 'Scaduto 31-60 gg', color: '#FB8C00' },
+            { key: 'f61_90', label: 'Scaduto 61-90 gg', color: '#F4511E' },
+            { key: 'f90plus', label: 'Scaduto oltre 90 gg', color: 'var(--rosso-errore)' }
+        ];
+        const tot = a.totaleCredito || 1;
+        const barre = fasceDef.map(f => {
+            const v = a.fasce[f.key] || 0;
+            if (v <= 0) return '';
+            const pct = Math.round(v / tot * 100);
+            return `
+                <div style="margin-bottom:0.75rem;">
+                    <div style="display:flex;justify-content:space-between;font-size:0.85rem;margin-bottom:0.25rem;">
+                        <span style="font-weight:600;color:var(--grigio-700);">${f.label} <span style="color:var(--grigio-500);font-weight:400;">(${a.countFasce[f.key]})</span></span>
+                        <span style="color:var(--grigio-500);">${fmt(v)} · ${pct}%</span>
+                    </div>
+                    <div style="background:var(--grigio-100);border-radius:6px;height:10px;overflow:hidden;">
+                        <div style="width:${pct}%;height:100%;background:${f.color};"></div>
+                    </div>
+                </div>`;
+        }).join('') || '<p style="color:var(--grigio-500);font-size:0.9rem;">Nessun credito aperto.</p>';
+
+        const pct90 = a.totaleCredito > 0 ? Math.round((a.fasce.f90plus / a.totaleCredito) * 100) : 0;
+        const kpi = (icon, label, val, color, sub) => `
+            <div style="flex:1;min-width:160px;background:white;border-radius:10px;padding:1rem;border:1px solid var(--grigio-300);">
+                <div style="font-size:0.72rem;text-transform:uppercase;color:var(--grigio-500);font-weight:700;letter-spacing:0.5px;"><i class="fas ${icon}" style="color:${color};"></i> ${label}</div>
+                <div style="font-size:1.6rem;font-weight:900;color:${color};margin-top:0.25rem;">${val}</div>
+                ${sub ? `<div style="font-size:0.72rem;color:var(--grigio-500);margin-top:0.15rem;">${sub}</div>` : ''}
+            </div>`;
+
+        const righeClienti = a.topClienti.map(c => `
+            <tr style="border-bottom:1px solid var(--grigio-200);">
+                <td style="padding:0.5rem;font-size:0.85rem;color:var(--grigio-700);">${esc(c.nome)}</td>
+                <td style="padding:0.5rem;text-align:right;font-size:0.85rem;font-weight:700;color:var(--rosso-errore);">${fmt(c.scaduto)}</td>
+                <td style="padding:0.5rem;text-align:right;font-size:0.85rem;color:var(--grigio-500);">${c.giorniMax} gg</td>
+            </tr>`).join('') || '<tr><td colspan="3" style="padding:0.75rem;color:var(--grigio-500);font-size:0.85rem;">Nessun cliente con scaduto.</td></tr>';
+
+        return `
+            <div class="card fade-in" style="margin-top:1.5rem;box-shadow:0 8px 24px rgba(0,0,0,0.08);">
+                <div class="card-header" style="background:linear-gradient(135deg,var(--blu-700) 0%,var(--blu-500) 100%);color:white;">
+                    <h2 style="margin:0;font-size:1.25rem;font-weight:700;"><i class="fas fa-hand-holding-dollar"></i> Crediti & Incassi — Aging e DSO</h2>
+                    <p style="margin:0.25rem 0 0;font-size:0.8rem;opacity:0.9;">Esposizione creditizia per anzianità del residuo e giorni medi di incasso (DSO).</p>
+                </div>
+                <div style="padding:1.5rem;">
+                    <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:1.25rem;">
+                        ${kpi('fa-file-invoice-dollar', 'Credito aperto', fmt(a.totaleCredito), 'var(--blu-700)', 'Residuo non incassato')}
+                        ${kpi('fa-clock', 'Di cui scaduto', fmt(a.totaleScaduto), 'var(--rosso-errore)', pct90 + '% oltre 90 gg')}
+                        ${kpi('fa-stopwatch', 'DSO medio', a.dso !== null ? a.dso + ' gg' : 'n/d', 'var(--verde-700)', a.dsoN + ' fatture pagate')}
+                    </div>
+                    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(320px,100%),1fr));gap:1.5rem;">
+                        <div>
+                            <div style="font-size:0.8rem;font-weight:700;color:var(--grigio-700);margin-bottom:0.75rem;text-transform:uppercase;letter-spacing:0.5px;">Credito per fascia di ritardo</div>
+                            ${barre}
+                        </div>
+                        <div>
+                            <div style="font-size:0.8rem;font-weight:700;color:var(--grigio-700);margin-bottom:0.75rem;text-transform:uppercase;letter-spacing:0.5px;">Top clienti per scaduto</div>
+                            <table style="width:100%;border-collapse:collapse;">
+                                <thead><tr style="border-bottom:2px solid var(--grigio-300);">
+                                    <th style="padding:0.5rem;text-align:left;font-size:0.72rem;color:var(--grigio-500);text-transform:uppercase;">Cliente</th>
+                                    <th style="padding:0.5rem;text-align:right;font-size:0.72rem;color:var(--grigio-500);text-transform:uppercase;">Scaduto</th>
+                                    <th style="padding:0.5rem;text-align:right;font-size:0.72rem;color:var(--grigio-500);text-transform:uppercase;">Ritardo max</th>
+                                </tr></thead>
+                                <tbody>${righeClienti}</tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>`;
+    },
+
+    // === PERFORMANCE & PROVVIGIONI PER AGENTE — v10.1.8 ===
+    setProvvigionePct(v) {
+        const n = parseFloat(v);
+        this._provvigionePct = (!isNaN(n) && n >= 0) ? n : 10;
+        // Ricalcola solo questa sezione dai dati già in cache (niente reload di rete)
+        const container = document.getElementById('reportAgentiSection');
+        if (container) container.outerHTML = this.renderAgenti();
+    },
+
+    calcolaAgenti() {
+        const { fattureFiltrate } = this.calcolaDatiFiltrati();
+        const contratti = (this.datiCache && this.datiCache.contratti) || [];
+        const clienti = (this.datiCache && this.datiCache.clienti) || [];
+        const tutteFatt = (this.datiCache && this.datiCache.fatture) || [];
+        const oggi = new Date(); oggi.setHours(0, 0, 0, 0);
+        const map = {};
+        const get = (nome) => {
+            const key = (nome && String(nome).trim()) ? String(nome).trim() : 'Non assegnato';
+            if (!map[key]) map[key] = { nome: key, fatturato: 0, arr: 0, nContrattiAttivi: 0, scaduto: 0, _clienti: new Set() };
+            return map[key];
+        };
+        // Fatturato emesso dell'anno selezionato (NC sottratte)
+        fattureFiltrate.forEach(f => {
+            const a = get(f.agente);
+            a.fatturato += DataService.importoFatturaConSegno(f);
+            if (f.clienteId) a._clienti.add(f.clienteId);
+        });
+        // Scaduto (residuo non incassato di fatture già scadute)
+        tutteFatt.forEach(f => {
+            const nonPagata = f.statoPagamento === 'NON_PAGATA' || f.statoPagamento === 'PARZIALMENTE_PAGATA';
+            if (!nonPagata || DataService.isNotaCredito(f) || !f.dataScadenza) return;
+            const ds = new Date(f.dataScadenza); ds.setHours(0, 0, 0, 0);
+            if (isNaN(ds.getTime()) || ds >= oggi) return;
+            const acconti = Array.isArray(f.acconti) ? f.acconti.reduce((s, x) => s + (Number(x.importo) || 0), 0) : 0;
+            const residuo = Math.max(0, (Number(f.importoTotale) || 0) - acconti);
+            if (residuo > 0) get(f.agente).scaduto += residuo;
+        });
+        // Portafoglio ricorrente + contratti attivi
+        const annuoDi = (c) => { const a = Number(c.importoAnnuale); if (a && !isNaN(a)) return a; const m = Number(c.importoMensile); if (m && !isNaN(m)) return m * 12; return 0; };
+        contratti.forEach(c => {
+            if (c.stato === 'ATTIVO' || c.stato === 'IN_RINNOVO') {
+                const a = get(c.agente);
+                a.nContrattiAttivi++;
+                if (c.periodicita !== 'UNA_TANTUM') a.arr += annuoDi(c);
+                if (c.clienteId) a._clienti.add(c.clienteId);
+            }
+        });
+        clienti.forEach(cl => { if (cl.agente) get(cl.agente)._clienti.add(cl.id); });
+        const pct = this._provvigionePct != null ? this._provvigionePct : 10;
+        const agenti = Object.values(map).map(a => ({
+            nome: a.nome, fatturato: a.fatturato, arr: a.arr, mrr: a.arr / 12,
+            nClienti: a._clienti.size, nContrattiAttivi: a.nContrattiAttivi, scaduto: a.scaduto,
+            provvigione: a.fatturato * (pct / 100)
+        })).sort((x, y) => y.fatturato - x.fatturato);
+        return { agenti, pct };
+    },
+
+    renderAgenti() {
+        const r = this.calcolaAgenti();
+        const fmt = (v) => DataService.formatCurrency(v);
+        const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const maxFatt = r.agenti.reduce((m, a) => Math.max(m, a.fatturato), 0) || 1;
+        const righe = r.agenti.map(a => {
+            const pctBar = Math.max(0, Math.round(a.fatturato / maxFatt * 100));
+            return `<tr style="border-bottom:1px solid var(--grigio-200);">
+                <td style="padding:0.5rem;font-size:0.85rem;font-weight:600;color:var(--grigio-700);">${esc(a.nome)}</td>
+                <td style="padding:0.5rem;min-width:120px;">
+                    <div style="font-size:0.85rem;font-weight:700;color:var(--blu-700);">${fmt(a.fatturato)}</div>
+                    <div style="background:var(--grigio-100);border-radius:4px;height:6px;overflow:hidden;margin-top:2px;"><div style="width:${pctBar}%;height:100%;background:var(--blu-500);"></div></div>
+                </td>
+                <td style="padding:0.5rem;text-align:right;font-size:0.85rem;color:var(--verde-700);font-weight:600;">${fmt(a.mrr)}</td>
+                <td style="padding:0.5rem;text-align:right;font-size:0.85rem;">${a.nClienti}</td>
+                <td style="padding:0.5rem;text-align:right;font-size:0.85rem;">${a.nContrattiAttivi}</td>
+                <td style="padding:0.5rem;text-align:right;font-size:0.85rem;color:${a.scaduto > 0 ? 'var(--rosso-errore)' : 'var(--grigio-500)'};">${fmt(a.scaduto)}</td>
+                <td style="padding:0.5rem;text-align:right;font-size:0.85rem;font-weight:700;color:var(--verde-700);">${fmt(a.provvigione)}</td>
+            </tr>`;
+        }).join('') || '<tr><td colspan="7" style="padding:0.75rem;color:var(--grigio-500);font-size:0.85rem;">Nessun dato per agente.</td></tr>';
+
+        return `
+            <div id="reportAgentiSection" class="card fade-in" style="margin-top:1.5rem;box-shadow:0 8px 24px rgba(0,0,0,0.08);">
+                <div class="card-header" style="background:linear-gradient(135deg,var(--verde-700) 0%,var(--verde-500) 100%);color:white;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.75rem;">
+                    <div>
+                        <h2 style="margin:0;font-size:1.25rem;font-weight:700;"><i class="fas fa-user-tie"></i> Performance per Agente</h2>
+                        <p style="margin:0.25rem 0 0;font-size:0.8rem;opacity:0.9;">Fatturato (anno selezionato), portafoglio ricorrente e provvigioni stimate.</p>
+                    </div>
+                    <label style="font-size:0.8rem;display:flex;align-items:center;gap:0.4rem;background:rgba(255,255,255,0.15);padding:0.35rem 0.6rem;border-radius:8px;white-space:nowrap;">
+                        Provvigione
+                        <input type="number" min="0" max="100" step="0.5" value="${r.pct}" onchange="Report.setProvvigionePct(this.value)" style="width:64px;padding:0.2rem 0.4rem;border-radius:6px;border:none;font-weight:700;text-align:right;">
+                        %
+                    </label>
+                </div>
+                <div style="padding:1.5rem;overflow-x:auto;">
+                    <table style="width:100%;border-collapse:collapse;min-width:640px;">
+                        <thead><tr style="border-bottom:2px solid var(--grigio-300);">
+                            <th style="padding:0.5rem;text-align:left;font-size:0.72rem;color:var(--grigio-500);text-transform:uppercase;">Agente</th>
+                            <th style="padding:0.5rem;text-align:left;font-size:0.72rem;color:var(--grigio-500);text-transform:uppercase;">Fatturato</th>
+                            <th style="padding:0.5rem;text-align:right;font-size:0.72rem;color:var(--grigio-500);text-transform:uppercase;">MRR</th>
+                            <th style="padding:0.5rem;text-align:right;font-size:0.72rem;color:var(--grigio-500);text-transform:uppercase;">Clienti</th>
+                            <th style="padding:0.5rem;text-align:right;font-size:0.72rem;color:var(--grigio-500);text-transform:uppercase;">Contratti</th>
+                            <th style="padding:0.5rem;text-align:right;font-size:0.72rem;color:var(--grigio-500);text-transform:uppercase;">Scaduto</th>
+                            <th style="padding:0.5rem;text-align:right;font-size:0.72rem;color:var(--grigio-500);text-transform:uppercase;">Provvigione</th>
+                        </tr></thead>
+                        <tbody>${righe}</tbody>
+                    </table>
+                    <p style="font-size:0.72rem;color:var(--grigio-500);margin-top:0.75rem;">Provvigione stimata = fatturato emesso × ${r.pct}%. Modifica la % qui sopra.</p>
+                </div>
+            </div>`;
     },
 
     renderFiltri() {
@@ -273,9 +612,12 @@ const Report = {
         const datiAttuale = this.calcolaDatiFiltrati();
         const datiPrec = this.calcolaDatiFiltrati(this.filtri.anno - 1);
 
-        const varFatturato = ((datiAttuale.fatturatoTotale - datiPrec.fatturatoTotale) / datiPrec.fatturatoTotale * 100).toFixed(1);
-        const varFatture = ((datiAttuale.numeroFatture - datiPrec.numeroFatture) / datiPrec.numeroFatture * 100).toFixed(1);
-        const varTicket = ((datiAttuale.ticketMedio - datiPrec.ticketMedio) / datiPrec.ticketMedio * 100).toFixed(1);
+        // FIX M10 (v10.1.8): guardia sul denominatore zero (anno precedente senza dati)
+        // per evitare "Infinity%" / "NaN%". Senza base di confronto -> null (mostrato come "nuovo").
+        const calcVar = (cur, prev) => (prev && prev !== 0) ? ((cur - prev) / prev * 100).toFixed(1) : null;
+        const varFatturato = calcVar(datiAttuale.fatturatoTotale, datiPrec.fatturatoTotale);
+        const varFatture = calcVar(datiAttuale.numeroFatture, datiPrec.numeroFatture);
+        const varTicket = calcVar(datiAttuale.ticketMedio, datiPrec.ticketMedio);
 
         return `
             <div class="card fade-in" style="margin-top: 1.5rem; background: linear-gradient(135deg, #f5f5f5 0%, white 100%); border: 2px solid var(--blu-100); overflow: hidden;">
@@ -286,7 +628,7 @@ const Report = {
                 </div>
                 <div style="padding: 2rem;">
                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(250px, 100%), 1fr)); gap: 2rem;">
-                        ${this.renderConfrontoItem('Fatturato Totale', datiPrec.fatturatoTotale, datiAttuale.fatturatoTotale, varFatturato, 'currency')}
+                        ${this.renderConfrontoItem('Fatturato Emesso', datiPrec.fatturatoTotale, datiAttuale.fatturatoTotale, varFatturato, 'currency')}
                         ${this.renderConfrontoItem('Numero Fatture', datiPrec.numeroFatture, datiAttuale.numeroFatture, varFatture, 'number')}
                         ${this.renderConfrontoItem('Ticket Medio', datiPrec.ticketMedio, datiAttuale.ticketMedio, varTicket, 'currency')}
                     </div>
@@ -296,10 +638,12 @@ const Report = {
     },
 
     renderConfrontoItem(label, valorePrecedente, valoreAttuale, variazione, format) {
+        // FIX M10 (v10.1.8): variazione null = nessuna base di confronto (anno prec. a 0) -> "nuovo", stile neutro.
+        const noBase = variazione === null || variazione === undefined || !isFinite(parseFloat(variazione));
         const isPositive = parseFloat(variazione) >= 0;
-        const icon = isPositive ? 'arrow-up' : 'arrow-down';
-        const color = isPositive ? 'var(--verde-700)' : 'var(--rosso)';
-        const bgColor = isPositive ? 'var(--verde-100)' : 'rgba(211, 47, 47, 0.1)';
+        const icon = noBase ? 'minus' : (isPositive ? 'arrow-up' : 'arrow-down');
+        const color = noBase ? 'var(--grigio-500)' : (isPositive ? 'var(--verde-700)' : 'var(--rosso)');
+        const bgColor = noBase ? 'var(--grigio-100)' : (isPositive ? 'var(--verde-100)' : 'rgba(211, 47, 47, 0.1)');
 
         const formatValue = (val) => {
             if (format === 'currency') return DataService.formatCurrency(val);
@@ -327,7 +671,7 @@ const Report = {
                 <!-- Variazione -->
                 <div style="display: flex; align-items: center; justify-content: center; gap: 0.5rem; padding: 0.75rem; background: ${bgColor}; border-radius: 8px;">
                     <i class="fas fa-${icon}" style="color: ${color}; font-size: 1.25rem;"></i>
-                    <span style="font-size: 1.5rem; font-weight: 900; color: ${color};">${isPositive ? '+' : ''}${variazione}%</span>
+                    <span style="font-size: 1.5rem; font-weight: 900; color: ${color};">${noBase ? 'nuovo' : (isPositive ? '+' : '') + variazione + '%'}</span>
                 </div>
             </div>
         `;
@@ -359,7 +703,7 @@ const Report = {
 
         fattureFiltrate.forEach(f => {
             const appCliente = app.find(a => a.clientePaganteId === f.clienteId);
-            const importo = f.importoTotale || 0;
+            const importo = DataService.importoFatturaConSegno(f);
 
             if (appCliente?.tipoPagamento === 'DIRETTO') {
                 fatturatoDiretto += importo;
@@ -439,7 +783,7 @@ const Report = {
         const datiMensili = new Array(12).fill(0);
         dati.fattureFiltrate.forEach(f => {
             const mese = new Date(f.dataEmissione).getMonth();
-            datiMensili[mese] += f.importoTotale || 0;
+            datiMensili[mese] += DataService.importoFatturaConSegno(f);
         });
 
         // Identifica ultimo mese con dati
@@ -1264,8 +1608,9 @@ const Report = {
                     numeroFatture: 0
                 };
             }
-            fatturatoPerCliente[f.clienteId].fatturato += f.importoTotale || 0;
-            fatturatoPerCliente[f.clienteId].numeroFatture++;
+            // FIX H9 (v10.1.8): NC sottratte e non conteggiate, coerente col fatturato di testata.
+            fatturatoPerCliente[f.clienteId].fatturato += DataService.importoFatturaConSegno(f);
+            if (!DataService.isNotaCredito(f)) fatturatoPerCliente[f.clienteId].numeroFatture++;
         });
 
         const topClienti = Object.values(fatturatoPerCliente)
@@ -1366,13 +1711,13 @@ const Report = {
 
         dati.fattureFiltrate.forEach(f => {
             const mese = new Date(f.dataEmissione).getMonth();
-            datiMensili[mese] += f.importoTotale || 0;
+            datiMensili[mese] += DataService.importoFatturaConSegno(f);
         });
 
         if (datiPrec) {
             datiPrec.fattureFiltrate.forEach(f => {
                 const mese = new Date(f.dataEmissione).getMonth();
-                datiMensiliPrec[mese] += f.importoTotale || 0;
+                datiMensiliPrec[mese] += DataService.importoFatturaConSegno(f);
             });
         }
 
@@ -1508,7 +1853,7 @@ const Report = {
 
         fattureFiltrate.forEach(f => {
             const appCliente = app.find(a => a.clientePaganteId === f.clienteId);
-            const importo = f.importoTotale || 0;
+            const importo = DataService.importoFatturaConSegno(f);
 
             if (appCliente?.tipoPagamento === 'DIRETTO') {
                 fatturatoDiretto += importo;
@@ -1591,8 +1936,9 @@ const Report = {
             let s1 = 0, s2 = 0;
             fatture.forEach(f => {
                 const mese = new Date(f.dataEmissione).getMonth() + 1;
-                if (mese <= 6) s1 += f.importoTotale || 0;
-                else s2 += f.importoTotale || 0;
+                const imp = DataService.importoFatturaConSegno(f); // v10.1.8: NC sottratte
+                if (mese <= 6) s1 += imp;
+                else s2 += imp;
             });
             return [s1, s2];
         };
@@ -1684,7 +2030,7 @@ const Report = {
         const datiMensili = new Array(12).fill(0);
         dati.fattureFiltrate.forEach(f => {
             const mese = new Date(f.dataEmissione).getMonth();
-            datiMensili[mese] += f.importoTotale || 0;
+            datiMensili[mese] += DataService.importoFatturaConSegno(f);
         });
 
         // Cumulativo
@@ -1815,7 +2161,7 @@ const Report = {
             if (!fatturatoPerRegione[regione]) {
                 fatturatoPerRegione[regione] = 0;
             }
-            fatturatoPerRegione[regione] += f.importoTotale || 0;
+            fatturatoPerRegione[regione] += DataService.importoFatturaConSegno(f); // v10.1.8: NC sottratte
         });
 
         // Ordina per fatturato decrescente

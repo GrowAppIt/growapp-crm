@@ -611,7 +611,7 @@ const Dashboard = {
                 ${UI.createKPICard({
                     icon: 'euro-sign',
                     iconClass: 'success',
-                    label: 'Fatturato Totale',
+                    label: 'Fatturato Incassato',
                     value: DataService.formatCurrency(stats.fatture.fatturatoTotale)
                 })}
             </div>
@@ -2662,7 +2662,7 @@ const Dashboard = {
                 </div>
                 <div style="background: linear-gradient(135deg, #0D3A5C, #145284); border-radius: 12px; padding: 1.5rem; color: white; text-align: center;">
                     <div style="font-size: 0.85rem; opacity: 0.8; margin-bottom: 0.5rem;">
-                        <i class="fas fa-coins"></i> Fatturato Totale
+                        <i class="fas fa-coins"></i> Fatturato Emesso
                     </div>
                     <div style="font-size: 1.8rem; font-weight: 900;">${DataService.formatCurrency(fatturatoTotale)}</div>
                     <div style="font-size: 0.7rem; opacity: 0.7; margin-top: 0.35rem;">
@@ -3359,11 +3359,9 @@ const Dashboard = {
             dataUltimoControlloQualita: a.dataUltimoControlloQualita || null,
             controlloQualitaNegativo: a.controlloQualitaNegativo || false,
             tipoPagamento: a.tipoPagamento || null,
-            // Credenziali Apple Developer
-            appleUsername: a.appleUsername || null,
-            applePassword: a.applePassword || null,
-            appleEmailAggiuntiva: a.appleEmailAggiuntiva || null,
-            appleTelefonoOtp: a.appleTelefonoOtp || null,
+            // FIX S3 (v10.1.8): NON inviare credenziali Apple all'AI / endpoint esterno.
+            // Si espone solo un flag di presenza, mai i valori (password/username/OTP/email).
+            haCredenzialiApple: !!(a.applePassword || a.appleUsername || a.appleTelefonoOtp),
             // Contatti e note
             telefonoReferente: a.telefonoReferente || null,
             emailReferente: a.emailReferente || null,
@@ -3585,9 +3583,15 @@ const Dashboard = {
             console.log('AI Chat: payload size = ' + (bodyStr.length / 1024).toFixed(0) + 'KB');
 
             // Chiamata API con TUTTI i dati CRM
+            // v10.1.8: allega il Firebase ID token (l'endpoint ora richiede autenticazione)
+            const _aiHeaders = { 'Content-Type': 'application/json' };
+            try {
+                const _u = (typeof firebase !== 'undefined' && firebase.auth) ? firebase.auth().currentUser : null;
+                if (_u) { const _t = await _u.getIdToken(); if (_t) _aiHeaders['Authorization'] = 'Bearer ' + _t; }
+            } catch (e) { console.warn('[AI Chat] ID token non disponibile:', e.message); }
             const response = await fetch('/api/ai-chat', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: _aiHeaders,
                 body: bodyStr
             });
 

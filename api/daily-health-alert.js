@@ -328,6 +328,21 @@ async function persistHealthStatus(report, notifyRes) {
 // Handler Vercel
 // ============================================================================
 module.exports = async function handler(req, res) {
+    // FIX M27 (v10.1.8): protezione come gli altri cron. Se CRON_SECRET (o SYNC_SECRET) è impostata,
+    // la richiesta deve presentarla (Vercel Cron la invia da solo) oppure essere riconosciuta come
+    // cron Vercel. Senza secret il comportamento resta invariato (nessuna rottura del cron).
+    const _cronSecret = process.env.CRON_SECRET || process.env.SYNC_SECRET;
+    if (_cronSecret) {
+        const _auth = req.headers.authorization || '';
+        const _q = (req.query && req.query.secret) || '';
+        const _ua = (req.headers['user-agent'] || '').toLowerCase();
+        const _isCron = _ua.includes('vercel-cron') || req.headers['x-vercel-cron'];
+        const _ok = _isCron || _auth === 'Bearer ' + _cronSecret || _q === _cronSecret;
+        if (!_ok) {
+            return res.status(401).json({ ok: false, error: 'Non autorizzato' });
+        }
+    }
+
     const force = req.query && (req.query.force === '1' || req.query.force === 'true');
 
     try {

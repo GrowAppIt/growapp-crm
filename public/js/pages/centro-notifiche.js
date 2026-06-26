@@ -204,6 +204,18 @@ const CentroNotifiche = {
         this._renderPagination(totalPages);
     },
 
+    // FIX S4 (v10.1.8): escape HTML per evitare XSS stored (titoli/messaggi notifiche
+    // provengono da input di altri utenti: task, commenti, riunioni).
+    _escapeHtml(text) {
+        if (text === null || text === undefined) return '';
+        return String(text)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    },
+
     _renderRow(notif) {
         const icon = NotificationService.getNotificationIcon(notif.type);
         const color = NotificationService.getNotificationColor(notif.type);
@@ -217,10 +229,10 @@ const CentroNotifiche = {
                 </div>
                 <div style="flex:1;min-width:0;">
                     <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:2px;">
-                        <strong style="font-size:0.9375rem;color:var(--grigio-900);font-family:Titillium Web,sans-serif;">${notif.title}</strong>
+                        <strong style="font-size:0.9375rem;color:var(--grigio-900);font-family:Titillium Web,sans-serif;">${this._escapeHtml(notif.title)}</strong>
                         ${!notif.read ? '<span style="width:8px;height:8px;background:var(--blu-700);border-radius:50%;flex-shrink:0;"></span>' : ''}
                     </div>
-                    <p style="font-size:0.875rem;color:var(--grigio-700);margin:0 0 6px;line-height:1.4;">${notif.message}</p>
+                    <p style="font-size:0.875rem;color:var(--grigio-700);margin:0 0 6px;line-height:1.4;">${this._escapeHtml(notif.message)}</p>
                     <div style="display:flex;justify-content:space-between;align-items:center;">
                         <span style="font-size:0.75rem;color:var(--grigio-500);"><i class="fas fa-clock"></i> ${timeAgo}</span>
                         <button onclick="event.stopPropagation(); CentroNotifiche._deleteOne('${notif.id}')" style="background:none;border:none;color:var(--grigio-400);cursor:pointer;font-size:0.8rem;padding:4px 8px;border-radius:6px;transition:all .2s;" onmouseover="this.style.color='var(--rosso-errore)';this.style.background='rgba(211,47,47,0.08)'" onmouseout="this.style.color='var(--grigio-400)';this.style.background='none'">

@@ -2492,7 +2492,7 @@ const DettaglioApp = {
                         <button id="btnFollowApp" class="btn btn-sm" onclick="DettaglioApp._toggleFollow()"
                             style="background: ${this._isFollowing ? 'var(--verde-100)' : 'var(--grigio-100)'}; color: ${this._isFollowing ? 'var(--verde-700)' : 'var(--grigio-600)'}; border: 1px solid ${this._isFollowing ? 'var(--verde-700)' : 'var(--grigio-300)'}; border-radius: 20px; padding: 0.375rem 1rem; font-size: 0.8125rem; cursor: pointer;">
                             <i class="fas ${this._isFollowing ? 'fa-bell' : 'fa-bell-slash'}"></i>
-                            ${this._isFollowing ? 'Segui' : 'Non segui'}
+                            ${this._isFollowing ? 'Stai seguendo' : 'Segui'}
                         </button>
                     </div>
                 </div>
@@ -2748,7 +2748,7 @@ const DettaglioApp = {
         btn.style.background = this._isFollowing ? 'var(--verde-100)' : 'var(--grigio-100)';
         btn.style.color = this._isFollowing ? 'var(--verde-700)' : 'var(--grigio-600)';
         btn.style.borderColor = this._isFollowing ? 'var(--verde-700)' : 'var(--grigio-300)';
-        btn.innerHTML = `<i class="fas ${this._isFollowing ? 'fa-bell' : 'fa-bell-slash'}"></i> ${this._isFollowing ? 'Segui' : 'Non segui'}`;
+        btn.innerHTML = `<i class="fas ${this._isFollowing ? 'fa-bell' : 'fa-bell-slash'}"></i> ${this._isFollowing ? 'Stai seguendo' : 'Segui'}`;
     },
 
     // === NOTIFICHE AI FOLLOWER ===

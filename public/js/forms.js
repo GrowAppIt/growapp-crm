@@ -847,7 +847,9 @@ const FormsManager = {
         let prossimoProgressivo = '';
         try {
             const annoCorrente = new Date().getFullYear();
-            const tuttefatture = await DataService.getFatture();
+            // FIX H4 (v10.1.8): prima getFatture() era limitata a 100 fatture (le più recenti del CRM):
+            // il numero progressivo suggerito poteva essere sottostimato -> duplicato. Ora 5000.
+            const tuttefatture = await DataService.getFatture({ limit: 5000 });
             const fattureAnno = tuttefatture.filter(f => f.anno === annoCorrente || f.anno === String(annoCorrente));
             // Trova il numero progressivo più alto dell'anno
             let maxNum = 0;
@@ -1545,7 +1547,10 @@ const FormsManager = {
             }
 
             // Carica fatture esistenti per questo contratto
-            const fatture = await DataService.getFatture();
+            // FIX F2 (v10.1.8): query mirata sul contratto. Prima si usava getFatture()
+            // che ha cap di default 100 fatture: se le fatture del contratto non erano tra
+            // le 100 più recenti del CRM, il periodo risultava "scoperto" -> rischio fattura duplicata.
+            const fatture = await DataService.getFattureContratto(contrattoId);
             const fattureContratto = fatture.filter(f => f.contrattoId === contrattoId && f.competenzaDal);
 
             // Genera tutti i periodi del contratto (fonte unica)

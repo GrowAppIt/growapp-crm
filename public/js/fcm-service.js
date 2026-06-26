@@ -190,9 +190,15 @@ const FCMService = {
      */
     async sendPushToUsers(userIds, title, body, data = {}) {
         try {
+            // v10.1.8: allega il Firebase ID token (l'endpoint ora richiede autenticazione)
+            const _authHeaders = { 'Content-Type': 'application/json' };
+            try {
+                const _u = (typeof firebase !== 'undefined' && firebase.auth) ? firebase.auth().currentUser : null;
+                if (_u) { const _t = await _u.getIdToken(); if (_t) _authHeaders['Authorization'] = 'Bearer ' + _t; }
+            } catch (e) { console.warn('[FCM] ID token non disponibile:', e.message); }
             const response = await fetch('/api/send-notification', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: _authHeaders,
                 body: JSON.stringify({
                     userIds: userIds,
                     title: title,

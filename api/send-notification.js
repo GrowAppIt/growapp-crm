@@ -47,10 +47,23 @@ module.exports = async function handler(req, res) {
     // CORS
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
     if (req.method === 'OPTIONS') return res.status(200).end();
     if (req.method !== 'POST') return res.status(405).json({ error: 'Usa POST' });
+
+    // FIX C4/H15 (v10.1.8): autenticazione obbligatoria. Solo un utente CRM loggato
+    // (Firebase ID token valido) può inviare push. Prima l'endpoint era pubblico a chiunque.
+    const _authHeader = req.headers.authorization || '';
+    const _idToken = _authHeader.startsWith('Bearer ') ? _authHeader.slice(7) : '';
+    if (!_idToken) {
+        return res.status(401).json({ error: 'Non autorizzato: token Firebase mancante' });
+    }
+    try {
+        await admin.auth().verifyIdToken(_idToken);
+    } catch (e) {
+        return res.status(401).json({ error: 'Non autorizzato: token Firebase non valido' });
+    }
 
     const { userIds, title, body, data } = req.body || {};
 
