@@ -347,19 +347,42 @@ const Report = {
         const clienti = (this.datiCache && this.datiCache.clienti) || [];
         const tutteFatt = (this.datiCache && this.datiCache.fatture) || [];
         const oggi = new Date(); oggi.setHours(0, 0, 0, 0);
-        const map = {};
-        const get = (nome) => {
-            const key = (nome && String(nome).trim()) ? String(nome).trim() : 'Non assegnato';
-            if (!map[key]) map[key] = { nome: key, fatturato: 0, arr: 0, nContrattiAttivi: 0, scaduto: 0, _clienti: new Set() };
-            return map[key];
-        };
-        // Fatturato emesso dell'anno selezionato (NC sottratte)
-        fattureFiltrate.forEach(f => {
-            const a = get(f.agente);
-            a.fatturato += DataService.importoFatturaConSegno(f);
-            if (f.clienteId) a._clienti.add(f.clienteId);
+
+        // FIX (v10.1.9): l'agente è valorizzato sul CLIENTE, non su fatture/contratti.
+        // Costruisco la mappa clienteId(Firestore + legacy) -> agente del cliente e attribuisco
+        // fatturato/contratti/scaduto risalendo al cliente collegato. Prima leggevo f.agente/c.agente
+        // (quasi sempre vuoti) e così tutto finiva su "Non assegnato".
+        const agentePerCliente = {};
+        clienti.forEach(cl => {
+            const ag = (cl.agente && String(cl.agente).trim()) ? String(cl.agente).trim() : '';
+            if (cl.id) agentePerCliente[cl.id] = ag;
+            if (cl.clienteIdLegacy) agentePerCliente[cl.clienteIdLegacy] = ag;
         });
-        // Scaduto (residuo non incassato di fatture già scadute)
+        const agenteDi = (doc) => {
+            const viaCliente = (doc && doc.clienteId != null) ? agentePerCliente[doc.clienteId] : '';
+            const ag = (viaCliente && viaCliente.trim())
+                ? viaCliente.trim()
+                : ((doc && doc.agente && String(doc.agente).trim()) ? String(doc.agente).trim() : '');
+            return ag || 'Non assegnato';
+        };
+
+        const map = {};
+        const get = (key) => {
+            const k = (key && String(key).trim()) ? String(key).trim() : 'Non assegnato';
+            if (!map[k]) map[k] = { nome: k, fatturato: 0, arr: 0, nContrattiAttivi: 0, scaduto: 0, _clienti: new Set() };
+            return map[k];
+        };
+
+        // Conteggio clienti per agente (fonte autorevole = il cliente)
+        clienti.forEach(cl => {
+            const ag = (cl.agente && String(cl.agente).trim()) ? String(cl.agente).trim() : 'Non assegnato';
+            get(ag)._clienti.add(cl.id);
+        });
+        // Fatturato emesso dell'anno selezionato (NC sottratte), attribuito via cliente
+        fattureFiltrate.forEach(f => {
+            get(agenteDi(f)).fatturato += DataService.importoFatturaConSegno(f);
+        });
+        // Scaduto (residuo non incassato di fatture già scadute), attribuito via cliente
         tutteFatt.forEach(f => {
             const nonPagata = f.statoPagamento === 'NON_PAGATA' || f.statoPagamento === 'PARZIALMENTE_PAGATA';
             if (!nonPagata || DataService.isNotaCredito(f) || !f.dataScadenza) return;
@@ -367,19 +390,17 @@ const Report = {
             if (isNaN(ds.getTime()) || ds >= oggi) return;
             const acconti = Array.isArray(f.acconti) ? f.acconti.reduce((s, x) => s + (Number(x.importo) || 0), 0) : 0;
             const residuo = Math.max(0, (Number(f.importoTotale) || 0) - acconti);
-            if (residuo > 0) get(f.agente).scaduto += residuo;
+            if (residuo > 0) get(agenteDi(f)).scaduto += residuo;
         });
-        // Portafoglio ricorrente + contratti attivi
+        // Portafoglio ricorrente + contratti attivi, attribuiti via cliente
         const annuoDi = (c) => { const a = Number(c.importoAnnuale); if (a && !isNaN(a)) return a; const m = Number(c.importoMensile); if (m && !isNaN(m)) return m * 12; return 0; };
         contratti.forEach(c => {
             if (c.stato === 'ATTIVO' || c.stato === 'IN_RINNOVO') {
-                const a = get(c.agente);
+                const a = get(agenteDi(c));
                 a.nContrattiAttivi++;
                 if (c.periodicita !== 'UNA_TANTUM') a.arr += annuoDi(c);
-                if (c.clienteId) a._clienti.add(c.clienteId);
             }
         });
-        clienti.forEach(cl => { if (cl.agente) get(cl.agente)._clienti.add(cl.id); });
         const pct = this._provvigionePct != null ? this._provvigionePct : 10;
         const agenti = Object.values(map).map(a => ({
             nome: a.nome, fatturato: a.fatturato, arr: a.arr, mrr: a.arr / 12,
