@@ -2030,7 +2030,124 @@ const Settings = {
                     <div id="competenzaStatus"></div>
                 </div>
             </div>
+
+            <div class="card fade-in" style="margin-top:1.5rem;">
+                <div class="card-header">
+                    <h2 class="card-title"><i class="fas fa-stethoscope"></i> Qualità dati — Agenti & anagrafiche</h2>
+                </div>
+                <div style="padding:1.5rem;">
+                    <div style="padding:1rem;background:var(--blu-100);border-left:4px solid var(--blu-700);border-radius:8px;margin-bottom:1.5rem;">
+                        <p style="color:#4A4A4A;margin:0;font-size:0.9rem;line-height:1.6;">
+                            Individua le anomalie da bonificare: <strong>clienti senza agente</strong>,
+                            <strong>agenti con fatturato negativo</strong> (di norma una Nota di Credito che supera le fatture dell'anno),
+                            <strong>fatture senza cliente collegato</strong> e <strong>contratti orfani</strong> (cliente cancellato).
+                            Clicca una voce per aprire la scheda e correggere. <strong>Nessun dato viene modificato.</strong>
+                        </p>
+                    </div>
+                    <button class="btn btn-primary" id="btnQualitaDati" onclick="Settings.analizzaQualitaDati()">
+                        <i class="fas fa-stethoscope"></i> Analizza qualità dati
+                    </button>
+                    <div id="qualitaDatiStatus" style="margin-top:1.5rem;"></div>
+                </div>
+            </div>
         `;
+    },
+
+    // Analisi qualità dati (sola lettura) — v10.1.9. Individua anomalie su agenti/anagrafiche
+    // da bonificare. Attribuzione agente coerente col report (via cliente collegato).
+    async analizzaQualitaDati() {
+        const statusDiv = document.getElementById('qualitaDatiStatus');
+        const btn = document.getElementById('btnQualitaDati');
+        const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const fmt = (v) => DataService.formatCurrency(v);
+        const set = (html) => { if (statusDiv) statusDiv.innerHTML = html; };
+        if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Analisi in corso...'; }
+        set('<p style="color:var(--grigio-500);"><i class="fas fa-spinner fa-spin"></i> Carico clienti, fatture e contratti...</p>');
+        try {
+            const [clienti, fatture, contratti] = await Promise.all([
+                DataService.getClienti(),
+                DataService.getFatture({ limit: 10000 }),
+                DataService.getContratti()
+            ]);
+
+            // Mappe cliente per id + legacy
+            const clienteById = {};
+            const agentePerCliente = {};
+            clienti.forEach(c => {
+                clienteById[c.id] = c;
+                if (c.clienteIdLegacy) clienteById[c.clienteIdLegacy] = c;
+                const ag = (c.agente && String(c.agente).trim()) ? String(c.agente).trim() : '';
+                agentePerCliente[c.id] = ag;
+                if (c.clienteIdLegacy) agentePerCliente[c.clienteIdLegacy] = ag;
+            });
+            const agenteDi = (doc) => {
+                const via = (doc && doc.clienteId != null) ? agentePerCliente[doc.clienteId] : '';
+                return (via && via.trim()) ? via.trim() : ((doc && doc.agente && String(doc.agente).trim()) ? String(doc.agente).trim() : 'Non assegnato');
+            };
+
+            // 1) Clienti senza agente
+            const clientiSenzaAgente = clienti.filter(c => !(c.agente && String(c.agente).trim()));
+            // 2) Agenti con fatturato negativo + le NC che lo causano
+            const fattPerAgente = {};
+            const ncPerAgente = {};
+            fatture.forEach(f => {
+                const ag = agenteDi(f);
+                fattPerAgente[ag] = (fattPerAgente[ag] || 0) + DataService.importoFatturaConSegno(f);
+                if (DataService.isNotaCredito(f)) (ncPerAgente[ag] = ncPerAgente[ag] || []).push(f);
+            });
+            const agentiNegativi = Object.keys(fattPerAgente).filter(a => fattPerAgente[a] < -0.005)
+                .map(a => ({ nome: a, tot: fattPerAgente[a] })).sort((x, y) => x.tot - y.tot);
+            // 3) Fatture senza cliente collegato
+            const fattureOrfane = fatture.filter(f => f.clienteId == null || !clienteById[f.clienteId]);
+            // 4) Contratti orfani (cliente cancellato/non trovato)
+            const contrattiOrfani = contratti.filter(c => c.clienteId == null || !clienteById[c.clienteId]);
+
+            const riga = (html, onclick) => `<div style="padding:0.35rem 0;border-bottom:1px solid var(--grigio-200);font-size:0.9rem;${onclick ? 'cursor:pointer;' : ''}" ${onclick ? 'onclick="' + onclick + '"' : ''}>${html}</div>`;
+            const piuAltri = (arr, shown) => arr.length > shown ? `<p style="color:var(--grigio-500);font-size:0.8rem;margin:0.5rem 0 0;">… e altri ${arr.length - shown}</p>` : '';
+
+            const cont1 = clientiSenzaAgente.slice(0, 300).map(c =>
+                riga(`<i class="fas fa-user" style="color:var(--blu-500);"></i> ${esc(c.ragioneSociale || c.id)}`, `UI.showPage('dettaglio-cliente','${c.id}')`)
+            ).join('') + piuAltri(clientiSenzaAgente, 300);
+
+            const cont2 = agentiNegativi.map(a => {
+                const ncs = (ncPerAgente[a.nome] || []);
+                const ncList = ncs.map(f => `<div style="padding:0.25rem 0 0.25rem 1.4rem;font-size:0.85rem;color:var(--grigio-700);cursor:pointer;" onclick="UI.showPage('dettaglio-fattura','${f.id}')">↳ ${esc(f.numeroFatturaCompleto || f.id)} — ${fmt(DataService.importoFatturaConSegno(f))} <span style="color:var(--grigio-500);">(${esc(f.clienteRagioneSociale || '')})</span></div>`).join('');
+                return `<div style="padding:0.45rem 0;border-bottom:1px solid var(--grigio-200);"><strong style="color:var(--rosso-errore);">${esc(a.nome)}: ${fmt(a.tot)}</strong>${ncList || '<div style="padding-left:1.4rem;font-size:0.82rem;color:var(--grigio-500);">Nessuna NC trovata: verificare le fatture dei suoi clienti.</div>'}</div>`;
+            }).join('');
+
+            const cont3 = fattureOrfane.slice(0, 200).map(f =>
+                riga(`<i class="fas fa-file-invoice" style="color:#E08600;"></i> ${esc(f.numeroFatturaCompleto || f.id)} — clienteId: ${esc(f.clienteId || '(vuoto)')}`, `UI.showPage('dettaglio-fattura','${f.id}')`)
+            ).join('') + piuAltri(fattureOrfane, 200);
+
+            const cont4 = contrattiOrfani.slice(0, 200).map(c =>
+                riga(`<i class="fas fa-file-contract" style="color:#E08600;"></i> ${esc(c.numeroContratto || c.id)} — clienteId: ${esc(c.clienteId || '(vuoto)')}`, `UI.showPage('dettaglio-contratto','${c.id}')`)
+            ).join('') + piuAltri(contrattiOrfani, 200);
+
+            const sezione = (icona, titolo, count, colore, contenuto, vuotoMsg) => `
+                <details style="margin-bottom:1rem;border:1px solid var(--grigio-300);border-radius:8px;overflow:hidden;">
+                    <summary style="padding:0.85rem 1rem;cursor:pointer;font-weight:700;color:${count > 0 ? colore : 'var(--verde-700)'};background:var(--grigio-100);display:flex;justify-content:space-between;align-items:center;">
+                        <span><i class="fas ${icona}"></i> ${titolo}</span>
+                        <span style="background:${count > 0 ? colore : 'var(--verde-700)'};color:#fff;border-radius:999px;padding:0.1rem 0.6rem;font-size:0.85rem;min-width:1.6rem;text-align:center;">${count}</span>
+                    </summary>
+                    <div style="padding:0.85rem 1rem;">${count > 0 ? contenuto : '<p style="color:var(--grigio-500);margin:0;font-size:0.9rem;">' + vuotoMsg + '</p>'}</div>
+                </details>`;
+
+            const totProblemi = clientiSenzaAgente.length + agentiNegativi.length + fattureOrfane.length + contrattiOrfani.length;
+            const intestazione = totProblemi === 0
+                ? '<div style="padding:0.85rem 1rem;background:var(--verde-100);border-radius:8px;color:var(--verde-700);font-weight:700;margin-bottom:1rem;"><i class="fas fa-check-circle"></i> Nessuna anomalia rilevata.</div>'
+                : '<div style="padding:0.85rem 1rem;background:#FFF8E1;border-radius:8px;color:#E65100;font-weight:700;margin-bottom:1rem;"><i class="fas fa-triangle-exclamation"></i> ' + totProblemi + ' anomalie da verificare.</div>';
+
+            set(intestazione
+                + sezione('fa-user-slash', 'Clienti senza agente', clientiSenzaAgente.length, 'var(--blu-700)', cont1, 'Tutti i clienti hanno un agente assegnato.')
+                + sezione('fa-arrow-trend-down', 'Agenti con fatturato negativo', agentiNegativi.length, 'var(--rosso-errore)', cont2, 'Nessun agente con fatturato negativo.')
+                + sezione('fa-file-circle-xmark', 'Fatture senza cliente collegato', fattureOrfane.length, '#E08600', cont3, 'Tutte le fatture hanno un cliente valido.')
+                + sezione('fa-file-contract', 'Contratti orfani (cliente non trovato)', contrattiOrfani.length, '#E08600', cont4, 'Tutti i contratti hanno un cliente valido.')
+            );
+        } catch (e) {
+            set('<p style="color:var(--rosso-errore);"><i class="fas fa-exclamation-triangle"></i> Errore durante l\'analisi: ' + esc(e.message) + '</p>');
+        } finally {
+            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-stethoscope"></i> Analizza qualità dati'; }
+        }
     },
 
     // Costruisce ed esporta il report Excel "ultima competenza fatturata per
