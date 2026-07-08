@@ -26,6 +26,10 @@
     "api/refresh-gb-stats.js": {
       "maxDuration": 300,
       "memory": 512
+    },
+    "api/enrich-thumbnails.js": {
+      "maxDuration": 120,
+      "memory": 512
     }
   },
   "crons": [
@@ -40,6 +44,10 @@
     {
       "path": "/api/refresh-gb-stats",
       "schedule": "30 4 * * *"
+    },
+    {
+      "path": "/api/enrich-thumbnails",
+      "schedule": "5,20,35,50 * * * *"
     }
   ],
   "redirects": [
