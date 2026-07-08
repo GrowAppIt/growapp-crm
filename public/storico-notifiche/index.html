@@ -1271,9 +1271,16 @@
     // ============================================================
 
     async function init() {
-        // Verifica appSlug
+        // Verifica appSlug — se manca, messaggio leggibile (niente alert() nativo,
+        // che nella webview è bloccante e a volte nemmeno compare)
         if (!CONFIG.appSlug) {
-            alert('Errore nel caricamento dell\'archivio notifiche. Parametro comune mancante.');
+            document.getElementById('notifications-container').innerHTML = `
+                <div class="error-state">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <h3>Comune non specificato</h3>
+                    <p>Manca il parametro del Comune nell'indirizzo. Apri l'archivio dalla sezione dedicata dell'app.</p>
+                </div>
+            `;
             return;
         }
 
@@ -1292,43 +1299,46 @@
             return;
         }
 
-        // Personalizza per il comune — legge il nome reale da Firestore
-        let comuneNome = CONFIG.appSlug.charAt(0).toUpperCase() + CONFIG.appSlug.slice(1);
+        // Nome provvisorio (slug capitalizzato) mostrato SUBITO, così l'header
+        // non resta vuoto mentre carica.
+        state.comuneNome = CONFIG.appSlug.charAt(0).toUpperCase() + CONFIG.appSlug.slice(1);
+        setComune(state.comuneNome);
+        CONFIG.appBaseUrl = `https://${CONFIG.appSlug}.comune.digital`;
+
+        // PERCORSO CRITICO: carica subito notifiche e statistiche.
+        // Prima queste aspettavano la risoluzione del nome del Comune (una o più
+        // letture su 'app'), ritardando i contenuti; ora partono immediatamente.
+        loadNotifications();
+        loadStats();
+
+        // Il nome "ufficiale" del Comune serve solo per il sottotitolo: lo
+        // risolviamo in background e aggiorniamo l'header quando arriva, senza
+        // bloccare il caricamento delle notifiche.
+        resolveComuneNome();
+    }
+
+    // Legge il nome ufficiale del Comune dalla collection 'app' e aggiorna il
+    // sottotitolo. NON è sul percorso critico: se fallisce o è lento resta il
+    // nome provvisorio. Usa SOLO il match esatto sullo slug (niente più
+    // scansione dell'intera collection 'app', che era lenta e leggeva anche i
+    // dati di tutti gli altri Comuni). Timeout corto perché non essenziale.
+    async function resolveComuneNome() {
         try {
-            // Primo tentativo: match esatto (slug già normalizzato lowercase)
-            let appSnap = await withTimeout(state.db.collection('app')
+            const appSnap = await withTimeout(state.db.collection('app')
                 .where('appSlug', '==', CONFIG.appSlug)
                 .limit(1)
-                .get(), QUERY_TIMEOUT_MS, 'nome-comune');
-            // Fallback case-insensitive: se qualche vecchio documento ha lo slug
-            // con maiuscole, proviamo a trovarlo fra le app monitorate
-            if (appSnap.empty) {
-                const allMonitored = await withTimeout(state.db.collection('app')
-                    .where('pushMonitorEnabled', '==', true)
-                    .get(), QUERY_TIMEOUT_MS, 'nome-comune-fallback');
-                const target = CONFIG.appSlug;
-                const match = allMonitored.docs.find(d => {
-                    const s = ((d.data() || {}).appSlug || '').toLowerCase().trim();
-                    return s === target;
-                });
-                if (match) appSnap = { empty: false, docs: [match] };
-            }
+                .get(), 6000, 'nome-comune');
             if (!appSnap.empty) {
-                const appData = appSnap.docs[0].data();
-                comuneNome = appData.comune || appData.nome || appData.nomeComune || comuneNome;
+                const appData = appSnap.docs[0].data() || {};
+                const nome = appData.comune || appData.nome || appData.nomeComune;
+                if (nome) {
+                    state.comuneNome = nome;
+                    setComune(nome);
+                }
             }
         } catch (e) {
             console.warn('[Storico] Errore lettura nome comune da Firestore:', e);
         }
-        state.comuneNome = comuneNome;
-        setComune(comuneNome);
-        CONFIG.appBaseUrl = `https://${CONFIG.appSlug}.comune.digital`;
-
-        // Carica dati
-        await Promise.all([
-            loadNotifications(),
-            loadStats()
-        ]);
     }
 
     // Avvia quando il DOM è pronto

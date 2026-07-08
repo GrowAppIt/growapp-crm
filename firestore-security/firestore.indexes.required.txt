@@ -1,0 +1,68 @@
+// =============================================================================
+// FIRESTORE — INDICI COMPOSITI RICHIESTI (documentazione)
+// =============================================================================
+// Come per le regole, gli indici sono gestiti A MANO nella Console Firebase
+// (Firestore -> Indici -> Composito). Questo file è solo un promemoria di
+// QUALI indici servono e a cosa, così non si perde traccia.
+// Progetto: crm-comunedigital
+// Aggiornato: 2026-07-08
+//
+// COME VERIFICARE/CREARE VELOCEMENTE:
+// Il modo più semplice è aprire una pagina che usa la query con la Console
+// del browser aperta (F12 -> Console). Se un indice manca, Firestore stampa
+// un errore rosso con un LINK diretto "You can create it here: https://..."
+// che, cliccato, crea l'indice ESATTO con un clic. La pagina intanto continua
+// a funzionare grazie ai fallback, ma in modo degradato (vedi sotto).
+// =============================================================================
+
+
+// -----------------------------------------------------------------------------
+// 1) ARCHIVIO NOTIFICHE PUBBLICO — query principale
+//    File: public/storico-notifiche/index.html  (loadNotifications)
+//    Query: push_history
+//           where appSlug == <slug>
+//           where status == 'sent'
+//           orderBy sentAt DESC
+// -----------------------------------------------------------------------------
+// Collection:  push_history
+// Campi:       appSlug   Ascending
+//              status    Ascending
+//              sentAt    Descending
+//
+// SE MANCA: la query va in errore, scatta il fallback SENZA orderBy che mostra
+// solo ~60 notifiche (spesso le più VECCHIE) e nasconde "Carica altre".
+// => è l'indice più importante da avere in produzione.
+
+
+// -----------------------------------------------------------------------------
+// 2) ARCHIVIO NOTIFICHE PUBBLICO — statistiche "questo mese / oggi"
+//    File: public/storico-notifiche/index.html  (loadStats)
+//    Query: push_history
+//           where appSlug == <slug>
+//           where status == 'sent'
+//           where sentAt >= <inizio mese>
+// -----------------------------------------------------------------------------
+// Collection:  push_history
+// Campi:       appSlug   Ascending
+//              status    Ascending
+//              sentAt    Ascending
+//
+// NOTA: è lo stesso trio di campi dell'indice (1) ma con sentAt ASC.
+// Firestore può richiedere le due direzioni come indici distinti.
+// SE MANCA: le stats mese/oggi passano a un fallback approssimato (limit 100);
+// il totale resta corretto (usa count()).
+
+
+// -----------------------------------------------------------------------------
+// 3) CRON DI SINCRONIZZAZIONE — lettura push già sincronizzate
+//    File: api/sync-push-history.js  (getRecentSyncedPushIds)
+//    Query: push_history
+//           where appSlug == <slug>
+//           orderBy sentAt DESC   (limit 500)
+// -----------------------------------------------------------------------------
+// Collection:  push_history
+// Campi:       appSlug   Ascending
+//              sentAt    Descending
+//
+// SE MANCA: il cron fa un full-scan di TUTTI i doc dell'app a ogni ciclo
+// (ogni 15 min), costoso e lento sui Comuni grandi (es. Catania).
