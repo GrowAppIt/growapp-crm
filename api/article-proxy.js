@@ -77,15 +77,18 @@ if (!admin.apps.length) {
  * @param {string} notifId — doc ID del documento push_history
  * @param {boolean} unavailable — true per marcare come non disponibile
  */
-async function markNotificationUnavailable(notifId, unavailable) {
+async function markNotificationUnavailable(notifId, unavailable, extra) {
     if (!notifId || typeof notifId !== 'string') return;
     try {
         const db = admin.firestore();
-        await db.collection('push_history').doc(notifId).update({
+        const payload = {
             contentUnavailable: !!unavailable,
             contentCheckedAt: admin.firestore.FieldValue.serverTimestamp()
-        });
-        console.log('[article-proxy] Marcata notifica', notifId, 'contentUnavailable:', unavailable);
+        };
+        // Campi extra opzionali (es. { thumbnail }) per arricchire il doc.
+        if (extra && typeof extra === 'object') Object.assign(payload, extra);
+        await db.collection('push_history').doc(notifId).update(payload);
+        console.log('[article-proxy] Aggiornata notifica', notifId, 'contentUnavailable:', unavailable);
     } catch (e) {
         // Se il doc non esiste o c'è un problema di permessi, NON falliamo —
         // questa è un'ottimizzazione best-effort. L'utente finale non si
@@ -192,7 +195,10 @@ module.exports = async function handler(req, res) {
         // Scriviamo SOLO se notifId è presente — così non aggiungiamo il campo
         // a documenti che non l'hanno mai avuto.
         if (notifId) {
-            await markNotificationUnavailable(notifId, false);
+            // Arricchimento: salva anche la miniatura dell'articolo in push_history,
+            // così l'archivio può mostrarla in lista senza altre chiamate.
+            const thumb = item.largeThumbnail || item.thumbnail || item.xLargeThumbnail || '';
+            await markNotificationUnavailable(notifId, false, thumb ? { thumbnail: thumb } : undefined);
         }
 
         return res.status(200).json({

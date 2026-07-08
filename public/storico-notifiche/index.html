@@ -569,6 +569,179 @@
             }
         }
 
+        /* ============================================================
+           Chicche: ricerca, miniatura, azioni, skeleton, offline, toast
+           ============================================================ */
+
+        /* Barra di ricerca */
+        .searchbar {
+            background: var(--bianco);
+            padding: 10px 16px;
+            border-bottom: 1px solid var(--grigio-300);
+        }
+        .searchbar-inner {
+            max-width: 600px;
+            margin: 0 auto;
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+        .search-ic {
+            position: absolute;
+            left: 13px;
+            color: var(--grigio-500);
+            font-size: 0.9rem;
+            pointer-events: none;
+        }
+        .searchbar input {
+            width: 100%;
+            padding: 10px 38px 10px 34px;
+            border: 1.5px solid var(--grigio-300);
+            border-radius: 20px;
+            font-family: 'Titillium Web', sans-serif;
+            font-size: clamp(0.9rem, 3.5vw, 0.95rem);
+            color: var(--grigio-700);
+            background: var(--grigio-100);
+            -webkit-appearance: none;
+            appearance: none;
+        }
+        .searchbar input:focus {
+            outline: none;
+            border-color: var(--blu-500);
+            background: var(--bianco);
+        }
+        .search-clear {
+            position: absolute;
+            right: 8px;
+            background: none;
+            border: none;
+            color: var(--grigio-500);
+            font-size: 1rem;
+            cursor: pointer;
+            padding: 6px;
+            display: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .search-clear.visible { display: block; }
+
+        /* Layout card con miniatura */
+        .notif-main {
+            display: flex;
+            gap: 12px;
+            align-items: flex-start;
+        }
+        .notif-texts { flex: 1 1 auto; min-width: 0; }
+        .notif-thumb {
+            flex: 0 0 auto;
+            width: 64px;
+            height: 64px;
+            border-radius: 10px;
+            object-fit: cover;
+            background: var(--grigio-100);
+        }
+        @media (max-width: 360px) {
+            .notif-thumb { width: 52px; height: 52px; }
+        }
+
+        /* Link auto nel testo (telefoni/email/URL) */
+        .notif-body a {
+            color: var(--blu-500);
+            text-decoration: underline;
+            word-break: break-word;
+        }
+
+        /* Azioni card (Condividi / Ascolta) */
+        .notif-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 10px;
+            flex-wrap: wrap;
+        }
+        .notif-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            border-radius: 8px;
+            border: 1.5px solid var(--grigio-300);
+            background: var(--bianco);
+            color: var(--blu-700);
+            font-family: 'Titillium Web', sans-serif;
+            font-size: clamp(0.78rem, 3vw, 0.88rem);
+            font-weight: 600;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .notif-btn:active { transform: scale(0.97); }
+
+        /* Banner offline */
+        .offline-banner {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            max-width: 600px;
+            margin: 4px auto 12px;
+            padding: 9px 14px;
+            background: #FFF8E1;
+            color: #8a6d00;
+            border-radius: 8px;
+            font-size: clamp(0.8rem, 3.2vw, 0.9rem);
+            font-weight: 600;
+            text-align: center;
+        }
+
+        /* Skeleton loading */
+        .skel-card {
+            background: var(--bianco);
+            border-radius: 12px;
+            padding: 14px 16px;
+            margin-bottom: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+            border-left: 4px solid var(--grigio-300);
+        }
+        .skel-line {
+            height: 12px;
+            border-radius: 6px;
+            background: linear-gradient(90deg, #ececec 25%, #f6f6f6 37%, #ececec 63%);
+            background-size: 400% 100%;
+            animation: skel 1.4s ease infinite;
+            margin-bottom: 10px;
+        }
+        .skel-line:last-child { margin-bottom: 0; }
+        .skel-line.w40 { width: 40%; }
+        .skel-line.w80 { width: 80%; }
+        .skel-line.w60 { width: 60%; }
+        @keyframes skel {
+            0% { background-position: 100% 0; }
+            100% { background-position: -100% 0; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .skel-line { animation: none; }
+        }
+
+        /* Toast (feedback discreto) */
+        .cd-toast {
+            position: fixed;
+            left: 50%;
+            bottom: 24px;
+            transform: translateX(-50%);
+            background: rgba(20,82,132,0.96);
+            color: var(--bianco);
+            padding: 10px 18px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            font-family: 'Titillium Web', sans-serif;
+            z-index: 1000;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+            pointer-events: none;
+            max-width: 90%;
+            text-align: center;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+        .cd-toast.visible { opacity: 1; }
+
     </style>
 </head>
 <body>
@@ -630,12 +803,22 @@
         </div>
     </nav>
 
+    <!-- Barra di ricerca -->
+    <div class="searchbar">
+        <div class="searchbar-inner">
+            <i class="fas fa-magnifying-glass search-ic" aria-hidden="true"></i>
+            <input type="search" id="search-input" placeholder="Cerca tra le notifiche..." aria-label="Cerca tra le notifiche" autocomplete="off" enterkeyhint="search">
+            <button class="search-clear" id="search-clear" type="button" aria-label="Cancella ricerca">
+                <i class="fas fa-xmark" aria-hidden="true"></i>
+            </button>
+        </div>
+    </div>
+
     <!-- Lista Notifiche -->
     <section class="notifications-container" id="notifications-container" role="feed" aria-label="Lista notifiche ricevute">
-        <div class="loading" id="loading-state">
-            <div class="loading-spinner"></div>
-            <div class="loading-text">Caricamento notifiche...</div>
-        </div>
+        <div class="skel-card"><div class="skel-line w40"></div><div class="skel-line w80"></div><div class="skel-line w60"></div></div>
+        <div class="skel-card"><div class="skel-line w40"></div><div class="skel-line w80"></div><div class="skel-line w60"></div></div>
+        <div class="skel-card"><div class="skel-line w40"></div><div class="skel-line w80"></div><div class="skel-line w60"></div></div>
     </section>
 
     </main>
@@ -707,6 +890,9 @@
         hasMore: true,
         loading: false,
         activeFilter: 'all',
+        searchQuery: '',
+        offline: false,
+        offlineSince: 0,
         totalCount: 0,
         monthCount: 0,
         todayCount: 0,
@@ -800,12 +986,7 @@
         const container = document.getElementById('notifications-container');
 
         if (!append) {
-            container.innerHTML = `
-                <div class="loading" id="loading-state">
-                    <div class="loading-spinner"></div>
-                    <div class="loading-text">Caricamento notifiche...</div>
-                </div>
-            `;
+            container.innerHTML = skeletonHtml();
             state.notifications = [];
             state.lastDoc = null;
             state.hasMore = true;
@@ -854,7 +1035,9 @@
             // dal server, abbiamo esaurito lo storico.
             state.hasMore = snapshot.size >= batchSize;
 
+            state.offline = false;
             renderNotifications();
+            saveCache();
 
         } catch (error) {
             console.error('[Storico] Errore caricamento:', error);
@@ -884,19 +1067,32 @@
                 // "Tutte" torna sempre a mostrare tutto senza ri-fetch.
                 state.notifications = all;
                 state.hasMore = false;
+                state.offline = false;
                 renderNotifications();
+                saveCache();
 
             } catch (fallbackErr) {
-                container.innerHTML = `
-                    <div class="error-state">
-                        <i class="fas fa-exclamation-triangle"></i>
-                        <h3>Errore di caricamento</h3>
-                        <p>Non è possibile caricare le notifiche in questo momento. Controlla la connessione e riprova.</p>
-                        <button class="load-more" onclick="loadNotifications(false)" style="margin-top:16px;">
-                            <i class="fas fa-rotate-right"></i> Riprova
-                        </button>
-                    </div>
-                `;
+                // Ultima spiaggia: se abbiamo una copia salvata, mostriamola in
+                // modalità offline invece dell'errore secco.
+                const cache = loadCache();
+                if (cache && cache.items && cache.items.length) {
+                    state.notifications = cache.items;
+                    state.hasMore = false;
+                    state.offline = true;
+                    state.offlineSince = cache.savedAt || 0;
+                    renderNotifications();
+                } else {
+                    container.innerHTML = `
+                        <div class="error-state">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            <h3>Errore di caricamento</h3>
+                            <p>Non è possibile caricare le notifiche in questo momento. Controlla la connessione e riprova.</p>
+                            <button class="load-more" onclick="loadNotifications(false)" style="margin-top:16px;">
+                                <i class="fas fa-rotate-right"></i> Riprova
+                            </button>
+                        </div>
+                    `;
+                }
             }
         }
 
@@ -1037,6 +1233,7 @@
             }
         });
 
+        const searchQ = normalizeText(state.searchQuery);
         let html = '';
         let lastDateStr = '';
         let renderedCount = 0;
@@ -1049,6 +1246,12 @@
             // fine per sorgente è qui così ogni chip funziona senza indici dedicati.
             if (!matchesFilter(notif.source || 'manual', state.activeFilter)) {
                 return;
+            }
+
+            // FILTRO RICERCA (client-side sulle notifiche già caricate)
+            if (searchQ) {
+                const hay = normalizeText((notif.title || '') + ' ' + (notif.message || '') + ' ' + (notif.fullMessage || ''));
+                if (hay.indexOf(searchQ) === -1) return;
             }
 
             // Gestione speciale Differenziata/Rifiuti: mostra solo l'ultima entro 24h
@@ -1104,17 +1307,40 @@
                     </a>`;
             }
 
+            const thumbHtml = notif.thumbnail
+                ? `<img class="notif-thumb" src="${escapeAttr(notif.thumbnail)}" alt="" loading="lazy" onerror="this.style.display='none'">`
+                : '';
+
+            // Azioni: Condividi / Ascolta (mostrate solo se il device le supporta)
+            const acts = [];
+            if (CAN_SHARE) {
+                acts.push(`<button class="notif-btn" type="button" onclick="shareNotif('${notif.id}')" aria-label="Condividi questa notifica"><i class="fas fa-share-nodes" aria-hidden="true"></i> Condividi</button>`);
+            }
+            if (CAN_SPEAK) {
+                acts.push(`<button class="notif-btn" type="button" onclick="speakNotif('${notif.id}')" aria-label="Ascolta questa notifica"><i class="fas fa-volume-high" aria-hidden="true"></i> Ascolta</button>`);
+            }
+            const actionsHtml = acts.length ? `<div class="notif-actions">${acts.join('')}</div>` : '';
+
+            const bodyHtml = linkifyEscaped(escapeHtml(notif.message || notif.fullMessage || ''))
+                || '<span style="color:var(--grigio-500);font-style:italic">Notifica senza contenuto testuale</span>';
+
             html += `
-                <article class="notification-card source-${source}" role="article" aria-label="${escapeHtml(notif.title || sourceLabel)} - ${timeStr}">
+                <article class="notification-card source-${source}" role="article" aria-label="${escapeAttr(notif.title || sourceLabel)} - ${timeStr}">
                     <div class="notif-header">
                         <span class="notif-source-badge badge-${source}" aria-label="Categoria: ${sourceLabel}">
                             <i class="fas ${sourceIcon}" aria-hidden="true"></i> ${sourceLabel}
                         </span>
                         <time class="notif-time" datetime="${sentAt.toISOString()}">${timeStr}</time>
                     </div>
-                    ${notif.title ? `<h3 class="notif-title">${escapeHtml(notif.title)}</h3>` : ''}
-                    <p class="notif-body">${escapeHtml(notif.message || notif.fullMessage || '') || '<span style="color:var(--grigio-500);font-style:italic">Notifica senza contenuto testuale</span>'}</p>
-                    ${linkHtml}
+                    <div class="notif-main">
+                        <div class="notif-texts">
+                            ${notif.title ? `<h3 class="notif-title">${escapeHtml(notif.title)}</h3>` : ''}
+                            <p class="notif-body">${bodyHtml}</p>
+                            ${linkHtml}
+                        </div>
+                        ${thumbHtml}
+                    </div>
+                    ${actionsHtml}
                 </article>
             `;
         });
@@ -1123,11 +1349,18 @@
         // o solo Differenziata/Rifiuti scadute).
         if (!html) {
             const canLoadMore = state.hasMore;
-            const emptyCopy = state.activeFilter !== 'all'
-                ? (canLoadMore
+            let emptyCopy;
+            if (searchQ) {
+                emptyCopy = canLoadMore
+                    ? 'Nessun risultato tra le notifiche caricate. Prova a caricarne altre o cambia le parole di ricerca.'
+                    : 'Nessuna notifica corrisponde alla ricerca.';
+            } else if (state.activeFilter !== 'all') {
+                emptyCopy = canLoadMore
                     ? 'Nessuna notifica di questa categoria nelle ultime caricate. Prova a caricarne altre o seleziona "Tutte".'
-                    : 'Non ci sono notifiche per questo filtro.')
-                : 'Da questo momento qui troverai tutte le notifiche ricevute dall\'App.';
+                    : 'Non ci sono notifiche per questo filtro.';
+            } else {
+                emptyCopy = 'Da questo momento qui troverai tutte le notifiche ricevute dall\'App.';
+            }
 
             container.innerHTML = `
                 <div class="empty-state">
@@ -1147,6 +1380,14 @@
             html += `<button class="load-more" onclick="loadNotifications(true)">
                 <i class="fas fa-chevron-down"></i> Carica altre notifiche
             </button>`;
+        }
+
+        // Banner "sei offline" quando mostriamo la copia salvata
+        if (state.offline) {
+            const when = state.offlineSince
+                ? new Date(state.offlineSince).toLocaleString('it-IT', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+                : '';
+            html = `<div class="offline-banner"><i class="fas fa-wifi" aria-hidden="true"></i> Sei offline — copia salvata${when ? ' del ' + when : ''}</div>` + html;
         }
 
         container.innerHTML = html;
@@ -1234,6 +1475,137 @@
     }
 
     // ============================================================
+    // Chicche: link cliccabili, condividi, ascolta, cache offline, skeleton
+    // ============================================================
+
+    // Capacità del dispositivo, rilevate una sola volta.
+    const CAN_SHARE = !!(navigator.share || (navigator.clipboard && navigator.clipboard.writeText));
+    const CAN_SPEAK = ('speechSynthesis' in window) && ('SpeechSynthesisUtterance' in window);
+
+    // Escape per valori dentro attributi HTML (&, ", <, >).
+    function escapeAttr(str) {
+        return (str || '').toString()
+            .replace(/&/g, '&amp;').replace(/"/g, '&quot;')
+            .replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    // Normalizza per la ricerca: minuscolo + niente accenti.
+    function normalizeText(str) {
+        return (str || '').toString().toLowerCase()
+            .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    }
+
+    // Rende cliccabili URL, email e telefoni dentro un testo GIÀ HTML-escaped
+    // (arriva da escapeHtml). Un solo passaggio con alternativa, così i numeri
+    // dentro un URL non vengono ri-trattati come telefono.
+    function linkifyEscaped(s) {
+        if (!s) return '';
+        const re = /(https?:\/\/[^\s<]+)|([A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,})|(\+?\d[\d .\-\/]{6,}\d)/g;
+        return s.replace(re, function (match, url, email, phone) {
+            if (url) {
+                const clean = url.replace(/[.,;:)]+$/, '');
+                const tail = url.slice(clean.length);
+                return '<a href="' + clean + '" target="_blank" rel="noopener noreferrer">' + clean + '</a>' + tail;
+            }
+            if (email) {
+                return '<a href="mailto:' + email + '">' + email + '</a>';
+            }
+            if (phone) {
+                const digits = phone.replace(/[^\d+]/g, '');
+                const count = digits.replace(/\D/g, '').length;
+                if (count < 8 || count > 13) return phone; // non sembra un telefono
+                return '<a href="tel:' + digits + '">' + phone + '</a>';
+            }
+            return match;
+        });
+    }
+
+    // Toast transitorio (feedback discreto, niente alert() bloccanti).
+    function showToast(msg) {
+        let t = document.getElementById('cd-toast');
+        if (!t) {
+            t = document.createElement('div');
+            t.id = 'cd-toast';
+            t.className = 'cd-toast';
+            t.setAttribute('role', 'status');
+            document.body.appendChild(t);
+        }
+        t.textContent = msg;
+        t.classList.add('visible');
+        clearTimeout(t._timer);
+        t._timer = setTimeout(function () { t.classList.remove('visible'); }, 2200);
+    }
+
+    // Condividi una notifica (Web Share API, fallback copia negli appunti).
+    window.shareNotif = function (id) {
+        const n = state.notifications.find(function (x) { return x.id === id; });
+        if (!n) return;
+        const text = (n.title ? n.title + '\n' : '') + (n.message || n.fullMessage || '');
+        const url = n.gbUrl || CONFIG.appBaseUrl || '';
+        const data = { title: n.title || 'Avviso', text: text };
+        if (url) data.url = url;
+        if (navigator.share) {
+            navigator.share(data).catch(function () { /* annullato dall'utente */ });
+        } else if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text + (url ? '\n' + url : ''))
+                .then(function () { showToast('Testo copiato negli appunti'); })
+                .catch(function () { showToast('Impossibile condividere'); });
+        }
+    };
+
+    // Leggi ad alta voce una notifica (sintesi vocale). Ritocca = ferma.
+    window.speakNotif = function (id) {
+        if (!CAN_SPEAK) return;
+        const synth = window.speechSynthesis;
+        if (synth.speaking || synth.pending) { synth.cancel(); return; }
+        const n = state.notifications.find(function (x) { return x.id === id; });
+        if (!n) return;
+        const text = (n.title ? n.title + '. ' : '') + (n.message || n.fullMessage || '');
+        if (!text.trim()) return;
+        const u = new SpeechSynthesisUtterance(text);
+        u.lang = 'it-IT';
+        u.rate = 1.0;
+        synth.cancel();
+        synth.speak(u);
+    };
+    window.addEventListener('beforeunload', function () {
+        if (CAN_SPEAK && window.speechSynthesis) window.speechSynthesis.cancel();
+    });
+
+    // Skeleton di caricamento (percezione di velocità).
+    function skeletonHtml(n) {
+        n = n || 5;
+        let s = '';
+        for (let i = 0; i < n; i++) {
+            s += '<div class="skel-card"><div class="skel-line w40"></div><div class="skel-line w80"></div><div class="skel-line w60"></div></div>';
+        }
+        return s;
+    }
+
+    // Cache offline dell'ultimo elenco (localStorage, best-effort).
+    function cacheKey() { return 'cd_notif_cache_' + CONFIG.appSlug; }
+    function saveCache() {
+        try {
+            const items = state.notifications.slice(0, 60).map(function (n) {
+                const d = n.sentAt && n.sentAt.toDate ? n.sentAt.toDate() : new Date(n.sentAt || 0);
+                return {
+                    id: n.id, title: n.title || '', message: n.message || '',
+                    fullMessage: n.fullMessage || '', source: n.source || 'manual',
+                    gbUrl: n.gbUrl || null, contentUnavailable: !!n.contentUnavailable,
+                    thumbnail: n.thumbnail || null, sentAt: d.toISOString()
+                };
+            });
+            localStorage.setItem(cacheKey(), JSON.stringify({ savedAt: Date.now(), items: items }));
+        } catch (e) { /* storage non disponibile: pazienza */ }
+    }
+    function loadCache() {
+        try {
+            const raw = localStorage.getItem(cacheKey());
+            return raw ? JSON.parse(raw) : null;
+        } catch (e) { return null; }
+    }
+
+    // ============================================================
     // Filtri — Event Listeners
     // ============================================================
 
@@ -1249,6 +1621,30 @@
             loadNotifications(false);
         });
     });
+
+    // ============================================================
+    // Ricerca — filtro testuale sulle notifiche caricate
+    // ============================================================
+    (function () {
+        const si = document.getElementById('search-input');
+        const sc = document.getElementById('search-clear');
+        if (si) {
+            si.addEventListener('input', function () {
+                state.searchQuery = si.value || '';
+                if (sc) sc.classList.toggle('visible', !!si.value);
+                renderNotifications();
+            });
+        }
+        if (sc && si) {
+            sc.addEventListener('click', function () {
+                si.value = '';
+                state.searchQuery = '';
+                sc.classList.remove('visible');
+                renderNotifications();
+                si.focus();
+            });
+        }
+    })();
 
     // ============================================================
     // Personalizzazione per comune
