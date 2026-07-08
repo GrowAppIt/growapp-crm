@@ -714,11 +714,37 @@
     };
 
     // ============================================================
+    // Timeout di sicurezza sulle letture Firestore
+    // ------------------------------------------------------------
+    // In webview / rete instabile una get() Firestore può restare
+    // "appesa" senza rispondere né dare errore: senza questo limite
+    // lo spinner "Caricamento notifiche..." girerebbe all'infinito.
+    // withTimeout forza un errore dopo QUERY_TIMEOUT_MS, così il
+    // codice chiamante può mostrare un messaggio con "Riprova".
+    // ============================================================
+    const QUERY_TIMEOUT_MS = 12000;
+
+    function withTimeout(promise, ms, label) {
+        return new Promise(function (resolve, reject) {
+            var timer = setTimeout(function () {
+                reject(new Error('Timeout' + (label ? ' (' + label + ')' : '')));
+            }, ms || QUERY_TIMEOUT_MS);
+            Promise.resolve(promise).then(function (v) {
+                clearTimeout(timer);
+                resolve(v);
+            }, function (e) {
+                clearTimeout(timer);
+                reject(e);
+            });
+        });
+    }
+
+    // ============================================================
     // Firebase Init
     // ============================================================
 
     function initFirebase() {
-        // Se la config è vuota, prova a leggerla dal parent (iframe nel CRM)
+        // 1) Se la config è vuota, prova a leggerla dal parent (iframe nel CRM)
         if (!CONFIG.firebase.apiKey && window.parent !== window) {
             try {
                 if (window.parent.firebase && window.parent.db) {
@@ -729,19 +755,35 @@
             } catch (e) { /* cross-origin */ }
         }
 
-        // Se abbiamo la config, inizializza Firebase
-        if (CONFIG.firebase.apiKey) {
-            const app = firebase.initializeApp(CONFIG.firebase, 'storico-notifiche');
-            state.db = firebase.firestore(app);
-            console.log('[Storico] Firebase inizializzato standalone');
-            return true;
+        // 2) Standalone: inizializza con la config, MA solo se l'SDK Firebase
+        //    si è effettivamente caricato. Se il CDN (gstatic) è lento, bloccato
+        //    da un content-blocker o filtrato dalla rete, la variabile globale
+        //    'firebase' resta undefined: senza questa guardia initializeApp()
+        //    lancerebbe un errore NON gestito e la pagina resterebbe sullo
+        //    spinner all'infinito. Con la guardia usciamo pulito (return false)
+        //    e init() mostra l'error-state con "Riprova".
+        if (CONFIG.firebase.apiKey && typeof firebase !== 'undefined' && firebase && firebase.initializeApp) {
+            try {
+                const app = firebase.initializeApp(CONFIG.firebase, 'storico-notifiche');
+                state.db = firebase.firestore(app);
+                console.log('[Storico] Firebase inizializzato standalone');
+                return true;
+            } catch (e) {
+                console.error('[Storico] Errore inizializzazione Firebase:', e);
+                return false;
+            }
         }
 
-        // Ultimo tentativo: usa il Firebase globale (se la pagina è caricata nel CRM)
+        // 3) Ultimo tentativo: usa il Firebase globale (se la pagina è caricata nel CRM)
         if (typeof db !== 'undefined') {
             state.db = db;
             console.log('[Storico] Usando db globale');
             return true;
+        }
+
+        // Se c'era una config ma l'SDK non è disponibile, lo segnaliamo nei log
+        if (CONFIG.firebase.apiKey && (typeof firebase === 'undefined' || !firebase || !firebase.initializeApp)) {
+            console.error('[Storico] SDK Firebase non disponibile (CDN non raggiungibile?)');
         }
 
         return false;
@@ -793,7 +835,7 @@
                 query = query.startAfter(state.lastDoc);
             }
 
-            const snapshot = await query.get();
+            const snapshot = await withTimeout(query.get(), QUERY_TIMEOUT_MS, 'notifiche');
             const newNotifications = [];
 
             snapshot.forEach(doc => {
@@ -824,7 +866,7 @@
                     .where('status', '==', 'sent')
                     .limit(CONFIG.pageSize * 3);
 
-                const fallbackSnap = await fallbackQuery.get();
+                const fallbackSnap = await withTimeout(fallbackQuery.get(), QUERY_TIMEOUT_MS, 'notifiche-fallback');
                 const all = [];
                 fallbackSnap.forEach(doc => {
                     const data = { id: doc.id, ...doc.data() };
@@ -849,7 +891,10 @@
                     <div class="error-state">
                         <i class="fas fa-exclamation-triangle"></i>
                         <h3>Errore di caricamento</h3>
-                        <p>Non è possibile caricare le notifiche. Riprova più tardi.</p>
+                        <p>Non è possibile caricare le notifiche in questo momento. Controlla la connessione e riprova.</p>
+                        <button class="load-more" onclick="loadNotifications(false)" style="margin-top:16px;">
+                            <i class="fas fa-rotate-right"></i> Riprova
+                        </button>
                     </div>
                 `;
             }
@@ -880,29 +925,29 @@
 
             // 1) TOTAL con count aggregato + fallback
             try {
-                const agg = await state.db.collection('push_history')
+                const agg = await withTimeout(state.db.collection('push_history')
                     .where('appSlug', '==', CONFIG.appSlug)
                     .where('status', '==', 'sent')
-                    .count().get();
+                    .count().get(), QUERY_TIMEOUT_MS, 'stats-total');
                 total = agg.data().count;
             } catch (eCount) {
                 // Fallback: se count() non disponibile o non indicizzato,
                 // stima prudente = contiamo leggendo con cap a 500 doc.
-                const snap = await state.db.collection('push_history')
+                const snap = await withTimeout(state.db.collection('push_history')
                     .where('appSlug', '==', CONFIG.appSlug)
                     .where('status', '==', 'sent')
                     .limit(500)
-                    .get();
+                    .get(), QUERY_TIMEOUT_MS, 'stats-total-fallback');
                 total = snap.size;
             }
 
             // 2) MONTH + TODAY — query limitata al mese corrente
             try {
-                const monthSnap = await state.db.collection('push_history')
+                const monthSnap = await withTimeout(state.db.collection('push_history')
                     .where('appSlug', '==', CONFIG.appSlug)
                     .where('status', '==', 'sent')
                     .where('sentAt', '>=', startOfMonth)
-                    .get();
+                    .get(), QUERY_TIMEOUT_MS, 'stats-mese');
                 monthSnap.forEach(doc => {
                     month++;
                     const sentAt = doc.data().sentAt;
@@ -915,11 +960,11 @@
                 // È meno preciso ma non rompe la UI.
                 console.warn('[Storico] Fallback month stats (indice range mancante):', eMonth.message);
                 try {
-                    const fb = await state.db.collection('push_history')
+                    const fb = await withTimeout(state.db.collection('push_history')
                         .where('appSlug', '==', CONFIG.appSlug)
                         .where('status', '==', 'sent')
                         .limit(100)
-                        .get();
+                        .get(), QUERY_TIMEOUT_MS, 'stats-mese-fallback');
                     fb.forEach(doc => {
                         const sentAt = doc.data().sentAt;
                         const date = sentAt?.toDate ? sentAt.toDate() : new Date(sentAt || 0);
@@ -1236,9 +1281,12 @@
         if (!initFirebase()) {
             document.getElementById('notifications-container').innerHTML = `
                 <div class="error-state">
-                    <i class="fas fa-database"></i>
-                    <h3>Configurazione mancante</h3>
-                    <p>Impossibile connettersi al database. Verifica la configurazione Firebase.</p>
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <h3>Impossibile connettersi</h3>
+                    <p>Non riusciamo a contattare il servizio in questo momento. Controlla la connessione e riprova.</p>
+                    <button class="load-more" onclick="location.reload()" style="margin-top:16px;">
+                        <i class="fas fa-rotate-right"></i> Riprova
+                    </button>
                 </div>
             `;
             return;
@@ -1248,16 +1296,16 @@
         let comuneNome = CONFIG.appSlug.charAt(0).toUpperCase() + CONFIG.appSlug.slice(1);
         try {
             // Primo tentativo: match esatto (slug già normalizzato lowercase)
-            let appSnap = await state.db.collection('app')
+            let appSnap = await withTimeout(state.db.collection('app')
                 .where('appSlug', '==', CONFIG.appSlug)
                 .limit(1)
-                .get();
+                .get(), QUERY_TIMEOUT_MS, 'nome-comune');
             // Fallback case-insensitive: se qualche vecchio documento ha lo slug
             // con maiuscole, proviamo a trovarlo fra le app monitorate
             if (appSnap.empty) {
-                const allMonitored = await state.db.collection('app')
+                const allMonitored = await withTimeout(state.db.collection('app')
                     .where('pushMonitorEnabled', '==', true)
-                    .get();
+                    .get(), QUERY_TIMEOUT_MS, 'nome-comune-fallback');
                 const target = CONFIG.appSlug;
                 const match = allMonitored.docs.find(d => {
                     const s = ((d.data() || {}).appSlug || '').toLowerCase().trim();

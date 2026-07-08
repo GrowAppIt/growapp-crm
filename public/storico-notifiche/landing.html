@@ -535,6 +535,30 @@ let selectedIndex = -1;     // Indice selezionato nell'autocomplete
 let dbInstance = null;
 
 // ============================================================
+// Timeout di sicurezza sulle letture Firestore
+// In webview / rete instabile una get() può restare "appesa" senza
+// rispondere né dare errore: senza questo limite l'overlay di
+// caricamento resterebbe visibile all'infinito. withTimeout forza un
+// errore dopo QUERY_TIMEOUT_MS così possiamo mostrare "Riprova".
+// ============================================================
+const QUERY_TIMEOUT_MS = 12000;
+
+function withTimeout(promise, ms, label) {
+    return new Promise(function (resolve, reject) {
+        var timer = setTimeout(function () {
+            reject(new Error('Timeout' + (label ? ' (' + label + ')' : '')));
+        }, ms || QUERY_TIMEOUT_MS);
+        Promise.resolve(promise).then(function (v) {
+            clearTimeout(timer);
+            resolve(v);
+        }, function (e) {
+            clearTimeout(timer);
+            reject(e);
+        });
+    });
+}
+
+// ============================================================
 // Firebase Init
 // ============================================================
 function initFirebase() {
@@ -564,9 +588,9 @@ function initFirebase() {
 // ============================================================
 async function loadComuni() {
     try {
-        const snapshot = await dbInstance.collection('app')
+        const snapshot = await withTimeout(dbInstance.collection('app')
             .where('pushMonitorEnabled', '==', true)
-            .get();
+            .get(), QUERY_TIMEOUT_MS, 'comuni');
 
         comuniDisponibili = [];
         snapshot.forEach(doc => {
@@ -582,8 +606,10 @@ async function loadComuni() {
         comuniDisponibili.sort((a, b) => a.nome.localeCompare(b.nome, 'it'));
 
         console.log('[Landing] Comuni caricati:', comuniDisponibili.length);
+        return true;
     } catch (e) {
         console.error('[Landing] Errore caricamento comuni:', e);
+        return false;
     }
 }
 
@@ -688,6 +714,27 @@ function nascondiMessaggi() {
     msgInfo.classList.remove('visible');
 }
 
+// Mostra un errore CON pulsante "Riprova" (rete/servizio non raggiungibile).
+// Il pulsante riavvia il caricamento invece di lasciare l'utente bloccato.
+function mostraErroreConRiprova(testo) {
+    document.getElementById('msg-error-text').textContent = testo;
+    msgError.classList.add('visible');
+    msgInfo.classList.remove('visible');
+    if (!document.getElementById('msg-retry-btn')) {
+        var b = document.createElement('button');
+        b.id = 'msg-retry-btn';
+        b.type = 'button';
+        b.textContent = 'Riprova';
+        b.style.cssText = 'margin-top:12px;padding:8px 20px;border:none;border-radius:8px;background:#145284;color:#fff;font-family:inherit;font-weight:700;font-size:0.95rem;cursor:pointer;';
+        b.addEventListener('click', function () {
+            b.remove();
+            nascondiMessaggi();
+            init();
+        });
+        msgError.appendChild(b);
+    }
+}
+
 // ============================================================
 // Utility
 // ============================================================
@@ -775,13 +822,20 @@ async function init() {
 
     if (!initFirebase()) {
         overlay.classList.remove('visible');
-        mostraErrore('Servizio temporaneamente non disponibile. Riprova più tardi.');
-        searchInput.disabled = true;
+        mostraErroreConRiprova('Servizio temporaneamente non disponibile. Controlla la connessione e riprova.');
         return;
     }
 
-    await loadComuni();
+    const ok = await loadComuni();
     overlay.classList.remove('visible');
+
+    if (!ok) {
+        // La lettura è fallita o è andata in timeout (rete/servizio non
+        // raggiungibile): errore CON "Riprova", distinto dal caso
+        // "nessun comune configurato" qui sotto.
+        mostraErroreConRiprova('Impossibile contattare il servizio. Controlla la connessione e riprova.');
+        return;
+    }
 
     if (comuniDisponibili.length === 0) {
         mostraInfo('Il servizio è in fase di attivazione. Riprova tra qualche giorno.');
