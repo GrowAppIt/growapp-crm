@@ -660,22 +660,53 @@
             return d < todayMidnight;
         }
 
-        // Sanitizzazione di base: rimuove script e iframe malformati per sicurezza.
-        // Mantiene il resto dell'HTML così com'è (GoodBarber lo genera già pulito).
+        // Sanitizzazione HTML prima di iniettarlo con innerHTML.
+        // Usa DOMParser, che crea un documento INERTE (immagini non caricate,
+        // script/handler non eseguiti): così possiamo ripulire in sicurezza.
+        // Oltre a script e iframe non fidati, rimuove gli attributi handler
+        // inline (onclick, onerror, onload...) e gli URL javascript:, che
+        // altrimenti eseguirebbero codice via es. <img onerror="..."> quando il
+        // contenuto (anche proveniente da feed RSS esterni non fidati) viene
+        // assegnato a innerHTML.
         function sanitizeHtml(html) {
             if (!html) return '';
-            var tmp = document.createElement('div');
-            tmp.innerHTML = html;
+            var doc;
+            try {
+                doc = new DOMParser().parseFromString(html, 'text/html');
+            } catch (e) {
+                var d = document.createElement('div');
+                d.textContent = html;
+                return d.innerHTML;
+            }
+            var root = doc.body || doc;
+
             // Rimuovi eventuali script
-            tmp.querySelectorAll('script').forEach(function(el) { el.remove(); });
+            root.querySelectorAll('script').forEach(function(el) { el.remove(); });
             // Rimuovi iframe sospetti (mantieni solo YouTube/Vimeo)
-            tmp.querySelectorAll('iframe').forEach(function(el) {
+            root.querySelectorAll('iframe').forEach(function(el) {
                 var src = el.getAttribute('src') || '';
                 if (!/youtube\.com|youtu\.be|vimeo\.com/.test(src)) {
                     el.remove();
                 }
             });
-            return tmp.innerHTML;
+            // Rimuovi handler inline (on*) e neutralizza gli URL javascript:
+            root.querySelectorAll('*').forEach(function(el) {
+                (el.getAttributeNames ? el.getAttributeNames() : []).forEach(function(name) {
+                    var lname = name.toLowerCase();
+                    if (lname.indexOf('on') === 0) {
+                        el.removeAttribute(name);
+                        return;
+                    }
+                    if (lname === 'href' || lname === 'src' || lname === 'xlink:href') {
+                        var val = (el.getAttribute(name) || '').replace(/\s+/g, '').toLowerCase();
+                        if (val.indexOf('javascript:') === 0) {
+                            el.removeAttribute(name);
+                        }
+                    }
+                });
+            });
+
+            return root.innerHTML;
         }
 
         function showError(message, kind) {

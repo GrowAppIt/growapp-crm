@@ -17,6 +17,8 @@ rules_version = '2';
 //      Tutto il resto bloccato dal catch-all.
 //   5. Tutto richiede stato != 'DISATTIVO' (un utente disattivato può loggarsi
 //      ma non legge/scrive niente).
+//   6. (2026-07-08) Aggiunta 'app_public' (specchio pubblico nome/slug, write:false).
+//      FASE 2 prevista: rendere 'app' read auth-only per non esporre goodbarberToken.
 //
 // IMPORTANTE: in Firestore Rules tutti i match si valutano in OR (union).
 // NON sostituire la whitelist isCrmCollection con un /{document=**} permissivo,
@@ -87,8 +89,22 @@ service cloud.firestore {
     // COLLEZIONI PUBBLICHE — lette dalle webapp dei Comuni dentro GoodBarber
     // ------------------------------------------------------------------------
 
-    match /app/{document} {
+    // 'app_public' — specchio minimale (appSlug, comune, pushMonitorEnabled)
+    // scritto SOLO dal server (cron sync-push-history via Admin SDK, che bypassa
+    // le regole). Le pagine pubbliche (archivio notifiche, landing, archivio
+    // eventi) leggono QUI il nome del Comune, così NON serve esporre il doc 'app'
+    // completo (che contiene goodbarberToken e altri dati riservati).
+    match /app_public/{document} {
       allow read: if true;
+      allow write: if false;
+    }
+
+    // FASE 2 (da fare dopo aver verificato che app_public è popolata): cambiare la
+    // read di 'app' da "if true" a "if isActive()", così il goodbarberToken non è
+    // più leggibile pubblicamente. A quel punto le pagine pubbliche leggono già
+    // app_public e il CRM (autenticato) continua a leggere 'app' normalmente.
+    match /app/{document} {
+      allow read: if true;   // <-- FASE 2: sostituire con  if isActive();
       allow write: if isActive();
     }
 

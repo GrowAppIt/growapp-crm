@@ -522,26 +522,45 @@
         loadComuneInfo().then(loadEvents);
 
         async function loadComuneInfo() {
+            var nome = await fetchComuneNome();
+            if (nome) {
+                state.comuneNome = nome;
+                // Il nome identificativo va nel TITOLO (serve a far capire
+                // all'utente di quale archivio sta parlando). Il sottotitolo
+                // resta generico (niente riferimenti diretti a "paese" o
+                // "città", come richiesto).
+                document.getElementById('header-title').textContent = 'Archivio Eventi ' + nome;
+                document.getElementById('intro-title').innerHTML =
+                    '<i class="fas fa-book" style="margin-right: 6px; color: var(--blu-500);"></i> Gli eventi di ' + escapeHtml(nome);
+                document.title = 'Archivio Eventi — ' + nome;
+            }
+        }
+
+        // Legge il nome del Comune: prima dallo specchio pubblico 'app_public'
+        // (nome/slug, niente token), poi fallback su 'app'.
+        async function fetchComuneNome() {
+            var slugLower = (CONFIG.appSlug || '').toLowerCase().trim();
+            try {
+                var pub = await state.db.collection('app_public').doc(slugLower).get();
+                if (pub.exists) {
+                    var pd = pub.data() || {};
+                    if (pd.comune) return pd.comune;
+                }
+            } catch (e) {
+                console.warn('[Archivio] app_public non leggibile, provo app:', e && e.message);
+            }
             try {
                 var snap = await state.db.collection('app')
                     .where('appSlug', '==', CONFIG.appSlug)
                     .limit(1).get();
                 if (!snap.empty) {
                     var data = snap.docs[0].data();
-                    var nome = data.comune || data.nome || CONFIG.appSlug;
-                    state.comuneNome = nome;
-                    // Il nome identificativo va nel TITOLO (serve a far capire
-                    // all'utente di quale archivio sta parlando). Il sottotitolo
-                    // resta generico (niente riferimenti diretti a "paese" o
-                    // "città", come richiesto).
-                    document.getElementById('header-title').textContent = 'Archivio Eventi ' + nome;
-                    document.getElementById('intro-title').innerHTML =
-                        '<i class="fas fa-book" style="margin-right: 6px; color: var(--blu-500);"></i> Gli eventi di ' + escapeHtml(nome);
-                    document.title = 'Archivio Eventi — ' + nome;
+                    return data.comune || data.nome || CONFIG.appSlug;
                 }
             } catch (e) {
                 console.warn('[Archivio] Errore lettura nome comune:', e);
             }
+            return '';
         }
 
         // ============================================================

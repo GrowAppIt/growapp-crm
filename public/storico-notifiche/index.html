@@ -1323,11 +1323,31 @@
     // scansione dell'intera collection 'app', che era lenta e leggeva anche i
     // dati di tutti gli altri Comuni). Timeout corto perché non essenziale.
     async function resolveComuneNome() {
+        // 1) Prova lo specchio pubblico 'app_public' (contiene SOLO nome/slug, non
+        //    il documento 'app' completo col goodbarberToken). Doc-id = slug.
+        try {
+            const pubSnap = await withTimeout(
+                state.db.collection('app_public').doc(CONFIG.appSlug).get(),
+                6000, 'nome-comune'
+            );
+            if (pubSnap.exists) {
+                const nome = (pubSnap.data() || {}).comune;
+                if (nome) {
+                    state.comuneNome = nome;
+                    setComune(nome);
+                    return;
+                }
+            }
+        } catch (e) {
+            console.warn('[Storico] app_public non leggibile, provo app:', e && e.message);
+        }
+        // 2) Fallback legacy su 'app' (utile finché il cron non ha popolato
+        //    app_public, es. nei primi minuti dopo un nuovo onboarding).
         try {
             const appSnap = await withTimeout(state.db.collection('app')
                 .where('appSlug', '==', CONFIG.appSlug)
                 .limit(1)
-                .get(), 6000, 'nome-comune');
+                .get(), 6000, 'nome-comune-fallback');
             if (!appSnap.empty) {
                 const appData = appSnap.docs[0].data() || {};
                 const nome = appData.comune || appData.nome || appData.nomeComune;

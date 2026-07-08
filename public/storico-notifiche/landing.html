@@ -587,10 +587,37 @@ function initFirebase() {
 // Carica comuni con storico notifiche abilitato
 // ============================================================
 async function loadComuni() {
+    // 1) Prova lo specchio pubblico 'app_public' (nome/slug, niente token).
+    try {
+        const snapshot = await withTimeout(dbInstance.collection('app_public')
+            .where('pushMonitorEnabled', '==', true)
+            .get(), QUERY_TIMEOUT_MS, 'comuni');
+
+        const list = [];
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            const slug = data.appSlug || doc.id || '';
+            const nome = data.comune || data.nome || data.nomeComune || '';
+            if (slug && nome) {
+                list.push({ slug, nome });
+            }
+        });
+
+        if (list.length > 0) {
+            comuniDisponibili = list.sort((a, b) => a.nome.localeCompare(b.nome, 'it'));
+            console.log('[Landing] Comuni caricati (app_public):', comuniDisponibili.length);
+            return true;
+        }
+        // se vuoto (specchio non ancora popolato) → fallback su 'app' qui sotto
+    } catch (e) {
+        console.warn('[Landing] app_public non leggibile, provo app:', e && e.message);
+    }
+
+    // 2) Fallback legacy su 'app'
     try {
         const snapshot = await withTimeout(dbInstance.collection('app')
             .where('pushMonitorEnabled', '==', true)
-            .get(), QUERY_TIMEOUT_MS, 'comuni');
+            .get(), QUERY_TIMEOUT_MS, 'comuni-fallback');
 
         comuniDisponibili = [];
         snapshot.forEach(doc => {
@@ -602,10 +629,9 @@ async function loadComuni() {
             }
         });
 
-        // Ordina alfabeticamente
         comuniDisponibili.sort((a, b) => a.nome.localeCompare(b.nome, 'it'));
 
-        console.log('[Landing] Comuni caricati:', comuniDisponibili.length);
+        console.log('[Landing] Comuni caricati (app):', comuniDisponibili.length);
         return true;
     } catch (e) {
         console.error('[Landing] Errore caricamento comuni:', e);

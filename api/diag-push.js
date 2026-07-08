@@ -174,9 +174,15 @@ module.exports = async function handler(req, res) {
     if (req.method === 'OPTIONS') return res.status(200).end();
     if (req.method !== 'GET') return res.status(405).json({ error: 'Usa GET.' });
 
-    // Protezione con token segreto (stessa logica del sync)
+    // Protezione con token segreto (stessa logica del sync).
+    // Fail-CLOSED: se SYNC_SECRET non è configurato sul server, l'endpoint
+    // diagnostico resta DISABILITATO invece di diventare pubblico. Prima l'&&
+    // cortocircuitava sul primo operando falsy e lasciava passare chiunque.
     const authToken = req.headers['authorization'] || req.query.secret;
-    if (process.env.SYNC_SECRET && authToken !== `Bearer ${process.env.SYNC_SECRET}` && authToken !== process.env.SYNC_SECRET) {
+    if (!process.env.SYNC_SECRET) {
+        return res.status(503).json({ error: 'Endpoint diagnostico disabilitato: SYNC_SECRET non configurato sul server.' });
+    }
+    if (authToken !== `Bearer ${process.env.SYNC_SECRET}` && authToken !== process.env.SYNC_SECRET) {
         return res.status(401).json({ error: 'Non autorizzato' });
     }
 
@@ -279,10 +285,12 @@ module.exports = async function handler(req, res) {
         });
     } catch (error) {
         console.error('[diag-push] Errore generale:', error);
+        // Non esporre lo stack trace nella risposta (rivela percorsi interni):
+        // resta solo nei log del server. Il messaggio sì, è utile per la
+        // diagnostica e l'endpoint ora è protetto da SYNC_SECRET.
         return res.status(500).json({
             success: false,
-            error: error.message,
-            stack: error.stack
+            error: error.message
         });
     }
 };

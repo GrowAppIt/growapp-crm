@@ -106,6 +106,42 @@ async function getMonitoredApps(filterSlug = null) {
 }
 
 /**
+ * Aggiorna la collezione pubblica "app_public" (specchio minimale) letta dalle
+ * pagine pubbliche (archivio notifiche, landing, archivio eventi) per avere SOLO
+ * il nome del Comune, senza esporre il documento 'app' completo — che contiene
+ * il goodbarberToken e altri dati riservati.
+ * Doc-id = appSlug (lowercase). Campi pubblici: appSlug, comune, pushMonitorEnabled.
+ * Scritta SOLO dal server (Admin SDK): nelle regole 'app_public' è write:false.
+ * Non-fatale: se fallisce logga e prosegue, senza bloccare il sync push.
+ */
+async function syncAppPublicMirror(apps) {
+    try {
+        const CHUNK = 400; // limite batch Firestore = 500 operazioni
+        let total = 0;
+        for (let i = 0; i < apps.length; i += CHUNK) {
+            const slice = apps.slice(i, i + CHUNK);
+            const batch = db.batch();
+            let n = 0;
+            for (const app of slice) {
+                if (!app.appSlug) continue;
+                const ref = db.collection('app_public').doc(app.appSlug);
+                batch.set(ref, {
+                    appSlug: app.appSlug,
+                    comune: app.comune || '',
+                    pushMonitorEnabled: true,
+                    updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                }, { merge: true });
+                n++;
+            }
+            if (n > 0) { await batch.commit(); total += n; }
+        }
+        console.log(`[sync] app_public aggiornata: ${total} comuni`);
+    } catch (e) {
+        console.error('[sync] Errore aggiornamento app_public (non fatale):', e.message);
+    }
+}
+
+/**
  * Recupera l'INSIEME degli ultimi N gbPushId già sincronizzati per una specifica app.
  *
  * Serve per la sincronizzazione incrementale. NON è più sufficiente conoscere
@@ -920,6 +956,11 @@ module.exports = async function handler(req, res) {
 
         // Recupera le app da sincronizzare
         const apps = await getMonitoredApps(appSlug || null);
+
+        // Aggiorna lo specchio pubblico dei nomi Comune (app_public) usato dalle
+        // pagine pubbliche, così non devono leggere il documento 'app' completo
+        // (che contiene il goodbarberToken). Non-fatale.
+        await syncAppPublicMirror(apps);
 
         if (apps.length === 0) {
             return res.status(200).json({
