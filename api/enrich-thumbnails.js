@@ -51,12 +51,12 @@ if (!admin.apps.length) {
 const db = admin.firestore();
 
 const NEWS_EVENT_SOURCES = ['rss_auto', 'calendar_auto'];
-const PER_APP_SCAN = 40;       // quante notifiche recenti guardare per Comune
-const PER_APP_CAP = 15;        // max candidati presi da un singolo Comune per run
-const MAX_PER_RUN = 40;        // cap globale di miniature da recuperare per run
-const FETCH_CONCURRENCY = 4;   // chiamate al proxy in parallelo
+const PER_APP_SCAN = 200;      // quante notifiche recenti guardare per Comune
+const PER_APP_CAP = 80;        // max candidati presi da un singolo Comune per run
+const MAX_PER_RUN = 250;       // cap globale di miniature da recuperare per run
+const FETCH_CONCURRENCY = 6;   // chiamate al proxy in parallelo
 const FETCH_TIMEOUT_MS = 12000;
-const TIME_BUDGET_MS = 90000;  // fermati prima per stare largo sul maxDuration (120s)
+const TIME_BUDGET_MS = 95000;  // fermati prima per stare largo sul maxDuration (120s)
 
 // Base per la self-call al proxy (stesso deployment). In prod è crm.comune.digital.
 const SELF_BASE = process.env.SELF_BASE_URL || 'https://crm.comune.digital';
@@ -98,12 +98,7 @@ async function getMonitoredSlugs() {
 // non ancora verificati. `cap` limita quanti prenderne.
 async function collectCandidates(slug, cap) {
     const out = [];
-    try {
-        const snap = await db.collection('push_history')
-            .where('appSlug', '==', slug)
-            .orderBy('sentAt', 'desc')
-            .limit(PER_APP_SCAN)
-            .get();
+    const pick = (snap) => {
         snap.forEach(doc => {
             if (out.length >= cap) return;
             const d = doc.data() || {};
@@ -114,8 +109,30 @@ async function collectCandidates(slug, cap) {
             if (d.contentUnavailable === true) return; // contenuto sparito
             out.push({ id: doc.id, gbUrl: d.gbUrl });
         });
+    };
+    try {
+        // Preferita: le più recenti (richiede indice composito appSlug + sentAt desc).
+        const snap = await db.collection('push_history')
+            .where('appSlug', '==', slug)
+            .orderBy('sentAt', 'desc')
+            .limit(PER_APP_SCAN)
+            .get();
+        pick(snap);
     } catch (e) {
-        console.warn('[enrich-thumbnails] query fallita per', slug, ':', e.message);
+        // FALLBACK senza orderBy: se l'indice composito manca, la query ordinata
+        // fallisce. Qui scansioniamo un batch più ampio per appSlug (che usa solo
+        // l'indice automatico a campo singolo) e filtriamo lato codice. Così le
+        // miniature si popolano comunque, indice o no.
+        console.warn('[enrich-thumbnails] query ordinata fallita per', slug, '— uso fallback senza orderBy:', e.message);
+        try {
+            const snap2 = await db.collection('push_history')
+                .where('appSlug', '==', slug)
+                .limit(300)
+                .get();
+            pick(snap2);
+        } catch (e2) {
+            console.warn('[enrich-thumbnails] anche il fallback è fallito per', slug, ':', e2.message);
+        }
     }
     return out;
 }
@@ -181,6 +198,7 @@ module.exports = async function handler(req, res) {
             done += results.filter(Boolean).length;
         }
 
+        console.log(`[enrich-thumbnails] app=${slugs.length} candidati=${candidates.length} processati=${processed} definitivi=${done} ms=${Date.now() - startedAt}`);
         return res.status(200).json({
             ok: true,
             monitoredApps: slugs.length,
