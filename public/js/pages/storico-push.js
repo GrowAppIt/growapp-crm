@@ -6,6 +6,33 @@
  * - Avvia sincronizzazione manuale dall'API GoodBarber
  * - Configura il monitoraggio per ogni app (user_id fantasma)
  * - Statistiche per sorgente e per app
+ *
+ * -----------------------------------------------------------------------------
+ * CHANGELOG
+ * -----------------------------------------------------------------------------
+ * 2026-07-09 — Configuratore Archivio Notifiche: affidabilità + restyle
+ *   BUG RISOLTO ("sembra non salvare slug/user id"): saveConfig() scriveva su
+ *   Firestore con un db.batch() grezzo SENZA invalidare la cache app di
+ *   DataService (TTL 3 min) e senza aggiornare lo stato in memoria; poi
+ *   ricaricava this.apps dalla cache VECCHIA. Risultato: il dato veniva salvato
+ *   davvero su Firestore, ma riaprendo il modal ricompariva vuoto → l'utente
+ *   pensava che non salvasse. (Confermato in produzione: San Cataldo e
+ *   Valledolmo risultavano già salvati su Firestore.)
+ *   FIX:
+ *     - openConfig() ora RICARICA sempre lo stato reale da Firestore (bypassa
+ *       la cache) prima di disegnare il modal.
+ *     - saveConfig() salva riga-per-riga (una riga rotta non blocca le altre),
+ *       invalida la cache, aggiorna lo stato in memoria e mostra un feedback
+ *       onesto (cosa è stato salvato / cosa no).
+ *     - Autosave su "blur" dei campi Slug/User ID + evidenza "modifiche non
+ *       salvate", così ciò che scrivi viene ricordato.
+ *   RESTYLE:
+ *     - Pannello "Stato monitoraggio" con health-grid di TUTTE le app a colpo
+ *       d'occhio, calcolato dai campi già presenti sul doc app (0 letture extra
+ *       invece di ~2 query × 103 app), + card azionabili e azioni rapide.
+ *     - Modal Configura più leggibile: chip di stato sync, azioni rapide
+ *       (apri archivio / copia URL), validazione slug e collisioni.
+ * -----------------------------------------------------------------------------
  */
 const StoricoPush = {
 
@@ -430,11 +457,114 @@ const StoricoPush = {
                     gap: 3px;
                 }
 
+                /* ---- Pannello "Stato monitoraggio" (restyle 2026-07-09) ---- */
+                .sp-alert-summary {
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    flex-wrap: wrap;
+                    gap: 10px;
+                    padding: 12px 16px;
+                    border-radius: 10px;
+                    margin-bottom: 10px;
+                }
+                .sp-alert-summary .sp-sum-left {
+                    display: flex; align-items: center; gap: 10px; font-weight: 700;
+                    font-size: 0.95rem;
+                }
+                .sp-alert-summary .sp-sum-counts { display: flex; gap: 6px; flex-wrap: wrap; }
+                .sp-sum-pill {
+                    font-size: 0.72rem; font-weight: 800; padding: 2px 9px; border-radius: 20px;
+                    display: inline-flex; align-items: center; gap: 4px; letter-spacing: .2px;
+                }
+                .sp-sum-pill.ok    { background: #E2F8DE; color: #2f8a29; }
+                .sp-sum-pill.warn  { background: #FFF8E1; color: #C77700; }
+                .sp-sum-pill.error { background: #FFEBEE; color: #D32F2F; }
+                .sp-sum-pill.never { background: #F0F0F0; color: #6b6b6b; }
+                .sp-alert-summary .sp-sum-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+
+                /* Griglia "salute" di tutte le app monitorate */
+                .sp-health-grid {
+                    display: flex; flex-wrap: wrap; gap: 6px;
+                    margin-bottom: 12px;
+                }
+                .sp-health-chip {
+                    display: inline-flex; align-items: center; gap: 6px;
+                    padding: 5px 10px; border-radius: 8px; cursor: pointer;
+                    font-size: 0.8rem; font-weight: 600; border: 1px solid transparent;
+                    transition: transform .1s, box-shadow .1s;
+                    max-width: 220px;
+                }
+                .sp-health-chip:hover { transform: translateY(-1px); box-shadow: 0 2px 6px rgba(0,0,0,.12); }
+                .sp-health-chip .hc-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+                .sp-health-chip .hc-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+                .sp-health-chip.ok    { background: #F1FBEF; border-color: #CDEFC6; color: #2f6b2a; }
+                .sp-health-chip.ok    .hc-dot { background: #3CA434; }
+                .sp-health-chip.warn  { background: #FFF8E1; border-color: #FCE9AE; color: #97600A; }
+                .sp-health-chip.warn  .hc-dot { background: #F5A623; }
+                .sp-health-chip.error { background: #FFEBEE; border-color: #F6C6CB; color: #C62828; }
+                .sp-health-chip.error .hc-dot { background: #D32F2F; }
+                .sp-health-chip.never { background: #F5F5F5; border-color: #E2E2E2; color: #6b6b6b; }
+                .sp-health-chip.never .hc-dot { background: #9B9B9B; }
+
+                .sp-alert-card.alert-never { background: #F7F7F7; border-left: 4px solid #9B9B9B; }
+                .sp-alert-card.alert-never .alert-icon { color: #9B9B9B; }
+                .sp-alert-card .alert-actions {
+                    display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap;
+                }
+
+                /* Bottoncini azione riutilizzabili (pannello + modal) */
+                .sp-mini-btn {
+                    display: inline-flex; align-items: center; gap: 5px;
+                    font-family: 'Titillium Web', sans-serif;
+                    font-size: 0.75rem; font-weight: 700;
+                    padding: 4px 10px; border-radius: 6px; cursor: pointer;
+                    border: 1px solid #D1E2F2; background: #fff; color: #145284;
+                    transition: background .12s, border-color .12s;
+                    white-space: nowrap;
+                }
+                .sp-mini-btn:hover { background: #EAF3FB; border-color: #7BA7CE; }
+                .sp-mini-btn.solid { background: #145284; color: #fff; border-color: #145284; }
+                .sp-mini-btn.solid:hover { background: #2E6DA8; }
+                .sp-mini-btn.green { background: #3CA434; color: #fff; border-color: #3CA434; }
+                .sp-mini-btn.green:hover { background: #59C64D; }
+                .sp-mini-btn:disabled { opacity: .55; cursor: not-allowed; }
+
+                /* Chip di stato sync dentro il modal Configura */
+                .sp-cfg-chip {
+                    display: inline-flex; align-items: center; gap: 5px;
+                    font-size: 0.72rem; font-weight: 700; padding: 3px 8px; border-radius: 20px;
+                    white-space: nowrap;
+                }
+                .sp-cfg-chip .cc-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+                .sp-cfg-chip.ok    { background: #E2F8DE; color: #2f8a29; }
+                .sp-cfg-chip.ok    .cc-dot { background: #3CA434; }
+                .sp-cfg-chip.warn  { background: #FFF8E1; color: #97600A; }
+                .sp-cfg-chip.warn  .cc-dot { background: #F5A623; }
+                .sp-cfg-chip.error { background: #FFEBEE; color: #C62828; }
+                .sp-cfg-chip.error .cc-dot { background: #D32F2F; }
+                .sp-cfg-chip.never { background: #F0F0F0; color: #6b6b6b; }
+                .sp-cfg-chip.never .cc-dot { background: #9B9B9B; }
+
+                /* Evidenza righe con modifiche non salvate / appena salvate */
+                .sp-cfg-row.sp-cfg-dirty { background: #FFFDF3; }
+                .sp-cfg-row.sp-cfg-dirty td:first-child { box-shadow: inset 3px 0 0 #F5A623; }
+                .sp-cfg-row.sp-cfg-saved { animation: spCfgSaved 1.4s ease; }
+                @keyframes spCfgSaved {
+                    0% { background: #DFF5DB; }
+                    100% { background: transparent; }
+                }
+                .sp-cfg-input-invalid { border-color: #D32F2F !important; background: #FFF6F6; }
+                .sp-cfg-rowmsg { font-size: 0.72rem; margin-top: 3px; min-height: 0; }
+                .sp-cfg-rowmsg.ok  { color: #2f8a29; }
+                .sp-cfg-rowmsg.err { color: #D32F2F; }
+
                 @media (max-width: 768px) {
                     .sp-header { flex-direction: column; }
                     .sp-stats { grid-template-columns: repeat(2, 1fr); }
                     .sp-filters { flex-direction: column; }
                     .sp-filter-group select { min-width: 100%; }
+                    .sp-health-chip { max-width: 100%; flex: 1 1 auto; }
                 }
             </style>
         `;
@@ -785,7 +915,25 @@ const StoricoPush = {
     // Configurazione monitoraggio
     // ================================================================
 
-    openConfig() {
+    async openConfig(opts = {}) {
+        // Ricarica SEMPRE lo stato reale da Firestore prima di disegnare il modal.
+        // (Fix bug "sembra non salvare": la cache app di DataService — TTL 3 min —
+        //  restituiva dati vecchi e faceva ricomparire vuoti i campi dopo il salvataggio.)
+        if (opts.reload !== false) {
+            try {
+                UI.showLoading('Carico configurazione...');
+                await this._reloadAppsFresh();
+                UI.hideLoading();
+            } catch (e) {
+                UI.hideLoading();
+                console.warn('[StoricoPush] Reload config fallito, uso i dati già in memoria:', e && e.message);
+            }
+        }
+
+        // Evita due modal sovrapposti
+        const existing = document.getElementById('sp-config-modal');
+        if (existing) existing.remove();
+
         // Sorgente: se showAllApps=true mostra TUTTE le app del CRM,
         // altrimenti solo ATTIVE + già monitorate (comportamento default)
         const sourceList = this.showAllApps
@@ -816,14 +964,28 @@ const StoricoPush = {
             const userId = a.monitorPushUserId || '';
             const currentSlug = a.appSlug || '';
             const enabled = !!a.pushMonitorEnabled;
-            // Suggerimento slug: dal nome comune, minuscolo, senza accenti/spazi/speciali
-            const suggestedSlug = (a.comune || a.nome || '').toLowerCase()
-                .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-                .replace(/[^a-z0-9]/g, '');
+            const suggestedSlug = this._suggestSlug(a.comune || a.nome || '');
             const nomeApp = a.comune || a.nome || '';
             const badge = enabled
                 ? '<span class="sp-cfg-badge sp-cfg-badge-on"><i class="fas fa-check-circle"></i> Monitorata</span>'
                 : '<span class="sp-cfg-badge sp-cfg-badge-off"><i class="far fa-circle"></i> Non monitorata</span>';
+
+            const chip = enabled
+                ? this._chipHtml(this._computeHealth(a))
+                : '<span style="color:#c4c4c4;font-size:0.78rem;">\u2014</span>';
+
+            const webz = a.goodbarberWebzineId
+                ? `<div style="font-size:0.68rem;color:#B0B0B0;margin-top:3px;">Webzine ${this.escapeHtml(String(a.goodbarberWebzineId))}</div>`
+                : '';
+
+            // Le azioni usano lo slug salvato oppure il suggerimento (anteprima anche prima
+            // di salvare). Lo slug \u00e8 normalizzato [a-z0-9] \u21d2 sicuro dentro gli apici.
+            const slugForActions = currentSlug || suggestedSlug;
+            const actions = slugForActions
+                ? `<button class="sp-mini-btn" title="Apri l'archivio pubblico in una nuova scheda" onclick="StoricoPush.openArchive('${slugForActions}')"><i class="fas fa-external-link-alt"></i></button>
+                   <button class="sp-mini-btn" title="Copia l'URL dell'archivio" onclick="StoricoPush.copyArchiveUrl('${slugForActions}', this)"><i class="fas fa-link"></i></button>
+                   <button class="sp-mini-btn" title="Sincronizza ora questa app" onclick="StoricoPush.syncApp('${slugForActions}', this)"><i class="fas fa-sync-alt"></i></button>`
+                : '<span style="color:#ccc;">\u2014</span>';
 
             return `
                 <tr class="sp-cfg-row" data-app-id="${a.id}" data-search="${this.escapeHtml(nomeApp.toLowerCase())}">
@@ -833,18 +995,27 @@ const StoricoPush = {
                     </td>
                     <td style="padding:10px 6px;vertical-align:middle;">
                         <input type="text" class="sp-config-slug"
-                               data-app-id="${a.id}"
+                               data-app-id="${a.id}" data-orig="${this.escapeHtml(currentSlug)}"
                                value="${this.escapeHtml(currentSlug)}"
                                placeholder="${this.escapeHtml(suggestedSlug)}"
-                               style="width:150px;padding:5px 8px;border:1px solid #ddd;border-radius:4px;font-size:0.85rem;font-family:monospace;">
+                               oninput="StoricoPush._onRowInput('${a.id}')"
+                               onblur="StoricoPush._onRowBlurSave('${a.id}')"
+                               style="width:150px;max-width:100%;padding:5px 8px;border:1px solid #ddd;border-radius:4px;font-size:0.85rem;font-family:monospace;">
+                        ${webz}
                     </td>
-                    <td style="padding:10px 6px;vertical-align:middle;"><code style="font-size:0.8rem;color:#9B9B9B;">${a.goodbarberWebzineId || '—'}</code></td>
                     <td style="padding:10px 6px;vertical-align:middle;">
                         <input type="number" class="sp-config-userid"
-                               data-app-id="${a.id}"
+                               data-app-id="${a.id}" data-orig="${userId}"
                                value="${userId}"
                                placeholder="User ID fantasma"
-                               style="width:120px;padding:5px 8px;border:1px solid #ddd;border-radius:4px;font-size:0.85rem;">
+                               oninput="StoricoPush._onRowInput('${a.id}')"
+                               onblur="StoricoPush._onRowBlurSave('${a.id}')"
+                               style="width:120px;max-width:100%;padding:5px 8px;border:1px solid #ddd;border-radius:4px;font-size:0.85rem;">
+                        <div class="sp-cfg-rowmsg" data-app-id="${a.id}"></div>
+                    </td>
+                    <td class="sp-cfg-statuscell" style="padding:10px 6px;text-align:center;vertical-align:middle;">${chip}</td>
+                    <td style="padding:10px 6px;vertical-align:middle;">
+                        <div style="display:flex;gap:4px;justify-content:center;flex-wrap:wrap;">${actions}</div>
                     </td>
                     <td style="padding:10px 6px;text-align:center;vertical-align:middle;">
                         <label class="sp-switch" title="${enabled ? 'Disattiva monitoraggio' : 'Attiva monitoraggio'}">
@@ -863,20 +1034,21 @@ const StoricoPush = {
                 <tr style="border-bottom:2px solid #d9d9d9;text-align:left;background:#F5F5F5;">
                     <th style="padding:10px 6px;">Comune</th>
                     <th style="padding:10px 6px;">App Slug</th>
-                    <th style="padding:10px 6px;">Webzine ID</th>
                     <th style="padding:10px 6px;">Monitor User ID</th>
-                    <th style="padding:10px 6px;text-align:center;width:90px;">Monitor</th>
+                    <th style="padding:10px 6px;text-align:center;">Stato sync</th>
+                    <th style="padding:10px 6px;text-align:center;">Azioni</th>
+                    <th style="padding:10px 6px;text-align:center;width:80px;">Monitor</th>
                 </tr>
             </thead>
         `;
 
         const rowsMonitorate = monitorate.length > 0
             ? monitorate.map(buildRow).join('')
-            : `<tr><td colspan="5" style="padding:20px;text-align:center;color:#9B9B9B;font-style:italic;">Nessuna app in monitoraggio. Attiva il toggle di una app qui sotto per iniziare.</td></tr>`;
+            : `<tr><td colspan="6" style="padding:20px;text-align:center;color:#9B9B9B;font-style:italic;">Nessuna app in monitoraggio. Attiva il toggle di una app qui sotto per iniziare.</td></tr>`;
 
         const rowsDisponibili = disponibili.length > 0
             ? disponibili.map(buildRow).join('')
-            : `<tr><td colspan="5" style="padding:20px;text-align:center;color:#9B9B9B;font-style:italic;">Tutte le app attive sono già in monitoraggio.</td></tr>`;
+            : `<tr><td colspan="6" style="padding:20px;text-align:center;color:#9B9B9B;font-style:italic;">Tutte le app attive sono già in monitoraggio.</td></tr>`;
 
         const modalHtml = `
             <div id="sp-config-modal" onclick="StoricoPush.closeConfig(event)" style="
@@ -894,7 +1066,7 @@ const StoricoPush = {
                     <div style="padding:1rem 1.5rem;border-bottom:1px solid #d9d9d9;display:flex;align-items:center;justify-content:space-between;">
                         <div>
                             <h3 style="margin:0;font-size:1.1rem;color:#145284;font-weight:700;"><i class="fas fa-cog"></i> Configurazione Monitoraggio Push</h3>
-                            <p style="margin:4px 0 0 0;font-size:0.78rem;color:#9B9B9B;">Il toggle <strong>Monitor</strong> salva subito. Slug e User ID si salvano con il bottone <strong>Salva</strong>.</p>
+                            <p style="margin:4px 0 0 0;font-size:0.78rem;color:#9B9B9B;">Il toggle <strong>Monitor</strong> salva subito. <strong>Slug</strong> e <strong>User ID</strong> vengono salvati automaticamente quando esci dal campo (o col bottone <strong>Salva</strong> in basso). Le righe con modifiche non salvate sono evidenziate in giallo.</p>
                         </div>
                         <button onclick="StoricoPush.closeConfig()" style="background:none;border:none;font-size:1.2rem;cursor:pointer;color:#9B9B9B;padding:4px 8px;">
                             <i class="fas fa-times"></i>
@@ -1010,12 +1182,12 @@ const StoricoPush = {
                     <!-- Footer -->
                     <div style="display:flex;gap:8px;justify-content:space-between;align-items:center;padding:12px 1.5rem;border-top:1px solid #d9d9d9;background:white;">
                         <span id="sp-cfg-hint" style="font-size:0.78rem;color:#9B9B9B;">
-                            <i class="fas fa-info-circle"></i> Tip: attiva il toggle per iniziare subito a monitorare un comune.
+                            <i class="fas fa-info-circle"></i> Tip: attiva il toggle per iniziare subito a monitorare un comune. L'URL dell'archivio è <code>notifiche.comune.digital/storico-notifiche/?app=SLUG</code>
                         </span>
                         <div style="display:flex;gap:8px;">
                             <button class="btn btn-outline" onclick="StoricoPush.closeConfig()">Chiudi</button>
-                            <button class="btn btn-primary" onclick="StoricoPush.saveConfig()">
-                                <i class="fas fa-save"></i> Salva Slug e User ID
+                            <button id="sp-cfg-save-btn" class="btn btn-primary" onclick="StoricoPush.saveConfig()">
+                                <i class="fas fa-check"></i> Tutto salvato
                             </button>
                         </div>
                     </div>
@@ -1110,55 +1282,296 @@ const StoricoPush = {
         if (modal) modal.remove();
     },
 
+    // Salva in blocco tutte le righe con modifiche non salvate ("dirty").
+    // Ogni riga è salvata in modo indipendente: se una fallisce (doc mancante,
+    // slug in conflitto, permessi), le altre vengono comunque salvate.
+    // Niente più db.batch() atomico che, con un solo doc problematico, bloccava
+    // TUTTO il salvataggio.
     async saveConfig() {
-        try {
-            UI.showLoading('Salvataggio configurazione...');
-
-            const userIdInputs = document.querySelectorAll('.sp-config-userid');
-            const enabledInputs = document.querySelectorAll('.sp-config-enabled');
-
-            const batch = db.batch();
-
-            userIdInputs.forEach(input => {
-                const appId = input.dataset.appId;
-                const userId = parseInt(input.value) || 0;
-                const enabledInput = document.querySelector(`.sp-config-enabled[data-app-id="${appId}"]`);
-                const enabled = enabledInput ? enabledInput.checked : false;
-                const slugInput = document.querySelector(`.sp-config-slug[data-app-id="${appId}"]`);
-                const slugValue = slugInput ? slugInput.value.trim().toLowerCase().replace(/[^a-z0-9]/g, '') : '';
-
-                const updateData = {
-                    monitorPushUserId: userId,
-                    pushMonitorEnabled: enabled
-                };
-
-                // Salva appSlug se compilato (o usa il placeholder come fallback)
-                if (slugValue) {
-                    updateData.appSlug = slugValue;
-                } else if (enabled && slugInput && slugInput.placeholder) {
-                    // Se attivo ma slug vuoto, usa il suggerimento dal placeholder
-                    updateData.appSlug = slugInput.placeholder;
-                    console.log(`[Config] Usato slug suggerito "${updateData.appSlug}" per app ${appId}`);
-                }
-
-                const docRef = db.collection('app').doc(appId);
-                batch.update(docRef, updateData);
-            });
-
-            await batch.commit();
-
-            UI.hideLoading();
-            UI.showSuccess('Configurazione salvata!');
-            this.closeConfig();
-
-            // Aggiorna la lista app locale (ATTIVA + già monitorate anche se non attive)
-            const tutteLeApp = await DataService.getApps();
-            this.apps = tutteLeApp.filter(a => a.pushMonitorEnabled || a.statoApp === 'ATTIVA');
-
-        } catch (error) {
-            UI.hideLoading();
-            UI.showError('Errore nel salvataggio: ' + error.message);
+        const dirtyRows = Array.from(
+            document.querySelectorAll('#sp-config-modal tr.sp-cfg-row.sp-cfg-dirty')
+        );
+        if (dirtyRows.length === 0) {
+            UI.showSuccess('Tutto già salvato.');
+            return;
         }
+
+        UI.showLoading('Salvataggio configurazione...');
+
+        const ok = [];
+        const ko = [];
+        // Sequenziale: così la rilevazione delle collisioni di slug tiene conto
+        // anche degli slug appena salvati nelle righe precedenti.
+        for (const row of dirtyRows) {
+            const appId = row.dataset.appId;
+            const res = await this._persistRow(appId, { silent: true });
+            if (res && res.ok && res.changed) ok.push(res.appName);
+            else if (res && !res.ok) ko.push((res.appName || appId) + (res.error ? ' (' + res.error + ')' : ''));
+        }
+
+        UI.hideLoading();
+        this._updateDirtyCount();
+
+        if (ko.length === 0) {
+            UI.showSuccess('Salvato: ' + (ok.length ? ok.join(', ') : 'nessuna modifica'));
+        } else if (ok.length === 0) {
+            UI.showError('Non salvato → ' + ko.join('; '));
+        } else {
+            UI.showError('Salvate ' + ok.length + ' app. NON salvate → ' + ko.join('; '));
+        }
+
+        // Ricalcola i chip di salute del pannello con lo stato aggiornato
+        this.loadMonitorAlerts();
+    },
+
+    // =================================================================
+    // Helper condivisi (configuratore + pannello "Stato monitoraggio")
+    // =================================================================
+
+    // Ricarica lo stato REALE delle app da Firestore bypassando la cache di
+    // DataService (TTL 3 min). È la chiave del fix "sembra non salvare".
+    async _reloadAppsFresh() {
+        if (typeof DataService !== 'undefined' && typeof DataService._cacheInvalidate === 'function') {
+            DataService._cacheInvalidate('app:');
+        }
+        const tutte = await DataService.getApps();
+        this.tutteLeApp = tutte || [];
+        this.apps = this.tutteLeApp.filter(a => a.pushMonitorEnabled || a.statoApp === 'ATTIVA');
+        return this.tutteLeApp;
+    },
+
+    // Slug normalizzato: minuscolo, senza accenti/spazi/simboli → solo [a-z0-9]
+    _normalizeSlug(v) {
+        return (v == null ? '' : String(v))
+            .trim().toLowerCase()
+            .normalize('NFD').replace(/[̀-ͯ]/g, '')
+            .replace(/[^a-z0-9]/g, '');
+    },
+    _suggestSlug(name) {
+        return this._normalizeSlug(name);
+    },
+
+    // URL pubblico dell'archivio notifiche di un comune
+    archiveUrl(slug) {
+        const s = this._normalizeSlug(slug);
+        return s ? 'https://notifiche.comune.digital/storico-notifiche/?app=' + encodeURIComponent(s) : '';
+    },
+    openArchive(slug) {
+        const url = this.archiveUrl(slug);
+        if (url) window.open(url, '_blank', 'noopener');
+    },
+    copyArchiveUrl(slug, btn) {
+        const url = this.archiveUrl(slug);
+        if (!url) return;
+        const done = () => {
+            if (btn) { const old = btn.innerHTML; btn.innerHTML = '<i class="fas fa-check"></i>'; setTimeout(() => { btn.innerHTML = old; }, 1200); }
+            if (typeof UI !== 'undefined' && UI.showSuccess) UI.showSuccess('URL archivio copiato negli appunti');
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(url).then(done).catch(() => { this._fallbackCopy(url); done(); });
+        } else {
+            this._fallbackCopy(url); done();
+        }
+    },
+    _fallbackCopy(text) {
+        const t = document.createElement('textarea');
+        t.value = text; t.style.position = 'fixed'; t.style.opacity = '0';
+        document.body.appendChild(t); t.focus(); t.select();
+        try { document.execCommand('copy'); } catch (e) {}
+        document.body.removeChild(t);
+    },
+
+    // Sincronizza ORA una singola app (azioni rapide del modal e delle card).
+    async syncApp(slug, btn) {
+        const s = this._normalizeSlug(slug);
+        if (!s) return;
+        const headers = await this._buildSyncAuthHeaders();
+        let oldHtml = null;
+        if (btn) { oldHtml = btn.innerHTML; btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>'; }
+        try {
+            const r = await fetch('/api/sync-push-history?appSlug=' + encodeURIComponent(s), { headers });
+            const data = await r.json();
+            if (data.success) {
+                if (UI.showSuccess) UI.showSuccess('Sync ' + s + ': ' + (data.totalNewNotifications || 0) + ' nuove notifiche');
+                await this._reloadAppsFresh();
+                this.loadMonitorAlerts();
+            } else {
+                const hint = r.status === 401 ? ' (sessione scaduta — rifai login)' : '';
+                if (UI.showError) UI.showError('Errore sync ' + s + ': ' + (data.error || 'errore') + hint);
+            }
+        } catch (e) {
+            if (UI.showError) UI.showError('Errore di connessione: ' + e.message);
+        } finally {
+            if (btn) { btn.disabled = false; if (oldHtml != null) btn.innerHTML = oldHtml; }
+        }
+    },
+
+    // Salute di un'app calcolata SOLO dai campi già presenti sul doc app
+    // (0 letture Firestore extra). Il cron /api/sync-push-history gira ogni
+    // 15 min per TUTTE le app (normalmente lastPushSync < 15 min), quindi una
+    // lastPushSync vecchia o uno status 'error' indicano un problema reale.
+    _computeHealth(app) {
+        const HOUR = 3600 * 1000;
+        const now = Date.now();
+        const lastSync = (app.lastPushSync && app.lastPushSync.toDate) ? app.lastPushSync.toDate().getTime() : null;
+        const status = app.lastPushSyncStatus || null;
+
+        if (!app.appSlug) {
+            return { level: 'error', label: 'Slug mancante', hint: "Manca l'App Slug: l'archivio non è raggiungibile e la sincronizzazione non parte." };
+        }
+        if (status === 'error') {
+            return { level: 'error', label: 'Errore sync', hint: app.lastPushSyncError || 'La sincronizzazione ha restituito un errore.' };
+        }
+        if (!lastSync) {
+            return { level: 'never', label: 'Mai sincronizzata', hint: 'Nessuna sincronizzazione ancora eseguita. Premi Sincronizza o attendi il prossimo ciclo (ogni 15 min).' };
+        }
+        const ageH = (now - lastSync) / HOUR;
+        if (ageH > 6) {
+            const lbl = ageH >= 48 ? (Math.round(ageH / 24) + ' giorni') : (Math.round(ageH) + ' ore');
+            return { level: 'error', label: 'Ferma da ' + lbl, hint: 'Il cron sincronizza ogni 15 min: oltre 6h senza sync indica un problema (token GoodBarber scaduto, app sospesa, credenziali).' };
+        }
+        if (status === 'warning') {
+            return { level: 'warn', label: 'Avviso sync', hint: app.lastPushSyncWarning || 'La sincronizzazione ha restituito un avviso.' };
+        }
+        if (ageH > 1) {
+            return { level: 'warn', label: 'Sync ' + Math.round(ageH) + 'h fa', hint: 'Sincronizzazione più vecchia del previsto (atteso ~15 min).' };
+        }
+        return { level: 'ok', label: 'Attiva', hint: 'Sincronizzazione recente e senza errori.' };
+    },
+    // Escaping per il CONTENUTO di un attributo ("..."): escapeHtml non escapa
+    // i doppi apici, quindi un messaggio di errore con una " romperebbe title="...".
+    _attr(s) {
+        return this.escapeHtml(s).replace(/"/g, '&quot;');
+    },
+    _chipHtml(h) {
+        return '<span class="sp-cfg-chip ' + h.level + '" title="' + this._attr(h.hint) + '">'
+             + '<span class="cc-dot"></span>' + this.escapeHtml(h.label) + '</span>';
+    },
+    _relTime(ts) {
+        const d = (ts && ts.toDate) ? ts.toDate() : (ts instanceof Date ? ts : null);
+        if (!d) return 'mai';
+        return this.formatDate(d);
+    },
+
+    // =================================================================
+    // Dirty-tracking e salvataggio riga per riga
+    // =================================================================
+
+    _onRowInput(appId) {
+        const row = document.querySelector('#sp-config-modal tr.sp-cfg-row[data-app-id="' + appId + '"]');
+        if (!row) return;
+        const slugInput = row.querySelector('.sp-config-slug');
+        const userIdInput = row.querySelector('.sp-config-userid');
+        const slugChanged = slugInput && this._normalizeSlug(slugInput.value) !== this._normalizeSlug(slugInput.dataset.orig || '');
+        const userChanged = userIdInput && (parseInt(userIdInput.value, 10) || 0) !== (parseInt(userIdInput.dataset.orig, 10) || 0);
+        if (slugChanged || userChanged) row.classList.add('sp-cfg-dirty');
+        else row.classList.remove('sp-cfg-dirty');
+        // Togli l'evidenza di errore mentre si digita
+        if (slugInput) slugInput.classList.remove('sp-cfg-input-invalid');
+        const msgEl = row.querySelector('.sp-cfg-rowmsg');
+        if (msgEl && msgEl.classList.contains('err')) { msgEl.textContent = ''; msgEl.className = 'sp-cfg-rowmsg'; }
+        this._updateDirtyCount();
+    },
+
+    // Autosave quando si esce da un campo (solo se la riga ha modifiche).
+    _onRowBlurSave(appId) {
+        const row = document.querySelector('#sp-config-modal tr.sp-cfg-row[data-app-id="' + appId + '"]');
+        if (!row || !row.classList.contains('sp-cfg-dirty')) return;
+        this._persistRow(appId, { silent: true }).then(() => this._updateDirtyCount());
+    },
+
+    _updateDirtyCount() {
+        const n = document.querySelectorAll('#sp-config-modal tr.sp-cfg-row.sp-cfg-dirty').length;
+        const btn = document.getElementById('sp-cfg-save-btn');
+        if (!btn) return;
+        if (n > 0) {
+            btn.innerHTML = '<i class="fas fa-save"></i> Salva ' + n + (n === 1 ? ' modifica' : ' modifiche');
+        } else {
+            btn.innerHTML = '<i class="fas fa-check"></i> Tutto salvato';
+        }
+    },
+
+    // Salva UNA riga su Firestore: valida, aggiorna cache + stato in memoria e
+    // dà feedback inline. Ritorna { ok, changed, appName, error }.
+    async _persistRow(appId, opts = {}) {
+        const silent = !!opts.silent;
+        const row = document.querySelector('#sp-config-modal tr.sp-cfg-row[data-app-id="' + appId + '"]');
+        const app = (this.tutteLeApp || []).find(a => a.id === appId)
+                 || (this.apps || []).find(a => a.id === appId);
+        const appName = app ? (app.comune || app.nome || appId) : appId;
+        if (!row || !app) return { ok: false, changed: false, appName, error: 'riga non trovata' };
+
+        const slugInput = row.querySelector('.sp-config-slug');
+        const userIdInput = row.querySelector('.sp-config-userid');
+        const enabledInput = row.querySelector('.sp-config-enabled');
+        const msgEl = row.querySelector('.sp-cfg-rowmsg');
+
+        const slug = slugInput ? this._normalizeSlug(slugInput.value) : (app.appSlug || '');
+        const userId = userIdInput ? (parseInt(userIdInput.value, 10) || 0) : (app.monitorPushUserId || 0);
+        const enabled = enabledInput ? !!enabledInput.checked : !!app.pushMonitorEnabled;
+
+        const fail = (m) => {
+            if (slugInput) slugInput.classList.add('sp-cfg-input-invalid');
+            if (msgEl) { msgEl.className = 'sp-cfg-rowmsg err'; msgEl.textContent = m; }
+            if (!silent && UI.showError) UI.showError(appName + ': ' + m);
+            return { ok: false, changed: false, appName, error: m };
+        };
+
+        // Validazioni
+        if (enabled && !slug) return fail("Per monitorare serve prima l'App Slug.");
+        if (slug) {
+            const clash = (this.tutteLeApp || []).find(a => a.id !== appId && this._normalizeSlug(a.appSlug || '') === slug);
+            if (clash) return fail('Slug già usato da "' + (clash.comune || clash.nome || clash.id) + '".');
+        }
+        if (slugInput) slugInput.classList.remove('sp-cfg-input-invalid');
+
+        // Solo i campi realmente cambiati
+        const patch = {};
+        if (slug !== (app.appSlug || '')) patch.appSlug = slug;
+        if (userId !== (app.monitorPushUserId || 0)) patch.monitorPushUserId = userId;
+        if (enabled !== !!app.pushMonitorEnabled) patch.pushMonitorEnabled = enabled;
+
+        if (Object.keys(patch).length === 0) {
+            row.classList.remove('sp-cfg-dirty');
+            return { ok: true, changed: false, appName };
+        }
+
+        try {
+            await db.collection('app').doc(appId).update(patch);
+            if (typeof DataService !== 'undefined' && typeof DataService._cacheInvalidate === 'function') {
+                DataService._cacheInvalidate('app:');
+            }
+            // Mantieni coerenti gli oggetti in memoria (in entrambe le liste)
+            Object.assign(app, patch);
+            const inApps = (this.apps || []).find(a => a.id === appId);
+            if (inApps && inApps !== app) Object.assign(inApps, patch);
+
+            // Aggiorna i valori "base", pulisci dirty, feedback verde
+            if (slugInput) slugInput.dataset.orig = slug;
+            if (userIdInput) userIdInput.dataset.orig = String(userId);
+            row.classList.remove('sp-cfg-dirty');
+            row.classList.remove('sp-cfg-saved'); void row.offsetWidth; row.classList.add('sp-cfg-saved');
+            if (msgEl) {
+                msgEl.className = 'sp-cfg-rowmsg ok';
+                msgEl.textContent = 'Salvato ✓';
+                setTimeout(() => { if (msgEl.textContent === 'Salvato ✓') { msgEl.textContent = ''; msgEl.className = 'sp-cfg-rowmsg'; } }, 2500);
+            }
+            this._refreshRowChip(row, app);
+            if (!silent && UI.showSuccess) UI.showSuccess('Salvato: ' + appName);
+            return { ok: true, changed: true, appName };
+        } catch (e) {
+            return fail('Errore salvataggio: ' + (e && e.message ? e.message : e));
+        }
+    },
+
+    _refreshRowChip(row, app) {
+        const cell = row.querySelector('.sp-cfg-statuscell');
+        if (!cell) return;
+        if (!app.pushMonitorEnabled) {
+            cell.innerHTML = '<span style="color:#c4c4c4;font-size:0.78rem;">—</span>';
+            return;
+        }
+        cell.innerHTML = this._chipHtml(this._computeHealth(app));
     },
 
     // ================================================================
@@ -1168,8 +1581,10 @@ const StoricoPush = {
     async toggleMonitor(appId, enabled, checkboxEl) {
         if (!appId) return;
 
-        // Trova l'app in memoria
-        const app = this.apps.find(a => a.id === appId);
+        // Trova l'app in memoria (in entrambe le liste: con "Mostra tutte le app"
+        // una app non-ATTIVA può non essere in this.apps).
+        const app = (this.tutteLeApp || []).find(a => a.id === appId)
+                 || (this.apps || []).find(a => a.id === appId);
         const appName = app ? (app.comune || app.nome || appId) : appId;
 
         // Se sto disattivando, chiedi conferma
@@ -1186,27 +1601,42 @@ const StoricoPush = {
             }
         }
 
-        // Se sto attivando ma manca lo slug, blocca e avvisa
-        if (enabled && app && !app.appSlug) {
-            // Suggerimento slug
-            const suggested = (app.comune || app.nome || '').toLowerCase()
-                .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-                .replace(/[^a-z0-9]/g, '');
-            const inputSlug = document.querySelector(`.sp-config-slug[data-app-id="${appId}"]`);
-            const currentSlug = inputSlug ? inputSlug.value.trim() : '';
+        // Per attivare serve uno slug: usa quello digitato nella riga (anche se non
+        // ancora salvato), altrimenti quello gi\u00e0 presente sull'app.
+        const inputSlug = document.querySelector(`.sp-config-slug[data-app-id="${appId}"]`);
+        const typedSlug = inputSlug ? this._normalizeSlug(inputSlug.value) : '';
+        const effectiveSlug = typedSlug || (app ? this._normalizeSlug(app.appSlug || '') : '');
 
-            if (!currentSlug) {
+        if (enabled && !effectiveSlug) {
+            const suggested = this._suggestSlug((app && (app.comune || app.nome)) || '');
+            alert(
+                `Per attivare il monitoraggio di "${appName}" serve prima l'App Slug.\n\n` +
+                `Compila il campo "App Slug" (${suggested ? 'es. ' + suggested : 'es. nome app in minuscolo senza spazi'}) e riprova.`
+            );
+            if (checkboxEl) checkboxEl.checked = false;
+            if (inputSlug) {
+                inputSlug.focus();
+                inputSlug.classList.add('sp-cfg-input-invalid');
+                setTimeout(() => { inputSlug.classList.remove('sp-cfg-input-invalid'); }, 2500);
+            }
+            return;
+        }
+
+        // Se sto attivando con uno slug digitato diverso da quello già salvato,
+        // applica lo STESSO controllo anti-collisione di _persistRow: due comuni
+        // non possono condividere lo slug (altrimenti stesso archivio/bucket push).
+        if (enabled && typedSlug && app && this._normalizeSlug(app.appSlug || '') !== typedSlug) {
+            const clash = (this.tutteLeApp || []).find(a => a.id !== appId && this._normalizeSlug(a.appSlug || '') === typedSlug);
+            if (clash) {
                 alert(
-                    `Per attivare il monitoraggio di "${appName}" serve prima l'App Slug.\n\n` +
-                    `Compila il campo "App Slug" (${suggested ? 'es. ' + suggested : 'es. nome app in minuscolo senza spazi'}) ` +
-                    `e clicca "Salva Slug e User ID", poi riprova ad attivare il toggle.`
+                    `Impossibile attivare "${appName}": lo slug "${typedSlug}" è già usato da "${clash.comune || clash.nome || clash.id}".\n\n` +
+                    `Ogni comune deve avere uno slug diverso, altrimenti condividerebbero lo stesso archivio notifiche.`
                 );
                 if (checkboxEl) checkboxEl.checked = false;
-                // Focus sul campo slug
                 if (inputSlug) {
                     inputSlug.focus();
-                    inputSlug.style.borderColor = '#D32F2F';
-                    setTimeout(() => { inputSlug.style.borderColor = '#ddd'; }, 2500);
+                    inputSlug.classList.add('sp-cfg-input-invalid');
+                    setTimeout(() => { inputSlug.classList.remove('sp-cfg-input-invalid'); }, 2500);
                 }
                 return;
             }
@@ -1216,15 +1646,33 @@ const StoricoPush = {
         if (checkboxEl) checkboxEl.disabled = true;
 
         try {
-            await db.collection('app').doc(appId).update({
-                pushMonitorEnabled: enabled
-            });
+            const updateData = { pushMonitorEnabled: enabled };
+            // Se sto attivando e c'\u00e8 uno slug digitato non ancora salvato, salvalo insieme
+            // (cos\u00ec non si attiva il monitoraggio con appSlug vuoto sul documento).
+            if (enabled && typedSlug && app && this._normalizeSlug(app.appSlug || '') !== typedSlug) {
+                updateData.appSlug = typedSlug;
+            }
+            await db.collection('app').doc(appId).update(updateData);
 
-            // Aggiorna lo stato in memoria
-            if (app) app.pushMonitorEnabled = enabled;
+            // Invalida la cache app (altrimenti getApps restituirebbe dati vecchi)
+            if (typeof DataService !== 'undefined' && typeof DataService._cacheInvalidate === 'function') {
+                DataService._cacheInvalidate('app:');
+            }
 
-            // Sposta la riga nella sezione corretta e aggiorna badge
+            // Aggiorna lo stato in memoria (in entrambe le liste)
+            if (app) Object.assign(app, updateData);
+            const inApps = (this.apps || []).find(a => a.id === appId);
+            if (inApps && inApps !== app) Object.assign(inApps, updateData);
+
+            // Se abbiamo salvato lo slug insieme, allinea input + baseline della riga
+            const rowEl = document.querySelector('#sp-config-modal tr.sp-cfg-row[data-app-id="' + appId + '"]');
+            if (updateData.appSlug && inputSlug) { inputSlug.value = updateData.appSlug; inputSlug.dataset.orig = updateData.appSlug; }
+            if (rowEl) rowEl.classList.remove('sp-cfg-dirty');
+            this._updateDirtyCount();
+
+            // Sposta la riga nella sezione corretta, aggiorna badge, chip e contatori
             this._moveConfigRow(appId, enabled);
+            if (rowEl && app) this._refreshRowChip(rowEl, app);
             this._updateConfigCounts();
 
             // Feedback visivo
@@ -1287,10 +1735,10 @@ const StoricoPush = {
 
         // Se un tbody è vuoto, rimetti l'empty state
         if (tbodyMon && nMon === 0 && !tbodyMon.querySelector('td[colspan]')) {
-            tbodyMon.innerHTML = `<tr><td colspan="5" style="padding:20px;text-align:center;color:#9B9B9B;font-style:italic;">Nessuna app in monitoraggio. Attiva il toggle di una app qui sotto per iniziare.</td></tr>`;
+            tbodyMon.innerHTML = `<tr><td colspan="6" style="padding:20px;text-align:center;color:#9B9B9B;font-style:italic;">Nessuna app in monitoraggio. Attiva il toggle di una app qui sotto per iniziare.</td></tr>`;
         }
         if (tbodyDis && nDis === 0 && !tbodyDis.querySelector('td[colspan]')) {
-            tbodyDis.innerHTML = `<tr><td colspan="5" style="padding:20px;text-align:center;color:#9B9B9B;font-style:italic;">Tutte le app attive sono già in monitoraggio.</td></tr>`;
+            tbodyDis.innerHTML = `<tr><td colspan="6" style="padding:20px;text-align:center;color:#9B9B9B;font-style:italic;">Tutte le app attive sono già in monitoraggio.</td></tr>`;
         }
     },
 
@@ -1317,10 +1765,10 @@ const StoricoPush = {
 
     toggleShowAllApps(enabled) {
         this.showAllApps = !!enabled;
-        // Riapri il modal con la nuova sorgente dati
+        // Riapri il modal con la nuova sorgente dati (dati già in memoria: niente reload)
         const modal = document.getElementById('sp-config-modal');
         if (modal) modal.remove();
-        this.openConfig();
+        this.openConfig({ reload: false });
     },
 
     // ================================================================
@@ -1437,10 +1885,10 @@ const StoricoPush = {
             UI.hideLoading();
             UI.showSuccess(`App "${comune}" creata e aggiunta al monitoraggio!`);
 
-            // Rigenera il modal con la nuova app
+            // Rigenera il modal con la nuova app (già in memoria: niente reload)
             const modal = document.getElementById('sp-config-modal');
             if (modal) modal.remove();
-            this.openConfig();
+            this.openConfig({ reload: false });
 
         } catch (error) {
             UI.hideLoading();
@@ -1453,248 +1901,103 @@ const StoricoPush = {
     // Alert Monitoraggio
     // ================================================================
 
+    // Pannello "Stato monitoraggio": salute di TUTTE le app monitorate a colpo
+    // d'occhio, calcolata dai campi già presenti sul doc app (0 letture Firestore
+    // extra, invece di ~2 query x 103 app della versione precedente).
     async loadMonitorAlerts() {
         const container = document.getElementById('sp-monitor-alerts');
         if (!container) return;
 
         try {
-            // Soglie (in giorni)
-            const WARN_DAYS = 3;
-            const ERROR_DAYS = 7;
-            const now = new Date();
+            const monitorate = (this.apps || []).filter(a => !!a.pushMonitorEnabled);
+            if (monitorate.length === 0) { container.style.display = 'none'; return; }
 
-            const alerts = [];
+            const rank = { error: 0, never: 1, warn: 2, ok: 3 };
+            const items = monitorate
+                .map(a => ({ app: a, health: this._computeHealth(a) }))
+                .sort((x, y) => {
+                    const r = rank[x.health.level] - rank[y.health.level];
+                    if (r !== 0) return r;
+                    return (x.app.comune || x.app.nome || '').localeCompare(y.app.comune || y.app.nome || '', 'it');
+                });
 
-            // Solo app con monitoraggio abilitato: controlla ultima notifica
-            const monitorate = this.apps.filter(a => !!a.pushMonitorEnabled && a.appSlug);
+            const c = { ok: 0, warn: 0, error: 0, never: 0 };
+            items.forEach(it => { c[it.health.level]++; });
+            const problemi = items.filter(it => it.health.level !== 'ok');
 
-            if (monitorate.length === 0) {
-                container.style.display = 'none';
-                return;
+            // Colore header in base al problema più grave
+            let hBg = '#E2F8DE', hColor = '#2f8a29', hIcon = 'fa-check-circle';
+            let hText = 'Tutte le ' + monitorate.length + ' app monitorate stanno sincronizzando correttamente';
+            if (c.error > 0) {
+                hBg = '#FFEBEE'; hColor = '#D32F2F'; hIcon = 'fa-exclamation-triangle';
+                hText = c.error + (c.error === 1 ? ' app con problema critico' : ' app con problemi critici')
+                      + ((c.warn + c.never) > 0 ? (' + ' + (c.warn + c.never) + ' da controllare') : '');
+            } else if (c.warn > 0 || c.never > 0) {
+                hBg = '#FFF8E1'; hColor = '#C77700'; hIcon = 'fa-exclamation-circle';
+                hText = (c.warn + c.never) + ' app da tenere d\'occhio su ' + monitorate.length;
             }
 
-            // Normalizza lo slug dell'app a lowercase per allinearsi ai doc push_history
-            // (che salviamo sempre lowercase dal sync)
-            for (const app of monitorate) {
-                const slug = (app.appSlug || '').toLowerCase().trim();
-                if (!slug) continue;
+            const pill = (n, cls, label) => n > 0
+                ? '<span class="sp-sum-pill ' + cls + '">' + n + ' ' + label + '</span>'
+                : '';
 
-                // NUOVO: surface degli errori/warning di sync salvati sul doc app
-                // (impostati da api/sync-push-history.js dopo ogni run).
-                // Questo fa vedere a colpo d'occhio quali app stanno dando problemi
-                // di sincronizzazione anche senza dover aprire la console.
-                if (app.lastPushSyncStatus === 'error' && app.lastPushSyncError) {
-                    alerts.push({
-                        type: 'error',
-                        appName: app.comune || app.appSlug,
-                        message: 'Errore sincronizzazione: ' + app.lastPushSyncError,
-                        details: { lastSync: app.lastPushSync?.toDate ? app.lastPushSync.toDate() : null }
-                    });
-                } else if (app.lastPushSyncStatus === 'warning' && app.lastPushSyncWarning) {
-                    alerts.push({
-                        type: 'warn',
-                        appName: app.comune || app.appSlug,
-                        message: 'Avviso sync: ' + app.lastPushSyncWarning,
-                        details: { lastSync: app.lastPushSync?.toDate ? app.lastPushSync.toDate() : null }
-                    });
-                }
+            let html = ''
+              + '<div class="sp-alert-summary" style="background:' + hBg + ';color:' + hColor + ';">'
+              +   '<span class="sp-sum-left"><i class="fas ' + hIcon + '"></i> ' + this.escapeHtml(hText) + '</span>'
+              +   '<span class="sp-sum-counts">'
+              +     pill(c.error, 'error', 'critiche')
+              +     pill(c.never, 'never', 'mai sincr.')
+              +     pill(c.warn, 'warn', 'avvisi')
+              +     pill(c.ok, 'ok', 'ok')
+              +   '</span>'
+              +   '<span class="sp-sum-actions">'
+              +     '<button class="sp-mini-btn" onclick="StoricoPush.refreshMonitorAlerts(this)"><i class="fas fa-rotate"></i> Aggiorna</button>'
+              +     '<button class="sp-mini-btn" id="sp-health-toggle-btn" onclick="StoricoPush.toggleHealthGrid(this)"><i class="fas fa-table-cells-large"></i> ' + (problemi.length ? 'Vedi tutte' : 'Mostra elenco') + '</button>'
+              +     '<button class="sp-mini-btn" onclick="StoricoPush.openConfig()"><i class="fas fa-cog"></i> Configura</button>'
+              +   '</span>'
+              + '</div>';
 
-                let lastNotifDate = null;
-                let totalNotifs = 0;
-                let queryOk = false;
+            // Griglia salute di TUTTE le app (aperta se ci sono problemi, altrimenti chiusa)
+            const chipFor = (it) => {
+                const a = it.app, h = it.health;
+                const name = a.comune || a.nome || a.appSlug || a.id;
+                const slug = this._normalizeSlug(a.appSlug || '');
+                return '<span class="sp-health-chip ' + h.level + '" title="' + this._attr(name + ' — ' + h.label + ': ' + h.hint) + '" '
+                     + 'onclick="StoricoPush.focusApp(\'' + slug + '\')">'
+                     + '<span class="hc-dot"></span><span class="hc-name">' + this.escapeHtml(name) + '</span></span>';
+            };
+            const gridOpen = problemi.length > 0;
+            html += '<div class="sp-health-grid" id="sp-health-grid" style="' + (gridOpen ? '' : 'display:none;') + '">'
+                  + items.map(chipFor).join('') + '</div>';
 
-                try {
-                    // Prima prova con orderBy (richiede indice composito appSlug+status+sentAt desc)
-                    const lastSnap = await db.collection('push_history')
-                        .where('appSlug', '==', slug)
-                        .where('status', '==', 'sent')
-                        .orderBy('sentAt', 'desc')
-                        .limit(1)
-                        .get();
+            // Card azionabili solo per le app con problemi
+            problemi.forEach(it => {
+                const a = it.app, h = it.health;
+                const slug = this._normalizeSlug(a.appSlug || '');
+                const name = a.comune || a.nome || a.appSlug || a.id;
+                const cls = h.level === 'error' ? 'alert-error' : (h.level === 'never' ? 'alert-never' : 'alert-warn');
+                const icon = h.level === 'error' ? 'fa-times-circle' : (h.level === 'never' ? 'fa-hourglass-half' : 'fa-exclamation-triangle');
+                const lastSync = a.lastPushSync ? this._relTime(a.lastPushSync) : 'mai';
 
-                    queryOk = true;
-                    if (!lastSnap.empty) {
-                        const data = lastSnap.docs[0].data();
-                        lastNotifDate = data.sentAt?.toDate ? data.sentAt.toDate() : null;
-                    }
+                const details = '<div class="alert-details">'
+                    + '<span><i class="fas fa-sync-alt"></i> Sync: ' + this.escapeHtml(lastSync) + '</span>'
+                    + (typeof a.consensiPush === 'number' ? '<span><i class="fas fa-users"></i> ' + a.consensiPush + ' consensi push</span>' : '')
+                    + '</div>';
 
-                    // Count aggregato: costa 1 read invece di N (Firebase 10+)
-                    try {
-                        const countAgg = await db.collection('push_history')
-                            .where('appSlug', '==', slug)
-                            .where('status', '==', 'sent')
-                            .count().get();
-                        totalNotifs = countAgg.data().count;
-                    } catch (eCount) {
-                        // Fallback: conta leggendo, limitato a 500 per contenere costi
-                        const countSnap = await db.collection('push_history')
-                            .where('appSlug', '==', slug)
-                            .where('status', '==', 'sent')
-                            .limit(500)
-                            .get();
-                        totalNotifs = countSnap.size;
-                    }
+                const acts = '<div class="alert-actions">'
+                    + (slug ? '<button class="sp-mini-btn solid" onclick="StoricoPush.syncApp(\'' + slug + '\', this)"><i class="fas fa-sync-alt"></i> Sincronizza</button>' : '')
+                    + (slug ? '<button class="sp-mini-btn" onclick="StoricoPush.openArchive(\'' + slug + '\')"><i class="fas fa-external-link-alt"></i> Apri archivio</button>' : '')
+                    + '<button class="sp-mini-btn" onclick="StoricoPush.openConfig()"><i class="fas fa-cog"></i> Configura</button>'
+                    + '</div>';
 
-                } catch (e) {
-                    // Fallback: query senza orderBy (non serve indice composito)
-                    console.warn(`[monitor] Indice mancante per ${slug}, uso fallback senza orderBy`);
-                    try {
-                        // Count aggregato anche nel fallback
-                        try {
-                            const countAgg = await db.collection('push_history')
-                                .where('appSlug', '==', slug)
-                                .where('status', '==', 'sent')
-                                .count().get();
-                            totalNotifs = countAgg.data().count;
-                        } catch (eCount) {
-                            const countSnap = await db.collection('push_history')
-                                .where('appSlug', '==', slug)
-                                .where('status', '==', 'sent')
-                                .limit(500)
-                                .get();
-                            totalNotifs = countSnap.size;
-                        }
-
-                        // Per lastNotifDate leggiamo SOLO se serve (quando totalNotifs > 0
-                        // e non abbiamo potuto usare orderBy). Limitiamo a 50 doc più recenti
-                        // ordinati sul client.
-                        if (totalNotifs > 0) {
-                            const fallbackSnap = await db.collection('push_history')
-                                .where('appSlug', '==', slug)
-                                .where('status', '==', 'sent')
-                                .limit(50)
-                                .get();
-                            fallbackSnap.forEach(doc => {
-                                const d = doc.data();
-                                const sentAt = d.sentAt?.toDate ? d.sentAt.toDate() : null;
-                                if (sentAt && (!lastNotifDate || sentAt > lastNotifDate)) {
-                                    lastNotifDate = sentAt;
-                                }
-                            });
-                        }
-                        queryOk = true;
-                    } catch (e2) {
-                        console.warn(`[monitor] Anche il fallback fallito per ${slug}:`, e2.message);
-                    }
-                }
-
-                // Se la query non è riuscita neanche col fallback, salta questa app
-                if (!queryOk) continue;
-
-                if (totalNotifs === 0) {
-                    // Distingui tra app appena configurata e app con problemi reali
-                    const lastSync = app.lastPushSync?.toDate ? app.lastPushSync.toDate() : null;
-                    const configuredRecently = lastSync && (now - lastSync) < (3 * 24 * 60 * 60 * 1000); // meno di 3 giorni
-                    alerts.push({
-                        type: configuredRecently ? 'warn' : 'error',
-                        appName: app.comune || app.appSlug,
-                        message: configuredRecently
-                            ? 'Nessuna notifica ancora ricevuta. Account configurato di recente — invia una notifica di test e rilancia il sync.'
-                            : 'Nessuna notifica ricevuta. Verificare che l\'account fantasma abbia aperto l\'app e accettato le notifiche push.',
-                        details: { lastSync }
-                    });
-                } else if (lastNotifDate) {
-                    const daysSince = Math.floor((now - lastNotifDate) / (1000 * 60 * 60 * 24));
-                    if (daysSince >= ERROR_DAYS) {
-                        alerts.push({
-                            type: 'error',
-                            appName: app.comune || app.appSlug,
-                            message: `Nessuna notifica da ${daysSince} giorni. Possibile token push scaduto o app sospesa dal dispositivo.`,
-                            details: { lastNotif: lastNotifDate, totalNotifs }
-                        });
-                    } else if (daysSince >= WARN_DAYS) {
-                        alerts.push({
-                            type: 'warn',
-                            appName: app.comune || app.appSlug,
-                            message: `Ultima notifica ricevuta ${daysSince} giorni fa. Verificare che l'app sia ancora attiva sul dispositivo.`,
-                            details: { lastNotif: lastNotifDate, totalNotifs }
-                        });
-                    }
-                }
-            }
-
-            // Ordina: errori prima, poi warning
-            alerts.sort((a, b) => (a.type === 'error' ? 0 : 1) - (b.type === 'error' ? 0 : 1));
-
-            const errCount = alerts.filter(a => a.type === 'error').length;
-            const warnCount = alerts.filter(a => a.type === 'warn').length;
-            const okCount = monitorate.length - errCount - warnCount;
-
-            // Header — mostra sempre il riepilogo
-            let headerBg = '#E2F8DE'; // verde chiaro
-            let headerColor = '#3CA434';
-            let headerIcon = 'fa-check-circle';
-            let headerText = `Monitoraggio attivo — ${monitorate.length} app tutte OK`;
-
-            if (errCount > 0) {
-                headerBg = '#FFEBEE';
-                headerColor = '#D32F2F';
-                headerIcon = 'fa-exclamation-triangle';
-                headerText = `${errCount} ${errCount === 1 ? 'problema critico' : 'problemi critici'}${warnCount > 0 ? `, ${warnCount} avvisi` : ''} — ${okCount} OK su ${monitorate.length}`;
-            } else if (warnCount > 0) {
-                headerBg = '#FFF8E1';
-                headerColor = '#F57F17';
-                headerIcon = 'fa-exclamation-triangle';
-                headerText = `${warnCount} ${warnCount === 1 ? 'avviso' : 'avvisi'} — ${okCount} OK su ${monitorate.length}`;
-            }
-
-            let html = `
-                <div class="sp-alert-header" style="background:${headerBg}; color:${headerColor};">
-                    <span class="sp-alert-title">
-                        <i class="fas ${headerIcon}"></i>
-                        ${headerText}
-                    </span>
-                </div>
-            `;
-
-            // Card per ogni app con problemi
-            alerts.forEach(alert => {
-                const iconClass = alert.type === 'error' ? 'fa-times-circle' : 'fa-exclamation-triangle';
-                let detailsHtml = '';
-
-                if (alert.details) {
-                    detailsHtml = '<div class="alert-details">';
-                    if (alert.details.lastNotif) {
-                        detailsHtml += `<span><i class="fas fa-clock"></i> Ultima: ${this.formatDate(alert.details.lastNotif)}</span>`;
-                    }
-                    if (alert.details.totalNotifs !== undefined) {
-                        detailsHtml += `<span><i class="fas fa-bell"></i> ${alert.details.totalNotifs} totali</span>`;
-                    }
-                    if (alert.details.lastSync) {
-                        detailsHtml += `<span><i class="fas fa-sync-alt"></i> Sync: ${this.formatDate(alert.details.lastSync)}</span>`;
-                    }
-                    detailsHtml += '</div>';
-                }
-
-                html += `
-                    <div class="sp-alert-card alert-${alert.type}">
-                        <div class="alert-icon"><i class="fas ${iconClass}"></i></div>
-                        <div class="alert-body">
-                            <div class="alert-app-name">${this.escapeHtml(alert.appName)}</div>
-                            <div class="alert-message">${this.escapeHtml(alert.message)}</div>
-                            ${detailsHtml}
-                        </div>
-                    </div>
-                `;
+                html += '<div class="sp-alert-card ' + cls + '">'
+                      + '<div class="alert-icon"><i class="fas ' + icon + '"></i></div>'
+                      + '<div class="alert-body">'
+                      + '<div class="alert-app-name">' + this.escapeHtml(name) + ' <span style="font-weight:600;color:#999;">· ' + this.escapeHtml(h.label) + '</span></div>'
+                      + '<div class="alert-message">' + this.escapeHtml(h.hint) + '</div>'
+                      + details + acts
+                      + '</div></div>';
             });
-
-            // Se tutto OK, mostra lista compatta delle app monitorate
-            if (alerts.length === 0) {
-                const nomiOk = monitorate
-                    .map(a => a.comune || a.nome || a.appSlug)
-                    .sort((a, b) => a.localeCompare(b, 'it'))
-                    .join(', ');
-
-                html += `
-                    <div class="sp-alert-card" style="border-left:4px solid #3CA434; background:#E2F8DE;">
-                        <div class="alert-icon" style="color:#3CA434;"><i class="fas fa-check-circle"></i></div>
-                        <div class="alert-body">
-                            <div class="alert-app-name" style="color:#3CA434;">Tutte le app funzionano correttamente</div>
-                            <div class="alert-message" style="color:#4A4A4A;">${this.escapeHtml(nomiOk)}</div>
-                        </div>
-                    </div>
-                `;
-            }
 
             container.innerHTML = html;
             container.style.display = 'block';
@@ -1703,6 +2006,36 @@ const StoricoPush = {
             console.warn('[StoricoPush] Errore caricamento alert:', error);
             container.style.display = 'none';
         }
+    },
+
+    // Ricarica lo stato reale delle app e ridisegna il pannello salute
+    async refreshMonitorAlerts(btn) {
+        if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Aggiorno'; }
+        try { await this._reloadAppsFresh(); } catch (e) { /* in caso di errore uso i dati in memoria */ }
+        // loadMonitorAlerts ridisegna l'intero pannello (il bottone verrà ricreato)
+        await this.loadMonitorAlerts();
+    },
+
+    toggleHealthGrid(btn) {
+        const grid = document.getElementById('sp-health-grid');
+        if (!grid) return;
+        const show = grid.style.display === 'none';
+        grid.style.display = show ? 'flex' : 'none';
+        const b = btn || document.getElementById('sp-health-toggle-btn');
+        if (b) b.innerHTML = '<i class="fas fa-table-cells-large"></i> ' + (show ? 'Nascondi elenco' : 'Vedi tutte');
+    },
+
+    // Click su un chip di salute → filtra la lista notifiche per quel comune
+    focusApp(slug) {
+        const s = this._normalizeSlug(slug);
+        if (!s) return;
+        const sel = document.getElementById('sp-filter-app');
+        if (sel) {
+            const opt = Array.from(sel.options).find(o => o.value === s);
+            if (opt && !opt.disabled) { sel.value = s; this.applyFilters(); }
+        }
+        const list = document.getElementById('sp-list');
+        if (list && list.scrollIntoView) list.scrollIntoView({ behavior: 'smooth', block: 'start' });
     },
 
     formatDate(date) {
