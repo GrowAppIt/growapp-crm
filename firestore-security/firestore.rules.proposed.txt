@@ -162,6 +162,19 @@ service cloud.firestore {
       allow read, write: if isCrmCollection(collection) && isActive();
     }
 
+    // ------------------------------------------------------------------------
+    // MESSAGGI CHAT — subcollection di chat_conversations (v10.2.0)
+    // Il match a singolo segmento sopra (/{collection}/{document}) copre SOLO i
+    // documenti di primo livello: NON copre chat_conversations/{id}/messages/{msgId},
+    // che senza questa regola cade nel catch-all deny → "Missing or insufficient
+    // permissions" quando la chat prova a leggere/scrivere i messaggi.
+    // Stesso livello di sicurezza del doc conversazione (isActive()).
+    // ------------------------------------------------------------------------
+
+    match /chat_conversations/{convId}/messages/{msgId} {
+      allow read, write: if isActive();
+    }
+
 
     // ------------------------------------------------------------------------
     // CATCH-ALL: tutto ciò che non è stato matchato sopra è BLOCCATO
