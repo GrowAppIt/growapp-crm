@@ -165,6 +165,11 @@ const TaskService = {
                 if (updates.stato === this.STATI.DONE) {
                     updateData.completatoIl = firebase.firestore.FieldValue.serverTimestamp();
                     updateData.completatoDa = AuthService.getUserId();
+                } else {
+                    // FIX (v10.2.0): uscendo da DONE (task riaperto) azzera il completamento,
+                    // altrimenti il task riaperto resta "completato" in DB e nei report.
+                    updateData.completatoIl = null;
+                    updateData.completatoDa = null;
                 }
             }
 
@@ -203,13 +208,16 @@ const TaskService = {
                 return result;
             }
 
-            // 🔔 NOTIFICHE: Notifica tutti gli assegnati + il creatore (se diverso)
+            // 🔔 NOTIFICHE: Notifica tutti gli assegnati + il creatore (se diverso),
+            // MA non chi ha fatto il cambio di stato (niente auto-notifiche).
+            const myId = AuthService.getUserId();
             const notifyUserIds = [...(task.assegnatiA || [])];
             if (task.creatoDa && !notifyUserIds.includes(task.creatoDa)) {
                 notifyUserIds.push(task.creatoDa);
             }
+            const recipients = notifyUserIds.filter(id => id && id !== myId);
 
-            if (notifyUserIds.length > 0) {
+            if (recipients.length > 0) {
                 const statoLabel = {
                     'TODO': 'Da Fare',
                     'IN_PROGRESS': 'In Lavorazione',
@@ -217,7 +225,7 @@ const TaskService = {
                 };
 
                 await NotificationService.createNotificationsForUsers(
-                    notifyUserIds,
+                    recipients,
                     {
                         type: NotificationService.TYPES.TASK_STATUS_CHANGED,
                         title: 'Stato task aggiornato',
@@ -260,7 +268,7 @@ const TaskService = {
             await taskRef.update({
                 archiviato: true,
                 archiviatoIl: new Date(),
-                archiviatioDa: AuthService.getUserId(),
+                archiviatoDa: AuthService.getUserId(),   // FIX (v10.2.0): era 'archiviatioDa' (typo)
                 archiviatoDaNome: AuthService.getUserName()
             });
 
@@ -287,7 +295,13 @@ const TaskService = {
                 archiviato: false,
                 ripristinatoIl: new Date(),
                 ripristinatoDa: AuthService.getUserId(),
-                ripristinatoDaNome: AuthService.getUserName()
+                ripristinatoDaNome: AuthService.getUserName(),
+                // FIX (v10.2.0): pulisci i campi di archiviazione dopo il ripristino
+                // (incluso il vecchio campo con typo, per non lasciare residui).
+                archiviatoIl: null,
+                archiviatoDa: null,
+                archiviatoDaNome: null,
+                archiviatioDa: firebase.firestore.FieldValue.delete()
             });
 
             return { success: true };
@@ -337,59 +351,54 @@ const TaskService = {
      * filtri.soloArchiviati - se true, mostra SOLO i task archiviati
      */
     async getTasks(filtri = {}) {
-        try {
-            let query = db.collection('tasks');
+        const orderBy = filtri.orderBy || 'creatoIl';
+        const orderDirection = filtri.orderDirection || 'desc';
+        const limit = filtri.limit || 100;
 
-            // 🗄️ FILTRO ARCHIVIAZIONE (nuovo!)
+        // Costruisce la query con i soli filtri where (senza orderBy)
+        const buildBase = () => {
+            let query = db.collection('tasks');
             if (filtri.soloArchiviati) {
-                // Mostra SOLO task archiviati
                 query = query.where('archiviato', '==', true);
             } else if (!filtri.includiArchiviati) {
-                // Di default, escludi task archiviati
                 query = query.where('archiviato', '==', false);
             }
-            // Se includiArchiviati è true, non aggiungiamo nessun filtro (mostra tutti)
+            if (filtri.appId) query = query.where('appIds', 'array-contains', filtri.appId);
+            if (filtri.stato) query = query.where('stato', '==', filtri.stato);
+            if (filtri.assegnatoA) query = query.where('assegnatiA', 'array-contains', filtri.assegnatoA);
+            if (filtri.priorita) query = query.where('priorita', '==', filtri.priorita);
+            return query;
+        };
 
-            // Filtro per app (usa array-contains per cercare nell'array appIds)
-            if (filtri.appId) {
-                query = query.where('appIds', 'array-contains', filtri.appId);
-            }
-
-            // Filtro per stato
-            if (filtri.stato) {
-                query = query.where('stato', '==', filtri.stato);
-            }
-
-            // Filtro per assegnatario (usa array-contains per cercare nell'array assegnatiA)
-            if (filtri.assegnatoA) {
-                query = query.where('assegnatiA', 'array-contains', filtri.assegnatoA);
-            }
-
-            // Filtro per priorità
-            if (filtri.priorita) {
-                query = query.where('priorita', '==', filtri.priorita);
-            }
-
-            // Ordinamento (default per data creazione decrescente)
-            const orderBy = filtri.orderBy || 'creatoIl';
-            const orderDirection = filtri.orderDirection || 'desc';
-            query = query.orderBy(orderBy, orderDirection);
-
-            // Limite (default 100)
-            const limit = filtri.limit || 100;
-            query = query.limit(limit);
-
-            // Esegui query
-            const snapshot = await query.get();
+        const toArray = (snap) => {
             const tasks = [];
+            snap.forEach(doc => tasks.push({ id: doc.id, ...doc.data() }));
+            return tasks;
+        };
+        const sortInMemory = (arr) => arr.sort((a, b) => {
+            const av = a[orderBy] && a[orderBy].toMillis ? a[orderBy].toMillis() : (a[orderBy] || 0);
+            const bv = b[orderBy] && b[orderBy].toMillis ? b[orderBy].toMillis() : (b[orderBy] || 0);
+            return orderDirection === 'desc' ? bv - av : av - bv;
+        });
 
-            snapshot.forEach(doc => {
-                tasks.push({ id: doc.id, ...doc.data() });
-            });
-
-            return { success: true, tasks };
-
+        try {
+            const snapshot = await buildBase().orderBy(orderBy, orderDirection).limit(limit).get();
+            return { success: true, tasks: toArray(snapshot) };
         } catch (error) {
+            // FIX (v10.2.0): fallback su indice composito mancante — prima la pagina Task
+            // mostrava "nessun task" in modo silenzioso. Ora riprova senza orderBy e ordina
+            // in memoria, così i dati compaiono comunque (in modo leggermente degradato).
+            const isIndexErr = error && (error.code === 'failed-precondition' || /index/i.test(error.message || ''));
+            if (isIndexErr) {
+                try {
+                    console.warn('⚠️ Indice tasks mancante, uso fallback senza orderBy:', error.message);
+                    const snap = await buildBase().limit(limit).get();
+                    return { success: true, tasks: sortInMemory(toArray(snap)) };
+                } catch (e2) {
+                    console.error('❌ Errore caricamento tasks (fallback):', e2);
+                    return { success: false, error: e2.message, tasks: [] };
+                }
+            }
             console.error('❌ Errore caricamento tasks:', error);
             return { success: false, error: error.message, tasks: [] };
         }
@@ -632,48 +641,51 @@ const TaskService = {
             }
 
             const taskRef = db.collection('tasks').doc(taskId);
-            const taskDoc = await taskRef.get();
 
-            if (!taskDoc.exists) {
-                throw new Error('Task non trovato');
-            }
+            // FIX (v10.2.0): transazione atomica. Prima era una read-modify-write non
+            // atomica: due "Prendi in carico" ravvicinati si sovrascrivevano (last-write-wins)
+            // e un assegnato spariva pur avendo ricevuto conferma di successo.
+            const outcome = await db.runTransaction(async (tx) => {
+                const taskDoc = await tx.get(taskRef);
+                if (!taskDoc.exists) throw new Error('Task non trovato');
 
-            const task = taskDoc.data();
-            const assegnatiA = task.assegnatiA || [];
-            const assegnatiANomi = task.assegnatiANomi || [];
+                const task = taskDoc.data();
+                const assegnatiA = task.assegnatiA || [];
+                const assegnatiANomi = task.assegnatiANomi || [];
 
-            // Verifica se già assegnato
-            if (assegnatiA.includes(userId)) {
+                if (assegnatiA.includes(userId)) {
+                    return { already: true };
+                }
+
+                const storiaEntry = {
+                    timestamp: new Date(),
+                    utente: userName,
+                    azione: 'Preso in carico',
+                    dettagli: `${userName} si è preso il task`
+                };
+
+                tx.update(taskRef, {
+                    assegnatiA: [...assegnatiA, userId],
+                    assegnatiANomi: [...assegnatiANomi, userName],
+                    storia: firebase.firestore.FieldValue.arrayUnion(storiaEntry)
+                });
+
+                return { already: false, creatoDa: task.creatoDa, titolo: task.titolo, appIds: task.appIds };
+            });
+
+            if (outcome.already) {
                 return { success: false, error: 'Sei già assegnato a questo task' };
             }
 
-            // Aggiungi utente corrente
-            assegnatiA.push(userId);
-            assegnatiANomi.push(userName);
-
-            // Aggiungi evento alla storia
-            const storiaEntry = {
-                timestamp: new Date(),
-                utente: userName,
-                azione: 'Preso in carico',
-                dettagli: `${userName} si è preso il task`
-            };
-
-            await taskRef.update({
-                assegnatiA: assegnatiA,
-                assegnatiANomi: assegnatiANomi,
-                storia: firebase.firestore.FieldValue.arrayUnion(storiaEntry)
-            });
-
-            // 🔔 NOTIFICHE: Notifica il creatore che qualcuno ha preso il task
-            if (task.creatoDa && task.creatoDa !== userId) {
+            // 🔔 NOTIFICHE fuori dalla transazione (side-effect non idempotente sui retry)
+            if (outcome.creatoDa && outcome.creatoDa !== userId) {
                 await NotificationService.createNotification({
-                    userId: task.creatoDa,
+                    userId: outcome.creatoDa,
                     type: NotificationService.TYPES.TASK_TAKEN,
                     title: 'Task preso in carico',
-                    message: `${userName} ha preso in carico il task: ${task.titolo}`,
+                    message: `${userName} ha preso in carico il task: ${outcome.titolo}`,
                     taskId: taskId,
-                    appId: task.appIds && task.appIds[0] ? task.appIds[0] : null
+                    appId: outcome.appIds && outcome.appIds[0] ? outcome.appIds[0] : null
                 });
             }
 
@@ -746,37 +758,54 @@ const TaskService = {
      */
     async addAssignee(taskId, userId, userName) {
         try {
+            const actorId = AuthService.getUserId();
+            const actorName = AuthService.getUserName();
             const taskRef = db.collection('tasks').doc(taskId);
-            const taskDoc = await taskRef.get();
 
-            if (!taskDoc.exists) {
-                throw new Error('Task non trovato');
-            }
+            // FIX (v10.2.0): transazione atomica (come takeTask) contro le race.
+            const outcome = await db.runTransaction(async (tx) => {
+                const taskDoc = await tx.get(taskRef);
+                if (!taskDoc.exists) throw new Error('Task non trovato');
 
-            const task = taskDoc.data();
-            const assegnatiA = task.assegnatiA || [];
-            const assegnatiANomi = task.assegnatiANomi || [];
+                const task = taskDoc.data();
+                const assegnatiA = task.assegnatiA || [];
+                const assegnatiANomi = task.assegnatiANomi || [];
 
-            // Verifica se già assegnato
-            if (assegnatiA.includes(userId)) {
+                if (assegnatiA.includes(userId)) {
+                    return { already: true };
+                }
+
+                const storiaEntry = {
+                    timestamp: new Date(),
+                    utente: actorName,
+                    azione: 'Aggiunto assegnato',
+                    dettagli: `${userName} aggiunto al task`
+                };
+
+                tx.update(taskRef, {
+                    assegnatiA: [...assegnatiA, userId],
+                    assegnatiANomi: [...assegnatiANomi, userName],
+                    storia: firebase.firestore.FieldValue.arrayUnion(storiaEntry)
+                });
+
+                return { already: false, titolo: task.titolo, appIds: task.appIds };
+            });
+
+            if (outcome.already) {
                 return { success: false, error: 'Utente già assegnato' };
             }
 
-            assegnatiA.push(userId);
-            assegnatiANomi.push(userName);
-
-            const storiaEntry = {
-                timestamp: new Date(),
-                utente: AuthService.getUserName(),
-                azione: 'Aggiunto assegnato',
-                dettagli: `${userName} aggiunto al task`
-            };
-
-            await taskRef.update({
-                assegnatiA: assegnatiA,
-                assegnatiANomi: assegnatiANomi,
-                storia: firebase.firestore.FieldValue.arrayUnion(storiaEntry)
-            });
+            // 🔔 NUOVO (v10.2.0): avvisa il nuovo assegnato (prima non veniva notificato)
+            if (userId && userId !== actorId) {
+                await NotificationService.createNotification({
+                    userId: userId,
+                    type: NotificationService.TYPES.TASK_REASSIGNED,
+                    title: 'Sei stato aggiunto a un task',
+                    message: `Sei stato assegnato al task: ${outcome.titolo}`,
+                    taskId: taskId,
+                    appId: outcome.appIds && outcome.appIds[0] ? outcome.appIds[0] : null
+                });
+            }
 
             return { success: true };
         } catch (error) {
@@ -804,6 +833,11 @@ const TaskService = {
 
             snapshot.forEach(doc => {
                 const task = { id: doc.id, ...doc.data() };
+
+                // FIX (v10.2.0): salta i task archiviati (prima continuavano a generare
+                // notifiche "scaduto" ogni giorno). Filtro in-memory: nessun indice extra
+                // e tratta correttamente i doc legacy senza il campo 'archiviato'.
+                if (task.archiviato) return;
 
                 if (!task.scadenza) return;
 
@@ -891,38 +925,62 @@ const TaskService = {
      */
     async removeAssignee(taskId, userId) {
         try {
+            const actorId = AuthService.getUserId();
+            const actorName = AuthService.getUserName();
             const taskRef = db.collection('tasks').doc(taskId);
-            const taskDoc = await taskRef.get();
 
-            if (!taskDoc.exists) {
-                throw new Error('Task non trovato');
-            }
+            // FIX (v10.2.0): transazione atomica per mantenere allineati i due array
+            // paralleli (assegnatiA / assegnatiANomi) anche con azioni concorrenti.
+            const outcome = await db.runTransaction(async (tx) => {
+                const taskDoc = await tx.get(taskRef);
+                if (!taskDoc.exists) throw new Error('Task non trovato');
 
-            const task = taskDoc.data();
-            const assegnatiA = task.assegnatiA || [];
-            const assegnatiANomi = task.assegnatiANomi || [];
+                const task = taskDoc.data();
+                const assegnatiA = task.assegnatiA || [];
+                const assegnatiANomi = task.assegnatiANomi || [];
 
-            const index = assegnatiA.indexOf(userId);
-            if (index === -1) {
+                const index = assegnatiA.indexOf(userId);
+                if (index === -1) {
+                    return { notFound: true };
+                }
+
+                const removedName = assegnatiANomi[index];
+                const newAssegnatiA = assegnatiA.slice();
+                const newAssegnatiANomi = assegnatiANomi.slice();
+                newAssegnatiA.splice(index, 1);
+                newAssegnatiANomi.splice(index, 1);
+
+                const storiaEntry = {
+                    timestamp: new Date(),
+                    utente: actorName,
+                    azione: 'Rimosso assegnato',
+                    dettagli: `${removedName} rimosso dal task`
+                };
+
+                tx.update(taskRef, {
+                    assegnatiA: newAssegnatiA,
+                    assegnatiANomi: newAssegnatiANomi,
+                    storia: firebase.firestore.FieldValue.arrayUnion(storiaEntry)
+                });
+
+                return { notFound: false, titolo: task.titolo, appIds: task.appIds };
+            });
+
+            if (outcome.notFound) {
                 return { success: false, error: 'Utente non assegnato' };
             }
 
-            const removedName = assegnatiANomi[index];
-            assegnatiA.splice(index, 1);
-            assegnatiANomi.splice(index, 1);
-
-            const storiaEntry = {
-                timestamp: new Date(),
-                utente: AuthService.getUserName(),
-                azione: 'Rimosso assegnato',
-                dettagli: `${removedName} rimosso dal task`
-            };
-
-            await taskRef.update({
-                assegnatiA: assegnatiA,
-                assegnatiANomi: assegnatiANomi,
-                storia: firebase.firestore.FieldValue.arrayUnion(storiaEntry)
-            });
+            // 🔔 NUOVO (v10.2.0): avvisa chi è stato rimosso (se diverso da chi agisce)
+            if (userId && userId !== actorId) {
+                await NotificationService.createNotification({
+                    userId: userId,
+                    type: NotificationService.TYPES.TASK_REASSIGNED,
+                    title: 'Sei stato rimosso da un task',
+                    message: `Non sei più assegnato al task: ${outcome.titolo}`,
+                    taskId: taskId,
+                    appId: outcome.appIds && outcome.appIds[0] ? outcome.appIds[0] : null
+                });
+            }
 
             return { success: true };
         } catch (error) {

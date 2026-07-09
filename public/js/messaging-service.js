@@ -11,6 +11,7 @@ const MessagingService = {
 
     _heartbeatInterval: null,
     _visibilityHandler: null,
+    _beforeUnloadHandler: null,
     HEARTBEAT_MS: 60000,          // 60 secondi
     HEARTBEAT_IDLE_MS: 300000,    // 5 minuti quando tab non visibile
     ONLINE_THRESHOLD: 120000,     // 2 min → online (verde)
@@ -22,6 +23,13 @@ const MessagingService = {
     startPresence() {
         const userId = AuthService.getUserId();
         if (!userId) return;
+
+        // FIX (v10.2.0): guardia idempotente. Se startPresence viene richiamato (es.
+        // logout+login senza reload) azzera prima interval e listener già registrati,
+        // così non si accumulano heartbeat orfani e handler beforeunload duplicati.
+        if (this._heartbeatInterval) { clearInterval(this._heartbeatInterval); this._heartbeatInterval = null; }
+        if (this._visibilityHandler) { document.removeEventListener('visibilitychange', this._visibilityHandler); this._visibilityHandler = null; }
+        if (this._beforeUnloadHandler) { window.removeEventListener('beforeunload', this._beforeUnloadHandler); this._beforeUnloadHandler = null; }
 
         // Scrivi subito "online"
         this._writePresence(userId, true);
@@ -50,10 +58,9 @@ const MessagingService = {
         };
         document.addEventListener('visibilitychange', this._visibilityHandler);
 
-        // beforeunload → segna offline
-        window.addEventListener('beforeunload', () => {
-            this._writePresenceSync(userId);
-        });
+        // beforeunload → segna offline (handler salvato per poterlo rimuovere)
+        this._beforeUnloadHandler = () => this._writePresenceSync(userId);
+        window.addEventListener('beforeunload', this._beforeUnloadHandler);
     },
 
     /**
@@ -71,6 +78,10 @@ const MessagingService = {
         if (this._visibilityHandler) {
             document.removeEventListener('visibilitychange', this._visibilityHandler);
             this._visibilityHandler = null;
+        }
+        if (this._beforeUnloadHandler) {
+            window.removeEventListener('beforeunload', this._beforeUnloadHandler);
+            this._beforeUnloadHandler = null;
         }
     },
 
@@ -154,6 +165,11 @@ const MessagingService = {
                     // Override se stato manuale
                     if (data.status === 'non_disturbare' || data.status === 'in_ferie') {
                         presenceState = data.status;
+                    } else if (data.status === 'occupato' && data.online && elapsed < this.IDLE_THRESHOLD) {
+                        // FIX (v10.2.0): 'occupato' prima non aveva alcun effetto. Lo applichiamo
+                        // solo se l'utente è effettivamente online di recente (altrimenti resta
+                        // il calcolo online/idle/offline standard).
+                        presenceState = 'occupato';
                     }
 
                     result[doc.id] = {
@@ -179,6 +195,7 @@ const MessagingService = {
         switch (presenceState) {
             case 'online': return 'presence-online';
             case 'idle': return 'presence-idle';
+            case 'occupato': return 'presence-busy';
             case 'non_disturbare': return 'presence-dnd';
             case 'in_ferie': return 'presence-away';
             default: return 'presence-offline';
@@ -192,6 +209,7 @@ const MessagingService = {
         switch (presenceState) {
             case 'online': return '#3CA434';
             case 'idle': return '#FFCC00';
+            case 'occupato': return '#FF8C00';
             case 'non_disturbare': return '#D32F2F';
             case 'in_ferie': return '#9B9B9B';
             default: return '#9B9B9B';
@@ -286,8 +304,18 @@ const MessagingService = {
                 updatedAt: firebase.firestore.FieldValue.serverTimestamp()
             };
 
-            const ref = await db.collection('chat_conversations').add(convData);
-            return { id: ref.id, ...convData };
+            // FIX (v10.2.0): docId DETERMINISTICO ('direct_' + coppia ordinata) creato in
+            // transazione. Prima si usava add() con id casuale dopo una query di esistenza:
+            // due aperture reciproche simultanee creavano DUE chat duplicate. Con l'id
+            // deterministico + transazione le due creazioni convergono sullo stesso doc.
+            const convRef = db.collection('chat_conversations').doc('direct_' + sortedIds.join('__'));
+            const created = await db.runTransaction(async (tx) => {
+                const snap = await tx.get(convRef);
+                if (snap.exists) return { id: convRef.id, ...snap.data() };
+                tx.set(convRef, convData);
+                return { id: convRef.id, ...convData };
+            });
+            return created;
         } catch (e) {
             console.error('Errore getOrCreateDirectChat:', e);
             return null;
@@ -374,6 +402,18 @@ const MessagingService = {
         const senderName = `${userData.nome || ''} ${userData.cognome || ''}`.trim();
 
         try {
+            const convRef = db.collection('chat_conversations').doc(conversationId);
+
+            // FIX (v10.2.0): verifica che la conversazione esista PRIMA di scrivere il
+            // messaggio. Prima il messaggio veniva aggiunto e solo dopo si controllava
+            // l'esistenza: se la conversazione era stata eliminata restava un messaggio
+            // orfano (invisibile, senza anteprima né push) ma la funzione tornava successo.
+            const convDoc = await convRef.get();
+            if (!convDoc.exists) {
+                return null;
+            }
+            const convData = convDoc.data();
+
             const msgData = {
                 senderId: userId,
                 senderName: senderName,
@@ -385,53 +425,45 @@ const MessagingService = {
             };
 
             // Aggiungi messaggio nella subcollection
-            const msgRef = await db.collection('chat_conversations')
-                .doc(conversationId)
-                .collection('messages')
-                .add(msgData);
+            const msgRef = await convRef.collection('messages').add(msgData);
 
             // Aggiorna il documento conversazione (denormalizzazione)
-            const convRef = db.collection('chat_conversations').doc(conversationId);
-            const convDoc = await convRef.get();
+            const updateData = {
+                lastMessage: {
+                    text: type === 'system' ? text : (text.length > 80 ? text.substring(0, 80) + '…' : text),
+                    senderId: userId,
+                    senderName: senderName,
+                    messageId: msgRef.id,   // FIX (v10.2.0): id ultimo messaggio → edit/delete coerenti
+                    timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                },
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            };
 
-            if (convDoc.exists) {
-                const convData = convDoc.data();
-                const updateData = {
-                    lastMessage: {
-                        text: type === 'system' ? text : (text.length > 80 ? text.substring(0, 80) + '…' : text),
-                        senderId: userId,
-                        senderName: senderName,
-                        timestamp: firebase.firestore.FieldValue.serverTimestamp()
-                    },
-                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-                };
+            // Incrementa unreadCounts per tutti tranne il mittente
+            const unreadCounts = convData.unreadCounts || {};
+            (convData.participantIds || []).forEach(pid => {
+                if (pid !== userId) {
+                    unreadCounts[pid] = (unreadCounts[pid] || 0) + 1;
+                }
+            });
+            updateData.unreadCounts = unreadCounts;
 
-                // Incrementa unreadCounts per tutti tranne il mittente
-                const unreadCounts = convData.unreadCounts || {};
-                (convData.participantIds || []).forEach(pid => {
-                    if (pid !== userId) {
-                        unreadCounts[pid] = (unreadCounts[pid] || 0) + 1;
-                    }
-                });
-                updateData.unreadCounts = unreadCounts;
+            await convRef.update(updateData);
 
-                await convRef.update(updateData);
+            // Push notification ai destinatari (se non è messaggio di sistema)
+            if (type !== 'system' && typeof FCMService !== 'undefined') {
+                const recipientIds = (convData.participantIds || []).filter(id => id !== userId);
+                if (recipientIds.length > 0) {
+                    const chatTitle = convData.type === 'direct'
+                        ? senderName
+                        : (convData.title || 'Gruppo');
 
-                // Push notification ai destinatari (se non è messaggio di sistema)
-                if (type !== 'system' && typeof FCMService !== 'undefined') {
-                    const recipientIds = (convData.participantIds || []).filter(id => id !== userId);
-                    if (recipientIds.length > 0) {
-                        const chatTitle = convData.type === 'direct'
-                            ? senderName
-                            : (convData.title || 'Gruppo');
-
-                        FCMService.sendPushToUsers(
-                            recipientIds,
-                            `💬 ${chatTitle}`,
-                            text.length > 100 ? text.substring(0, 100) + '…' : text,
-                            { type: 'chat_message', conversationId: conversationId }
-                        ).catch(e => console.warn('Push chat fallita:', e));
-                    }
+                    FCMService.sendPushToUsers(
+                        recipientIds,
+                        `💬 ${chatTitle}`,
+                        text.length > 100 ? text.substring(0, 100) + '…' : text,
+                        { type: 'chat_message', conversationId: conversationId }
+                    ).catch(e => console.warn('Push chat fallita:', e));
                 }
             }
 
@@ -482,24 +514,30 @@ const MessagingService = {
                 return { success: false, error: 'Solo chi ha creato il gruppo può eliminarlo' };
             }
 
-            // Elimina tutti i messaggi nella subcollection (batch da 500)
-            const messagesRef = convRef.collection('messages');
-            let snap = await messagesRef.limit(500).get();
-            while (!snap.empty) {
-                const batch = db.batch();
-                snap.forEach(doc => batch.delete(doc.ref));
-                await batch.commit();
-                snap = await messagesRef.limit(500).get();
-            }
-
-            // Elimina il documento conversazione
-            await convRef.delete();
+            await this._hardDeleteConversation(convRef);
 
             return { success: true };
         } catch (e) {
             console.error('Errore deleteGroup:', e);
             return { success: false, error: e.message };
         }
+    },
+
+    /**
+     * Elimina messaggi (subcollection, a batch da 500) + documento conversazione,
+     * SENZA controllo permessi. Uso interno: deleteGroup applica il gate del creatore
+     * prima di chiamarlo; leaveGroup lo usa quando esce l'ultimo partecipante.
+     */
+    async _hardDeleteConversation(convRef) {
+        const messagesRef = convRef.collection('messages');
+        let snap = await messagesRef.limit(500).get();
+        while (!snap.empty) {
+            const batch = db.batch();
+            snap.forEach(doc => batch.delete(doc.ref));
+            await batch.commit();
+            snap = await messagesRef.limit(500).get();
+        }
+        await convRef.delete();
     },
 
     /**
@@ -524,9 +562,14 @@ const MessagingService = {
 
             const remaining = participants.filter(id => id !== userId);
 
-            if (remaining.length <= 1) {
-                // Ultimo o penultimo — elimina tutto il gruppo
-                return await this.deleteGroup(conversationId);
+            // FIX (v10.2.0): prima, con remaining<=1, si chiamava deleteGroup — che però ha
+            // il gate "solo il creatore": in un gruppo a 2 il NON creatore restava intrappolato
+            // e, se usciva il creatore, la cronologia spariva anche all'altro. Ora:
+            //  - remaining === 0 (esce l'ultimo)      → elimina davvero (senza gate)
+            //  - remaining >= 1 (incluso il gruppo a 2) → rimuovi solo te stesso, storia intatta
+            if (remaining.length === 0) {
+                await this._hardDeleteConversation(convRef);
+                return { success: true };
             }
 
             // Rimuovi dai partecipanti
@@ -742,7 +785,7 @@ const MessagingService = {
         if (photoURL) {
             return `
                 <div style="position:relative;width:${size}px;height:${size}px;flex-shrink:0;">
-                    <img src="${photoURL}" alt="${nome}" style="width:${size}px;height:${size}px;border-radius:50%;object-fit:cover;">
+                    <img src="${window.safeUrl(photoURL)}" alt="${window.escAttr(nome)}" style="width:${size}px;height:${size}px;border-radius:50%;object-fit:cover;">
                     ${presenceDot}
                 </div>
             `;
@@ -751,7 +794,7 @@ const MessagingService = {
         return `
             <div style="position:relative;width:${size}px;height:${size}px;flex-shrink:0;">
                 <div style="width:${size}px;height:${size}px;border-radius:50%;background:var(--blu-300);color:white;display:flex;align-items:center;justify-content:center;font-size:${Math.round(size * 0.375)}px;font-weight:700;font-family:Titillium Web,sans-serif;">
-                    ${initials}
+                    ${window.escHtml(initials)}
                 </div>
                 ${presenceDot}
             </div>
@@ -789,6 +832,15 @@ const MessagingService = {
 
         if (file.size > this.CHAT_MAX_FILE_SIZE) {
             throw new Error('Il file supera i 15MB');
+        }
+
+        // FIX (v10.2.0): applica davvero l'allowlist dei tipi (prima CHAT_ALLOWED_TYPES
+        // era definita ma mai controllata: si potevano caricare HTML/SVG come vettori).
+        // Normalizza il MIME togliendo i parametri (es. 'audio/webm;codecs=opus' dei vocali
+        // → 'audio/webm'), altrimenti il confronto esatto bloccherebbe i messaggi vocali.
+        const baseType = (file.type || '').split(';')[0].trim().toLowerCase();
+        if (baseType && this.CHAT_ALLOWED_TYPES.indexOf(baseType) === -1) {
+            throw new Error('Tipo di file non consentito');
         }
 
         const timestamp = Date.now();
@@ -884,12 +936,15 @@ const MessagingService = {
                 editedAt: firebase.firestore.FieldValue.serverTimestamp()
             });
 
-            // Aggiorna lastMessage se era l'ultimo
+            // Aggiorna lastMessage SOLO se è davvero l'ultimo messaggio (per messageId).
+            // FIX (v10.2.0): prima confrontava solo il senderId, quindi modificando un
+            // messaggio più vecchio dello stesso mittente si corrompeva l'anteprima.
             const convRef = db.collection('chat_conversations').doc(conversationId);
             const convDoc = await convRef.get();
             if (convDoc.exists) {
-                const convData = convDoc.data();
-                if (convData.lastMessage && convData.lastMessage.senderId === userId) {
+                const lm = convDoc.data().lastMessage;
+                const isLast = lm && (lm.messageId ? lm.messageId === messageId : lm.senderId === userId);
+                if (isLast) {
                     await convRef.update({
                         'lastMessage.text': newText.length > 80 ? newText.substring(0, 80) + '…' : newText
                     });
@@ -945,12 +1000,15 @@ const MessagingService = {
                 deletedBy: userId
             });
 
-            // Aggiorna lastMessage se era l'ultimo
+            // Aggiorna lastMessage SOLO se è davvero l'ultimo messaggio (per messageId).
+            // FIX (v10.2.0): prima bastava lo stesso senderId, così cancellando un messaggio
+            // più vecchio l'anteprima diventava "Messaggio eliminato" pur non essendolo.
             const convRef = db.collection('chat_conversations').doc(conversationId);
             const convDoc = await convRef.get();
             if (convDoc.exists) {
-                const convData = convDoc.data();
-                if (convData.lastMessage && convData.lastMessage.senderId === msgData.senderId) {
+                const lm = convDoc.data().lastMessage;
+                const isLast = lm && (lm.messageId ? lm.messageId === messageId : lm.senderId === msgData.senderId);
+                if (isLast) {
                     await convRef.update({
                         'lastMessage.text': 'Messaggio eliminato'
                     });

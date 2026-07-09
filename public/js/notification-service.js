@@ -173,12 +173,19 @@ const NotificationService = {
             const userId = AuthService.getUserId();
             if (!userId) return { success: true, count: 0 };
 
-            const snapshot = await db.collection('notifications')
+            const query = db.collection('notifications')
                 .where('userId', '==', userId)
-                .where('read', '==', false)
-                .get();
+                .where('read', '==', false);
 
-            return { success: true, count: snapshot.size };
+            // FIX (v10.2.0): usa l'aggregazione count() invece di scaricare tutti i doc
+            // solo per contarli. Fallback a get()+size se count() non è disponibile.
+            try {
+                const agg = await query.count().get();
+                return { success: true, count: agg.data().count };
+            } catch (aggErr) {
+                const snapshot = await query.get();
+                return { success: true, count: snapshot.size };
+            }
         } catch (error) {
             console.error('Errore conteggio notifiche:', error);
             return { success: false, count: 0 };
@@ -217,17 +224,25 @@ const NotificationService = {
                 .where('read', '==', false)
                 .get();
 
-            const batch = db.batch();
-            snapshot.forEach(doc => {
-                batch.update(doc.ref, {
-                    read: true,
-                    readAt: firebase.firestore.FieldValue.serverTimestamp()
+            // FIX (v10.2.0): un batch Firestore ha un limite di 500 operazioni. Con >500
+            // notifiche non lette il commit unico falliva e il badge restava invariato.
+            // Ora si spezza in chunk da 500 (come fa già CentroNotifiche._deleteAllRead).
+            const docs = snapshot.docs;
+            const CHUNK = 500;
+            let committed = 0;
+            for (let i = 0; i < docs.length; i += CHUNK) {
+                const batch = db.batch();
+                docs.slice(i, i + CHUNK).forEach(doc => {
+                    batch.update(doc.ref, {
+                        read: true,
+                        readAt: firebase.firestore.FieldValue.serverTimestamp()
+                    });
                 });
-            });
+                await batch.commit();
+                committed += Math.min(CHUNK, docs.length - i);
+            }
 
-            await batch.commit();
-
-            return { success: true, count: snapshot.size };
+            return { success: true, count: committed };
         } catch (error) {
             console.error('Errore aggiornamento notifiche:', error);
             return { success: false, error: error.message };
@@ -300,7 +315,8 @@ const NotificationService = {
             [this.TYPES.NEW_COMMENT]: 'fa-comment',
             [this.TYPES.APP_DISCUSSION]: 'fa-comments',
             [this.TYPES.SALA_RIUNIONI]: 'fa-video',
-            [this.TYPES.HEALTH_ALERT]: 'fa-heart-pulse'
+            [this.TYPES.HEALTH_ALERT]: 'fa-heart-pulse',
+            'chat_message': 'fa-comment-dots'
         };
         return icons[type] || 'fa-bell';
     },
@@ -319,7 +335,8 @@ const NotificationService = {
             [this.TYPES.NEW_COMMENT]: 'var(--verde-700)',
             [this.TYPES.APP_DISCUSSION]: 'var(--blu-500)',
             [this.TYPES.SALA_RIUNIONI]: 'var(--blu-700)',
-            [this.TYPES.HEALTH_ALERT]: '#D32F2F'
+            [this.TYPES.HEALTH_ALERT]: '#D32F2F',
+            'chat_message': 'var(--blu-500)'
         };
         return colors[type] || 'var(--grigio-600)';
     }

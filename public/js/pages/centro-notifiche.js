@@ -300,12 +300,7 @@ const CentroNotifiche = {
                 DettaglioApp.switchTab('discussione');
             }, 800);
         } else if (taskId && taskId !== 'null' && taskId !== 'undefined' && taskId !== '') {
-            UI.showPage('task');
-            setTimeout(() => {
-                if (window.GestioneTask && typeof GestioneTask.viewTaskDetails === 'function') {
-                    GestioneTask.viewTaskDetails(taskId);
-                }
-            }, 500);
+            NotificationUI._openTaskFromNotification(taskId);
         } else {
             // Ricarica lista
             this._applyFilter();

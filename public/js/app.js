@@ -379,7 +379,8 @@ const App = {
             'contratti', 'fatture', 'report', 'promemoria', 'impostazioni', 'messaggi',
             'report-app', 'push-broadcast', 'aggiorna-push', 'monitor-rss', 'generatore-webapp', 'storico-push', 'officina-digitale',
             'dettaglio-cliente', 'dettaglio-contratto', 'dettaglio-app',
-            'dettaglio-fattura', 'dettaglio-scadenza'
+            'dettaglio-fattura', 'dettaglio-scadenza',
+            'sala-riunioni', 'centro-notifiche'   // v10.2.0: destinazioni linkTo delle notifiche
         ];
 
         // Pattern: #/pagina/id (per pagine dettaglio o deep link task)
@@ -388,18 +389,20 @@ const App = {
             const pageName = pageWithIdMatch[1];
             const id = pageWithIdMatch[2];
 
-            // Deep link Telegram per task specifico
+            // Deep link Telegram/push per task specifico
             if (pageName === 'task' && id) {
                 console.log('📱 Deep link rilevato: task', id);
-                UI.showPage('task');
+                // v10.2.0: apertura robusta (fetch by-id, niente setTimeout fisso)
+                NotificationUI._openTaskFromNotification(id);
+                return true;
+            }
 
-                // Apri dettaglio task dopo il rendering della pagina
-                setTimeout(() => {
-                    if (window.GestioneTask && typeof GestioneTask.viewTaskDetails === 'function') {
-                        GestioneTask.viewTaskDetails(id);
-                    }
-                }, 800);
-
+            // Deep link a una conversazione chat (click sulla push chat, v10.2.0)
+            if (pageName === 'messaggi' && id) {
+                if (typeof MessagingUI !== 'undefined') {
+                    MessagingUI.openPanel();
+                    MessagingUI.openChat(id);
+                }
                 return true;
             }
 
@@ -512,16 +515,16 @@ const NotificationUI = {
                 DettaglioApp.render(data.appId);
                 setTimeout(() => DettaglioApp.switchTab('discussione'), 800);
             }
-            // 4) Task
-            else if (data.taskId && data.taskId !== 'null' && data.taskId !== '') {
-                UI.showPage('task');
-                setTimeout(() => {
-                    if (window.GestioneTask && typeof GestioneTask.viewTaskDetails === 'function') {
-                        GestioneTask.viewTaskDetails(data.taskId);
-                    }
-                }, 500);
+            // 4) Messaggio chat → apri la conversazione (v10.2.0)
+            else if (data.type === 'chat_message' && data.conversationId && typeof MessagingUI !== 'undefined') {
+                MessagingUI.openPanel();
+                MessagingUI.openChat(data.conversationId);
             }
-            // 5) Fallback → centro notifiche
+            // 5) Task
+            else if (data.taskId && data.taskId !== 'null' && data.taskId !== '') {
+                this._openTaskFromNotification(data.taskId);
+            }
+            // 6) Fallback → centro notifiche
             else {
                 UI.showPage('centro-notifiche');
             }
@@ -654,15 +657,24 @@ const NotificationUI = {
                 DettaglioApp.switchTab('discussione');
             }, 800);
         } else if (taskId && taskId !== 'null' && taskId !== 'undefined' && taskId !== '') {
-            UI.showPage('task');
-            setTimeout(() => {
-                if (window.GestioneTask && typeof GestioneTask.viewTaskDetails === 'function') {
-                    GestioneTask.viewTaskDetails(taskId);
-                }
-            }, 500);
+            this._openTaskFromNotification(taskId);
         }
 
         this.updateBadge();
+    },
+
+    /**
+     * Apre il dettaglio di un task da una notifica in modo robusto.
+     * FIX (v10.2.0): prima si usava un setTimeout fisso (500ms) dopo showPage('task'),
+     * fragile su rete lenta. Ora il dettaglio è un modal indipendente dal render della
+     * pagina e viewTaskDetails carica il task per id se non è già in memoria, quindi si
+     * può aprire subito senza corse.
+     */
+    async _openTaskFromNotification(taskId) {
+        UI.showPage('task');
+        if (window.GestioneTask && typeof GestioneTask.viewTaskDetails === 'function') {
+            try { await GestioneTask.viewTaskDetails(taskId); } catch (e) { console.warn('Apertura task da notifica:', e); }
+        }
     },
 
     async markAllAsRead() {
@@ -715,24 +727,11 @@ const NotificationUI = {
                             linkToId: notifData.linkTo?.id || ''
                         };
 
-                        // Toast in-app
+                        // Toast in-app. Il banner OS (quando la tab NON è visibile) lo mostra
+                        // SOLO il Service Worker via push FCM: è l'unica sorgente dei banner,
+                        // così non si hanno doppioni (prima anche questo listener mostrava un
+                        // banner con tag diverso → due notifiche di sistema per lo stesso evento).
                         this.showToast(title, body, extra);
-
-                        // Notifica nativa Chrome (via Service Worker per banner affidabile)
-                        if (Notification.permission === 'granted' && navigator.serviceWorker) {
-                            navigator.serviceWorker.ready.then(reg => {
-                                reg.showNotification(title, {
-                                    body: body,
-                                    icon: '/img/icon-192.png',
-                                    badge: '/img/icon-72.png',
-                                    tag: 'crm-' + change.doc.id,
-                                    renotify: true,
-                                    data: extra,
-                                    vibrate: [200, 100, 200],
-                                    requireInteraction: false
-                                });
-                            }).catch(e => { /* ignora */ });
-                        }
                     }
                 });
             }, error => {

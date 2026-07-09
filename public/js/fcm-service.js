@@ -151,30 +151,11 @@ const FCMService = {
      * Usa il sistema di notifiche in-app esistente + una notifica browser nativa
      */
     _showForegroundNotification(payload) {
-        const title = payload.notification?.title || payload.data?.title || 'Notifica CRM';
-        const body = payload.notification?.body || payload.data?.body || '';
-        const data = payload.data || {};
-
-        // 1. Mostra toast popup nell'header (10 secondi)
-        if (typeof NotificationUI !== 'undefined' && NotificationUI.showToast) {
-            NotificationUI.showToast(title, body, data);
-        }
-
-        // 2. Mostra anche notifica browser nativa (se la tab non è focalizzata)
-        if (document.visibilityState !== 'visible' || !document.hasFocus()) {
-            try {
-                new Notification(title, {
-                    body: body,
-                    icon: '/img/icon-192.png',
-                    tag: data.tag || 'crm-fg-' + Date.now(),
-                    data: data
-                });
-            } catch (e) {
-                // Ignora se non riesce
-            }
-        }
-
-        // 3. Aggiorna il badge campanella e ricarica dropdown se aperto
+        // v10.2.0: nessun toast/banner emesso qui. I toast in-app arrivano dai listener
+        // Firestore LIVE (app.js NotificationUI.startUnreadListener per task/commenti/riunioni,
+        // messaging-ui per la chat); i banner OS (tab in background/chiusa) dal Service Worker.
+        // Così ogni evento produce UN solo avviso, anche se in futuro l'FCM foreground
+        // (onMessage) venisse cablato nel SW. Qui aggiorniamo solo il badge campanella.
         if (typeof NotificationUI !== 'undefined') {
             NotificationUI.updateBadge();
         }

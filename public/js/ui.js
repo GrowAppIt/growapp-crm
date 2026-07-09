@@ -1,4 +1,40 @@
 // UI Module - Gestione interfaccia utente
+
+// ============================================================================
+// HELPER SICUREZZA XSS (v10.2.0) — globali, disponibili a runtime in tutti i file
+// ----------------------------------------------------------------------------
+// REGOLA: ogni dato di provenienza utente/DB (titoli, nomi, testi, nomi file,
+// descrizioni…) che finisce dentro una template-string HTML DEVE passare da qui.
+//   escHtml(s) → per contenuto TESTUALE dentro innerHTML.
+//   escAttr(s) → per valori dentro ATTRIBUTI non eseguibili (alt/src/href/value/title).
+//                (stessa mappa di escHtml: protegge già " e ', quindi è al sicuro
+//                 dentro attributi con virgolette.)
+//   safeUrl(u) → per href/src: consente solo http(s)/mailto/tel/data:image/relativi,
+//                blocca javascript: e altri schemi. Ritorna '#' se sospetto.
+// ATTENZIONE: NON passare dati utente dentro handler inline onclick="...": le entità
+// HTML vengono decodificate PRIMA che il JS venga eseguito, quindi escHtml non
+// protegge lì. In quei casi passare SOLO id (UID Firebase, sicuri) e risolvere il
+// resto da cache/DOM. Vedi _toggleGroupUser.
+// ============================================================================
+window.escHtml = function (s) {
+    if (s === null || s === undefined) return '';
+    return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;')
+        .replace(/`/g, '&#96;');
+};
+window.escAttr = window.escHtml;
+window.safeUrl = function (u) {
+    if (u === null || u === undefined) return '#';
+    var s = String(u).trim();
+    if (/^\s*(https?:|mailto:|tel:|\/|#|\.)/i.test(s)) return window.escAttr(s);
+    if (/^data:image\//i.test(s)) return window.escAttr(s);
+    return '#';
+};
+
 const UI = {
     // === NAVIGATION ===
     // Pagina corrente (per routing hash)

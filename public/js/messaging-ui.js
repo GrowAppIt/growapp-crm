@@ -23,6 +23,7 @@ const MessagingUI = {
     _editingMessageId: null,
     _prevUnreadMap: {},        // Track unread per conversazione per rilevare nuovi messaggi
     _notificationsReady: false, // Permesso notifiche ottenuto
+    _firstConvSnapshot: true,   // Primo snapshot conversazioni: popola la mappa senza notificare
 
     // ══════════════════════════════════════════
     // INIZIALIZZAZIONE
@@ -103,6 +104,7 @@ const MessagingUI = {
         this._panelOpen = false;
         this._teamUsers = null;
         this._prevUnreadMap = {};
+        this._firstConvSnapshot = true;   // re-login senza reload: riparte come primo snapshot
     },
 
     // ══════════════════════════════════════════
@@ -193,13 +195,17 @@ const MessagingUI = {
      */
     _checkForNewMessages(conversations) {
         const myId = AuthService.getUserId();
+        // FIX (v10.2.0): al PRIMO snapshot _prevUnreadMap è vuoto, quindi ogni chat con
+        // non-letti accumulati prima del login farebbe scattare una notifica per messaggi
+        // vecchi già visti. Al primo giro popoliamo solo la mappa, senza notificare.
+        const firstRun = this._firstConvSnapshot;
 
         conversations.forEach(conv => {
             const prevUnread = this._prevUnreadMap[conv.id] || 0;
             const currUnread = conv.myUnread || 0;
 
             // Se unread è aumentato → nuovo messaggio in arrivo
-            if (currUnread > prevUnread) {
+            if (!firstRun && currUnread > prevUnread) {
                 // Non notificare se l'utente ha già aperto quella chat
                 const isViewingThis = this._panelOpen && this._view === 'chat' && this._currentConvId === conv.id;
                 if (!isViewingThis) {
@@ -210,15 +216,20 @@ const MessagingUI = {
             // Aggiorna mappa
             this._prevUnreadMap[conv.id] = currUnread;
         });
+
+        this._firstConvSnapshot = false;
     },
 
     /**
-     * Mostra una notifica browser nativa (popup Chrome)
+     * v10.2.0: mostra un TOAST IN-APP per un nuovo messaggio chat.
+     * Il banner OS (quando la tab è in background/chiusa) lo mostra SOLO il Service Worker:
+     * qui NON creiamo banner nativi per non duplicarli. Il toast arriva dallo snapshot
+     * Firestore delle conversazioni (sorgente live affidabile, indipendente dalla consegna
+     * FCM foreground). Cliccando il toast si apre la conversazione (branch chat_message).
      */
     _showBrowserNotification(conv, myId) {
-        if (!this._notificationsReady || Notification.permission !== 'granted') return;
+        if (typeof NotificationUI === 'undefined' || !NotificationUI.showToast) return;
 
-        // Costruisci titolo
         let title = 'Nuovo messaggio';
         if (conv.type === 'group') {
             title = conv.title || 'Gruppo';
@@ -228,7 +239,6 @@ const MessagingUI = {
             title = otherInfo ? otherInfo.nome : 'Nuovo messaggio';
         }
 
-        // Corpo della notifica (anteprima ultimo messaggio)
         let body = '';
         if (conv.lastMessage) {
             const lm = conv.lastMessage;
@@ -236,39 +246,14 @@ const MessagingUI = {
             else if (lm.type === 'audio') body = '🎤 Messaggio vocale';
             else if (lm.type === 'file') body = '📎 File allegato';
             else body = lm.text || '';
-
-            // Nei gruppi, mostra chi ha scritto
             if (conv.type === 'group' && lm.senderName && lm.senderId !== myId) {
                 body = lm.senderName + ': ' + body;
             }
         }
-
-        // Tronca body se troppo lungo
         if (body.length > 100) body = body.substring(0, 97) + '...';
 
-        try {
-            const notification = new Notification(title, {
-                body: body,
-                icon: '/img/logo.png',
-                badge: '/img/logo.png',
-                tag: 'chat-' + conv.id,   // Raggruppa per conversazione (sostituisce la precedente)
-                renotify: true,
-                silent: false
-            });
-
-            // Click sulla notifica → apri la chat
-            notification.onclick = () => {
-                window.focus();
-                notification.close();
-                this.openPanel();
-                this.openChat(conv.id);
-            };
-
-            // Auto-chiudi dopo 5 secondi
-            setTimeout(() => notification.close(), 5000);
-        } catch (e) {
-            console.warn('Errore notifica browser:', e);
-        }
+        // showToast escapa già title/body; il click apre la chat (type chat_message)
+        NotificationUI.showToast(title, body, { type: 'chat_message', conversationId: conv.id });
     },
 
     _updateBadge(count) {
@@ -380,7 +365,7 @@ const MessagingUI = {
                 <div style="flex:1;min-width:0;">
                     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">
                         <span style="font-weight:${isUnread ? '700' : '600'};font-size:0.9375rem;color:var(--grigio-900);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
-                            ${displayName}
+                            ${window.escHtml(displayName)}
                         </span>
                         <span style="font-size:0.6875rem;color:${isUnread ? 'var(--blu-700)' : 'var(--grigio-500)'};white-space:nowrap;margin-left:8px;font-weight:${isUnread ? '700' : '400'};">
                             ${lastTime}
@@ -388,7 +373,7 @@ const MessagingUI = {
                     </div>
                     <div style="display:flex;justify-content:space-between;align-items:center;">
                         <span style="font-size:0.8125rem;color:${isUnread ? 'var(--grigio-900)' : 'var(--grigio-500)'};font-weight:${isUnread ? '600' : '400'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;">
-                            ${lastText}
+                            ${window.escHtml(lastText)}
                         </span>
                         ${isUnread ? `
                             <span style="background:var(--blu-700);color:white;border-radius:50%;min-width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:0.6875rem;font-weight:700;margin-left:8px;">
@@ -451,7 +436,7 @@ const MessagingUI = {
                         <i class="fas fa-arrow-left"></i>
                     </button>
                     <div style="min-width:0;">
-                        <div style="font-weight:700;font-size:0.9375rem;color:white;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${headerTitle}</div>
+                        <div style="font-weight:700;font-size:0.9375rem;color:white;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${window.escHtml(headerTitle)}</div>
                         ${headerSubtitle ? `<div style="font-size:0.75rem;color:rgba(255,255,255,0.7);">${headerSubtitle}</div>` : ''}
                     </div>
                 </div>
@@ -610,7 +595,7 @@ const MessagingUI = {
 
             // Messaggio di sistema
             if (isSystem) {
-                html += `<div style="text-align:center;margin:0.5rem 0;"><span style="color:var(--grigio-500);font-size:0.8125rem;font-style:italic;">${msg.text}</span></div>`;
+                html += `<div style="text-align:center;margin:0.5rem 0;"><span style="color:var(--grigio-500);font-size:0.8125rem;font-style:italic;">${window.escHtml(msg.text)}</span></div>`;
                 lastSenderId = '';
                 return;
             }
@@ -683,7 +668,7 @@ const MessagingUI = {
                             : '<div style="width:30px;flex-shrink:0;"></div>'
                         }
                         <div style="max-width:75%;">
-                            ${showAvatar ? `<div style="font-size:0.75rem;font-weight:700;color:var(--blu-700);margin-bottom:2px;padding-left:4px;">${msg.senderName}</div>` : ''}
+                            ${showAvatar ? `<div style="font-size:0.75rem;font-weight:700;color:var(--blu-700);margin-bottom:2px;padding-left:4px;">${window.escHtml(msg.senderName)}</div>` : ''}
                             <div class="chat-msg-bubble" style="background:var(--grigio-100);color:var(--grigio-900);border-radius:4px 16px 16px 16px;padding:0.5rem 0.875rem;position:relative;"
                                  onmouseenter="MessagingUI._showMsgActions('${msg.id}')" onmouseleave="MessagingUI._hideMsgActions('${msg.id}')">
                                 ${msgActionBtn}
@@ -710,12 +695,14 @@ const MessagingUI = {
 
         // Immagine
         if (msg.type === 'image' && msg.attachment && msg.attachment.url) {
+            const imgUrl = window.safeUrl(msg.attachment.url);
             return `
                 <div style="margin:-0.25rem -0.375rem 0.25rem;">
-                    <img src="${msg.attachment.url}" alt="${msg.attachment.name || 'Immagine'}"
-                        style="max-width:100%;border-radius:8px;cursor:pointer;display:block;"
-                        onclick="window.open('${msg.attachment.url}', '_blank')"
-                        loading="lazy">
+                    <a href="${imgUrl}" target="_blank" rel="noopener">
+                        <img src="${imgUrl}" alt="${window.escAttr(msg.attachment.name || 'Immagine')}"
+                            style="max-width:100%;border-radius:8px;cursor:pointer;display:block;"
+                            loading="lazy">
+                    </a>
                 </div>
             `;
         }
@@ -724,7 +711,7 @@ const MessagingUI = {
         if (msg.type === 'audio' && msg.attachment && msg.attachment.url) {
             return `
                 <div style="display:flex;align-items:center;gap:8px;min-width:180px;">
-                    <button onclick="MessagingUI._playAudio(this, '${msg.attachment.url}')" style="width:32px;height:32px;border-radius:50%;background:${isMine ? 'rgba(255,255,255,0.2)' : 'var(--blu-100)'};border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                    <button onclick="MessagingUI._playAudio(this)" data-audio-url="${window.escAttr(msg.attachment.url)}" style="width:32px;height:32px;border-radius:50%;background:${isMine ? 'rgba(255,255,255,0.2)' : 'var(--blu-100)'};border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
                         <i class="fas fa-play" style="color:${isMine ? 'white' : 'var(--blu-700)'};font-size:0.75rem;margin-left:2px;"></i>
                     </button>
                     <div style="flex:1;">
@@ -745,12 +732,12 @@ const MessagingUI = {
             const sizeLabel = msg.attachment.size ? MessagingService.formatFileSize(msg.attachment.size) : '';
 
             return `
-                <a href="${msg.attachment.url}" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:10px;text-decoration:none;color:inherit;padding:0.25rem 0;">
+                <a href="${window.safeUrl(msg.attachment.url)}" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:10px;text-decoration:none;color:inherit;padding:0.25rem 0;">
                     <div style="width:36px;height:36px;border-radius:8px;background:${isMine ? 'rgba(255,255,255,0.15)' : 'var(--blu-100)'};display:flex;align-items:center;justify-content:center;flex-shrink:0;">
                         <i class="fas ${icon}" style="font-size:1rem;color:${isMine ? 'white' : 'var(--blu-700)'};"></i>
                     </div>
                     <div style="flex:1;min-width:0;">
-                        <div style="font-size:0.8125rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${msg.attachment.name || 'File'}</div>
+                        <div style="font-size:0.8125rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${window.escHtml(msg.attachment.name || 'File')}</div>
                         <div style="font-size:0.6875rem;opacity:0.7;">${sizeLabel}</div>
                     </div>
                     <i class="fas fa-download" style="font-size:0.75rem;opacity:0.6;"></i>
@@ -1190,6 +1177,10 @@ const MessagingUI = {
     _activeAudio: null,
 
     _playAudio(btn, url) {
+        // L'URL arriva dal data-attribute (evita di interpolarlo in onclick — XSS-safe)
+        if (!url) url = btn.getAttribute('data-audio-url') || '';
+        if (!url) return;
+
         // Ferma audio precedente
         if (this._activeAudio) {
             this._activeAudio.pause();
@@ -1296,8 +1287,8 @@ const MessagingUI = {
                 <div class="chat-conv-item" onclick="MessagingUI._startDirectChat('${user.id}')">
                     ${avatar}
                     <div style="flex:1;min-width:0;">
-                        <div style="font-weight:600;font-size:0.9375rem;color:var(--grigio-900);">${user.nomeCompleto}</div>
-                        <div style="font-size:0.75rem;color:var(--grigio-500);">${ruoloLabel}</div>
+                        <div style="font-weight:600;font-size:0.9375rem;color:var(--grigio-900);">${window.escHtml(user.nomeCompleto)}</div>
+                        <div style="font-size:0.75rem;color:var(--grigio-500);">${window.escHtml(ruoloLabel)}</div>
                     </div>
                 </div>
             `;
@@ -1365,11 +1356,11 @@ const MessagingUI = {
                     const pres = this._presenceCache[user.id] || {};
                     const avatar = MessagingService.renderAvatar(user.nomeCompleto, user.photoURL, 36, pres.presenceState);
                     return `
-                        <div class="chat-conv-item" id="groupUser_${user.id}" onclick="MessagingUI._toggleGroupUser('${user.id}', '${user.nomeCompleto.replace(/'/g, "\\'")}')">
+                        <div class="chat-conv-item" id="groupUser_${user.id}" onclick="MessagingUI._toggleGroupUser('${user.id}')">
                             ${avatar}
                             <div style="flex:1;min-width:0;">
-                                <div style="font-weight:600;font-size:0.875rem;color:var(--grigio-900);">${user.nomeCompleto}</div>
-                                <div style="font-size:0.75rem;color:var(--grigio-500);">${AuthService.ROLE_LABELS[user.ruolo] || user.ruolo}</div>
+                                <div style="font-weight:600;font-size:0.875rem;color:var(--grigio-900);">${window.escHtml(user.nomeCompleto)}</div>
+                                <div style="font-size:0.75rem;color:var(--grigio-500);">${window.escHtml(AuthService.ROLE_LABELS[user.ruolo] || user.ruolo)}</div>
                             </div>
                             <div id="groupCheck_${user.id}" style="width:22px;height:22px;border-radius:50%;border:2px solid var(--grigio-300);display:flex;align-items:center;justify-content:center;transition:all 0.2s;"></div>
                         </div>
@@ -1391,6 +1382,11 @@ const MessagingUI = {
     _selectedGroupUsers: [],
 
     _toggleGroupUser(userId, userName) {
+        // Il nome non viaggia più nell'onclick (XSS-safe): risolvilo dalla cache team
+        if (!userName) {
+            const u = (this._teamUsers || []).find(x => x.id === userId);
+            userName = u ? u.nomeCompleto : '';
+        }
         const idx = this._selectedGroupUsers.findIndex(u => u.id === userId);
         const check = document.getElementById('groupCheck_' + userId);
 
@@ -1414,7 +1410,7 @@ const MessagingUI = {
         const selectedDiv = document.getElementById('chatGroupSelected');
         if (selectedDiv) {
             selectedDiv.innerHTML = this._selectedGroupUsers.map(u => `
-                <span style="background:var(--blu-100);color:var(--blu-700);padding:3px 10px;border-radius:12px;font-size:0.75rem;font-weight:600;">${u.nome}</span>
+                <span style="background:var(--blu-100);color:var(--blu-700);padding:3px 10px;border-radius:12px;font-size:0.75rem;font-weight:600;">${window.escHtml(u.nome)}</span>
             `).join('');
         }
     },
@@ -1684,6 +1680,7 @@ const MessagingUI = {
         switch (state) {
             case 'online': return 'Online';
             case 'idle': return 'Inattivo';
+            case 'occupato': return 'Occupato';
             case 'non_disturbare': return 'Non disturbare';
             case 'in_ferie': return 'Assente';
             default: return 'Offline';
@@ -1728,16 +1725,16 @@ const MessagingUI = {
                     ${MessagingService.renderAvatar(info.nome, info.photoURL, 36, pres.presenceState)}
                     <div style="flex:1;">
                         <div style="font-weight:600;font-size:0.875rem;color:var(--grigio-900);">
-                            ${info.nome} ${isCreator ? '<span style="background:var(--blu-100);color:var(--blu-700);padding:1px 6px;border-radius:3px;font-size:0.6875rem;font-weight:700;margin-left:4px;">Admin</span>' : ''}
+                            ${window.escHtml(info.nome)} ${isCreator ? '<span style="background:var(--blu-100);color:var(--blu-700);padding:1px 6px;border-radius:3px;font-size:0.6875rem;font-weight:700;margin-left:4px;">Admin</span>' : ''}
                         </div>
-                        <div style="font-size:0.75rem;color:var(--grigio-500);">${info.ruolo ? (AuthService.ROLE_LABELS[info.ruolo] || info.ruolo) : ''}</div>
+                        <div style="font-size:0.75rem;color:var(--grigio-500);">${window.escHtml(info.ruolo ? (AuthService.ROLE_LABELS[info.ruolo] || info.ruolo) : '')}</div>
                     </div>
                 </div>
             `;
         }).join('');
 
         FormsManager.showModal(
-            `<i class="fas fa-users" style="color:var(--blu-700);"></i> ${conv.title || 'Gruppo'}`,
+            `<i class="fas fa-users" style="color:var(--blu-700);"></i> ${window.escHtml(conv.title || 'Gruppo')}`,
             `<div style="padding:0.5rem 0;">
                 <div style="font-size:0.8125rem;font-weight:600;color:var(--grigio-500);margin-bottom:0.5rem;">
                     ${Object.keys(conv.participantInfo || {}).length} partecipanti
@@ -1755,7 +1752,7 @@ const MessagingUI = {
         FormsManager.showModal(
             '<i class="fas fa-sign-out-alt" style="color:var(--giallo-avviso);"></i> Abbandona gruppo',
             `<div style="padding:1rem 0;">
-                <p style="color:var(--grigio-900);font-size:0.9375rem;margin:0 0 0.5rem;">Vuoi abbandonare <strong>${groupName}</strong>?</p>
+                <p style="color:var(--grigio-900);font-size:0.9375rem;margin:0 0 0.5rem;">Vuoi abbandonare <strong>${window.escHtml(groupName)}</strong>?</p>
                 <p style="color:var(--grigio-500);font-size:0.8125rem;margin:0;">Non riceverai più i messaggi di questo gruppo.</p>
             </div>`,
             async () => {
@@ -1786,7 +1783,7 @@ const MessagingUI = {
         FormsManager.showModal(
             title,
             `<div style="padding:1rem 0;">
-                <p style="color:var(--grigio-900);font-size:0.9375rem;margin:0 0 0.5rem;">Vuoi eliminare definitivamente <strong>${displayName}</strong>?</p>
+                <p style="color:var(--grigio-900);font-size:0.9375rem;margin:0 0 0.5rem;">Vuoi eliminare definitivamente <strong>${window.escHtml(displayName)}</strong>?</p>
                 <p style="color:var(--rosso-errore);font-size:0.8125rem;margin:0;"><i class="fas fa-exclamation-triangle"></i> Tutti i messaggi verranno cancellati per sempre. Questa azione non è reversibile.</p>
             </div>`,
             async () => {

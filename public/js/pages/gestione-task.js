@@ -98,9 +98,21 @@ const GestioneTask = {
     },
 
     renderFiltri() {
+        // Chicca (v10.2.0): conteggio "I miei task da fare" (assegnati a me, non completati)
+        const _myId = AuthService.getUserId();
+        const _mieiCount = this.tasks.filter(t => !t.archiviato && t.stato !== TaskService.STATI.DONE && t.assegnatiA && t.assegnatiA.includes(_myId)).length;
+        const _mieiOn = !!this.filtri.mieiTask;
         return `
             <div class="card mb-3">
                 <div class="card-body" style="padding: 1rem;">
+                    <!-- Chip filtro rapido "I miei task da fare" -->
+                    <div style="margin-bottom: 1rem;">
+                        <button id="chipMieiTask" onclick="GestioneTask.toggleMieiTask()"
+                            style="display:inline-flex;align-items:center;gap:8px;padding:0.5rem 1rem;border-radius:20px;border:2px solid var(--blu-300);background:${_mieiOn ? 'var(--blu-700)' : '#fff'};color:${_mieiOn ? '#fff' : 'var(--blu-700)'};font-family:'Titillium Web',sans-serif;font-weight:700;font-size:0.875rem;cursor:pointer;transition:all .2s;">
+                            <i class="fas fa-user-check"></i> I miei task da fare
+                            <span style="background:${_mieiOn ? 'rgba(255,255,255,0.25)' : 'var(--blu-100)'};color:${_mieiOn ? '#fff' : 'var(--blu-700)'};border-radius:10px;padding:1px 8px;font-size:0.75rem;">${_mieiCount}</span>
+                        </button>
+                    </div>
                     <!-- Campo Ricerca Testuale -->
                     <div style="margin-bottom: 1rem;">
                         <div style="position: relative;">
@@ -142,7 +154,7 @@ const GestioneTask = {
                                 <option value="">Tutte le app</option>
                                 <option value="__generic__">Task generici (senza app)</option>
                                 ${this.apps.map(app => `
-                                    <option value="${app.id}">${app.nome}</option>
+                                    <option value="${app.id}">${window.escHtml(app.nome)}</option>
                                 `).join('')}
                             </select>
                         </div>
@@ -157,7 +169,7 @@ const GestioneTask = {
                                 <option value="">Tutti gli utenti</option>
                                 <option value="__unassigned__">Non assegnati</option>
                                 ${this.utenti.map(u => `
-                                    <option value="${u.uid}">${u.nome} ${u.cognome}</option>
+                                    <option value="${u.uid}">${window.escHtml((u.nome || '') + ' ' + (u.cognome || ''))}</option>
                                 `).join('')}
                             </select>
                         </div>
@@ -300,7 +312,7 @@ const GestioneTask = {
                     <!-- Riga 1: Titolo + Priorità -->
                     <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.5rem;">
                         <h4 style="font-size: 0.9375rem; font-weight: 700; color: var(--grigio-900); flex: 1; margin-right: 0.5rem; line-height: 1.3;">
-                            ${task.titolo}
+                            ${window.escHtml(task.titolo)}
                         </h4>
                         <span style="background: ${priorityConfig.bg}; color: ${priorityConfig.text}; padding: 2px 8px; border-radius: 4px; font-size: 0.6875rem; font-weight: 700; white-space: nowrap; text-transform: uppercase; letter-spacing: 0.3px;">
                             ${task.priorita}
@@ -311,7 +323,7 @@ const GestioneTask = {
                     <div style="display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 0.625rem;">
                         ${appNames.map(nome => `
                             <span style="background: var(--blu-100); color: var(--blu-700); padding: 3px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">
-                                <i class="fas fa-mobile-alt" style="font-size: 0.625rem;"></i> ${nome}
+                                <i class="fas fa-mobile-alt" style="font-size: 0.625rem;"></i> ${window.escHtml(nome)}
                             </span>
                         `).join('')}
                     </div>
@@ -319,7 +331,7 @@ const GestioneTask = {
                     <!-- Riga 3: Descrizione -->
                     ${task.descrizione ? `
                         <p style="color: var(--grigio-600); font-size: 0.8125rem; margin-bottom: 0.625rem; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
-                            ${task.descrizione}
+                            ${window.escHtml(task.descrizione)}
                         </p>
                     ` : ''}
 
@@ -330,7 +342,7 @@ const GestioneTask = {
                             <span style="color: var(--grigio-500); min-width: 70px; font-weight: 600;">
                                 <i class="fas fa-user-edit" style="width: 14px;"></i> Aperto da
                             </span>
-                            <span style="color: var(--grigio-800); font-weight: 600;">${task.creatoDaNome || 'Sconosciuto'}</span>
+                            <span style="color: var(--grigio-800); font-weight: 600;">${window.escHtml(task.creatoDaNome || 'Sconosciuto')}</span>
                         </div>
                         <!-- Assegnato a -->
                         <div style="display: flex; align-items: center; gap: 6px; font-size: 0.8125rem;">
@@ -341,7 +353,7 @@ const GestioneTask = {
                                 <div style="display: flex; flex-wrap: wrap; gap: 4px;">
                                     ${assegnati.map(nome => `
                                         <span style="background: var(--verde-100); color: var(--verde-900); padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">
-                                            ${nome}
+                                            ${window.escHtml(nome)}
                                         </span>
                                     `).join('')}
                                 </div>
@@ -527,6 +539,23 @@ const GestioneTask = {
     },
 
     // Applica filtri
+    // Chicca (v10.2.0): attiva/disattiva la vista "solo i miei task da fare"
+    toggleMieiTask() {
+        this.filtri.mieiTask = !this.filtri.mieiTask;
+        const chip = document.getElementById('chipMieiTask');
+        if (chip) {
+            const on = this.filtri.mieiTask;
+            chip.style.background = on ? 'var(--blu-700)' : '#fff';
+            chip.style.color = on ? '#fff' : 'var(--blu-700)';
+            const span = chip.querySelector('span');
+            if (span) {
+                span.style.background = on ? 'rgba(255,255,255,0.25)' : 'var(--blu-100)';
+                span.style.color = on ? '#fff' : 'var(--blu-700)';
+            }
+        }
+        this.reloadTasks();
+    },
+
     applicaFiltri() {
         this.filtri.appId = document.getElementById('filtroApp').value || null;
         this.filtri.assegnatoA = document.getElementById('filtroAssegnatario').value || null;
@@ -539,17 +568,30 @@ const GestioneTask = {
     },
 
     resetFiltri() {
-        this.filtri = { appId: null, assegnatoA: null, priorita: null, mostraArchiviati: false, searchText: null };
+        this.filtri = { appId: null, assegnatoA: null, priorita: null, mostraArchiviati: false, searchText: null, mieiTask: false };
         document.getElementById('filtroApp').value = '';
         document.getElementById('filtroAssegnatario').value = '';
         document.getElementById('filtroPriorita').value = '';
         document.getElementById('mostraArchiviati').checked = false;
         document.getElementById('searchTask').value = '';
+        const chip = document.getElementById('chipMieiTask');
+        if (chip) {
+            chip.style.background = '#fff';
+            chip.style.color = 'var(--blu-700)';
+            const s = chip.querySelector('span');
+            if (s) { s.style.background = 'var(--blu-100)'; s.style.color = 'var(--blu-700)'; }
+        }
         this.reloadTasks();
     },
 
     getTasksFiltrati() {
         let filtered = [...this.tasks];
+
+        // Chicca (v10.2.0): "I miei task da fare" — assegnati a me e non completati
+        if (this.filtri.mieiTask) {
+            const myId = AuthService.getUserId();
+            filtered = filtered.filter(t => t.stato !== TaskService.STATI.DONE && t.assegnatiA && t.assegnatiA.includes(myId));
+        }
 
         // 🗄️ FILTRO ARCHIVIATI (nuovo!)
         if (!this.filtri.mostraArchiviati) {
@@ -671,7 +713,7 @@ const GestioneTask = {
                                     style="width: 100%; padding: 0.75rem; border: 1px solid var(--grigio-300); border-radius: 6px;">
                                 <option value="">-- Nessuna app (task generico) --</option>
                                 ${this.apps.map(app => `
-                                    <option value="${app.id}" ${app.id === preSelectedAppId ? 'selected' : ''}>${app.nome}</option>
+                                    <option value="${app.id}" ${app.id === preSelectedAppId ? 'selected' : ''}>${window.escHtml(app.nome)}</option>
                                 `).join('')}
                             </select>
                             <small style="color: var(--grigio-600); font-size: 0.875rem;">
@@ -702,7 +744,7 @@ const GestioneTask = {
                                     style="width: 100%; padding: 0.75rem; border: 1px solid var(--grigio-300); border-radius: 6px;">
                                 <option value="">-- Nessuno (task pool) --</option>
                                 ${this.utenti.map(u => `
-                                    <option value="${u.uid}" data-nome="${u.nome} ${u.cognome}">${u.nome} ${u.cognome}</option>
+                                    <option value="${u.uid}" data-nome="${window.escAttr((u.nome || '') + ' ' + (u.cognome || ''))}">${window.escHtml((u.nome || '') + ' ' + (u.cognome || ''))}</option>
                                 `).join('')}
                             </select>
                             <small style="color: var(--grigio-600); font-size: 0.875rem;">
@@ -846,7 +888,20 @@ const GestioneTask = {
         this.commentiCaricati = false;
         this.commentiAperti = false;
 
-        const task = this.tasks.find(t => t.id === taskId);
+        // Evita modali duplicati (doppio click / apertura da notifica) e stacca il
+        // listener commenti del task precedente (anche in caso di return anticipato).
+        this._stopCommentiListener();
+        const existingModal = document.getElementById('taskDetailModal');
+        if (existingModal) existingModal.remove();
+
+        // FIX (v10.2.0): se il task non è nella lista in memoria (lista filtrata per
+        // utente, oppure apertura da notifica prima del caricamento pagina), caricalo
+        // per id. Prima falliva con "Task non trovato" o dipendeva da setTimeout fragili.
+        let task = this.tasks.find(t => t.id === taskId);
+        if (!task) {
+            const r = await TaskService.getTask(taskId);
+            if (r && r.success) task = r.task;
+        }
         if (!task) {
             UI.showError('Task non trovato');
             return;
@@ -870,7 +925,7 @@ const GestioneTask = {
                     <div style="padding: 1.5rem; border-bottom: 2px solid var(--grigio-300); display: flex; justify-content: space-between; align-items: start; position: sticky; top: 0; background: white; z-index: 1;">
                         <div style="flex: 1;">
                             <h2 style="font-size: 1.5rem; font-weight: 700; color: var(--blu-700); margin-bottom: 0.75rem;">
-                                <i class="fas fa-tasks"></i> ${task.titolo}
+                                <i class="fas fa-tasks"></i> ${window.escHtml(task.titolo)}
                             </h2>
                             <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
                                 <span style="background: ${stateConfig.bg}; color: ${stateConfig.text}; padding: 0.25rem 0.75rem; border-radius: 4px; font-size: 0.875rem; font-weight: 600;">
@@ -902,7 +957,7 @@ const GestioneTask = {
                                 </button>
                             </div>
                         </div>
-                        <button onclick="document.getElementById('taskDetailModal').remove()" style="background: none; border: none; font-size: 1.5rem; color: var(--grigio-600); cursor: pointer; padding: 0; margin-left: 1rem;">
+                        <button onclick="GestioneTask.closeTaskDetail()" style="background: none; border: none; font-size: 1.5rem; color: var(--grigio-600); cursor: pointer; padding: 0; margin-left: 1rem;">
                             <i class="fas fa-times"></i>
                         </button>
                     </div>
@@ -915,7 +970,7 @@ const GestioneTask = {
                                 <h3 style="font-size: 1.125rem; font-weight: 700; color: var(--grigio-900); margin-bottom: 0.5rem;">
                                     <i class="fas fa-align-left"></i> Descrizione
                                 </h3>
-                                <p style="color: var(--grigio-700); line-height: 1.6; white-space: pre-wrap;">${task.descrizione}</p>
+                                <p style="color: var(--grigio-700); line-height: 1.6; white-space: pre-wrap;">${window.escHtml(task.descrizione)}</p>
                             </div>
                         ` : ''}
 
@@ -926,16 +981,26 @@ const GestioneTask = {
                                 <h4 style="font-size: 0.875rem; font-weight: 700; color: var(--grigio-600); margin-bottom: 0.5rem; text-transform: uppercase;">
                                     <i class="fas fa-users"></i> Assegnato a
                                 </h4>
-                                <p style="color: var(--grigio-900);">
+                                <div style="display:flex;flex-direction:column;gap:6px;color: var(--grigio-900);">
                                     ${(() => {
-                                        const assegnati = task.assegnatiANomi || (task.assegnatoANome ? [task.assegnatoANome] : []);
-                                        if (assegnati.length > 0) {
-                                            return assegnati.join(', ');
-                                        } else {
+                                        const ids = task.assegnatiA || [];
+                                        const nomi = task.assegnatiANomi || (task.assegnatoANome ? [task.assegnatoANome] : []);
+                                        if (nomi.length === 0) {
                                             return '<span style="color: var(--giallo-avviso);"><i class="fas fa-user-slash"></i> Non assegnato (pool)</span>';
                                         }
+                                        // Chicca (v10.2.0): accanto a ogni collega assegnato, un pulsante
+                                        // "Scrivi in chat" che apre la conversazione diretta al volo.
+                                        const myId = AuthService.getUserId();
+                                        return nomi.map((n, i) => {
+                                            const uid = ids[i];
+                                            const canChat = uid && uid !== myId && typeof MessagingUI !== 'undefined';
+                                            const chatBtn = canChat
+                                                ? `<button onclick="MessagingUI.openDirectChat('${uid}')" title="Scrivi in chat" style="background:var(--blu-100);color:var(--blu-700);border:none;border-radius:6px;width:26px;height:26px;cursor:pointer;flex-shrink:0;"><i class="fas fa-comment-dots" style="font-size:0.75rem;"></i></button>`
+                                                : '';
+                                            return `<span style="display:inline-flex;align-items:center;gap:8px;">${window.escHtml(n)}${chatBtn}</span>`;
+                                        }).join('');
                                     })()}
-                                </p>
+                                </div>
                             </div>
 
                             <!-- Scadenza -->
@@ -958,7 +1023,7 @@ const GestioneTask = {
                                         <i class="fas fa-mobile-alt"></i> App
                                     </h4>
                                     <p style="color: var(--grigio-900);">
-                                        ${appsNomi.join(', ')}
+                                        ${appsNomi.map(n => window.escHtml(n)).join(', ')}
                                     </p>
                                 </div>
                             ` : '<div></div>'}
@@ -969,7 +1034,7 @@ const GestioneTask = {
                                     <i class="fas fa-user-plus"></i> Creato
                                 </h4>
                                 <p style="color: var(--grigio-900);">
-                                    ${task.creatoDaNome || 'Sconosciuto'}<br>
+                                    ${window.escHtml(task.creatoDaNome || 'Sconosciuto')}<br>
                                     <small style="color: var(--grigio-600);">${TaskService.formatDateTime(task.creatoIl)}</small>
                                 </p>
                             </div>
@@ -993,7 +1058,7 @@ const GestioneTask = {
                                 <h3 style="font-size: 1.125rem; font-weight: 700; color: var(--grigio-900); margin-bottom: 0.5rem;">
                                     <i class="fas fa-sticky-note"></i> Note
                                 </h3>
-                                <p style="color: var(--grigio-700); line-height: 1.6; white-space: pre-wrap;">${task.note}</p>
+                                <p style="color: var(--grigio-700); line-height: 1.6; white-space: pre-wrap;">${window.escHtml(task.note)}</p>
                             </div>
                         ` : ''}
 
@@ -1007,13 +1072,13 @@ const GestioneTask = {
                                     ${task.storia.slice().reverse().map(entry => `
                                         <div style="margin-bottom: 1rem;">
                                             <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem;">
-                                                <strong style="color: var(--blu-700);">${entry.utente}</strong>
+                                                <strong style="color: var(--blu-700);">${window.escHtml(entry.utente)}</strong>
                                                 <span style="color: var(--grigio-600); font-size: 0.875rem;">
-                                                    ${entry.azione}
+                                                    ${window.escHtml(entry.azione)}
                                                 </span>
                                             </div>
                                             <p style="color: var(--grigio-700); font-size: 0.875rem; margin-bottom: 0.25rem;">
-                                                ${entry.dettagli}
+                                                ${window.escHtml(entry.dettagli)}
                                             </p>
                                             <small style="color: var(--grigio-500); font-size: 0.75rem;">
                                                 ${entry.timestamp ? TaskService.formatDateTime(entry.timestamp) : 'Data sconosciuta'}
@@ -1097,7 +1162,7 @@ const GestioneTask = {
 
                     <!-- Footer con azioni -->
                     <div style="padding: 1.5rem; border-top: 1px solid var(--grigio-300); display: flex; justify-content: flex-end; gap: 0.5rem; background: var(--grigio-100);">
-                        <button onclick="document.getElementById('taskDetailModal').remove()" class="btn btn-secondary">
+                        <button onclick="GestioneTask.closeTaskDetail()" class="btn btn-secondary">
                             <i class="fas fa-times"></i> Chiudi
                         </button>
                     </div>
@@ -1107,16 +1172,16 @@ const GestioneTask = {
 
         document.body.insertAdjacentHTML('beforeend', modalHtml);
 
-        // Carica conteggio commenti per il badge e i commenti stessi (sezione aperta di default)
+        // Conteggio commenti per il badge; la lista è in TEMPO REALE (listener onSnapshot).
         this.loadCommentiCount(taskId);
         this.commentiAperti = true;
         this.commentiCaricati = false;
-        this.loadCommenti(taskId);
+        this._startCommentiListener(taskId);
 
-        // Chiudi cliccando fuori
+        // Chiudi cliccando fuori (stacca anche il listener commenti)
         document.getElementById('taskDetailModal').addEventListener('click', (e) => {
             if (e.target.id === 'taskDetailModal') {
-                document.getElementById('taskDetailModal').remove();
+                this.closeTaskDetail();
             }
         });
     },
@@ -1162,7 +1227,7 @@ const GestioneTask = {
                     </div>
                     <form id="reassignForm" style="padding: 1.5rem;">
                         <p style="margin-bottom: 1rem; color: var(--grigio-700);">
-                            <strong>${task.titolo}</strong>
+                            <strong>${window.escHtml(task.titolo)}</strong>
                         </p>
                         <label style="display: block; font-weight: 600; color: var(--grigio-900); margin-bottom: 0.5rem;">
                             Assegna a:
@@ -1171,8 +1236,8 @@ const GestioneTask = {
                                 style="width: 100%; padding: 0.75rem; border: 1px solid var(--grigio-300); border-radius: 6px; margin-bottom: 1rem;">
                             <option value="">-- Nessuno (rimuovi tutti) --</option>
                             ${this.utenti.map(u => `
-                                <option value="${u.uid}" ${currentAssegnati.includes(u.uid) ? 'selected' : ''} data-nome="${u.nome} ${u.cognome}">
-                                    ${u.nome} ${u.cognome}
+                                <option value="${u.uid}" ${currentAssegnati.includes(u.uid) ? 'selected' : ''} data-nome="${window.escAttr((u.nome || '') + ' ' + (u.cognome || ''))}">
+                                    ${window.escHtml((u.nome || '') + ' ' + (u.cognome || ''))}
                                 </option>
                             `).join('')}
                         </select>
@@ -1408,6 +1473,54 @@ const GestioneTask = {
 
     commentiCaricati: false,
     commentiAperti: false,
+    _commentiListener: null,
+
+    /**
+     * Chicca (v10.2.0): commenti in TEMPO REALE.
+     * Ascolta la collection 'commenti' per il task aperto e ridisegna la discussione
+     * appena arriva un nuovo commento (di chiunque), senza ricaricare la pagina.
+     */
+    _startCommentiListener(taskId) {
+        this._stopCommentiListener();
+        try {
+            this._commentiListener = db.collection('commenti')
+                .where('taskId', '==', taskId)
+                .orderBy('creatoIl', 'asc')
+                .onSnapshot(snap => {
+                    const commenti = [];
+                    snap.forEach(doc => commenti.push({ id: doc.id, ...doc.data() }));
+                    this.commentiCaricati = true;
+                    // Ridisegna solo se il modal del task è ancora aperto
+                    if (document.getElementById('commentiList')) {
+                        this.renderCommenti(commenti, taskId);
+                    }
+                    const badge = document.getElementById('badgeCommentiCount');
+                    if (badge) badge.textContent = commenti.length;
+                }, err => {
+                    console.warn('Listener commenti fallito, uso caricamento singolo:', err.message);
+                    this.caricaCommenti(taskId);
+                });
+        } catch (e) {
+            console.warn('Impossibile avviare listener commenti:', e);
+            this.caricaCommenti(taskId);
+        }
+    },
+
+    _stopCommentiListener() {
+        if (this._commentiListener) {
+            try { this._commentiListener(); } catch (e) { /* noop */ }
+            this._commentiListener = null;
+        }
+    },
+
+    /**
+     * Chiude il modal dettaglio task e stacca il listener commenti (evita leak).
+     */
+    closeTaskDetail() {
+        this._stopCommentiListener();
+        const m = document.getElementById('taskDetailModal');
+        if (m) m.remove();
+    },
 
     /**
      * Toggle espansione/compressione sezione commenti
@@ -1520,9 +1633,9 @@ const GestioneTask = {
                     allegatiHtml += `
                         <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.5rem;">
                             ${immagini.map(img => `
-                                <a href="${img.url}" target="_blank" title="${img.nome}" style="display: block; border-radius: 8px; overflow: hidden; border: 2px solid var(--grigio-300); transition: border-color 0.2s;"
+                                <a href="${window.safeUrl(img.url)}" target="_blank" rel="noopener" title="${window.escAttr(img.nome)}" style="display: block; border-radius: 8px; overflow: hidden; border: 2px solid var(--grigio-300); transition: border-color 0.2s;"
                                    onmouseover="this.style.borderColor='var(--blu-500)'" onmouseout="this.style.borderColor='var(--grigio-300)'">
-                                    <img src="${img.url}" alt="${img.nome}"
+                                    <img src="${window.safeUrl(img.url)}" alt="${window.escAttr(img.nome)}"
                                          style="max-width: 200px; max-height: 150px; object-fit: cover; display: block; cursor: pointer;"
                                          loading="lazy" />
                                 </a>
@@ -1536,10 +1649,10 @@ const GestioneTask = {
                         const icon = doc.tipo === 'application/pdf' ? 'fa-file-pdf' : 'fa-file-word';
                         const color = doc.tipo === 'application/pdf' ? '#D32F2F' : 'var(--blu-700)';
                         return `
-                            <a href="${doc.url}" target="_blank" style="display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.375rem 0.625rem; background: white; border: 1px solid var(--grigio-300); border-radius: 6px; font-size: 0.8125rem; color: var(--grigio-900); text-decoration: none; margin-right: 0.5rem; margin-bottom: 0.25rem; transition: border-color 0.2s;"
+                            <a href="${window.safeUrl(doc.url)}" target="_blank" rel="noopener" style="display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.375rem 0.625rem; background: white; border: 1px solid var(--grigio-300); border-radius: 6px; font-size: 0.8125rem; color: var(--grigio-900); text-decoration: none; margin-right: 0.5rem; margin-bottom: 0.25rem; transition: border-color 0.2s;"
                                onmouseover="this.style.borderColor='var(--blu-500)'" onmouseout="this.style.borderColor='var(--grigio-300)'">
                                 <i class="fas ${icon}" style="color: ${color}; font-size: 1.125rem;"></i>
-                                <span style="max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${doc.nome}</span>
+                                <span style="max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${window.escHtml(doc.nome)}</span>
                                 <span style="color: var(--grigio-500); font-size: 0.75rem;">${CommentService.formatDimensione(doc.dimensione)}</span>
                             </a>
                         `;
@@ -1553,14 +1666,14 @@ const GestioneTask = {
                 <div style="display: flex; gap: 10px; margin-bottom: 1rem; ${isAutore ? 'flex-direction: row-reverse;' : ''}">
                     <!-- Avatar -->
                     <div style="width: 36px; height: 36px; border-radius: 50%; background: ${avatarColor}; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 0.8125rem; font-weight: 700; flex-shrink: 0; font-family: Titillium Web, sans-serif;">
-                        ${iniziali}
+                        ${window.escHtml(iniziali)}
                     </div>
                     <!-- Bolla messaggio -->
                     <div style="flex: 1; max-width: 85%; background: ${isAutore ? 'var(--verde-100)' : 'var(--blu-100)'}; border-radius: ${isAutore ? '12px 2px 12px 12px' : '2px 12px 12px 12px'}; padding: 0.75rem 1rem; position: relative;">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.375rem;">
                             <div style="display: flex; align-items: center; gap: 6px;">
                                 <strong style="color: ${avatarColor}; font-size: 0.8125rem; font-family: Titillium Web, sans-serif;">
-                                    ${commento.autoreNome}
+                                    ${window.escHtml(commento.autoreNome)}
                                 </strong>
                                 ${isAutore ? '<span style="background: var(--verde-700); color: white; padding: 1px 6px; border-radius: 3px; font-size: 0.6875rem; font-weight: 600;">Tu</span>' : ''}
                             </div>
@@ -1581,7 +1694,7 @@ const GestioneTask = {
                         </div>
                         ${commento.testo ? `
                             <p style="color: var(--grigio-900); line-height: 1.5; white-space: pre-wrap; margin: 0; font-size: 0.875rem;">
-                                ${commento.testo}
+                                ${window.escHtml(commento.testo)}
                             </p>
                         ` : ''}
                         ${allegati.length > 0 ? `<div style="margin-top: 4px; font-size: 0.75rem; color: var(--blu-700);"><i class="fas fa-paperclip"></i> ${allegati.length} allegat${allegati.length === 1 ? 'o' : 'i'}</div>` : ''}
@@ -1622,7 +1735,7 @@ const GestioneTask = {
                 return `
                     <div style="display: flex; align-items: center; gap: 0.5rem; padding: 0.375rem 0.75rem; background: white; border: 1px solid var(--grigio-300); border-radius: 6px; font-size: 0.8125rem;">
                         <i class="fas ${icon}" style="color: ${color};"></i>
-                        <span style="max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${file.name}</span>
+                        <span style="max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${window.escHtml(file.name)}</span>
                         <span style="color: var(--grigio-500); font-size: 0.75rem;">${CommentService.formatDimensione(file.size)}</span>
                         <button type="button" onclick="GestioneTask.rimuoviFileAllegato(${i})" style="background: none; border: none; color: var(--rosso-errore); cursor: pointer; padding: 0; font-size: 0.875rem;">
                             <i class="fas fa-times-circle"></i>

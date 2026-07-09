@@ -196,25 +196,20 @@ const CommentService = {
                 }
             });
 
-            // Crea le notifiche usando lo schema di NotificationService
-            const batch = db.batch();
-
-            destinatari.forEach(userId => {
-                const notificaRef = db.collection('notifications').doc();
-                batch.set(notificaRef, {
-                    userId: userId,
+            // FIX (v10.2.0): usa NotificationService così scrive il doc notifica E invia
+            // la push FCM. Prima il batch grezzo saltava la push, quindi i commenti erano
+            // l'unica azione che NON avvisava chi aveva l'app chiusa. Nessun linkTo: il
+            // routing verso il dettaglio task usa il ramo dedicato su taskId.
+            const destinatariArray = Array.from(destinatari);
+            if (destinatariArray.length > 0) {
+                await NotificationService.createNotificationsForUsers(destinatariArray, {
                     type: NotificationService.TYPES.NEW_COMMENT,
                     title: `Nuovo commento su "${task.titolo}"`,
                     message: `${autoreNome} ha commentato il task`,
                     taskId: taskId,
-                    commentoId: commentoId,
-                    appId: null,
-                    read: false,
-                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                    appId: (task.appIds && task.appIds[0]) || null
                 });
-            });
-
-            await batch.commit();
+            }
 
             return {
                 success: true,
