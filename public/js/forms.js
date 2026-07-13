@@ -366,6 +366,34 @@ const FormsManager = {
         return data;
     },
 
+    // Normalizza QUALSIASI formato data (ISO, date-only, Firestore Timestamp,
+    // stringa italiana gg/mm/aaaa, oggetto Date) al formato 'YYYY-MM-DD' che un
+    // <input type="date"> accetta. Ritorna '' se non interpretabile.
+    // Serve a evitare che un valore memorizzato in formato "non-YYYY-MM-DD"
+    // renda vuoto il campo data del form (e venga quindi azzerato al salvataggio).
+    _toDateInputValue(v) {
+        if (v === null || v === undefined || v === '') return '';
+        try {
+            // Firestore Timestamp → Date
+            if (typeof v === 'object' && typeof v.toDate === 'function') v = v.toDate();
+            if (typeof v === 'string') {
+                const s = v.trim();
+                // Già ISO o date-only: estrai i primi 10 caratteri (niente calcoli di fuso)
+                const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+                if (iso) return iso[1] + '-' + iso[2] + '-' + iso[3];
+                // Formato italiano gg/mm/aaaa
+                const it = s.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+                if (it) return it[3] + '-' + it[2] + '-' + it[1];
+            }
+            const d = (v instanceof Date) ? v : new Date(v);
+            if (isNaN(d.getTime())) return '';
+            const y = d.getFullYear();
+            const mo = String(d.getMonth() + 1).padStart(2, '0');
+            const da = String(d.getDate()).padStart(2, '0');
+            return y + '-' + mo + '-' + da;
+        } catch (e) { return ''; }
+    },
+
     // === FORM MODIFICA CLIENTE ===
     async showModificaCliente(cliente) {
         // Carica lista agenti per il selettore
@@ -1837,7 +1865,7 @@ const FormsManager = {
                         <i class="fas fa-info-circle"></i> Se passa più di 1 mese dall'ultimo controllo, apparirà un avviso
                     </p>
                     <div style="display: grid; gap: 1rem;">
-                        ${this.createFormField('📅 Data Ultimo Controllo', 'dataUltimoControlloQualita', 'date', app.dataUltimoControlloQualita?.split('T')[0], { placeholder: 'Data controllo' })}
+                        ${this.createFormField('📅 Data Ultimo Controllo', 'dataUltimoControlloQualita', 'date', this._toDateInputValue(app.dataUltimoControlloQualita), { placeholder: 'Data controllo' })}
                         ${this.createFormField('📋 Risultati Controllo / Note', 'noteControlloQualita', 'textarea', app.noteControlloQualita, { placeholder: 'Descrivi cosa è stato controllato e cosa non andava...', rows: 3 })}
                     </div>
                     <div style="margin-top: 1rem; padding-top: 1rem; border-top: 2px solid var(--grigio-300);">
@@ -1930,15 +1958,45 @@ const FormsManager = {
                     delete data['feedRssUrl' + i];
                 }
 
-                // Assicura che i campi controllo qualità siano sempre presenti
-                data.dataUltimoControlloQualita = data.dataUltimoControlloQualita || null;
-                data.noteControlloQualita = data.noteControlloQualita || null;
+                // ── CONTROLLO QUALITÀ — scrivi i campi QC SOLO se realmente modificati ──
+                // Prima questa form salvava SEMPRE i campi QC nello stesso payload
+                // delle scadenze: bastava che Daniele aggiornasse una scadenza
+                // (rifiuti/farmacie) perché (a) la data QC venisse azzerata se il
+                // campo data risultava vuoto per un formato legacy, mandando il QC
+                // in "da aggiornare", e (b) venisse riscritto "chi/quando ha fatto il
+                // QA" con l'utente corrente — vanificando il lavoro di controllo.
+                // Ora confrontiamo lo stato QC (data, note, esito) con quello salvato
+                // e tocchiamo quei campi SOLO se qualcosa è cambiato davvero.
+                const _qcDateNew = FormsManager._toDateInputValue(data.dataUltimoControlloQualita); // 'YYYY-MM-DD' | ''
+                const _qcDateOld = FormsManager._toDateInputValue(app.dataUltimoControlloQualita);
+                const _qcNoteNew = ((data.noteControlloQualita == null ? '' : data.noteControlloQualita) + '').trim();
+                const _qcNoteOld = ((app.noteControlloQualita == null ? '' : app.noteControlloQualita) + '').trim();
+                const _qcNegNew = data.controlloQualitaNegativo === true;
+                const _qcNegOld = app.controlloQualitaNegativo === true || app.controlloQualitaNegativo === 'true';
 
-                // Se la data controllo qualità è cambiata, salva automaticamente chi l'ha aggiornata
-                if (data.dataUltimoControlloQualita && data.dataUltimoControlloQualita !== app.dataUltimoControlloQualita?.split('T')[0]) {
-                    data.controlloQualitaDa = AuthService.getUserId();
-                    data.controlloQualitaDaNome = AuthService.getUserName();
-                    data.controlloQualitaDataAggiornamento = new Date().toISOString();
+                const _qcCambiato = (_qcDateNew !== _qcDateOld) || (_qcNoteNew !== _qcNoteOld) || (_qcNegNew !== _qcNegOld);
+
+                if (!_qcCambiato) {
+                    // Nulla è cambiato nel QC (l'utente stava modificando altro, es. le
+                    // scadenze) → NON toccare alcun campo QC: rimuovili dal payload così
+                    // il merge Firestore lascia intatti data/note/esito/autore/timestamp.
+                    delete data.dataUltimoControlloQualita;
+                    delete data.noteControlloQualita;
+                    delete data.controlloQualitaNegativo;
+                } else {
+                    // Il QC è stato modificato per davvero → salva i campi in modo pulito.
+                    // Data salvata come 'YYYY-MM-DD' pura: nessun problema di fuso orario.
+                    data.dataUltimoControlloQualita = _qcDateNew || null;
+                    data.noteControlloQualita = data.noteControlloQualita || null;
+                    data.controlloQualitaNegativo = _qcNegNew;
+                    // "Chi/quando ha fatto il QA" si aggiorna SOLO se cambia la DATA del
+                    // controllo (= è stato eseguito un nuovo controllo), non per una
+                    // semplice modifica di note o dell'esito.
+                    if (_qcDateNew && _qcDateNew !== _qcDateOld) {
+                        data.controlloQualitaDa = AuthService.getUserId();
+                        data.controlloQualitaDaNome = AuthService.getUserName();
+                        data.controlloQualitaDataAggiornamento = new Date().toISOString();
+                    }
                 }
 
                 // === VALIDAZIONE STATE MACHINE ===
