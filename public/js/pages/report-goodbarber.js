@@ -402,7 +402,7 @@ const ReportGoodBarber = {
           .rpt-table-wrap { -webkit-overflow-scrolling: touch; }
           .rpt-table {
             table-layout: auto;
-            min-width: 820px;          /* forza lo scroll invece di comprimere le colonne */
+            min-width: 740px;          /* forza lo scroll invece di comprimere le colonne */
             font-size: 0.8rem;
           }
           /* niente header sticky durante lo scroll orizzontale (evita glitch) */
@@ -413,7 +413,13 @@ const ReportGoodBarber = {
           .rpt-table tbody td {
             white-space: nowrap; overflow: visible; text-overflow: clip;
           }
-          .rpt-table tbody td.col-nome { min-width: 150px; }
+          /* Comune: colonna stretta anche coi nomi lunghi → vanno a capo su 2
+             righe invece di allargare la colonna (prima "mangiava" tutta la
+             larghezza e si vedeva solo il nome finché non si scorreva). */
+          .rpt-table tbody td.col-nome {
+            min-width: 104px; max-width: 130px;
+            white-space: normal; word-break: break-word; line-height: 1.15;
+          }
           .rpt-table .col-card { width: 48px; text-align: center; }
           /* il pulsante download resta comodo da toccare */
           .rpt-btn-card { padding: 0.35rem 0.5rem; }
@@ -615,19 +621,42 @@ const ReportGoodBarber = {
   },
 
   /**
-   * Calcola il trend di crescita dei download rispetto al rilevamento precedente.
-   * Ritorna null se NON in crescita (così la freccia si mostra SOLO in crescita)
-   * o se non ci sono almeno 2 snapshot.
+   * Calcola il trend di crescita dei download sull'INTERO periodo tracciato
+   * (primo snapshot disponibile → ultimo), non giorno-su-giorno.
+   *
+   * Perché: i download sono CUMULATIVI, quindi la variazione giornaliera è
+   * quasi sempre < 0,5% del totale e, arrotondata, dava una percentuale
+   * "sempre 0%" priva di senso. Sul periodo (fino a ~24 giorni di storico)
+   * la crescita è invece leggibile (es. +15%).
+   *
+   * Ritorna { delta, pct, giorni }:
+   *   - delta: download guadagnati nel periodo (sempre presente se in crescita)
+   *   - pct:   percentuale di crescita sul periodo, oppure null quando non è
+   *            affidabile (base quasi-zero → % che esplode, es. +2700%: è un
+   *            artefatto di un tracking appena iniziato, non crescita reale)
+   *   - giorni: numero di rilevamenti considerati (per il tooltip)
+   * Ritorna null se non in crescita o se non ci sono almeno 2 snapshot.
    */
   getDownloadTrend(app) {
     const h = Array.isArray(app.gbStatsHistory) ? app.gbStatsHistory : [];
     if (h.length < 2) return null;
     const last = h[h.length - 1].dl || 0;
-    const prev = h[h.length - 2].dl || 0;
-    if (last <= prev) return null;
-    const delta = last - prev;
-    const pct = prev > 0 ? Math.round((delta / prev) * 100) : null;
-    return { delta, pct };
+    const first = h[0].dl || 0;
+    const delta = last - first;
+    if (delta <= 0) return null; // freccia mostrata SOLO in crescita
+    const giorni = h.length - 1;
+
+    // Percentuale sul periodo, con guardia anti-artefatto:
+    //  - base minima 30 download (sotto è statisticamente rumore)
+    //  - cap al 100%: per un'app comunale una crescita >100% in ~2-3 settimane
+    //    è quasi sempre un tracking iniziato da poco (base quasi-zero, es.
+    //    +2700%) → mostriamo solo il valore assoluto, senza %.
+    let pct = null;
+    if (first >= 30) {
+      const p = (delta / first) * 100;
+      if (p <= 100) pct = p;
+    }
+    return { delta, pct, giorni };
   },
 
   /**
@@ -1074,7 +1103,7 @@ const ReportGoodBarber = {
       // Freccia di crescita (chicca 1): mostrata SOLO quando i download crescono
       const trend = this.getDownloadTrend(app);
       const trendHtml = trend
-        ? ` <span title="In crescita rispetto al rilevamento precedente" style="color:var(--verde-700);font-weight:700;font-size:0.82em;white-space:nowrap;"><i class="fas fa-arrow-trend-up"></i> +${this.formatNumber(trend.delta)}${trend.pct != null ? ' (' + trend.pct + '%)' : ''}</span>`
+        ? ` <span title="Crescita download negli ultimi ${trend.giorni} rilevamenti giornalieri" style="color:var(--verde-700);font-weight:700;font-size:0.82em;white-space:nowrap;"><i class="fas fa-arrow-trend-up"></i> +${this.formatNumber(trend.delta)}${trend.pct != null ? ' (+' + trend.pct.toFixed(1).replace('.', ',') + '%)' : ''}</span>`
         : '';
 
       html += `
