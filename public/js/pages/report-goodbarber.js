@@ -275,6 +275,14 @@ const ReportGoodBarber = {
         /* Selettore ordinamento: visibile SOLO su mobile (su desktop si ordina
            cliccando le intestazioni della tabella, che però lì sono nascoste). */
         .rpt-mobile-sort { display: none; }
+        /* Hint "scorri in orizzontale": nascosto su desktop, mostrato su mobile
+           (dove la tabella scorre lateralmente). */
+        .rpt-scroll-hint {
+          display: none;
+          font-size: 0.72rem; color: var(--grigio-500);
+          margin: 0 0 0.4rem; padding: 0.15rem 0.1rem;
+        }
+        .rpt-scroll-hint i { color: var(--blu-500); }
         .rpt-table-wrap {
           overflow-x: auto; border-radius: 10px;
           box-shadow: 0 1px 4px rgba(0,0,0,0.06); background: #fff;
@@ -386,67 +394,32 @@ const ReportGoodBarber = {
             font-family: 'Titillium Web', sans-serif; color: var(--grigio-900);
           }
 
-          /* ── TABELLA → CARD MOBILE ────────────────────── */
-          .rpt-table-wrap { overflow-x: hidden; }
-          .rpt-table { table-layout: auto; display: block; }
-          .rpt-table thead { display: none; }
-          .rpt-table tbody { display: block; }
-          .rpt-table tbody tr {
-            display: flex; flex-wrap: wrap; align-items: center;
-            padding: 0.55rem 0.5rem;
-            border-bottom: 1px solid var(--grigio-300);
+          /* ── TABELLA A SCORRIMENTO ORIZZONTALE SU MOBILE ──────────────
+             Invece di nascondere le colonne e impilarle in card, la tabella
+             resta INTERA e il contenitore scorre in orizzontale: si vedono
+             TUTTI i dati e resta accessibile il pulsante "Scarica Report Card"
+             (colonna col-card). Il wrap ha già overflow-x:auto. */
+          .rpt-table-wrap { -webkit-overflow-scrolling: touch; }
+          .rpt-table {
+            table-layout: auto;
+            min-width: 820px;          /* forza lo scroll invece di comprimere le colonne */
+            font-size: 0.8rem;
           }
-          .rpt-table tbody tr:hover { background: var(--blu-100); }
-
-          /* Reset tutte le celle */
+          /* niente header sticky durante lo scroll orizzontale (evita glitch) */
+          .rpt-table thead th { position: static; }
+          .rpt-table thead th,
+          .rpt-table tbody td { padding: 0.5rem 0.55rem; }
+          /* colonne dimensionate al contenuto, nessuna ellissi che taglia i dati */
           .rpt-table tbody td {
-            width: auto !important; max-width: none !important;
-            padding: 0 !important; white-space: nowrap;
+            white-space: nowrap; overflow: visible; text-overflow: clip;
           }
+          .rpt-table tbody td.col-nome { min-width: 150px; }
+          .rpt-table .col-card { width: 48px; text-align: center; }
+          /* il pulsante download resta comodo da toccare */
+          .rpt-btn-card { padding: 0.35rem 0.5rem; }
 
-          /* Nascondi tutto tranne rank, nome, score, downloads, push */
-          .rpt-table tbody td.col-regione,
-          .rpt-table tbody td.col-penetrazione,
-          .rpt-table tbody td.col-lanci,
-          .rpt-table tbody td.col-pageviews,
-          .rpt-table tbody td.col-popolazione,
-          .rpt-table tbody td.col-card,
-          .rpt-table thead th.col-card { display: none !important; }
-
-          /* RIGA 1: rank + nome + score */
-          .rpt-table tbody td.col-rank {
-            order: 1; flex: 0 0 22px;
-            font-size: 0.72rem; color: var(--grigio-500); font-weight: 700;
-            text-align: center;
-          }
-          .rpt-table tbody td.col-nome {
-            order: 2; flex: 1 1 0; min-width: 0;
-            font-size: 0.82rem; font-weight: 700; color: var(--blu-900);
-            overflow: hidden; text-overflow: ellipsis;
-            padding: 0 0.3rem !important;
-          }
-          .rpt-table tbody td.col-score {
-            order: 3; flex: 0 0 auto;
-          }
-
-          /* RIGA 2: downloads a sinistra, push a destra */
-          /* flex-basis 50% forza il wrap perché riga 1 è già piena */
-          .rpt-table tbody td.col-downloads {
-            order: 4; flex: 0 0 50%;
-            margin-top: 3px; padding-left: 22px !important;
-            font-size: 0.7rem; color: var(--grigio-700);
-            text-align: left;
-          }
-          .rpt-table tbody td.col-consensi {
-            order: 5; flex: 0 0 auto;
-            margin-top: 3px; margin-left: auto;
-            font-size: 0.7rem; color: var(--grigio-700);
-            text-align: right; padding-right: 0.3rem !important;
-          }
-
-          /* Etichette inline */
-          .rpt-table tbody td.col-downloads::before { content: 'Downloads '; font-weight: 600; color: var(--grigio-500); }
-          .rpt-table tbody td.col-consensi::before { content: 'Push '; font-weight: 600; color: var(--grigio-500); }
+          /* Suggerimento "scorri" visibile solo su mobile */
+          .rpt-scroll-hint { display: block; }
 
           /* Badge score più piccolo su mobile */
           .rpt-badge { font-size: 0.68rem; padding: 0.15rem 0.45rem; min-width: 26px; }
@@ -495,6 +468,7 @@ const ReportGoodBarber = {
               <option value="nome">Ordina: Nome (A-Z)</option>
             </select>
           </div>
+          <div class="rpt-scroll-hint"><i class="fas fa-arrows-left-right"></i> Scorri in orizzontale per vedere tutti i dati e scaricare la card</div>
           <div class="rpt-table-wrap">
             <table class="rpt-table" id="rankingTable">
               <thead>
