@@ -396,14 +396,69 @@ const Dashboard = {
         if (!doc || !doc.exists) { container.innerHTML = ''; return; }
 
         const data = doc.data() || {};
-        const errorApps = Array.isArray(data.errorApps) ? data.errorApps : [];
-        const warnApps = Array.isArray(data.warnApps) ? data.warnApps : [];
+        const rawError = Array.isArray(data.errorApps) ? data.errorApps : [];
+        const rawWarn = Array.isArray(data.warnApps) ? data.warnApps : [];
         // App con MONITORAGGIO rotto (sync in errore/fermo/incompleto): il dato
         // "giorni senza notifiche" NON è affidabile, quindi vanno mostrate con un
         // messaggio diverso ("sync da sistemare"), non come "il Comune non invia".
-        const syncBrokenApps = Array.isArray(data.syncBrokenApps) ? data.syncBrokenApps : [];
+        const rawSync = Array.isArray(data.syncBrokenApps) ? data.syncBrokenApps : [];
 
-        // Nessun problema → non mostriamo nulla
+        // ────────────────────────────────────────────────────────────────
+        // VALIDAZIONE LIVE — health_status/latest è una FOTOGRAFIA ricalcolata
+        // una sola volta al giorno (cron 07:00). Nel frattempo un'app può essere
+        // stata SPENTA nel configuratore, oppure aver RICEVUTO notifiche DOPO
+        // l'ultimo calcolo: in entrambi i casi il banner darebbe un FALSO ALLARME
+        // (es. Acri "in errore" pur avendo notifiche, o app non più monitorate).
+        // Prima di mostrare, rivalidiamo ogni app segnalata sui dati REALI di
+        // adesso. Poche query, solo sulle app segnalate, in background (questa
+        // funzione è già chiamata non-bloccante), quindi non rallenta la dashboard.
+        // ────────────────────────────────────────────────────────────────
+        const WARN_DAYS = 3, ERROR_DAYS = 7, MS_DAY = 24 * 60 * 60 * 1000;
+        const nowMs = Date.now();
+
+        const validateOne = async (app, kind) => {
+            const slug = ((app.appSlug || '') + '').toLowerCase().trim();
+            if (!slug) return null;
+            let appData = null;
+            try {
+                const s = await db.collection('app').where('appSlug', '==', slug).limit(1).get();
+                if (s.empty) return null;                       // app non più esistente
+                appData = s.docs[0].data() || {};
+            } catch (e) { return { ...app, _sev: kind }; }      // in dubbio, mantieni il dato dello snapshot
+            if (!appData.pushMonitorEnabled) return null;       // SPENTA nel configuratore → non è un errore
+
+            // Per error/warn ricalcola la freschezza reale dallo storico
+            // (per il sync-rotto lo storico è per definizione assente/vecchio).
+            if (kind !== 'sync') {
+                try {
+                    const ph = await db.collection('push_history')
+                        .where('appSlug', '==', slug).where('status', '==', 'sent')
+                        .orderBy('sentAt', 'desc').limit(1).get();
+                    if (!ph.empty) {
+                        const sv = ph.docs[0].data().sentAt;
+                        const ms = sv && sv.toDate ? sv.toDate().getTime() : (sv ? new Date(sv).getTime() : null);
+                        if (ms) {
+                            const days = Math.floor((nowMs - ms) / MS_DAY);
+                            if (days < WARN_DAYS) return null;  // ha ricevuto notifiche di recente (es. Acri) → non è un problema
+                            return { ...app, daysSinceLast: days, _sev: days >= ERROR_DAYS ? 'error' : 'warn' };
+                        }
+                    }
+                } catch (e) { /* indice mancante: teniamo il dato dello snapshot */ }
+            }
+            return { ...app, _sev: kind };
+        };
+
+        const validated = (await Promise.all([
+            ...rawError.map(a => validateOne(a, 'error')),
+            ...rawWarn.map(a => validateOne(a, 'warn')),
+            ...rawSync.map(a => validateOne(a, 'sync'))
+        ])).filter(Boolean);
+
+        const errorApps = validated.filter(a => a._sev === 'error');
+        const warnApps = validated.filter(a => a._sev === 'warn');
+        const syncBrokenApps = validated.filter(a => a._sev === 'sync');
+
+        // Nessun problema (dopo la validazione live) → non mostriamo nulla
         if (errorApps.length === 0 && warnApps.length === 0 && syncBrokenApps.length === 0) {
             container.innerHTML = '';
             return;
