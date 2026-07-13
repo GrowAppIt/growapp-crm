@@ -262,13 +262,20 @@ const DataService = {
                 query = query.where('tipoPagamento', '==', filtri.tipoPagamento);
             }
 
-            query = query.orderBy('nome', 'asc');
-
+            // NB: NON usare query.orderBy('nome') qui. Firestore ESCLUDE dai
+            // risultati i documenti privi del campo su cui si ordina (esclusione
+            // silenziosa, non "nulli in fondo"). Diversi doc 'app' legacy hanno solo
+            // 'comune' e non 'nome' → con orderBy('nome') sparivano del tutto dal CRM
+            // (es. Acri invisibile nel configuratore storico push). Ordiniamo in
+            // memoria dopo il fetch, con fallback nome→comune.
             const snapshot = await query.get();
             const risultati = snapshot.docs.map(doc => ({
                 ...doc.data(),
                 id: doc.id
             }));
+            risultati.sort((a, b) =>
+                String(a.nome || a.comune || '').localeCompare(String(b.nome || b.comune || ''), 'it', { sensitivity: 'base' })
+            );
             this._cacheSet(cacheKey, risultati);
             return risultati;
         } catch (error) {

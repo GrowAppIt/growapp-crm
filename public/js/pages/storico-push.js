@@ -64,6 +64,7 @@ const StoricoPush = {
             this.apps = tutteLeApp.filter(a => a.pushMonitorEnabled || a.statoApp === 'ATTIVA');
 
             // Reset stato
+            this.loading = false; // sblocca eventuali rotelle rimaste "appese" da una visita precedente
             this.notifications = [];
             this.lastDoc = null;
             this.hasMore = true;
@@ -626,7 +627,13 @@ const StoricoPush = {
 
         } catch (error) {
             console.error('[StoricoPush] Errore caricamento:', error);
-            document.getElementById('sp-list').innerHTML = `
+            // Guardia null: se l'utente ha cambiato pagina mentre la query era in
+            // corso, sp-list non esiste più. Senza questa guardia il catch lancerebbe
+            // un secondo TypeError e this.loading resterebbe true per sempre → rotella
+            // infinita ad ogni riapertura del configuratore finché non si ricarica.
+            const _el = document.getElementById('sp-list');
+            if (_el) {
+                _el.innerHTML = `
                 <div class="sp-empty">
                     <i class="fas fa-exclamation-triangle"></i>
                     <h3>Errore di caricamento</h3>
@@ -635,9 +642,12 @@ const StoricoPush = {
                     Controlla la console del browser per il link diretto.</p>
                 </div>
             `;
+            }
+        } finally {
+            // SEMPRE, anche se renderList()/catch lanciano: altrimenti la rotella
+            // non si ferma mai nelle visite successive (StoricoPush è un singleton).
+            this.loading = false;
         }
-
-        this.loading = false;
     },
 
     // ================================================================
@@ -708,6 +718,10 @@ const StoricoPush = {
     renderList() {
         const container = document.getElementById('sp-list');
         const loadMoreEl = document.getElementById('sp-load-more');
+        // Guardia null: se la pagina non è più visibile (cambio menu durante una
+        // query lenta) container è null. Uscire subito evita il TypeError che
+        // altrimenti lascerebbe la rotella "appesa" per le visite successive.
+        if (!container) return;
 
         // Safety net: nascondi notifiche con sentAt nel futuro.
         // Il sync nuovo non ne salva più, ma quelle vecchie restano nel DB.

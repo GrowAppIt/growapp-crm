@@ -64,6 +64,49 @@ const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const RUOLI_DESTINATARI = ['SUPER_ADMIN', 'ADMIN', 'CTO', 'CONTENT_MANAGER'];
 
 // ============================================================================
+// Salute della SINCRONIZZAZIONE di un'app (0 letture extra: solo campi del doc).
+//
+// Perché serve: daysSince è calcolato SOLO da push_history, che si popola solo
+// se il cron sync-push-history riesce a parlare con GoodBarber. Se il sync è
+// rotto/fermo/incompleto, push_history si ferma e l'app sembra "non ricevere
+// notifiche da N giorni" mentre il Comune le riceve davvero (falso positivo,
+// caso Chiaramonte Gulfi). Qui rileviamo se il DATO è inaffidabile, così il
+// report può dire la verità ("monitoraggio rotto") invece di accusare il Comune.
+// Ritorna una stringa-motivo se il sync è inaffidabile, altrimenti null.
+// ============================================================================
+function syncBrokenReason(data, now) {
+    const MS_PER_HOUR = 60 * 60 * 1000;
+
+    // Credenziali incomplete → getMonitoredApps del sync scarta l'app: non
+    // riceverà MAI dati, quindi push_history sarà sempre vuoto per costruzione.
+    if (!data.goodbarberWebzineId || !data.monitorPushUserId) {
+        return 'Configurazione monitoraggio incompleta (manca Webzine ID o User ID GoodBarber): la sincronizzazione non parte.';
+    }
+
+    const status = data.lastPushSyncStatus || null;
+    if (status === 'error') {
+        return 'Sincronizzazione in errore: ' + (data.lastPushSyncError || 'errore GoodBarber');
+    }
+
+    const lastSync = data.lastPushSync && typeof data.lastPushSync.toDate === 'function'
+        ? data.lastPushSync.toDate()
+        : (data.lastPushSync ? new Date(data.lastPushSync) : null);
+    if (!lastSync) {
+        return 'Mai sincronizzata: nessun dato importato da GoodBarber.';
+    }
+
+    // Il cron gira ogni 15 min: oltre 6h senza sync riuscito il dato di
+    // "giorni senza notifiche" non è affidabile.
+    const ageH = (now - lastSync) / MS_PER_HOUR;
+    if (ageH > 6) {
+        const lbl = ageH >= 48 ? (Math.round(ageH / 24) + ' giorni') : (Math.round(ageH) + ' ore');
+        return 'Sincronizzazione ferma da ' + lbl + ': il dato sulle notifiche non è aggiornato.';
+    }
+
+    return null; // sync sano → push_history è affidabile
+}
+
+// ============================================================================
 // Raccolta dati — stato di ogni app monitorata
 // ============================================================================
 async function collectHealthStatus() {
@@ -79,7 +122,8 @@ async function collectHealthStatus() {
         totalMonitored: 0,
         ok: [],
         warn: [],
-        error: []
+        error: [],
+        syncBroken: []   // sync rotto/fermo/incompleto: il dato notifiche è inaffidabile
     };
 
     for (const doc of appsSnap.docs) {
@@ -139,8 +183,19 @@ async function collectHealthStatus() {
             lookupError
         };
 
-        if (daysSince === null) {
-            // Mai ricevuta — se configurata da poco -> warn, altrimenti error
+        // Rileva se il DATO push_history è affidabile per questa app.
+        const syncIssue = syncBrokenReason(data, now);
+
+        if (daysSince !== null && daysSince < WARN_DAYS) {
+            // Storico fresco: tutto a posto, a prescindere dallo stato del sync
+            // (un singolo ciclo di sync fallito non è un problema se i dati sono recenti).
+            report.ok.push(entry);
+        } else if (syncIssue) {
+            // Storico assente/vecchio MA la causa è il sync rotto/fermo/incompleto:
+            // NON accusare il Comune di non inviare notifiche — il dato è inaffidabile.
+            report.syncBroken.push({ ...entry, reason: syncIssue });
+        } else if (daysSince === null) {
+            // Sync sano ma nessuna notifica MAI ricevuta — se configurata da poco warn, altrimenti error
             const lastSync = data.lastPushSync && typeof data.lastPushSync.toDate === 'function'
                 ? data.lastPushSync.toDate()
                 : (data.lastPushSync ? new Date(data.lastPushSync) : null);
@@ -157,17 +212,17 @@ async function collectHealthStatus() {
                 });
             }
         } else if (daysSince >= ERROR_DAYS) {
+            // Sync sano e storico davvero fermo da >7gg → il Comune non invia notifiche
             report.error.push({
                 ...entry,
                 reason: `Nessuna notifica da ${daysSince} giorni.`
             });
-        } else if (daysSince >= WARN_DAYS) {
+        } else {
+            // WARN_DAYS <= daysSince < ERROR_DAYS, sync sano
             report.warn.push({
                 ...entry,
                 reason: `Ultima notifica ${daysSince} giorni fa.`
             });
-        } else {
-            report.ok.push(entry);
         }
     }
 
@@ -181,18 +236,22 @@ function buildNotificationContent(report) {
     const errCount = report.error.length;
     const warnCount = report.warn.length;
     const okCount = report.ok.length;
+    const syncCount = (report.syncBroken || []).length;
 
     let title;
     let message;
 
-    if (errCount === 0 && warnCount === 0) {
+    if (errCount === 0 && warnCount === 0 && syncCount === 0) {
         title = `Tutte le ${report.totalMonitored} app OK`;
         message = 'Nessuna anomalia rilevata nel monitoraggio notifiche push.';
-    } else if (errCount > 0 && warnCount > 0) {
-        title = `${errCount} ${errCount === 1 ? 'app critica' : 'app critiche'} · ${warnCount} da monitorare`;
+    } else if (errCount > 0 && (warnCount > 0 || syncCount > 0)) {
+        title = `${errCount} ${errCount === 1 ? 'app critica' : 'app critiche'} · ${warnCount + syncCount} da controllare`;
         message = buildDetail(report);
     } else if (errCount > 0) {
         title = `${errCount} ${errCount === 1 ? 'app critica' : 'app critiche'} non ricevono notifiche`;
+        message = buildDetail(report);
+    } else if (syncCount > 0) {
+        title = `${syncCount} ${syncCount === 1 ? 'app con monitoraggio' : 'app con monitoraggio'} da controllare`;
         message = buildDetail(report);
     } else {
         title = `${warnCount} ${warnCount === 1 ? 'app' : 'app'} da monitorare`;
@@ -216,6 +275,11 @@ function buildDetail(report) {
         const nomi = report.warn.slice(0, 5).map(w => w.comune).join(', ');
         const extra = report.warn.length > 5 ? ` e altre ${report.warn.length - 5}` : '';
         parti.push(`Da monitorare (>${WARN_DAYS}gg): ${nomi}${extra}.`);
+    }
+    if ((report.syncBroken || []).length > 0) {
+        const nomi = report.syncBroken.slice(0, 5).map(s => s.comune).join(', ');
+        const extra = report.syncBroken.length > 5 ? ` e altre ${report.syncBroken.length - 5}` : '';
+        parti.push(`Monitoraggio da sistemare (sync): ${nomi}${extra}.`);
     }
     parti.push(`${report.ok.length} OK su ${report.totalMonitored}.`);
     return parti.join(' ');
@@ -247,7 +311,7 @@ async function writeNotifications(report, userIds) {
         return { written: 0, reason: 'Nessun utente destinatario trovato.' };
     }
     const { title, message } = buildNotificationContent(report);
-    const hasIssues = report.error.length > 0 || report.warn.length > 0;
+    const hasIssues = report.error.length > 0 || report.warn.length > 0 || (report.syncBroken || []).length > 0;
 
     // ID basato sulla data italiana (YYYY-MM-DD) così 1 alert/giorno per utente
     const todayKey = new Date().toISOString().slice(0, 10);
@@ -268,13 +332,14 @@ async function writeNotifications(report, userIds) {
                 type: 'health_alert',
                 title,
                 message,
-                severity: report.error.length > 0 ? 'error' : (report.warn.length > 0 ? 'warn' : 'ok'),
+                severity: report.error.length > 0 ? 'error' : ((report.warn.length > 0 || (report.syncBroken || []).length > 0) ? 'warn' : 'ok'),
                 hasIssues,
                 counts: {
                     total: report.totalMonitored,
                     ok: report.ok.length,
                     warn: report.warn.length,
-                    error: report.error.length
+                    error: report.error.length,
+                    syncBroken: (report.syncBroken || []).length
                 },
                 linkTo: { page: 'storico-push' },
                 taskId: null,
@@ -295,7 +360,7 @@ async function writeNotifications(report, userIds) {
 // ============================================================================
 async function persistHealthStatus(report, notifyRes) {
     try {
-        const hasIssues = report.error.length > 0 || report.warn.length > 0;
+        const hasIssues = report.error.length > 0 || report.warn.length > 0 || (report.syncBroken || []).length > 0;
 
         // Rinomino i campi per essere compatibile con ciò che legge dashboard.js:
         //   - errorApps / warnApps (array di app con campi appName, appSlug, daysSinceLast, reason)
@@ -314,9 +379,13 @@ async function persistHealthStatus(report, notifyRes) {
             okCount: report.ok.length,
             warnCount: report.warn.length,
             errorCount: report.error.length,
+            syncBrokenCount: (report.syncBroken || []).length,
             hasIssues,
             warnApps: report.warn.map(mapApp),
             errorApps: report.error.map(mapApp),
+            // App il cui MONITORAGGIO è rotto: la dashboard le mostra con un
+            // messaggio diverso ("sync in errore", non "il Comune non invia").
+            syncBrokenApps: (report.syncBroken || []).map(mapApp),
             notifyResult: notifyRes || null
         }, { merge: false });
     } catch (e) {
@@ -347,7 +416,7 @@ module.exports = async function handler(req, res) {
 
     try {
         const report = await collectHealthStatus();
-        const hasIssues = report.error.length > 0 || report.warn.length > 0;
+        const hasIssues = report.error.length > 0 || report.warn.length > 0 || (report.syncBroken || []).length > 0;
 
         let notifyRes = { written: 0, reason: 'skipped: no issues' };
 
@@ -373,7 +442,8 @@ module.exports = async function handler(req, res) {
                 totalMonitored: report.totalMonitored,
                 ok: report.ok.length,
                 warn: report.warn.length,
-                error: report.error.length
+                error: report.error.length,
+                syncBroken: (report.syncBroken || []).length
             },
             notifications: notifyRes
         });

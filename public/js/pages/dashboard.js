@@ -398,9 +398,13 @@ const Dashboard = {
         const data = doc.data() || {};
         const errorApps = Array.isArray(data.errorApps) ? data.errorApps : [];
         const warnApps = Array.isArray(data.warnApps) ? data.warnApps : [];
+        // App con MONITORAGGIO rotto (sync in errore/fermo/incompleto): il dato
+        // "giorni senza notifiche" NON è affidabile, quindi vanno mostrate con un
+        // messaggio diverso ("sync da sistemare"), non come "il Comune non invia".
+        const syncBrokenApps = Array.isArray(data.syncBrokenApps) ? data.syncBrokenApps : [];
 
         // Nessun problema → non mostriamo nulla
-        if (errorApps.length === 0 && warnApps.length === 0) {
+        if (errorApps.length === 0 && warnApps.length === 0 && syncBrokenApps.length === 0) {
             container.innerHTML = '';
             return;
         }
@@ -424,29 +428,42 @@ const Dashboard = {
         const borderColor = hasError ? '#D32F2F' : '#FFCC00';
         const iconColor = hasError ? '#D32F2F' : '#B45309';
         const icon = hasError ? 'fa-circle-exclamation' : 'fa-triangle-exclamation';
-        const titolo = hasError
-            ? `${errorApps.length} app non ricevono notifiche da oltre 7 giorni`
-            : `${warnApps.length} app non ricevono notifiche da oltre 3 giorni`;
+        // Titolo: distingue "il Comune non invia notifiche" (error/warn, dato
+        // affidabile) da "monitoraggio da sistemare" (sync rotto, dato inaffidabile).
+        const partiTitolo = [];
+        if (errorApps.length > 0) partiTitolo.push(`${errorApps.length} app non ricevono notifiche da oltre 7 giorni`);
+        if (warnApps.length > 0) partiTitolo.push(`${warnApps.length} app da monitorare (oltre 3 giorni)`);
+        if (syncBrokenApps.length > 0) partiTitolo.push(`${syncBrokenApps.length} app con monitoraggio da sistemare`);
+        const titolo = partiTitolo.join(' · ');
 
-        // Costruisci la lista combinata (rossi prima, poi gialli)
+        // Costruisci la lista combinata (rossi prima, poi gialli, poi sync rotti)
         const tuttiProblemi = [
             ...errorApps.map(a => ({ ...a, severity: 'error' })),
-            ...warnApps.map(a => ({ ...a, severity: 'warn' }))
+            ...warnApps.map(a => ({ ...a, severity: 'warn' })),
+            ...syncBrokenApps.map(a => ({ ...a, severity: 'sync' }))
         ];
 
         const listaHtml = tuttiProblemi.slice(0, 8).map(app => {
-            const sevColor = app.severity === 'error' ? '#D32F2F' : '#B45309';
-            const sevIcon = app.severity === 'error' ? 'fa-circle' : 'fa-circle';
+            const isSync = app.severity === 'sync';
+            const sevColor = app.severity === 'error' ? '#D32F2F' : (isSync ? '#0288D1' : '#B45309');
+            const sevIcon = isSync ? 'fa-wrench' : 'fa-circle';
             const giorni = typeof app.daysSinceLast === 'number' ? app.daysSinceLast : '?';
             const nome = (app.appName || app.appSlug || 'App sconosciuta');
             const slug = (app.appSlug || '');
+            // Per il sync rotto NON mostriamo "N giorni" (fuorviante): mostriamo
+            // "sync da sistemare" con il motivo nel tooltip. Se i giorni non sono
+            // noti (mai catturata dal monitoraggio) mostriamo "mai rilevata" col
+            // motivo nel tooltip, non un fuorviante "? giorni".
+            const destra = isSync
+                ? `<span style="color: ${sevColor}; font-size: 0.8rem;" title="${(app.reason || 'Sincronizzazione da sistemare').replace(/"/g, '&quot;')}"><i class="fas fa-rotate"></i> sync da sistemare</span>`
+                : (giorni === '?'
+                    ? `<span style="color: ${sevColor}; font-size: 0.8rem;" title="${(app.reason || '').replace(/"/g, '&quot;')}"><i class="fas fa-clock"></i> mai rilevata</span>`
+                    : `<span style="color: ${sevColor}; font-size: 0.8rem;"><i class="fas fa-clock"></i> ${giorni} ${giorni === 1 ? 'giorno' : 'giorni'}</span>`);
             return `
                 <div style="display: flex; align-items: center; gap: 0.5rem; padding: 6px 0; border-bottom: 1px solid #F5F5F5; font-size: 0.875rem;">
-                    <i class="fas ${sevIcon}" style="color: ${sevColor}; font-size: 0.5rem;"></i>
+                    <i class="fas ${sevIcon}" style="color: ${sevColor}; font-size: ${isSync ? '0.7rem' : '0.5rem'};"></i>
                     <span style="flex: 1; color: #4A4A4A; font-weight: 600;">${nome}</span>
-                    <span style="color: ${sevColor}; font-size: 0.8rem;">
-                        <i class="fas fa-clock"></i> ${giorni} ${giorni === 1 ? 'giorno' : 'giorni'}
-                    </span>
+                    ${destra}
                     ${slug ? `<button onclick="UI.showPage('storico-push')" class="btn btn-small" style="padding: 2px 8px; font-size: 0.7rem; background: #145284; color: white; border: none; border-radius: 4px; cursor: pointer;" title="Apri storico push">Dettagli</button>` : ''}
                 </div>
             `;

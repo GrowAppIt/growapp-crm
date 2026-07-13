@@ -7,6 +7,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 
 // Leggi la versione dal package.json
 const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8'));
@@ -79,30 +80,53 @@ try {
     const versionMatch = indexHtml.match(/var APP_VERSION\s*=\s*'([^']+)'/);
     const currentVersion = versionMatch ? versionMatch[1] : null;
 
-    if (currentVersion && currentVersion !== APP_VERSION) {
-        console.log(`\n🔄 Aggiornamento versione in index.html: ${currentVersion} → ${APP_VERSION}`);
-
-        // 1. Aggiorna APP_VERSION nello script inline
+    // 1. Aggiorna SEMPRE APP_VERSION nello script inline con la versione del package
+    if (currentVersion !== APP_VERSION) {
         indexHtml = indexHtml.replace(
             /var APP_VERSION\s*=\s*'[^']+'/,
             `var APP_VERSION = '${APP_VERSION}'`
         );
-
-        // 2. Aggiorna tutti i ?v=x.y.z per cache busting (script e css)
-        indexHtml = indexHtml.replace(
-            /\?v=[\d]+\.[\d]+\.[\d]+/g,
-            `?v=${APP_VERSION}`
-        );
-
-        fs.writeFileSync(indexPath, indexHtml, 'utf8');
-        console.log(`✅ index.html aggiornato alla versione ${APP_VERSION}`);
-        console.log(`   - APP_VERSION inline aggiornata`);
-        console.log(`   - Cache busting (?v=) aggiornato su tutti gli script`);
-    } else if (currentVersion === APP_VERSION) {
-        console.log(`\nℹ️  index.html già alla versione ${APP_VERSION}, nessun aggiornamento necessario`);
-    } else {
-        console.warn('⚠️  Non ho trovato APP_VERSION in index.html — versioning non aggiornato');
     }
+
+    // 2. Cache busting per-file basato sul CONTENUTO (hash), non sulla versione.
+    //    PROBLEMA RISOLTO: prima i ?v= venivano riscritti solo se cambiava la
+    //    versione in package.json. Se si deployava JS modificato SENZA bumpare la
+    //    versione, l'URL restava identico e con Cache-Control immutable=1anno i
+    //    browser servivano per un anno il file VECCHIO → bug "a volte va a volte no",
+    //    configuratore che non si aggiornava su alcune postazioni.
+    //    Ora, ad OGNI build, per ogni <script src>/<link href> che punta a un file
+    //    locale js/css, calcoliamo un hash del contenuto e lo mettiamo in ?v=.
+    //    Stesso contenuto → stesso hash (nessun download inutile); contenuto
+    //    cambiato → hash nuovo → i client riscaricano subito. Indipendente dal bump.
+    const publicDir = path.join(__dirname, '..', 'public');
+    const hashCache = {};
+    function assetHash(relPath) {
+        if (hashCache[relPath] !== undefined) return hashCache[relPath];
+        let h = null;
+        try {
+            const buf = fs.readFileSync(path.join(publicDir, relPath));
+            h = crypto.createHash('md5').update(buf).digest('hex').slice(0, 10);
+        } catch (e) {
+            h = null; // file non trovato (es. env.js non ancora generato in altri contesti): lascia com'è
+        }
+        hashCache[relPath] = h;
+        return h;
+    }
+
+    let bustCount = 0;
+    // Match: src="js/....js" o href="css/....css", con o senza ?v=... già presente.
+    indexHtml = indexHtml.replace(
+        /((?:src|href)=")((?:js|css)\/[^"?]+\.(?:js|css))(\?v=[^"]*)?(")/g,
+        (full, pre, relPath, oldQ, post) => {
+            const h = assetHash(relPath);
+            if (!h) return full; // file non trovato: non toccare
+            bustCount++;
+            return `${pre}${relPath}?v=${h}${post}`;
+        }
+    );
+
+    fs.writeFileSync(indexPath, indexHtml, 'utf8');
+    console.log(`✅ index.html aggiornato: APP_VERSION=${APP_VERSION}, cache-busting per-hash su ${bustCount} asset js/css`);
 } catch (error) {
     console.error('⚠️  Errore durante l\'aggiornamento di index.html:', error.message);
     console.error('   Il build env.js è riuscito, ma il versioning non è stato aggiornato.');
