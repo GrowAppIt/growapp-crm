@@ -3465,6 +3465,49 @@ const Dashboard = {
     },
 
     /**
+     * Crea un riepilogo LEGGERO dei documenti per il contesto AI.
+     *
+     * Manda SOLO i dati della scheda (nome file, descrizione, categoria, data,
+     * intestatario): il contenuto dei file non esce mai da qui.
+     *
+     * Va chiamata DOPO che clienti e app sono in cache: serve a tradurre
+     * l'entitaId nel nome, altrimenti l'AI vedrebbe solo codici tipo CLI-001 e
+     * non saprebbe rispondere a "i documenti di Agrigento".
+     */
+    _buildLightDocumentiSummary(documenti) {
+        if (!documenti || !Array.isArray(documenti)) return [];
+
+        const nomiClienti = {};
+        (this._aiChatDataCache.clienti || []).forEach(c => { nomiClienti[c.id] = c.ragioneSociale; });
+        const nomiApp = {};
+        (this._aiChatDataCache.app || []).forEach(a => { nomiApp[a.id] = a.nome || a.comune || ''; });
+
+        const leggeri = documenti.map(d => {
+            const intestatario = d.tipo === 'app'
+                ? (nomiApp[d.entitaId] || '')
+                : (nomiClienti[d.entitaId] || '');
+            return {
+                id: d.id,
+                tipo: d.tipo || 'cliente',
+                entitaId: d.entitaId || '',
+                entita: intestatario || 'sconosciuto',
+                nomeFile: d.nomeOriginale || '',
+                descrizione: (d.descrizione || '').substring(0, 200),
+                categoria: d.categoria || 'altro',
+                // Stessa ricaduta usata in DocumentService: i documenti caricati
+                // prima della v10.4.0 non hanno dataDocumento.
+                data: d.dataDocumento || String(d.dataCaricamento || '').slice(0, 10)
+            };
+        });
+
+        // Ordina dal più recente PRIMA che il payload venga tagliato a MAX_ITEMS:
+        // Firestore restituisce i documenti in ordine di id, quindi senza questo
+        // il taglio scarterebbe documenti a caso e l'AI non vedrebbe proprio
+        // quello cercato. Così, se si taglia, si perdono i più vecchi.
+        return leggeri.sort((a, b) => String(b.data || '').localeCompare(String(a.data || '')));
+    },
+
+    /**
      * Crea un riepilogo LEGGERO dei contratti per il contesto AI
      */
     _buildLightContrattiSummary(contratti) {
@@ -3571,7 +3614,7 @@ const Dashboard = {
         try {
             // Carica TUTTI i dati CRM (leggeri) se non in cache
             if (!this._aiChatDataCache) {
-                this._aiChatDataCache = { app: [], clienti: [], contratti: [], fatture: [], scadenze: [] };
+                this._aiChatDataCache = { app: [], clienti: [], contratti: [], fatture: [], scadenze: [], documenti: [] };
                 const loadPromises = [];
 
                 // App
@@ -3614,7 +3657,19 @@ const Dashboard = {
                     }).catch(e => { console.warn('AI: errore caricamento scadenze:', e); })
                 );
 
+                // Documenti (solo le schede: nome, descrizione, categoria, data — mai il contenuto dei file)
+                let documentiGrezzi = [];
+                loadPromises.push(
+                    db.collection('documenti').get().then(snap => {
+                        documentiGrezzi = snap.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+                    }).catch(e => { console.warn('AI: errore caricamento documenti:', e); })
+                );
+
                 await Promise.all(loadPromises);
+
+                // I documenti sanno solo l'id dell'intestatario: il nome si risolve
+                // qui, dove clienti e app sono ormai caricati.
+                this._aiChatDataCache.documenti = this._buildLightDocumentiSummary(documentiGrezzi);
             }
 
             // Storico conversazione (ultimi 10)
@@ -3624,7 +3679,7 @@ const Dashboard = {
             }));
 
             // Prepara il payload — limita i record per evitare errore 413/502
-            const MAX_ITEMS = { app: 300, clienti: 200, contratti: 200, fatture: 300, scadenze: 150 };
+            const MAX_ITEMS = { app: 300, clienti: 200, contratti: 200, fatture: 300, scadenze: 150, documenti: 400 };
             const payload = {
                 question: question,
                 appCorrente: null,
@@ -3633,7 +3688,8 @@ const Dashboard = {
                     clienti: (this._aiChatDataCache.clienti || []).slice(0, MAX_ITEMS.clienti),
                     contratti: (this._aiChatDataCache.contratti || []).slice(0, MAX_ITEMS.contratti),
                     fatture: (this._aiChatDataCache.fatture || []).slice(0, MAX_ITEMS.fatture),
-                    scadenze: (this._aiChatDataCache.scadenze || []).slice(0, MAX_ITEMS.scadenze)
+                    scadenze: (this._aiChatDataCache.scadenze || []).slice(0, MAX_ITEMS.scadenze),
+                    documenti: (this._aiChatDataCache.documenti || []).slice(0, MAX_ITEMS.documenti)
                 },
                 conversationHistory: conversationHistory
             };
@@ -3648,6 +3704,7 @@ const Dashboard = {
                 payload.contesto.clienti = payload.contesto.clienti.slice(0, 100);
                 payload.contesto.contratti = payload.contesto.contratti.slice(0, 100);
                 payload.contesto.scadenze = payload.contesto.scadenze.slice(0, 80);
+                payload.contesto.documenti = payload.contesto.documenti.slice(0, 200);
                 payload.tutteLeApp = payload.tutteLeApp.slice(0, 150);
                 bodyStr = JSON.stringify(payload);
             }

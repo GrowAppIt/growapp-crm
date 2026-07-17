@@ -70,6 +70,7 @@ const MAX_CLIENTI = 200;
 const MAX_CONTRATTI = 200;
 const MAX_FATTURE = 300;
 const MAX_SCADENZE = 150;
+const MAX_DOCUMENTI = 400;
 
 // === CONTEXT BUILDERS ===
 
@@ -226,6 +227,19 @@ function buildContestoExtra(contesto) {
     }
   }
 
+  // === DOCUMENTI ===
+  // Solo i dati della scheda (nome file, descrizione, categoria, data): il
+  // CONTENUTO dei file non viene mai inviato qui.
+  if (contesto.documenti && Array.isArray(contesto.documenti) && contesto.documenti.length > 0) {
+    const limited = contesto.documenti.slice(0, MAX_DOCUMENTI);
+    ctx += `\n## DOCUMENTI ARCHIVIATI (${contesto.documenti.length} totali${contesto.documenti.length > MAX_DOCUMENTI ? ', mostrati ' + MAX_DOCUMENTI : ''})\n`;
+    ctx += `Sono le schede dei file caricati nel CRM, non il loro contenuto.\n`;
+    ctx += `Formato: [Categoria] Data | Intestatario | NomeFile | Descrizione\n\n`;
+    for (const d of limited) {
+      ctx += `- [${d.categoria || 'altro'}] ${formatDate(d.data)} | ${sanitizeText(d.entita, 40)} | ${sanitizeText(d.nomeFile, 60)} | ${sanitizeText(d.descrizione, 150)}\n`;
+    }
+  }
+
   // === TASK (per app corrente, se presente) ===
   if (contesto.tasks && Array.isArray(contesto.tasks) && contesto.tasks.length > 0) {
     ctx += `\n## TASK DELL'APP CORRENTE (${contesto.tasks.length} totali)\n`;
@@ -336,12 +350,19 @@ DOVE CERCARE I DATI:
 - SEZIONE "CONTRATTI": contratti con importi, date, tipologia, stato
 - SEZIONE "FATTURE": fatture con importi, stato pagamento, date
 - SEZIONE "SCADENZARIO": scadenze commerciali (pagamenti, fatturazioni, rinnovi)
+- SEZIONE "DOCUMENTI ARCHIVIATI": schede dei file caricati sui clienti (categoria, data, intestatario, nome file, descrizione). Sono SOLO le schede: il contenuto dei file non ce l'hai.
 
 MAPPATURA RICERCHE:
 - "differenziata" / "farmacie" / "certificato Apple" / "OTP" / "credenziali" / "telefono OTP" -> cerca in SEZIONE APP
 - "fatture" / "pagamenti" / "incassi" -> cerca in FATTURE e SCADENZARIO
 - "contratti" / "rinnovi" -> cerca in CONTRATTI e SCADENZARIO
 - "clienti" / "comuni" / "agente" -> cerca in CLIENTI
+- "determina" / "delibera" / "verbale" / "visura" / "DURC" / "carta d'identita" / "documento" / "allegato" / "file" / "PDF" / "scansione" -> cerca in DOCUMENTI ARCHIVIATI
+
+COME RISPONDERE SUI DOCUMENTI:
+- Cerca per SIGNIFICATO nella descrizione e nel nome file, non solo per parola esatta: "determina" sta anche in un verbale o in una delibera, "Agrigento" e' l'intestatario.
+- Per ogni documento trovato scrivi: descrizione, intestatario e data. Poi indica dove si apre: scheda del cliente -> tab Documenti.
+- Se non trovi nulla, dillo in una frase e NON inventare documenti che non sono nell'elenco.
 
 DATI:
 ${dataContext}
