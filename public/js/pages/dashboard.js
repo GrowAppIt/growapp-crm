@@ -133,8 +133,8 @@ const Dashboard = {
                 c.stato === 'ATTIVO' && c.dataScadenza && new Date(c.dataScadenza) <= _dataLimiteContratti
             ).sort((a, b) => new Date(a.dataScadenza) - new Date(b.dataScadenza));
 
-            // Contratti scaduti (stato SCADUTO nel database)
-            const contrattiScaduti = contrattiTutti.filter(c => c.stato === 'SCADUTO')
+            // Contratti scaduti — regola unica condivisa (vedi _isContrattoScaduto)
+            const contrattiScaduti = contrattiTutti.filter(c => this._isContrattoScaduto(c, oggi))
                 .sort((a, b) => new Date(a.dataScadenza || 0) - new Date(b.dataScadenza || 0));
 
             // Fatture scadute (filtro in memoria) — include anche PARZIALMENTE_PAGATA, esclude NC
@@ -1370,16 +1370,35 @@ const Dashboard = {
         };
     },
 
+    /**
+     * REGOLA UNICA: un contratto è "scaduto" (= da rinnovare)?
+     *
+     * Prima ogni punto della dashboard aveva la sua regola e i numeri non
+     * tornavano: il riquadro KPI diceva 33 e la lista sotto 16. Il riquadro
+     * contava "data passata e non CESSATO", quindi si tirava dentro anche i
+     * contratti RINNOVATI — che hanno SEMPRE la vecchia data nel passato, per
+     * definizione. Su 33, ben 16 erano rinnovi già fatti (luglio 2026).
+     *
+     * Cosa NON è scaduto:
+     * - CESSATO: chiuso volontariamente
+     * - RINNOVATO: sostituito dal contratto nuovo (per il CRM è uno stato
+     *   chiuso come CESSATO — vedi DataService.calcolaStatoCliente)
+     * - SOSPESO: ha una gestione sua, non è "da rinnovare"
+     */
+    _isContrattoScaduto(contratto, oggi) {
+        if (contratto.stato === 'SCADUTO') return true;
+        // Rete di sicurezza: contratto ancora marcato ATTIVO ma con la data
+        // di scadenza già passata (nessuno lo ha aggiornato).
+        if (contratto.stato === 'ATTIVO' && contratto.dataScadenza && new Date(contratto.dataScadenza) < oggi) return true;
+        return false;
+    },
+
     // === NUOVI WIDGET KPI ===
 
     renderStatisticheKPI(stats, scadenzeScadute, contrattiTutti, fattureScadute, tasks, app, scadenzeScaduteSospese) {
-        // Contratti scaduti: data scadenza passata e non cessati
         const oggi = new Date();
         oggi.setHours(0, 0, 0, 0);
-        const contrattiScadutiList = contrattiTutti.filter(c => {
-            if (!c.dataScadenza || c.stato === 'CESSATO') return false;
-            return new Date(c.dataScadenza) < oggi;
-        });
+        const contrattiScadutiList = contrattiTutti.filter(c => this._isContrattoScaduto(c, oggi));
         const contrattiScadutiCount = contrattiScadutiList.length;
 
         // Helper robusto: gestisce boolean true, stringa 'true', e undefined/false/'false'
@@ -2620,11 +2639,8 @@ const Dashboard = {
             return scadenza >= oggi && scadenza <= tra30giorni;
         });
 
-        // Contratti scaduti (da rinnovare)
-        const contrattiScaduti = contratti.filter(c => {
-            if (!c.dataScadenza) return false;
-            return c.stato === 'SCADUTO' || (c.stato === 'ATTIVO' && new Date(c.dataScadenza) < oggi);
-        });
+        // Contratti scaduti (da rinnovare) — regola unica condivisa
+        const contrattiScaduti = contratti.filter(c => this._isContrattoScaduto(c, oggi));
 
         // Clienti attivi vs altri
         const clientiAttivi = clienti.filter(c => c.statoContratto === 'ATTIVO');
@@ -3170,9 +3186,12 @@ const Dashboard = {
         const tutti = [...contrattiScaduti, ...contrattiInScadenza];
         if (tutti.length === 0) return '';
 
+        const _oggiAgente = new Date();
+        _oggiAgente.setHours(0, 0, 0, 0);
+
         let righe = '';
         tutti.forEach(c => {
-            const scaduto = c.stato === 'SCADUTO' || (c.dataScadenza && new Date(c.dataScadenza) < new Date());
+            const scaduto = this._isContrattoScaduto(c, _oggiAgente);
             righe += `<div style="display: flex; justify-content: space-between; align-items: center; padding: 0.6rem 0.5rem; border-bottom: 1px solid var(--grigio-100); ${scaduto ? 'background: #FFF8E1; border-radius: 6px; margin-bottom: 2px;' : ''}">
                 <div style="flex: 1;">
                     <a href="#" onclick="UI.showPage('dettaglio-contratto', '${c.id}')" style="color: var(--blu-700); text-decoration: none; font-weight: 600; font-size: 0.9rem;">${c.numeroContratto || 'N/D'}</a>
