@@ -34,9 +34,71 @@ const DocumentService = {
     },
 
     /**
+     * Data di oggi in formato YYYY-MM-DD, nel fuso orario locale.
+     * (NON usare toISOString(): di notte restituisce il giorno precedente perché è UTC)
+     */
+    oggiISO() {
+        const d = new Date();
+        const mese = String(d.getMonth() + 1).padStart(2, '0');
+        const giorno = String(d.getDate()).padStart(2, '0');
+        return `${d.getFullYear()}-${mese}-${giorno}`;
+    },
+
+    /**
+     * Normalizza una data in YYYY-MM-DD, oppure null se non valida
+     */
+    normalizzaData(valore) {
+        if (!valore) return null;
+        const data = String(valore).slice(0, 10);
+        return /^\d{4}-\d{2}-\d{2}$/.test(data) ? data : null;
+    },
+
+    /**
+     * Data "ufficiale" del documento: quella scelta dall'utente se presente,
+     * altrimenti si ricade sulla data di caricamento (documenti caricati prima
+     * dell'introduzione del campo dataDocumento).
+     */
+    getDataDocumento(doc) {
+        return this.normalizzaData(doc.dataDocumento) || this.normalizzaData(doc.dataCaricamento) || '';
+    },
+
+    /**
+     * Formatta una data YYYY-MM-DD in gg/mm/aaaa
+     */
+    formatData(dataISO) {
+        const parti = String(dataISO || '').slice(0, 10).split('-');
+        if (parti.length !== 3 || !parti[0]) return '—';
+        return `${parti[2]}/${parti[1]}/${parti[0]}`;
+    },
+
+    /**
+     * Ordina i documenti dal più recente al più vecchio in base alla data del
+     * documento; a parità di data vince chi è stato caricato per ultimo.
+     */
+    sortDocumenti(documenti) {
+        return documenti.sort((a, b) => {
+            const dataA = this.getDataDocumento(a);
+            const dataB = this.getDataDocumento(b);
+            if (dataA !== dataB) return dataA < dataB ? 1 : -1;
+            return String(b.dataCaricamento || '').localeCompare(String(a.dataCaricamento || ''));
+        });
+    },
+
+    /**
+     * Il file può essere mostrato in anteprima nel CRM?
+     */
+    isImmagine(mimeType) {
+        return !!mimeType && mimeType.startsWith('image/');
+    },
+
+    isPdf(mimeType) {
+        return mimeType === 'application/pdf';
+    },
+
+    /**
      * Upload documento su Firebase Storage
      */
-    async uploadDocumento(file, tipo, entitaId, descrizione) {
+    async uploadDocumento(file, tipo, entitaId, descrizione, dataDocumento) {
         try {
             // Valida file
             const validation = this.validateFile(file);
@@ -89,6 +151,8 @@ const DocumentService = {
                 downloadUrl: downloadUrl,
                 caricatoDa: AuthService.getUserId(),
                 caricatoDaNome: AuthService.getUserName(),
+                // Data del documento: se non indicata vale quella di caricamento
+                dataDocumento: this.normalizzaData(dataDocumento) || this.oggiISO(),
                 dataCaricamento: new Date().toISOString()
             };
 
@@ -110,7 +174,51 @@ const DocumentService = {
     },
 
     /**
+     * Aggiorna i dati modificabili di un documento già caricato
+     * (descrizione e data). Il file su Storage non viene toccato.
+     */
+    async updateDocumento(documentoId, dati) {
+        try {
+            const descrizione = (dati.descrizione || '').trim();
+            if (!descrizione) {
+                throw new Error('La descrizione è obbligatoria');
+            }
+
+            UI.showLoading('Salvataggio modifiche...');
+
+            const updateData = {
+                descrizione: descrizione,
+                modificatoDa: AuthService.getUserId(),
+                modificatoDaNome: AuthService.getUserName(),
+                dataModifica: new Date().toISOString()
+            };
+
+            const dataDocumento = this.normalizzaData(dati.dataDocumento);
+            if (dataDocumento) {
+                updateData.dataDocumento = dataDocumento;
+            }
+
+            await db.collection('documenti').doc(documentoId).update(updateData);
+
+            UI.hideLoading();
+            UI.showSuccess('Documento aggiornato con successo');
+
+            return updateData;
+
+        } catch (error) {
+            UI.hideLoading();
+            console.error('Errore aggiornamento documento:', error);
+            throw error;
+        }
+    },
+
+    /**
      * Ottieni lista documenti per entità
+     *
+     * NOTA: la query Firestore continua a ordinare per dataCaricamento (indice
+     * già esistente). L'ordinamento per data del documento è fatto lato client
+     * di proposito: un orderBy('dataDocumento') ESCLUDEREBBE dai risultati tutti
+     * i documenti caricati prima dell'introduzione del campo.
      */
     async getDocumenti(tipo, entitaId) {
         try {
@@ -120,10 +228,10 @@ const DocumentService = {
                 .orderBy('dataCaricamento', 'desc')
                 .get();
 
-            return snapshot.docs.map(doc => ({
+            return this.sortDocumenti(snapshot.docs.map(doc => ({
                 id: doc.id,
                 ...doc.data()
-            }));
+            })));
 
         } catch (error) {
             console.error('Errore caricamento documenti:', error);

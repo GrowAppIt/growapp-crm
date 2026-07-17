@@ -1231,13 +1231,19 @@ const DettaglioCliente = {
     },
 
     renderDocumenti(documenti) {
+        // Tiene in memoria i documenti mostrati: i pulsanti passano solo l'id e
+        // ritrovano qui il documento, così nomi file con apostrofi o virgolette
+        // non rompono più gli onclick.
+        this._documenti = documenti;
+        const soloLettura = AuthService.canViewOnlyOwnData();
+
         return `
             <div class="card">
                 <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
                     <h2 class="card-title">
                         <i class="fas fa-folder-open"></i> Documenti Cliente
                     </h2>
-                    ${!AuthService.canViewOnlyOwnData() ? `
+                    ${!soloLettura ? `
                     <button class="btn btn-primary" onclick="DettaglioCliente.showUploadDocumento()">
                         <i class="fas fa-upload"></i> Carica Documento
                     </button>
@@ -1265,20 +1271,32 @@ const DettaglioCliente = {
                                 transition: all 0.2s;
                             " onmouseover="this.style.borderColor='var(--blu-500)'" onmouseout="this.style.borderColor='var(--grigio-300)'">
 
-                                <!-- Icona file -->
+                                <!-- Anteprima: miniatura per le immagini, icona per il resto -->
                                 <div style="
-                                    width: 60px;
-                                    height: 60px;
+                                    width: 80px;
+                                    height: 80px;
                                     background: var(--grigio-100);
                                     border-radius: 8px;
                                     display: flex;
                                     align-items: center;
                                     justify-content: center;
-                                ">
-                                    <i class="${DocumentService.getFileIcon(doc.mimeType)}" style="
-                                        font-size: 2rem;
-                                        color: ${DocumentService.getFileColor(doc.mimeType)};
-                                    "></i>
+                                    overflow: hidden;
+                                    flex-shrink: 0;
+                                    cursor: pointer;
+                                " onclick="DettaglioCliente.previewDocumento('${doc.id}')" title="Apri anteprima">
+                                    ${DocumentService.isImmagine(doc.mimeType) ? `
+                                        <img src="${doc.downloadUrl}" alt="Anteprima di ${this.escapeHtml(doc.nomeOriginale)}" loading="lazy" style="
+                                            width: 100%;
+                                            height: 100%;
+                                            object-fit: cover;
+                                            display: block;
+                                        ">
+                                    ` : `
+                                        <i class="${DocumentService.getFileIcon(doc.mimeType)}" style="
+                                            font-size: 2rem;
+                                            color: ${DocumentService.getFileColor(doc.mimeType)};
+                                        "></i>
+                                    `}
                                 </div>
 
                                 <!-- Info documento -->
@@ -1290,16 +1308,15 @@ const DettaglioCliente = {
                                         font-size: 1.1rem;
                                         word-break: break-word;
                                     ">
-                                        ${doc.nomeOriginale}
+                                        ${this.escapeHtml(doc.nomeOriginale)}
                                     </h4>
 
                                     <p style="
                                         margin: 0 0 0.75rem 0;
                                         color: var(--grigio-700);
                                         line-height: 1.5;
-                                    ">
-                                        ${doc.descrizione}
-                                    </p>
+                                        white-space: pre-wrap;
+                                    ">${this.escapeHtml(doc.descrizione)}</p>
 
                                     <div style="
                                         display: flex;
@@ -1308,27 +1325,40 @@ const DettaglioCliente = {
                                         font-size: 0.9rem;
                                         color: var(--grigio-500);
                                     ">
+                                        <span title="Data del documento">
+                                            <i class="fas fa-calendar"></i> ${DocumentService.formatData(DocumentService.getDataDocumento(doc))}
+                                        </span>
                                         <span>
                                             <i class="fas fa-hdd"></i> ${DocumentService.formatFileSize(doc.dimensione)}
                                         </span>
                                         <span>
-                                            <i class="fas fa-calendar"></i> ${new Date(doc.dataCaricamento).toLocaleDateString('it-IT')}
-                                        </span>
-                                        <span>
-                                            <i class="fas fa-user"></i> ${doc.caricatoDaNome}
+                                            <i class="fas fa-user"></i> ${this.escapeHtml(doc.caricatoDaNome)}
                                         </span>
                                     </div>
                                 </div>
 
                                 <!-- Azioni -->
                                 <div style="display: flex; gap: 0.5rem; flex-direction: column;">
-                                    <button class="btn btn-primary" onclick="DettaglioCliente.downloadDocumento('${doc.downloadUrl}', '${doc.nomeOriginale}')" style="
+                                    <button class="btn btn-secondary" onclick="DettaglioCliente.previewDocumento('${doc.id}')" style="
+                                        white-space: nowrap;
+                                        padding: 0.5rem 1rem;
+                                    ">
+                                        <i class="fas fa-eye"></i> Anteprima
+                                    </button>
+                                    <button class="btn btn-primary" onclick="DettaglioCliente.downloadDocumento('${doc.id}')" style="
                                         white-space: nowrap;
                                         padding: 0.5rem 1rem;
                                     ">
                                         <i class="fas fa-download"></i> Scarica
                                     </button>
-                                    ${!AuthService.canViewOnlyOwnData() ? `<button class="btn btn-danger" onclick="DettaglioCliente.deleteDocumento('${doc.id}', '${doc.storagePath}', '${doc.nomeOriginale}')" style="
+                                    ${!soloLettura ? `
+                                    <button class="btn btn-secondary" onclick="DettaglioCliente.editDocumento('${doc.id}')" style="
+                                        white-space: nowrap;
+                                        padding: 0.5rem 1rem;
+                                    ">
+                                        <i class="fas fa-pen"></i> Modifica
+                                    </button>
+                                    <button class="btn btn-danger" onclick="DettaglioCliente.deleteDocumento('${doc.id}')" style="
                                         white-space: nowrap;
                                         padding: 0.5rem 1rem;
                                     ">
@@ -1341,6 +1371,176 @@ const DettaglioCliente = {
                 `}
             </div>
         `;
+    },
+
+    /**
+     * Ritrova un documento fra quelli mostrati nella tab
+     */
+    getDocumentoById(documentoId) {
+        return (this._documenti || []).find(doc => doc.id === documentoId);
+    },
+
+    /**
+     * Anteprima del documento dentro il CRM, senza scaricarlo né aprirlo
+     * in una nuova scheda.
+     */
+    async previewDocumento(documentoId) {
+        const doc = this.getDocumentoById(documentoId);
+        if (!doc) {
+            UI.showError('Documento non trovato');
+            return;
+        }
+
+        let viewer;
+        if (DocumentService.isImmagine(doc.mimeType)) {
+            viewer = `
+                <img src="${doc.downloadUrl}" alt="Anteprima di ${this.escapeHtml(doc.nomeOriginale)}" style="
+                    max-width: 100%;
+                    max-height: 65vh;
+                    display: block;
+                    margin: 0 auto;
+                    border-radius: 8px;
+                ">
+            `;
+        } else if (DocumentService.isPdf(doc.mimeType)) {
+            viewer = `
+                <iframe src="${doc.downloadUrl}#view=FitH" title="Anteprima di ${this.escapeHtml(doc.nomeOriginale)}" style="
+                    width: 100%;
+                    height: 65vh;
+                    border: 2px solid var(--grigio-300);
+                    border-radius: 8px;
+                    background: var(--grigio-100);
+                "></iframe>
+            `;
+        } else {
+            viewer = `
+                <div style="text-align: center; padding: 2rem; color: var(--grigio-500);">
+                    <i class="${DocumentService.getFileIcon(doc.mimeType)}" style="font-size: 3rem; color: ${DocumentService.getFileColor(doc.mimeType)};"></i>
+                    <p style="margin-top: 1rem;">Anteprima non disponibile per questo tipo di file.<br>Puoi comunque scaricarlo.</p>
+                </div>
+            `;
+        }
+
+        const modalePromise = UI.showModal({
+            title: '<i class="fas fa-eye"></i> Anteprima Documento',
+            content: `
+                <div style="margin-bottom: 1rem;">
+                    <div style="font-weight: 700; color: var(--blu-700); word-break: break-word;">${this.escapeHtml(doc.nomeOriginale)}</div>
+                    <div style="color: var(--grigio-700); margin-top: 0.25rem; white-space: pre-wrap;">${this.escapeHtml(doc.descrizione)}</div>
+                    <div style="color: var(--grigio-500); font-size: 0.9rem; margin-top: 0.5rem;">
+                        <i class="fas fa-calendar"></i> ${DocumentService.formatData(DocumentService.getDataDocumento(doc))}
+                        &nbsp;•&nbsp;
+                        <i class="fas fa-hdd"></i> ${DocumentService.formatFileSize(doc.dimensione)}
+                    </div>
+                </div>
+                ${viewer}
+            `,
+            confirmText: 'Scarica',
+            cancelText: 'Chiudi'
+        });
+
+        // Il modal standard è largo 600px: per l'anteprima serve più spazio.
+        // showModal costruisce il DOM prima di restituire la promise, quindi
+        // l'elemento esiste già qui.
+        const modalContent = document.querySelector('#customModal .modal-content');
+        if (modalContent) modalContent.style.maxWidth = '900px';
+
+        if (await modalePromise) {
+            this.downloadDocumento(documentoId);
+        }
+    },
+
+    /**
+     * Modifica descrizione e data di un documento già salvato
+     */
+    async editDocumento(documentoId) {
+        const doc = this.getDocumentoById(documentoId);
+        if (!doc) {
+            UI.showError('Documento non trovato');
+            return;
+        }
+
+        await UI.showModal({
+            title: '<i class="fas fa-pen"></i> Modifica Documento',
+            content: `
+                <div style="
+                    display: flex;
+                    align-items: center;
+                    gap: 0.75rem;
+                    background: var(--grigio-100);
+                    border-radius: 8px;
+                    padding: 0.75rem 1rem;
+                    margin-bottom: 1.5rem;
+                ">
+                    <i class="${DocumentService.getFileIcon(doc.mimeType)}" style="font-size: 1.5rem; color: ${DocumentService.getFileColor(doc.mimeType)};"></i>
+                    <div style="min-width: 0; font-weight: 600; color: var(--blu-700); word-break: break-word;">
+                        ${this.escapeHtml(doc.nomeOriginale)}
+                    </div>
+                </div>
+
+                <form id="editDocumentoForm">
+                    <div style="margin-bottom: 1.5rem;">
+                        <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--grigio-700);">
+                            📝 Descrizione *
+                        </label>
+                        <textarea id="editDescrizioneInput" rows="3" required style="
+                            width: 100%;
+                            padding: 0.75rem;
+                            border: 2px solid var(--grigio-300);
+                            border-radius: 8px;
+                            font-family: 'Titillium Web', sans-serif;
+                            resize: vertical;
+                        ">${this.escapeHtml(doc.descrizione)}</textarea>
+                    </div>
+
+                    <div style="margin-bottom: 1.5rem;">
+                        <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--grigio-700);">
+                            📅 Data documento
+                        </label>
+                        <input type="date" id="editDataInput" value="${DocumentService.getDataDocumento(doc)}" style="
+                            width: 100%;
+                            padding: 0.75rem;
+                            border: 2px solid var(--grigio-300);
+                            border-radius: 8px;
+                            font-family: 'Titillium Web', sans-serif;
+                        ">
+                        <small style="color: var(--grigio-500); display: block; margin-top: 0.5rem;">
+                            I documenti sono elencati dal più recente al più vecchio in base a questa data.
+                        </small>
+                    </div>
+                </form>
+            `,
+            confirmText: 'Salva',
+            cancelText: 'Annulla',
+            onConfirm: async () => {
+                const descrizione = document.getElementById('editDescrizioneInput').value.trim();
+                const dataDocumento = document.getElementById('editDataInput').value;
+
+                if (!descrizione) {
+                    UI.showError('Inserisci una descrizione per il documento');
+                    return false;  // Non chiudere il modal
+                }
+
+                const confirmBtn = document.getElementById('modalConfirmBtn');
+                const originalHTML = confirmBtn.innerHTML;
+                confirmBtn.disabled = true;
+                confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Salvataggio...';
+
+                try {
+                    await DocumentService.updateDocumento(doc.id, {
+                        descrizione: descrizione,
+                        dataDocumento: dataDocumento || DocumentService.getDataDocumento(doc)
+                    });
+                    await this.reloadTabContent();
+                    return true;  // Chiudi il modal
+                } catch (error) {
+                    confirmBtn.disabled = false;
+                    confirmBtn.innerHTML = originalHTML;
+                    UI.showError(error.message || 'Errore durante il salvataggio delle modifiche');
+                    return false;  // Non chiudere il modal in caso di errore
+                }
+            }
+        });
     },
 
     async showUploadDocumento() {
@@ -1378,6 +1578,22 @@ const DettaglioCliente = {
                             resize: vertical;
                         "></textarea>
                     </div>
+
+                    <div style="margin-bottom: 1.5rem;">
+                        <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--grigio-700);">
+                            📅 Data documento
+                        </label>
+                        <input type="date" id="dataDocumentoInput" value="${DocumentService.oggiISO()}" style="
+                            width: 100%;
+                            padding: 0.75rem;
+                            border: 2px solid var(--grigio-300);
+                            border-radius: 8px;
+                            font-family: 'Titillium Web', sans-serif;
+                        ">
+                        <small style="color: var(--grigio-500); display: block; margin-top: 0.5rem;">
+                            Se non la cambi vale la data di oggi. Puoi modificarla anche dopo il caricamento.
+                        </small>
+                    </div>
                 </form>
             `,
             confirmText: 'Carica',
@@ -1386,9 +1602,11 @@ const DettaglioCliente = {
                 // Raccogli dati PRIMA che il modal si chiuda
                 const fileInput = document.getElementById('fileInput');
                 const descrizioneInput = document.getElementById('descrizioneInput');
+                const dataDocumentoInput = document.getElementById('dataDocumentoInput');
 
                 const file = fileInput.files[0];
                 const descrizione = descrizioneInput.value.trim();
+                const dataDocumento = dataDocumentoInput.value;
 
                 if (!file) {
                     UI.showError('Seleziona un file da caricare');
@@ -1407,7 +1625,7 @@ const DettaglioCliente = {
                 confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Caricamento...';
 
                 try {
-                    await DocumentService.uploadDocumento(file, 'cliente', this.clienteId, descrizione);
+                    await DocumentService.uploadDocumento(file, 'cliente', this.clienteId, descrizione, dataDocumento);
                     await this.reloadTabContent('documenti');
                     return true;  // Chiudi il modal
                 } catch (error) {
@@ -1421,17 +1639,30 @@ const DettaglioCliente = {
         });
     },
 
-    downloadDocumento(url, nomeFile) {
+    downloadDocumento(documentoId) {
+        const doc = this.getDocumentoById(documentoId);
+        if (!doc) {
+            UI.showError('Documento non trovato');
+            return;
+        }
         const a = document.createElement('a');
-        a.href = url;
-        a.download = nomeFile;
+        a.href = doc.downloadUrl;
+        a.download = doc.nomeOriginale;
         a.target = '_blank';
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
     },
 
-    async deleteDocumento(documentoId, storagePath, nomeFile) {
+    async deleteDocumento(documentoId) {
+        const doc = this.getDocumentoById(documentoId);
+        if (!doc) {
+            UI.showError('Documento non trovato');
+            return;
+        }
+        const nomeFile = doc.nomeOriginale;
+        const storagePath = doc.storagePath;
+
         const conferma = await UI.showModal({
             title: '<i class="fas fa-exclamation-triangle"></i> Conferma Eliminazione',
             content: `
@@ -1447,7 +1678,7 @@ const DettaglioCliente = {
                         color: var(--blu-700);
                         word-break: break-word;
                     ">
-                        ${nomeFile}
+                        ${this.escapeHtml(nomeFile)}
                     </p>
                     <p style="color: var(--rosso-errore); font-weight: 600; margin-top: 1rem;">
                         ⚠️ Questa azione non può essere annullata

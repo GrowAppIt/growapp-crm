@@ -359,11 +359,11 @@ const Clienti = {
                 documenti.push({ id: doc.id, ...data });
             });
 
-            // Filtra documenti che matchano la ricerca
-            const risultati = documenti.filter(doc => {
+            // Filtra documenti che matchano la ricerca, dal più recente al più vecchio
+            const risultati = DocumentService.sortDocumenti(documenti.filter(doc => {
                 const searchText = `${doc.nomeOriginale} ${doc.descrizione}`.toLowerCase();
                 return searchText.includes(searchTerm);
-            });
+            }));
 
             // Carica info clienti per i risultati
             const clientiMap = new Map();
@@ -430,7 +430,7 @@ const Clienti = {
                                             <div style="display: flex; gap: 1rem; flex-wrap: wrap; font-size: 0.85rem; color: var(--grigio-500);">
                                                 <span><i class="fas fa-user"></i> <strong>${cliente ? cliente.ragioneSociale : 'Cliente eliminato'}</strong></span>
                                                 <span><i class="fas fa-hdd"></i> ${DocumentService.formatFileSize(doc.dimensione)}</span>
-                                                <span><i class="fas fa-calendar"></i> ${new Date(doc.dataCaricamento).toLocaleDateString('it-IT')}</span>
+                                                <span title="Data del documento"><i class="fas fa-calendar"></i> ${DocumentService.formatData(DocumentService.getDataDocumento(doc))}</span>
                                             </div>
                                         </div>
 
