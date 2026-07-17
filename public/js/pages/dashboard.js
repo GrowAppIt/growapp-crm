@@ -323,7 +323,7 @@ const Dashboard = {
                         <button class="btn btn-secondary" onclick="UI.showPage('impostazioni')">
                             <i class="fas fa-cog"></i> Personalizza
                         </button>
-                        ${AuthService.canViewPubblicazioneStore() ? `
+                        ${AuthService.canUseAIAssistant() ? `
                         <button class="btn btn-primary" onclick="Dashboard.toggleAIChat()" title="AI Assistant" style="background: linear-gradient(135deg, var(--blu-700), var(--blu-900, #0D3A5C)); position: relative;">
                             <i class="fas fa-robot"></i> AI Assistant
                         </button>

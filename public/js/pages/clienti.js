@@ -182,12 +182,13 @@ const Clienti = {
                             ? '<span class="badge" style="background: #D32F2F; color: white;"><i class="fas fa-exclamation-triangle"></i> SENZA CONTRATTO</span>'
                             : `<span class="badge ${badgeClass}">${(cliente.statoContratto || 'N/A').replace('_', ' ')}</span>`
                         }
-                        ${!AuthService.canViewOnlyOwnData() ? `
+                        ${AuthService.canDeleteClienti() ? `
                         <button
-                            class="btn-icon"
-                            onclick="Clienti.eliminaCliente('${cliente.id}', '${cliente.ragioneSociale.replace(/'/g, "\\'")}')"
+                            onclick="Clienti.eliminaCliente('${cliente.id}')"
                             title="Elimina cliente"
-                            style="color: var(--rosso-errore);"
+                            style="background: none; border: none; cursor: pointer; padding: 0.4rem 0.5rem; border-radius: 6px; color: var(--rosso-errore, #D32F2F); font-size: 0.95rem;"
+                            onmouseover="this.style.background='#FDECEA'"
+                            onmouseout="this.style.background='none'"
                         >
                             <i class="fas fa-trash"></i>
                         </button>
@@ -276,45 +277,175 @@ const Clienti = {
         await ExportManager.exportClienti(filtrati);
     },
 
-    async eliminaCliente(clienteId, nomeCliente) {
-        const conferma = confirm(
-            `⚠️ ATTENZIONE!\n\nSei sicuro di voler eliminare "${nomeCliente}"?\n\n` +
-            `Questa operazione eliminerà:\n` +
-            `• Il cliente dalla lista\n` +
-            `• TUTTE le fatture associate\n` +
-            `• TUTTI i contratti e scadenze\n\n` +
-            `QUESTA OPERAZIONE NON PUÒ ESSERE ANNULLATA!`
-        );
+    _escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text == null ? '' : String(text);
+        return div.innerHTML;
+    },
 
-        if (!conferma) return;
+    /**
+     * Elimina un cliente e tutti i dati collegati.
+     *
+     * Prima di chiedere conferma mostra esattamente cosa verrà cancellato:
+     * il caso d'uso principale è il cliente creato per errore (solo un
+     * preventivo, zero dati collegati), ma la stessa azione su un cliente
+     * storico porterebbe via contratti e fatture. Per questo la conferma è
+     * proporzionata: una sola parola se non c'è nulla di collegato, la
+     * ragione sociale completa se ci sono contratti o fatture.
+     *
+     * @param {string} clienteId
+     * @param {object} opts - { redirectTo: 'clienti' } per tornare alla lista dopo
+     */
+    async eliminaCliente(clienteId, opts = {}) {
+        if (!AuthService.canDeleteClienti()) {
+            UI.showError('Non hai i permessi per eliminare un cliente.');
+            return;
+        }
 
-        // Doppia conferma per sicurezza
-        const confermaFinale = confirm(
-            `ULTIMA CONFERMA:\n\nDigita OK per eliminare definitivamente "${nomeCliente}"`
-        );
+        let cliente, dip;
+        try {
+            UI.showLoading();
+            cliente = await DataService.getCliente(clienteId);
+            if (!cliente) {
+                UI.hideLoading();
+                UI.showError('Cliente non trovato.');
+                return;
+            }
+            dip = await DataService.getDipendenzeCliente(clienteId);
+            UI.hideLoading();
+        } catch (error) {
+            UI.hideLoading();
+            console.error('Errore lettura dati cliente:', error);
+            UI.showError('Errore nel controllo dei dati collegati: ' + error.message);
+            return;
+        }
 
-        if (!confermaFinale) return;
+        const nome = cliente.ragioneSociale || clienteId;
+        const nomeSafe = this._escapeHtml(nome);
+
+        // Le app sono in produzione sugli store: non si cancellano da qui.
+        if (dip.app.length > 0) {
+            await UI.showModal({
+                title: '⚠️ Eliminazione bloccata',
+                content: `
+                    <p style="margin: 0 0 1rem;">
+                        <strong>${nomeSafe}</strong> è il cliente pagante di
+                        ${dip.app.length} app ${dip.app.length === 1 ? 'attiva' : 'attive'}:
+                    </p>
+                    <ul style="margin: 0 0 1rem 1.25rem; color: var(--grigio-700);">
+                        ${dip.app.map(a => `<li>${this._escapeHtml(a.nome || a.comune || a.id)}</li>`).join('')}
+                    </ul>
+                    <p style="margin: 0; color: var(--grigio-700);">
+                        Le app non vengono mai eliminate insieme al cliente. Apri ogni app e
+                        assegnala a un altro cliente pagante (o lasciala senza cliente),
+                        poi riprova.
+                    </p>
+                `,
+                confirmText: 'Ho capito',
+                cancelText: 'Chiudi',
+                confirmClass: 'btn-primary'
+            });
+            return;
+        }
+
+        const totaleCollegati = dip.contratti.length + dip.fatture.length;
+        const paroleChiave = totaleCollegati > 0 ? nome : 'ELIMINA';
+
+        const righeDati = [
+            { uno: 'contratto', molti: 'contratti', n: dip.contratti.length, icona: 'file-contract' },
+            { uno: 'fattura', molti: 'fatture', n: dip.fatture.length, icona: 'file-invoice' },
+            { uno: 'scadenza', molti: 'scadenze', n: dip.scadenze.length, icona: 'calendar-alt' },
+            { uno: 'documento', molti: 'documenti', n: dip.documenti.length, icona: 'folder-open' },
+            { uno: 'nota', molti: 'note', n: dip.note.length, icona: 'sticky-note' }
+        ];
+
+        const isPulito = righeDati.every(r => r.n === 0);
+
+        const contenuto = `
+            <p style="margin: 0 0 1rem; font-size: 1.05rem;">
+                Stai per eliminare definitivamente <strong>${nomeSafe}</strong>.
+            </p>
+
+            ${isPulito ? `
+                <div style="background: var(--verde-100, #E2F8DE); border-left: 4px solid var(--verde-700, #3CA434); padding: 0.75rem 1rem; border-radius: 6px; margin-bottom: 1rem;">
+                    <i class="fas fa-check-circle" style="color: var(--verde-700, #3CA434);"></i>
+                    Nessun contratto, fattura o documento collegato: si elimina solo l'anagrafica.
+                </div>
+            ` : `
+                <div style="background: #FFF4E5; border-left: 4px solid var(--giallo-avviso, #FFCC00); padding: 0.75rem 1rem; border-radius: 6px; margin-bottom: 1rem;">
+                    <strong><i class="fas fa-exclamation-triangle"></i> Verranno eliminati anche:</strong>
+                    <ul style="margin: 0.5rem 0 0 1.25rem;">
+                        ${righeDati.filter(r => r.n > 0).map(r => `
+                            <li><i class="fas fa-${r.icona}" style="width: 18px; color: var(--grigio-700);"></i>
+                                <strong>${r.n}</strong> ${r.n === 1 ? r.uno : r.molti}</li>
+                        `).join('')}
+                    </ul>
+                </div>
+            `}
+
+            <p style="margin: 0 0 0.5rem; color: var(--rosso-errore, #D32F2F); font-weight: 600;">
+                L'operazione non può essere annullata.
+            </p>
+
+            <label for="confermaEliminaCliente" style="display: block; margin-bottom: 0.35rem; color: var(--grigio-700); font-size: 0.9rem;">
+                Per confermare, digita <strong>${this._escapeHtml(paroleChiave)}</strong>:
+            </label>
+            <input type="text" id="confermaEliminaCliente" class="form-input" autocomplete="off"
+                   placeholder="${this._escapeHtml(paroleChiave)}" style="width: 100%;">
+            <div id="confermaEliminaErrore" style="display: none; color: var(--rosso-errore, #D32F2F); font-size: 0.85rem; margin-top: 0.35rem;">
+                Il testo non corrisponde.
+            </div>
+        `;
+
+        let confermato = false;
+
+        await UI.showModal({
+            title: 'Elimina cliente',
+            content: contenuto,
+            confirmText: 'Elimina definitivamente',
+            cancelText: 'Annulla',
+            confirmClass: 'btn-danger',
+            onConfirm: () => {
+                const input = document.getElementById('confermaEliminaCliente');
+                const errore = document.getElementById('confermaEliminaErrore');
+                const valore = (input?.value || '').trim();
+
+                if (valore.toLowerCase() !== paroleChiave.toLowerCase()) {
+                    if (errore) errore.style.display = 'block';
+                    input?.focus();
+                    return false; // tiene aperto il modal
+                }
+                confermato = true;
+                return true;
+            }
+        });
+
+        if (!confermato) return;
 
         try {
             UI.showLoading();
+            const conteggio = await DataService.eliminaClienteCompleto(clienteId, dip);
+            UI.hideLoading();
 
-            // Elimina tutte le fatture del cliente
-            const fatture = await DataService.getFattureCliente(clienteId);
-            for (const fattura of fatture) {
-                await DataService.deleteFattura(fattura.id);
+            const dettagli = righeDati
+                .filter(r => conteggio[r.molti] > 0)
+                .map(r => `${conteggio[r.molti]} ${conteggio[r.molti] === 1 ? r.uno : r.molti}`)
+                .join(', ');
+
+            // showNotification inietta il messaggio con innerHTML: la ragione
+            // sociale è testo scritto dall'utente, va sempre passata escapata.
+            UI.showSuccess(
+                `Cliente "${nomeSafe}" eliminato` + (dettagli ? ` (insieme a: ${dettagli})` : '')
+            );
+
+            if (opts.redirectTo) {
+                UI.showPage(opts.redirectTo);
+            } else {
+                await this.render();
             }
-
-            // Elimina il cliente
-            await DataService.deleteCliente(clienteId);
-
-            UI.hideLoading();
-            UI.showSuccess(`Cliente "${nomeCliente}" eliminato con successo`);
-
-            // Ricarica la lista
-            await this.render();
         } catch (error) {
-            console.error('Errore eliminazione cliente:', error);
             UI.hideLoading();
+            console.error('Errore eliminazione cliente:', error);
             UI.showError('Errore nell\'eliminazione: ' + error.message);
         }
     },

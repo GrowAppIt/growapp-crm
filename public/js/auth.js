@@ -33,14 +33,18 @@ const AuthService = {
             'export_data', 'manage_settings', 'view_audit',
             'view_dev_tasks', 'manage_dev_tasks', // ✅ Aggiunto accesso TASK
             'view_company_info', // ✅ Può vedere card Growapp (ma non modificare)
-            'view_officina_digitale', 'manage_officina_digitale' // ✅ Officina Digitale
+            'view_officina_digitale', 'manage_officina_digitale', // ✅ Officina Digitale
+            'delete_clients', // ✅ Eliminazione cliente + dati collegati
+            'use_ai_assistant' // ✅ Assistente AI in Dashboard
         ],
         CTO: [
             'view_all_data', 'manage_apps', 'manage_dev_tasks', 'view_dev_tasks',
             'manage_app_content', 'manage_clients', 'manage_contracts',
             'view_company_info', 'manage_business_card', // ✅ Può vedere Growapp + modificare biglietto (NO view_reports)
             'manage_webapp_templates', // ✅ Generatore Webapp
-            'view_officina_digitale', 'manage_officina_digitale' // ✅ Officina Digitale
+            'view_officina_digitale', 'manage_officina_digitale', // ✅ Officina Digitale
+            'delete_clients', // ✅ Eliminazione cliente + dati collegati
+            'use_ai_assistant' // ✅ Assistente AI in Dashboard
         ],
         SVILUPPATORE: [
             'view_dashboard', // ✅ Accesso Dashboard (senza dati amministrativi)
@@ -71,7 +75,8 @@ const AuthService = {
             'view_apps', // ✅ Aggiunto APP
             'view_dev_tasks', 'manage_dev_tasks', // ✅ Aggiunto TASK + creazione task
             'view_company_info', 'manage_business_card', // ✅ Impostazioni base
-            'view_officina_digitale' // ✅ Officina Digitale (sola lettura)
+            'view_officina_digitale', // ✅ Officina Digitale (sola lettura)
+            'use_ai_assistant' // ✅ Assistente AI in Dashboard
         ]
     },
 
@@ -293,6 +298,16 @@ const AuthService = {
     // Pubblicazione Store: visibile solo a CTO, Amministratori e Super Admin
     canViewPubblicazioneStore() {
         return [this.ROLES.SUPER_ADMIN, this.ROLES.ADMIN, this.ROLES.CTO].includes(this.getUserRole());
+    },
+
+    // Assistente AI in Dashboard: SUPER_ADMIN, ADMIN, CTO e CONTABILE
+    canUseAIAssistant() {
+        return this.hasPermission('use_ai_assistant');
+    },
+
+    // Eliminazione cliente (con tutti i dati collegati): SUPER_ADMIN, ADMIN, CTO
+    canDeleteClienti() {
+        return this.hasPermission('delete_clients');
     },
 
     // Ritorna il nome dell'agente per filtrare i dati (campo 'agente' nei clienti)

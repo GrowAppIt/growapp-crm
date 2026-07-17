@@ -1731,6 +1731,115 @@ const DataService = {
         }
     },
 
+    /**
+     * Raccoglie tutto ciò che è collegato a un cliente, per poter mostrare
+     * all'utente cosa verrebbe cancellato PRIMA di procedere.
+     *
+     * Le app NON vengono mai cancellate: sono in produzione sugli store e
+     * possono essere riassegnate a un altro cliente pagante. Se ce ne sono,
+     * l'eliminazione del cliente va bloccata.
+     */
+    async getDipendenzeCliente(clienteId) {
+        const [contratti, fatture, documentiSnap, noteSnap, scadenzeSnap, appSnap] = await Promise.all([
+            this.getContrattiCliente(clienteId),
+            this.getFattureCliente(clienteId),
+            db.collection('documenti').where('tipo', '==', 'cliente').where('entitaId', '==', clienteId).get(),
+            db.collection('note_cliente').where('clienteId', '==', clienteId).get(),
+            db.collection('scadenzario').where('clienteId', '==', clienteId).get(),
+            db.collection('app').where('clientePaganteId', '==', clienteId).get()
+        ]);
+
+        const mapDocs = (snap) => snap.docs.map(d => ({ ...d.data(), id: d.id }));
+
+        return {
+            contratti: contratti,
+            fatture: fatture,
+            documenti: mapDocs(documentiSnap),
+            note: mapDocs(noteSnap),
+            scadenze: mapDocs(scadenzeSnap),
+            app: mapDocs(appSnap)
+        };
+    },
+
+    /**
+     * Elimina un cliente e TUTTI i dati collegati (contratti, fatture, scadenze,
+     * documenti + file su Storage, note). Operazione irreversibile.
+     *
+     * Il cliente viene cancellato per ULTIMO: se qualcosa fallisce a metà,
+     * il cliente resta in lista e l'operazione è ripetibile, invece di lasciare
+     * contratti e fatture orfani che continuerebbero a comparire nello scadenzario.
+     *
+     * @param {string} clienteId
+     * @param {object} dipendenze - risultato di getDipendenzeCliente()
+     * @returns {object} conteggio di ciò che è stato eliminato
+     */
+    async eliminaClienteCompleto(clienteId, dipendenze) {
+        if (dipendenze.app.length > 0) {
+            throw new Error(
+                `Il cliente ha ${dipendenze.app.length} app collegate. ` +
+                `Scollega o riassegna le app a un altro cliente pagante prima di eliminarlo.`
+            );
+        }
+
+        const cliente = await this.getCliente(clienteId);
+        const ragioneSociale = cliente?.ragioneSociale || clienteId;
+
+        // 1. Fatture
+        for (const fattura of dipendenze.fatture) {
+            await db.collection('fatture').doc(fattura.id).delete();
+        }
+
+        // 2. Contratti
+        for (const contratto of dipendenze.contratti) {
+            await db.collection('contratti').doc(contratto.id).delete();
+        }
+
+        // 3. Scadenze
+        for (const scadenza of dipendenze.scadenze) {
+            await db.collection('scadenzario').doc(scadenza.id).delete();
+        }
+
+        // 4. Documenti: prima il file su Storage, poi il record Firestore.
+        //    Un file già mancante non deve bloccare l'eliminazione.
+        for (const documento of dipendenze.documenti) {
+            if (documento.storagePath) {
+                try {
+                    await storage.ref().child(documento.storagePath).delete();
+                } catch (e) {
+                    console.warn('File storage non eliminato (' + documento.storagePath + '):', e.message);
+                }
+            }
+            await db.collection('documenti').doc(documento.id).delete();
+        }
+
+        // 5. Note
+        for (const nota of dipendenze.note) {
+            await db.collection('note_cliente').doc(nota.id).delete();
+        }
+
+        // 6. Il cliente, per ultimo
+        await db.collection('clienti').doc(clienteId).delete();
+
+        this._cacheInvalidate('clienti:');
+        this._cacheInvalidate('contratti:');
+        this._cacheInvalidate('fatture:');
+
+        const conteggio = {
+            contratti: dipendenze.contratti.length,
+            fatture: dipendenze.fatture.length,
+            scadenze: dipendenze.scadenze.length,
+            documenti: dipendenze.documenti.length,
+            note: dipendenze.note.length
+        };
+
+        this._logAudit('DELETE_CASCADE', 'clienti', clienteId, {
+            ragioneSociale: ragioneSociale,
+            ...conteggio
+        });
+
+        return conteggio;
+    },
+
     // FATTURE
     async updateFattura(fatturaId, data) {
         try {

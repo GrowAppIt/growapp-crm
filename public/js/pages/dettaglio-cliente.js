@@ -42,11 +42,18 @@ const DettaglioCliente = {
                         <button class="btn btn-secondary btn-sm" onclick="UI.goBack('clienti')">
                             <i class="fas fa-arrow-left"></i> ${UI.getBackLabel('clienti')}
                         </button>
-                        ${!AuthService.canViewOnlyOwnData() ? `
-                        <button class="btn btn-primary btn-sm" onclick="DettaglioCliente.editCliente()">
-                            <i class="fas fa-edit"></i> Modifica
-                        </button>
-                        ` : ''}
+                        <div style="display: flex; gap: 0.5rem;">
+                            ${!AuthService.canViewOnlyOwnData() ? `
+                            <button class="btn btn-primary btn-sm" onclick="DettaglioCliente.editCliente()">
+                                <i class="fas fa-edit"></i> Modifica
+                            </button>
+                            ` : ''}
+                            ${AuthService.canDeleteClienti() ? `
+                            <button class="btn btn-danger btn-sm" onclick="DettaglioCliente.eliminaCliente()">
+                                <i class="fas fa-trash"></i> Elimina
+                            </button>
+                            ` : ''}
+                        </div>
                     </div>
                     <h1 style="font-size: 2rem; font-weight: 700; color: var(--blu-700); margin-bottom: 0.5rem;">
                         <i class="fas fa-building"></i> ${cliente.ragioneSociale}
@@ -2261,6 +2268,13 @@ const DettaglioCliente = {
         if (this.cliente) {
             FormsManager.showModificaCliente(this.cliente);
         }
+    },
+
+    // Elimina il cliente aperto: stessa logica della lista Clienti
+    // (conferma + cancellazione dati collegati), poi torna alla lista.
+    eliminaCliente() {
+        if (!this.clienteId) return;
+        return Clienti.eliminaCliente(this.clienteId, { redirectTo: 'clienti' });
     },
 
     // Helper methods per contratti
