@@ -172,6 +172,23 @@ function buildContestoExtra(contesto) {
   if (!contesto) return '';
   let ctx = '';
 
+  // === DOCUMENTI ===
+  // STA IN CIMA DI PROPOSITO: il contesto viene tagliato a MAX_CONTEXT_CHARS
+  // partendo dalla coda, e questa sezione pesa pochissimo (poche migliaia di
+  // caratteri) ma e' l'unico modo che l'AI ha di sapere quali file esistono.
+  // Messa in fondo veniva tagliata via INTERA e l'assistente rispondeva "non
+  // trovo documenti" pur avendoli ricevuti (bug reale, luglio 2026).
+  // Solo i dati della scheda: il CONTENUTO dei file non passa mai da qui.
+  if (contesto.documenti && Array.isArray(contesto.documenti) && contesto.documenti.length > 0) {
+    const limited = contesto.documenti.slice(0, MAX_DOCUMENTI);
+    ctx += `\n## DOCUMENTI ARCHIVIATI (${contesto.documenti.length} totali${contesto.documenti.length > MAX_DOCUMENTI ? ', mostrati ' + MAX_DOCUMENTI : ''})\n`;
+    ctx += `Sono le schede dei file caricati nel CRM, non il loro contenuto.\n`;
+    ctx += `Formato: [Categoria] Data | Intestatario | NomeFile | Descrizione\n\n`;
+    for (const d of limited) {
+      ctx += `- [${d.categoria || 'altro'}] ${formatDate(d.data)} | ${sanitizeText(d.entita, 40)} | ${sanitizeText(d.nomeFile, 60)} | ${sanitizeText(d.descrizione, 150)}\n`;
+    }
+  }
+
   // === CLIENTI ===
   if (contesto.clienti && Array.isArray(contesto.clienti) && contesto.clienti.length > 0) {
     const limited = contesto.clienti.slice(0, MAX_CLIENTI);
@@ -224,19 +241,6 @@ function buildContestoExtra(contesto) {
       if (s.importo) ctx += ` | ${formatCurrency(s.importo)}`;
       if (s.descrizione) ctx += ` | ${sanitizeText(s.descrizione, 60)}`;
       ctx += '\n';
-    }
-  }
-
-  // === DOCUMENTI ===
-  // Solo i dati della scheda (nome file, descrizione, categoria, data): il
-  // CONTENUTO dei file non viene mai inviato qui.
-  if (contesto.documenti && Array.isArray(contesto.documenti) && contesto.documenti.length > 0) {
-    const limited = contesto.documenti.slice(0, MAX_DOCUMENTI);
-    ctx += `\n## DOCUMENTI ARCHIVIATI (${contesto.documenti.length} totali${contesto.documenti.length > MAX_DOCUMENTI ? ', mostrati ' + MAX_DOCUMENTI : ''})\n`;
-    ctx += `Sono le schede dei file caricati nel CRM, non il loro contenuto.\n`;
-    ctx += `Formato: [Categoria] Data | Intestatario | NomeFile | Descrizione\n\n`;
-    for (const d of limited) {
-      ctx += `- [${d.categoria || 'altro'}] ${formatDate(d.data)} | ${sanitizeText(d.entita, 40)} | ${sanitizeText(d.nomeFile, 60)} | ${sanitizeText(d.descrizione, 150)}\n`;
     }
   }
 
@@ -330,8 +334,19 @@ module.exports = async function handler(req, res) {
 
   // SAFETY: tronca il contesto se troppo grande per evitare errori 502
   if (dataContext.length > MAX_CONTEXT_CHARS) {
-    console.warn(`[ai-chat] Contesto troncato: ${dataContext.length} -> ${MAX_CONTEXT_CHARS} chars`);
-    dataContext = dataContext.substring(0, MAX_CONTEXT_CHARS) + '\n\n[... dati troncati per limiti di dimensione ...]';
+    // Il taglio parte dalla CODA: le sezioni in fondo possono sparire del tutto.
+    // Prima era silenzioso e ci e' costato un bug difficile da vedere (i
+    // documenti arrivavano al server ma non al modello). Ora si logga cosa si
+    // perde, e si dice al modello che i dati sono parziali, cosi' non afferma
+    // "non esiste" quando invece e' solo troncato.
+    const sezioniPrima = (dataContext.match(/\n## [^\n(]+/g) || []).map(s => s.replace(/\n## /, '').trim());
+    const tagliato = dataContext.substring(0, MAX_CONTEXT_CHARS);
+    const sezioniDopo = (tagliato.match(/\n## [^\n(]+/g) || []).map(s => s.replace(/\n## /, '').trim());
+    const perse = sezioniPrima.filter(s => sezioniDopo.indexOf(s) === -1);
+
+    console.warn(`[ai-chat] Contesto troncato: ${dataContext.length} -> ${MAX_CONTEXT_CHARS} chars${perse.length ? ' | SEZIONI PERSE: ' + perse.join(', ') : ''}`);
+
+    dataContext = tagliato + `\n\n[... elenco troncato per limiti di dimensione: gli ultimi dati non sono inclusi${perse.length ? ' (sezioni mancanti: ' + perse.join(', ') + ')' : ''}. Se non trovi qualcosa qui, di' che i dati mostrati sono parziali invece di affermare che non esiste. ...]`;
   }
 
   console.log(`[ai-chat] Contesto dati: ${dataContext.length} chars`);
@@ -360,7 +375,8 @@ MAPPATURA RICERCHE:
 - "determina" / "delibera" / "verbale" / "visura" / "DURC" / "carta d'identita" / "documento" / "allegato" / "file" / "PDF" / "scansione" -> cerca in DOCUMENTI ARCHIVIATI
 
 COME RISPONDERE SUI DOCUMENTI:
-- Cerca per SIGNIFICATO nella descrizione e nel nome file, non solo per parola esatta: "determina" sta anche in un verbale o in una delibera, "Agrigento" e' l'intestatario.
+- Cerca per SIGNIFICATO nella descrizione E nel NOME FILE, non solo per parola esatta: "Agrigento" e' l'intestatario, e il nome del file dice spesso piu' della descrizione.
+- Le descrizioni sono scritte di fretta e ABBREVIATE: "Det." = determina/determina dirigenziale, "Del." = delibera, "Conv." = convenzione, "CI" = carta d'identita, "Fatt." = fattura. Una richiesta di "determina" deve trovare anche i "Det.".
 - Per ogni documento trovato scrivi: descrizione, intestatario e data. Poi indica dove si apre: scheda del cliente -> tab Documenti.
 - Se non trovi nulla, dillo in una frase e NON inventare documenti che non sono nell'elenco.
 
