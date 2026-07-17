@@ -6,6 +6,9 @@ const DettaglioCliente = {
 
     async render(clienteId) {
         this.clienteId = clienteId;
+        // Filtri documenti: si azzerano cambiando cliente
+        this._filtroCategoria = 'tutte';
+        this._filtroTesto = '';
         UI.showLoading();
 
         try {
@@ -1245,7 +1248,7 @@ const DettaglioCliente = {
                     </h2>
                     ${!soloLettura ? `
                     <button class="btn btn-primary" onclick="DettaglioCliente.showUploadDocumento()">
-                        <i class="fas fa-upload"></i> Carica Documento
+                        <i class="fas fa-upload"></i> Carica Documenti
                     </button>
                     ` : ''}
                 </div>
@@ -1257,118 +1260,300 @@ const DettaglioCliente = {
                         <p>Carica documenti amministrativi, contabili o altro per questo cliente</p>
                     </div>
                 ` : `
-                    <div class="documenti-list" style="display: grid; gap: 1rem; padding: 1.5rem;">
-                        ${documenti.map(doc => `
-                            <div class="documento-item" style="
-                                background: white;
-                                border: 2px solid var(--grigio-300);
-                                border-radius: 8px;
-                                padding: 1.5rem;
-                                display: grid;
-                                grid-template-columns: auto 1fr auto;
-                                gap: 1.5rem;
-                                align-items: start;
-                                transition: all 0.2s;
-                            " onmouseover="this.style.borderColor='var(--blu-500)'" onmouseout="this.style.borderColor='var(--grigio-300)'">
-
-                                <!-- Anteprima: miniatura per le immagini, icona per il resto -->
-                                <div style="
-                                    width: 80px;
-                                    height: 80px;
-                                    background: var(--grigio-100);
-                                    border-radius: 8px;
-                                    display: flex;
-                                    align-items: center;
-                                    justify-content: center;
-                                    overflow: hidden;
-                                    flex-shrink: 0;
-                                    cursor: pointer;
-                                " onclick="DettaglioCliente.previewDocumento('${doc.id}')" title="Apri anteprima">
-                                    ${DocumentService.isImmagine(doc.mimeType) ? `
-                                        <img src="${doc.downloadUrl}" alt="Anteprima di ${this.escapeHtml(doc.nomeOriginale)}" loading="lazy" style="
-                                            width: 100%;
-                                            height: 100%;
-                                            object-fit: cover;
-                                            display: block;
-                                        ">
-                                    ` : `
-                                        <i class="${DocumentService.getFileIcon(doc.mimeType)}" style="
-                                            font-size: 2rem;
-                                            color: ${DocumentService.getFileColor(doc.mimeType)};
-                                        "></i>
-                                    `}
-                                </div>
-
-                                <!-- Info documento -->
-                                <div style="min-width: 0;">
-                                    <h4 style="
-                                        margin: 0 0 0.5rem 0;
-                                        color: var(--blu-700);
-                                        font-weight: 700;
-                                        font-size: 1.1rem;
-                                        word-break: break-word;
-                                    ">
-                                        ${this.escapeHtml(doc.nomeOriginale)}
-                                    </h4>
-
-                                    <p style="
-                                        margin: 0 0 0.75rem 0;
-                                        color: var(--grigio-700);
-                                        line-height: 1.5;
-                                        white-space: pre-wrap;
-                                    ">${this.escapeHtml(doc.descrizione)}</p>
-
-                                    <div style="
-                                        display: flex;
-                                        gap: 1.5rem;
-                                        flex-wrap: wrap;
-                                        font-size: 0.9rem;
-                                        color: var(--grigio-500);
-                                    ">
-                                        <span title="Data del documento">
-                                            <i class="fas fa-calendar"></i> ${DocumentService.formatData(DocumentService.getDataDocumento(doc))}
-                                        </span>
-                                        <span>
-                                            <i class="fas fa-hdd"></i> ${DocumentService.formatFileSize(doc.dimensione)}
-                                        </span>
-                                        <span>
-                                            <i class="fas fa-user"></i> ${this.escapeHtml(doc.caricatoDaNome)}
-                                        </span>
-                                    </div>
-                                </div>
-
-                                <!-- Azioni -->
-                                <div style="display: flex; gap: 0.5rem; flex-direction: column;">
-                                    <button class="btn btn-secondary" onclick="DettaglioCliente.previewDocumento('${doc.id}')" style="
-                                        white-space: nowrap;
-                                        padding: 0.5rem 1rem;
-                                    ">
-                                        <i class="fas fa-eye"></i> Anteprima
-                                    </button>
-                                    <button class="btn btn-primary" onclick="DettaglioCliente.downloadDocumento('${doc.id}')" style="
-                                        white-space: nowrap;
-                                        padding: 0.5rem 1rem;
-                                    ">
-                                        <i class="fas fa-download"></i> Scarica
-                                    </button>
-                                    ${!soloLettura ? `
-                                    <button class="btn btn-secondary" onclick="DettaglioCliente.editDocumento('${doc.id}')" style="
-                                        white-space: nowrap;
-                                        padding: 0.5rem 1rem;
-                                    ">
-                                        <i class="fas fa-pen"></i> Modifica
-                                    </button>
-                                    <button class="btn btn-danger" onclick="DettaglioCliente.deleteDocumento('${doc.id}')" style="
-                                        white-space: nowrap;
-                                        padding: 0.5rem 1rem;
-                                    ">
-                                        <i class="fas fa-trash"></i> Elimina
-                                    </button>` : ''}
-                                </div>
-                            </div>
-                        `).join('')}
-                    </div>
+                    ${this.renderFiltriDocumenti()}
+                    <div id="documentiLista">${this.renderListaDocumenti()}</div>
                 `}
+            </div>
+        `;
+    },
+
+    /**
+     * Barra filtri: ricerca testuale + pastiglie per categoria
+     */
+    renderFiltriDocumenti() {
+        const documenti = this._documenti || [];
+        const categoriaAttiva = this._filtroCategoria || 'tutte';
+
+        // Mostra solo le categorie effettivamente presenti fra i documenti
+        const pastiglie = [{ id: 'tutte', label: 'Tutti', color: 'var(--blu-700)', count: documenti.length }];
+        DocumentService.CATEGORIE.forEach(cat => {
+            const count = documenti.filter(doc => DocumentService.getCategoria(doc.categoria).id === cat.id).length;
+            if (count > 0) pastiglie.push({ id: cat.id, label: cat.label, color: cat.color, count: count });
+        });
+
+        return `
+            <div style="
+                padding: 1rem 1.5rem;
+                border-bottom: 2px solid var(--grigio-300);
+                display: flex;
+                gap: 1rem;
+                flex-wrap: wrap;
+                align-items: center;
+            ">
+                <div style="position: relative; flex: 1; min-width: 220px;">
+                    <i class="fas fa-search" style="
+                        position: absolute;
+                        left: 0.75rem;
+                        top: 50%;
+                        transform: translateY(-50%);
+                        color: var(--grigio-500);
+                    "></i>
+                    <input type="search" id="documentiRicerca" value="${this.escapeHtml(this._filtroTesto || '')}"
+                        placeholder="Cerca per nome o descrizione..."
+                        oninput="DettaglioCliente.setFiltroTestoDocumenti(this.value)"
+                        style="
+                            width: 100%;
+                            padding: 0.6rem 0.75rem 0.6rem 2.25rem;
+                            border: 2px solid var(--grigio-300);
+                            border-radius: 8px;
+                            font-family: 'Titillium Web', sans-serif;
+                        ">
+                </div>
+                <div style="display: flex; gap: 0.4rem; flex-wrap: wrap;">
+                    ${pastiglie.map(p => {
+                        const attiva = p.id === categoriaAttiva;
+                        return `
+                        <button onclick="DettaglioCliente.setFiltroCategoriaDocumenti('${p.id}')" style="
+                            padding: 0.4rem 0.8rem;
+                            border-radius: 999px;
+                            border: 2px solid ${attiva ? p.color : 'var(--grigio-300)'};
+                            background: ${attiva ? p.color : 'white'};
+                            color: ${attiva ? 'white' : 'var(--grigio-700)'};
+                            font-family: 'Titillium Web', sans-serif;
+                            font-weight: 600;
+                            font-size: 0.85rem;
+                            cursor: pointer;
+                            white-space: nowrap;
+                        ">${this.escapeHtml(p.label)} (${p.count})</button>`;
+                    }).join('')}
+                </div>
+            </div>
+        `;
+    },
+
+    /**
+     * Documenti che passano i filtri attivi
+     */
+    filtraDocumenti() {
+        const testo = (this._filtroTesto || '').trim().toLowerCase();
+        const categoria = this._filtroCategoria || 'tutte';
+
+        return (this._documenti || []).filter(doc => {
+            if (categoria !== 'tutte' && DocumentService.getCategoria(doc.categoria).id !== categoria) return false;
+            if (!testo) return true;
+            const cercabile = `${doc.nomeOriginale || ''} ${doc.descrizione || ''}`.toLowerCase();
+            return cercabile.includes(testo);
+        });
+    },
+
+    setFiltroTestoDocumenti(valore) {
+        this._filtroTesto = valore;
+        this.aggiornaListaDocumenti();
+    },
+
+    setFiltroCategoriaDocumenti(categoria) {
+        this._filtroCategoria = categoria;
+        // La barra filtri va ridisegnata per aggiornare la pastiglia attiva; il
+        // campo di ricerca invece NON si tocca, altrimenti perde il testo digitato.
+        const contenitore = document.getElementById('tabContent');
+        const barra = contenitore ? contenitore.querySelector('#documentiRicerca') : null;
+        if (barra) barra.closest('div[style*="border-bottom"]').outerHTML = this.renderFiltriDocumenti();
+        this.aggiornaListaDocumenti();
+    },
+
+    /**
+     * Ridisegna SOLO la lista: così il campo di ricerca non perde il focus
+     * mentre si digita.
+     */
+    aggiornaListaDocumenti() {
+        const contenitore = document.getElementById('documentiLista');
+        if (contenitore) contenitore.innerHTML = this.renderListaDocumenti();
+    },
+
+    /**
+     * Lista documenti raggruppata per anno
+     */
+    renderListaDocumenti() {
+        const documenti = this.filtraDocumenti();
+        // Serve alle frecce avanti/indietro dell'anteprima: si sfoglia quello che si vede.
+        this._documentiVisibili = documenti;
+
+        if (documenti.length === 0) {
+            return `
+                <div class="empty-state">
+                    <i class="fas fa-search"></i>
+                    <h3>Nessun documento trovato</h3>
+                    <p>Nessun documento corrisponde ai filtri impostati</p>
+                </div>
+            `;
+        }
+
+        // I documenti arrivano già ordinati dal più recente: raggruppandoli in
+        // ordine, anche gli anni escono dal più recente al più vecchio.
+        const gruppi = [];
+        documenti.forEach(doc => {
+            const data = DocumentService.getDataDocumento(doc);
+            const anno = data ? data.slice(0, 4) : 'Senza data';
+            let gruppo = gruppi.find(g => g.anno === anno);
+            if (!gruppo) {
+                gruppo = { anno: anno, documenti: [] };
+                gruppi.push(gruppo);
+            }
+            gruppo.documenti.push(doc);
+        });
+
+        return `
+            <div class="documenti-list" style="display: grid; gap: 1rem; padding: 1.5rem;">
+                ${gruppi.map(gruppo => `
+                    <div style="
+                        display: flex;
+                        align-items: center;
+                        gap: 0.75rem;
+                        margin-top: 0.5rem;
+                    ">
+                        <span style="
+                            font-weight: 700;
+                            color: var(--blu-700);
+                            font-size: 1.05rem;
+                        ">${this.escapeHtml(gruppo.anno)}</span>
+                        <span style="
+                            font-size: 0.85rem;
+                            color: var(--grigio-500);
+                        ">${gruppo.documenti.length} document${gruppo.documenti.length === 1 ? 'o' : 'i'}</span>
+                        <div style="flex: 1; height: 2px; background: var(--grigio-300);"></div>
+                    </div>
+                    ${gruppo.documenti.map(doc => this.renderCardDocumento(doc)).join('')}
+                `).join('')}
+            </div>
+        `;
+    },
+
+    /**
+     * Card di un singolo documento
+     */
+    renderCardDocumento(doc) {
+        const soloLettura = AuthService.canViewOnlyOwnData();
+        const categoria = DocumentService.getCategoria(doc.categoria);
+
+        return `
+            <div class="documento-item" style="
+                background: white;
+                border: 2px solid var(--grigio-300);
+                border-radius: 8px;
+                padding: 1.5rem;
+                display: grid;
+                grid-template-columns: auto 1fr auto;
+                gap: 1.5rem;
+                align-items: start;
+                transition: all 0.2s;
+            " onmouseover="this.style.borderColor='var(--blu-500)'" onmouseout="this.style.borderColor='var(--grigio-300)'">
+
+                <!-- Anteprima: miniatura per le immagini, icona per il resto -->
+                <div style="
+                    width: 80px;
+                    height: 80px;
+                    background: var(--grigio-100);
+                    border-radius: 8px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    overflow: hidden;
+                    flex-shrink: 0;
+                    cursor: pointer;
+                " onclick="DettaglioCliente.previewDocumento('${doc.id}')" title="Apri anteprima">
+                    ${DocumentService.isImmagine(doc.mimeType) ? `
+                        <img src="${doc.downloadUrl}" alt="Anteprima di ${this.escapeHtml(doc.nomeOriginale)}" loading="lazy" style="
+                            width: 100%;
+                            height: 100%;
+                            object-fit: cover;
+                            display: block;
+                        ">
+                    ` : `
+                        <i class="${DocumentService.getFileIcon(doc.mimeType)}" style="
+                            font-size: 2rem;
+                            color: ${DocumentService.getFileColor(doc.mimeType)};
+                        "></i>
+                    `}
+                </div>
+
+                <!-- Info documento -->
+                <div style="min-width: 0;">
+                    <div style="display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; margin-bottom: 0.5rem;">
+                        <h4 style="
+                            margin: 0;
+                            color: var(--blu-700);
+                            font-weight: 700;
+                            font-size: 1.1rem;
+                            word-break: break-word;
+                        ">${this.escapeHtml(doc.nomeOriginale)}</h4>
+                        <span style="
+                            display: inline-flex;
+                            align-items: center;
+                            gap: 0.3rem;
+                            background: ${categoria.color};
+                            color: white;
+                            border-radius: 999px;
+                            padding: 0.15rem 0.6rem;
+                            font-size: 0.75rem;
+                            font-weight: 700;
+                            white-space: nowrap;
+                        "><i class="${categoria.icon}"></i> ${this.escapeHtml(categoria.label)}</span>
+                    </div>
+
+                    <p style="
+                        margin: 0 0 0.75rem 0;
+                        color: var(--grigio-700);
+                        line-height: 1.5;
+                        white-space: pre-wrap;
+                    ">${this.escapeHtml(doc.descrizione)}</p>
+
+                    <div style="
+                        display: flex;
+                        gap: 1.5rem;
+                        flex-wrap: wrap;
+                        font-size: 0.9rem;
+                        color: var(--grigio-500);
+                    ">
+                        <span title="Data del documento">
+                            <i class="fas fa-calendar"></i> ${DocumentService.formatData(DocumentService.getDataDocumento(doc))}
+                        </span>
+                        <span>
+                            <i class="fas fa-hdd"></i> ${DocumentService.formatFileSize(doc.dimensione)}
+                        </span>
+                        <span>
+                            <i class="fas fa-user"></i> ${this.escapeHtml(doc.caricatoDaNome)}
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Azioni -->
+                <div style="display: flex; gap: 0.5rem; flex-direction: column;">
+                    <button class="btn btn-secondary" onclick="DettaglioCliente.previewDocumento('${doc.id}')" style="
+                        white-space: nowrap;
+                        padding: 0.5rem 1rem;
+                    ">
+                        <i class="fas fa-eye"></i> Anteprima
+                    </button>
+                    <button class="btn btn-primary" onclick="DettaglioCliente.downloadDocumento('${doc.id}')" style="
+                        white-space: nowrap;
+                        padding: 0.5rem 1rem;
+                    ">
+                        <i class="fas fa-download"></i> Scarica
+                    </button>
+                    ${!soloLettura ? `
+                    <button class="btn btn-secondary" onclick="DettaglioCliente.editDocumento('${doc.id}')" style="
+                        white-space: nowrap;
+                        padding: 0.5rem 1rem;
+                    ">
+                        <i class="fas fa-pen"></i> Modifica
+                    </button>
+                    <button class="btn btn-danger" onclick="DettaglioCliente.deleteDocumento('${doc.id}')" style="
+                        white-space: nowrap;
+                        padding: 0.5rem 1rem;
+                    ">
+                        <i class="fas fa-trash"></i> Elimina
+                    </button>` : ''}
+                </div>
             </div>
         `;
     },
@@ -1382,7 +1567,7 @@ const DettaglioCliente = {
 
     /**
      * Anteprima del documento dentro il CRM, senza scaricarlo né aprirlo
-     * in una nuova scheda.
+     * in una nuova scheda. Le frecce sfogliano i documenti della lista.
      */
     async previewDocumento(documentoId) {
         const doc = this.getDocumentoById(documentoId);
@@ -1391,50 +1576,11 @@ const DettaglioCliente = {
             return;
         }
 
-        let viewer;
-        if (DocumentService.isImmagine(doc.mimeType)) {
-            viewer = `
-                <img src="${doc.downloadUrl}" alt="Anteprima di ${this.escapeHtml(doc.nomeOriginale)}" style="
-                    max-width: 100%;
-                    max-height: 65vh;
-                    display: block;
-                    margin: 0 auto;
-                    border-radius: 8px;
-                ">
-            `;
-        } else if (DocumentService.isPdf(doc.mimeType)) {
-            viewer = `
-                <iframe src="${doc.downloadUrl}#view=FitH" title="Anteprima di ${this.escapeHtml(doc.nomeOriginale)}" style="
-                    width: 100%;
-                    height: 65vh;
-                    border: 2px solid var(--grigio-300);
-                    border-radius: 8px;
-                    background: var(--grigio-100);
-                "></iframe>
-            `;
-        } else {
-            viewer = `
-                <div style="text-align: center; padding: 2rem; color: var(--grigio-500);">
-                    <i class="${DocumentService.getFileIcon(doc.mimeType)}" style="font-size: 3rem; color: ${DocumentService.getFileColor(doc.mimeType)};"></i>
-                    <p style="margin-top: 1rem;">Anteprima non disponibile per questo tipo di file.<br>Puoi comunque scaricarlo.</p>
-                </div>
-            `;
-        }
+        this._anteprimaId = documentoId;
 
         const modalePromise = UI.showModal({
             title: '<i class="fas fa-eye"></i> Anteprima Documento',
-            content: `
-                <div style="margin-bottom: 1rem;">
-                    <div style="font-weight: 700; color: var(--blu-700); word-break: break-word;">${this.escapeHtml(doc.nomeOriginale)}</div>
-                    <div style="color: var(--grigio-700); margin-top: 0.25rem; white-space: pre-wrap;">${this.escapeHtml(doc.descrizione)}</div>
-                    <div style="color: var(--grigio-500); font-size: 0.9rem; margin-top: 0.5rem;">
-                        <i class="fas fa-calendar"></i> ${DocumentService.formatData(DocumentService.getDataDocumento(doc))}
-                        &nbsp;•&nbsp;
-                        <i class="fas fa-hdd"></i> ${DocumentService.formatFileSize(doc.dimensione)}
-                    </div>
-                </div>
-                ${viewer}
-            `,
+            content: `<div id="anteprimaBox">${this.renderAnteprima(doc)}</div>`,
             confirmText: 'Scarica',
             cancelText: 'Chiudi'
         });
@@ -1445,9 +1591,126 @@ const DettaglioCliente = {
         const modalContent = document.querySelector('#customModal .modal-content');
         if (modalContent) modalContent.style.maxWidth = '900px';
 
+        // Si scarica il documento che si sta guardando, non quello di partenza.
         if (await modalePromise) {
-            this.downloadDocumento(documentoId);
+            this.downloadDocumento(this._anteprimaId);
         }
+    },
+
+    /**
+     * Contenuto del modal di anteprima (intestazione + frecce + visualizzatore)
+     */
+    renderAnteprima(doc) {
+        const lista = (this._documentiVisibili && this._documentiVisibili.length)
+            ? this._documentiVisibili
+            : (this._documenti || []);
+        const indice = lista.findIndex(d => d.id === doc.id);
+        const haPrecedente = indice > 0;
+        const haSuccessivo = indice !== -1 && indice < lista.length - 1;
+        const categoria = DocumentService.getCategoria(doc.categoria);
+
+        let viewer;
+        if (DocumentService.isImmagine(doc.mimeType)) {
+            viewer = `
+                <img src="${doc.downloadUrl}" alt="Anteprima di ${this.escapeHtml(doc.nomeOriginale)}" style="
+                    max-width: 100%;
+                    max-height: 62vh;
+                    display: block;
+                    margin: 0 auto;
+                    border-radius: 8px;
+                ">
+            `;
+        } else if (DocumentService.isPdf(doc.mimeType)) {
+            viewer = `
+                <iframe src="${doc.downloadUrl}#view=FitH" title="Anteprima di ${this.escapeHtml(doc.nomeOriginale)}" style="
+                    width: 100%;
+                    height: 62vh;
+                    border: 2px solid var(--grigio-300);
+                    border-radius: 8px;
+                    background: var(--grigio-100);
+                "></iframe>
+            `;
+        } else {
+            viewer = `
+                <div style="text-align: center; padding: 3rem 2rem; color: var(--grigio-500); background: var(--grigio-100); border-radius: 8px;">
+                    <i class="${DocumentService.getFileIcon(doc.mimeType)}" style="font-size: 3rem; color: ${DocumentService.getFileColor(doc.mimeType)};"></i>
+                    <p style="margin-top: 1rem;">
+                        ${DocumentService.isFirmato(doc.mimeType)
+                            ? 'I file firmati digitalmente (.p7m) non si possono aprire nel browser.<br>Scaricalo e aprilo con il tuo lettore di firma digitale.'
+                            : 'Anteprima non disponibile per questo tipo di file.<br>Puoi comunque scaricarlo.'}
+                    </p>
+                </div>
+            `;
+        }
+
+        return `
+            <div style="margin-bottom: 1rem;">
+                <div style="display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;">
+                    <span style="font-weight: 700; color: var(--blu-700); word-break: break-word;">${this.escapeHtml(doc.nomeOriginale)}</span>
+                    <span style="
+                        display: inline-flex;
+                        align-items: center;
+                        gap: 0.3rem;
+                        background: ${categoria.color};
+                        color: white;
+                        border-radius: 999px;
+                        padding: 0.15rem 0.6rem;
+                        font-size: 0.75rem;
+                        font-weight: 700;
+                    "><i class="${categoria.icon}"></i> ${this.escapeHtml(categoria.label)}</span>
+                </div>
+                <div style="color: var(--grigio-700); margin-top: 0.25rem; white-space: pre-wrap;">${this.escapeHtml(doc.descrizione)}</div>
+                <div style="color: var(--grigio-500); font-size: 0.9rem; margin-top: 0.5rem;">
+                    <i class="fas fa-calendar"></i> ${DocumentService.formatData(DocumentService.getDataDocumento(doc))}
+                    &nbsp;•&nbsp;
+                    <i class="fas fa-hdd"></i> ${DocumentService.formatFileSize(doc.dimensione)}
+                </div>
+            </div>
+
+            ${lista.length > 1 ? `
+            <div style="
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 1rem;
+                margin-bottom: 0.75rem;
+            ">
+                <button class="btn btn-secondary" onclick="DettaglioCliente.navigaAnteprima(-1)" ${haPrecedente ? '' : 'disabled'} style="
+                    padding: 0.4rem 0.9rem;
+                    ${haPrecedente ? '' : 'opacity: 0.4; cursor: not-allowed;'}
+                ">
+                    <i class="fas fa-chevron-left"></i> Precedente
+                </button>
+                <span style="color: var(--grigio-500); font-size: 0.9rem; font-weight: 600;">
+                    ${indice + 1} di ${lista.length}
+                </span>
+                <button class="btn btn-secondary" onclick="DettaglioCliente.navigaAnteprima(1)" ${haSuccessivo ? '' : 'disabled'} style="
+                    padding: 0.4rem 0.9rem;
+                    ${haSuccessivo ? '' : 'opacity: 0.4; cursor: not-allowed;'}
+                ">
+                    Successivo <i class="fas fa-chevron-right"></i>
+                </button>
+            </div>
+            ` : ''}
+
+            ${viewer}
+        `;
+    },
+
+    /**
+     * Sfoglia i documenti dentro il modal di anteprima
+     */
+    navigaAnteprima(passo) {
+        const lista = (this._documentiVisibili && this._documentiVisibili.length)
+            ? this._documentiVisibili
+            : (this._documenti || []);
+        const indice = lista.findIndex(d => d.id === this._anteprimaId);
+        const successivo = lista[indice + passo];
+        if (!successivo) return;
+
+        this._anteprimaId = successivo.id;
+        const box = document.getElementById('anteprimaBox');
+        if (box) box.innerHTML = this.renderAnteprima(successivo);
     },
 
     /**
@@ -1495,6 +1758,24 @@ const DettaglioCliente = {
 
                     <div style="margin-bottom: 1.5rem;">
                         <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--grigio-700);">
+                            🏷️ Categoria
+                        </label>
+                        <select id="editCategoriaInput" style="
+                            width: 100%;
+                            padding: 0.75rem;
+                            border: 2px solid var(--grigio-300);
+                            border-radius: 8px;
+                            font-family: 'Titillium Web', sans-serif;
+                            background: white;
+                        ">
+                            ${DocumentService.CATEGORIE.map(cat => `
+                                <option value="${cat.id}" ${DocumentService.getCategoria(doc.categoria).id === cat.id ? 'selected' : ''}>${this.escapeHtml(cat.label)}</option>
+                            `).join('')}
+                        </select>
+                    </div>
+
+                    <div style="margin-bottom: 1.5rem;">
+                        <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--grigio-700);">
                             📅 Data documento
                         </label>
                         <input type="date" id="editDataInput" value="${DocumentService.getDataDocumento(doc)}" style="
@@ -1515,6 +1796,7 @@ const DettaglioCliente = {
             onConfirm: async () => {
                 const descrizione = document.getElementById('editDescrizioneInput').value.trim();
                 const dataDocumento = document.getElementById('editDataInput').value;
+                const categoria = document.getElementById('editCategoriaInput').value;
 
                 if (!descrizione) {
                     UI.showError('Inserisci una descrizione per il documento');
@@ -1529,7 +1811,8 @@ const DettaglioCliente = {
                 try {
                     await DocumentService.updateDocumento(doc.id, {
                         descrizione: descrizione,
-                        dataDocumento: dataDocumento || DocumentService.getDataDocumento(doc)
+                        dataDocumento: dataDocumento || DocumentService.getDataDocumento(doc),
+                        categoria: categoria
                     });
                     await this.reloadTabContent();
                     return true;  // Chiudi il modal
@@ -1544,99 +1827,373 @@ const DettaglioCliente = {
     },
 
     async showUploadDocumento() {
-        await UI.showModal({
-            title: '<i class="fas fa-upload"></i> Carica Documento Cliente',
+        // Coda dei file in attesa di caricamento. È la fonte di verità: i campi
+        // del form scrivono qui, e il ridisegno delle righe rilegge da qui.
+        this._fileDaCaricare = [];
+        this._contatoreFile = 0;
+
+        const estensioni = DocumentService.ALLOWED_EXTENSIONS.map(e => '.' + e).join(',');
+
+        const promise = UI.showModal({
+            title: '<i class="fas fa-upload"></i> Carica Documenti Cliente',
             content: `
-                <form id="uploadDocumentoForm">
-                    <div style="margin-bottom: 1.5rem;">
-                        <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--grigio-700);">
-                            📄 File (PDF o Immagini, max 10MB)
-                        </label>
-                        <input type="file" id="fileInput" accept=".pdf,.jpg,.jpeg,.png" required style="
-                            width: 100%;
-                            padding: 0.75rem;
-                            border: 2px dashed var(--blu-500);
-                            border-radius: 8px;
-                            background: var(--blu-100);
-                            cursor: pointer;
-                        ">
-                        <small style="color: var(--grigio-500); display: block; margin-top: 0.5rem;">
-                            Tipi ammessi: PDF, JPG, PNG - Dimensione massima: 10MB
-                        </small>
-                    </div>
+                <div id="uploadDropzone" style="
+                    border: 3px dashed var(--blu-500);
+                    border-radius: 12px;
+                    background: var(--grigio-100);
+                    padding: 2rem 1.5rem;
+                    text-align: center;
+                    transition: all 0.15s;
+                ">
+                    <i class="fas fa-cloud-arrow-up" style="font-size: 2.5rem; color: var(--blu-500);"></i>
+                    <p style="margin: 0.75rem 0 0.5rem 0; font-weight: 600; color: var(--blu-700);">
+                        Trascina qui i file, anche più di uno
+                    </p>
+                    <button type="button" class="btn btn-secondary" onclick="document.getElementById('fileInput').click()" style="padding: 0.4rem 1rem;">
+                        <i class="fas fa-folder-open"></i> Scegli dal computer
+                    </button>
+                    <input type="file" id="fileInput" multiple accept="${estensioni}" style="display: none;"
+                        onchange="DettaglioCliente.aggiungiFileDaInput(this)">
+                    <small style="color: var(--grigio-500); display: block; margin-top: 0.75rem;">
+                        PDF, immagini, Word, Excel e file firmati (.p7m) — massimo 10MB per file
+                    </small>
+                </div>
 
-                    <div style="margin-bottom: 1.5rem;">
-                        <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--grigio-700);">
-                            📝 Descrizione *
-                        </label>
-                        <textarea id="descrizioneInput" rows="3" required placeholder="Es: Contratto firmato, Fattura 2024, Documento identità..." style="
-                            width: 100%;
-                            padding: 0.75rem;
-                            border: 2px solid var(--grigio-300);
-                            border-radius: 8px;
-                            font-family: 'Titillium Web', sans-serif;
-                            resize: vertical;
-                        "></textarea>
-                    </div>
-
-                    <div style="margin-bottom: 1.5rem;">
-                        <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--grigio-700);">
-                            📅 Data documento
-                        </label>
-                        <input type="date" id="dataDocumentoInput" value="${DocumentService.oggiISO()}" style="
-                            width: 100%;
-                            padding: 0.75rem;
-                            border: 2px solid var(--grigio-300);
-                            border-radius: 8px;
-                            font-family: 'Titillium Web', sans-serif;
-                        ">
-                        <small style="color: var(--grigio-500); display: block; margin-top: 0.5rem;">
-                            Se non la cambi vale la data di oggi. Puoi modificarla anche dopo il caricamento.
-                        </small>
-                    </div>
-                </form>
+                <div id="uploadRighe"></div>
             `,
             confirmText: 'Carica',
             cancelText: 'Annulla',
             onConfirm: async () => {
-                // Raccogli dati PRIMA che il modal si chiuda
-                const fileInput = document.getElementById('fileInput');
-                const descrizioneInput = document.getElementById('descrizioneInput');
-                const dataDocumentoInput = document.getElementById('dataDocumentoInput');
+                const righe = this._fileDaCaricare || [];
 
-                const file = fileInput.files[0];
-                const descrizione = descrizioneInput.value.trim();
-                const dataDocumento = dataDocumentoInput.value;
-
-                if (!file) {
-                    UI.showError('Seleziona un file da caricare');
+                if (righe.length === 0) {
+                    UI.showError('Aggiungi almeno un file da caricare');
                     return false;  // Non chiudere il modal
                 }
 
-                if (!descrizione) {
-                    UI.showError('Inserisci una descrizione per il documento');
+                const senzaDescrizione = righe.filter(r => !(r.descrizione || '').trim());
+                if (senzaDescrizione.length > 0) {
+                    UI.showError(`Manca la descrizione per: ${senzaDescrizione.map(r => r.file.name).join(', ')}`);
                     return false;  // Non chiudere il modal
                 }
 
-                // Mostra loading sul pulsante
                 const confirmBtn = document.getElementById('modalConfirmBtn');
                 const originalHTML = confirmBtn.innerHTML;
                 confirmBtn.disabled = true;
-                confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Caricamento...';
 
-                try {
-                    await DocumentService.uploadDocumento(file, 'cliente', this.clienteId, descrizione, dataDocumento);
-                    await this.reloadTabContent('documenti');
-                    return true;  // Chiudi il modal
-                } catch (error) {
-                    // Ripristina pulsante in caso di errore
-                    confirmBtn.disabled = false;
-                    confirmBtn.innerHTML = originalHTML;
-                    UI.showError(error.message || 'Errore durante il caricamento del documento');
-                    return false;  // Non chiudere il modal in caso di errore
+                let caricati = 0;
+                const errori = [];
+
+                for (let i = 0; i < righe.length; i++) {
+                    const riga = righe[i];
+                    confirmBtn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Carico ${i + 1} di ${righe.length}...`;
+                    try {
+                        await DocumentService.uploadDocumento(
+                            riga.file, 'cliente', this.clienteId,
+                            riga.descrizione, riga.dataDocumento, riga.categoria,
+                            { silenzioso: true }
+                        );
+                        caricati++;
+                    } catch (error) {
+                        errori.push(`${riga.file.name}: ${error.message || 'errore'}`);
+                    }
                 }
+
+                if (caricati > 0) await this.reloadTabContent();
+
+                if (errori.length > 0) {
+                    UI.showError(`Non caricati: ${errori.join(' — ')}`);
+                    if (caricati === 0) {
+                        confirmBtn.disabled = false;
+                        confirmBtn.innerHTML = originalHTML;
+                        return false;  // Non chiudere: nessun file è passato
+                    }
+                }
+
+                if (caricati > 0) {
+                    UI.showSuccess(caricati === 1 ? 'Documento caricato con successo!' : `${caricati} documenti caricati con successo!`);
+                }
+                return true;  // Chiudi il modal
             }
         });
+
+        // showModal costruisce il DOM prima di restituire la promise: gli
+        // ascoltatori del trascinamento si possono attaccare già qui.
+        this.attivaDropzone();
+        await promise;
+        this._fileDaCaricare = [];
+    },
+
+    /**
+     * Attiva il trascinamento dei file sul riquadro di caricamento
+     */
+    attivaDropzone() {
+        const zona = document.getElementById('uploadDropzone');
+        const modale = document.getElementById('customModal');
+        if (!zona) return;
+
+        const blocca = e => { e.preventDefault(); e.stopPropagation(); };
+
+        // Senza questo, un file lasciato cadere fuori dal riquadro farebbe
+        // aprire il file al browser, buttando fuori l'utente dal CRM.
+        if (modale) {
+            ['dragenter', 'dragover', 'drop'].forEach(ev => modale.addEventListener(ev, blocca));
+        }
+
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(ev => zona.addEventListener(ev, blocca));
+
+        ['dragenter', 'dragover'].forEach(ev => zona.addEventListener(ev, () => {
+            zona.style.background = 'var(--blu-100)';
+            zona.style.borderColor = 'var(--blu-700)';
+        }));
+
+        ['dragleave', 'drop'].forEach(ev => zona.addEventListener(ev, () => {
+            zona.style.background = 'var(--grigio-100)';
+            zona.style.borderColor = 'var(--blu-500)';
+        }));
+
+        zona.addEventListener('drop', e => {
+            if (e.dataTransfer && e.dataTransfer.files) this.aggiungiFile(e.dataTransfer.files);
+        });
+    },
+
+    aggiungiFileDaInput(input) {
+        this.aggiungiFile(input.files);
+        input.value = '';  // permette di riselezionare lo stesso file
+    },
+
+    /**
+     * Mette i file in coda, scartando quelli non validi
+     */
+    aggiungiFile(fileList) {
+        const scartati = [];
+
+        Array.from(fileList).forEach(file => {
+            const validazione = DocumentService.validateFile(file);
+            if (!validazione.valid) {
+                scartati.push(`${file.name}: ${validazione.errors.join(' ')}`);
+                return;
+            }
+            this._contatoreFile++;
+            this._fileDaCaricare.push({
+                id: 'f' + this._contatoreFile,
+                file: file,
+                descrizione: '',
+                categoria: 'altro',
+                dataDocumento: DocumentService.oggiISO()
+            });
+        });
+
+        if (scartati.length > 0) UI.showError(scartati.join(' — '));
+        this.renderRigheUpload();
+    },
+
+    rimuoviRigaUpload(rigaId) {
+        this._fileDaCaricare = this._fileDaCaricare.filter(r => r.id !== rigaId);
+        this.renderRigheUpload();
+    },
+
+    /**
+     * I campi scrivono nello stato senza ridisegnare, altrimenti si perde il
+     * focus mentre si scrive.
+     */
+    aggiornaCampoRiga(rigaId, campo, valore) {
+        const riga = this._fileDaCaricare.find(r => r.id === rigaId);
+        if (riga) riga[campo] = valore;
+    },
+
+    /**
+     * Ridisegna l'elenco dei file in coda
+     */
+    renderRigheUpload() {
+        const contenitore = document.getElementById('uploadRighe');
+        if (!contenitore) return;
+
+        const righe = this._fileDaCaricare || [];
+        if (righe.length === 0) {
+            contenitore.innerHTML = '';
+            return;
+        }
+
+        const leggibiliDaAi = righe.filter(r => DocumentService.aiPuoLeggere(DocumentService.mimeEffettivo(r.file)));
+
+        contenitore.innerHTML = `
+            <div style="
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 1rem;
+                margin: 1.25rem 0 0.75rem 0;
+                flex-wrap: wrap;
+            ">
+                <span style="font-weight: 700; color: var(--blu-700);">
+                    ${righe.length} file in coda
+                </span>
+                ${leggibiliDaAi.length > 1 ? `
+                <button type="button" class="btn btn-secondary" onclick="DettaglioCliente.suggerisciTutti()" id="suggerisciTuttiBtn" style="padding: 0.4rem 0.9rem;">
+                    <i class="fas fa-wand-magic-sparkles"></i> Compila tutti con AI
+                </button>
+                ` : ''}
+            </div>
+
+            ${righe.map(riga => this.renderRigaUpload(riga)).join('')}
+        `;
+    },
+
+    /**
+     * Riga di un singolo file in coda
+     */
+    renderRigaUpload(riga) {
+        const mimeType = DocumentService.mimeEffettivo(riga.file);
+        const leggibile = DocumentService.aiPuoLeggere(mimeType);
+
+        return `
+            <div id="riga-${riga.id}" style="
+                border: 2px solid var(--grigio-300);
+                border-radius: 8px;
+                padding: 1rem;
+                margin-bottom: 0.75rem;
+                background: white;
+            ">
+                <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem;">
+                    <i class="${DocumentService.getFileIcon(mimeType)}" style="
+                        font-size: 1.5rem;
+                        color: ${DocumentService.getFileColor(mimeType)};
+                        flex-shrink: 0;
+                    "></i>
+                    <div style="flex: 1; min-width: 0;">
+                        <div style="font-weight: 700; color: var(--blu-700); word-break: break-word; font-size: 0.95rem;">
+                            ${this.escapeHtml(riga.file.name)}
+                        </div>
+                        <div style="font-size: 0.8rem; color: var(--grigio-500);">
+                            ${DocumentService.formatFileSize(riga.file.size)}
+                        </div>
+                    </div>
+                    ${leggibile ? `
+                    <button type="button" class="btn btn-secondary" id="ai-${riga.id}"
+                        onclick="DettaglioCliente.suggerisciRiga('${riga.id}')"
+                        title="Fai leggere il documento a Claude per proporre descrizione, categoria e data"
+                        style="padding: 0.35rem 0.75rem; white-space: nowrap;">
+                        <i class="fas fa-wand-magic-sparkles"></i> Suggerisci
+                    </button>
+                    ` : ''}
+                    <button type="button" onclick="DettaglioCliente.rimuoviRigaUpload('${riga.id}')" title="Togli dalla coda" style="
+                        background: none;
+                        border: none;
+                        color: var(--grigio-500);
+                        font-size: 1.1rem;
+                        cursor: pointer;
+                        padding: 0.25rem 0.5rem;
+                    ">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+
+                <textarea id="desc-${riga.id}" rows="2" placeholder="Descrizione * — es: Contratto canone app 2026 firmato"
+                    oninput="DettaglioCliente.aggiornaCampoRiga('${riga.id}', 'descrizione', this.value)"
+                    style="
+                        width: 100%;
+                        padding: 0.6rem;
+                        border: 2px solid var(--grigio-300);
+                        border-radius: 8px;
+                        font-family: 'Titillium Web', sans-serif;
+                        resize: vertical;
+                        margin-bottom: 0.5rem;
+                    ">${this.escapeHtml(riga.descrizione)}</textarea>
+
+                <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                    <select id="cat-${riga.id}" onchange="DettaglioCliente.aggiornaCampoRiga('${riga.id}', 'categoria', this.value)" style="
+                        flex: 1;
+                        min-width: 140px;
+                        padding: 0.6rem;
+                        border: 2px solid var(--grigio-300);
+                        border-radius: 8px;
+                        font-family: 'Titillium Web', sans-serif;
+                        background: white;
+                    ">
+                        ${DocumentService.CATEGORIE.map(cat => `
+                            <option value="${cat.id}" ${riga.categoria === cat.id ? 'selected' : ''}>${this.escapeHtml(cat.label)}</option>
+                        `).join('')}
+                    </select>
+                    <input type="date" id="data-${riga.id}" value="${riga.dataDocumento}"
+                        onchange="DettaglioCliente.aggiornaCampoRiga('${riga.id}', 'dataDocumento', this.value)"
+                        title="Data del documento"
+                        style="
+                            flex: 1;
+                            min-width: 140px;
+                            padding: 0.6rem;
+                            border: 2px solid var(--grigio-300);
+                            border-radius: 8px;
+                            font-family: 'Titillium Web', sans-serif;
+                        ">
+                </div>
+            </div>
+        `;
+    },
+
+    /**
+     * Fa leggere UN documento a Claude e propone i campi.
+     * Parte solo da questo click: nessun invio automatico.
+     */
+    async suggerisciRiga(rigaId) {
+        const riga = (this._fileDaCaricare || []).find(r => r.id === rigaId);
+        if (!riga) return;
+
+        const bottone = document.getElementById('ai-' + rigaId);
+        const originale = bottone ? bottone.innerHTML : '';
+        if (bottone) {
+            bottone.disabled = true;
+            bottone.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Leggo...';
+        }
+
+        try {
+            const dati = await DocumentService.suggerisciDati(riga.file);
+
+            if (dati.descrizione) riga.descrizione = dati.descrizione;
+            if (dati.categoria) riga.categoria = dati.categoria;
+            if (dati.dataDocumento) riga.dataDocumento = dati.dataDocumento;
+
+            // Aggiorna solo i campi di questa riga: un ridisegno completo
+            // cancellerebbe quello che l'utente sta scrivendo nelle altre.
+            const campoDesc = document.getElementById('desc-' + rigaId);
+            const campoCat = document.getElementById('cat-' + rigaId);
+            const campoData = document.getElementById('data-' + rigaId);
+            if (campoDesc) campoDesc.value = riga.descrizione;
+            if (campoCat) campoCat.value = riga.categoria;
+            if (campoData) campoData.value = riga.dataDocumento;
+
+            if (bottone) bottone.innerHTML = '<i class="fas fa-check"></i> Proposto';
+            return true;
+
+        } catch (error) {
+            UI.showError(`${riga.file.name}: ${error.message || 'suggerimento non riuscito'}`);
+            if (bottone) bottone.innerHTML = originale;
+            return false;
+
+        } finally {
+            if (bottone) bottone.disabled = false;
+        }
+    },
+
+    /**
+     * Fa leggere a Claude tutti i file leggibili della coda, uno alla volta
+     */
+    async suggerisciTutti() {
+        const righe = (this._fileDaCaricare || []).filter(r => DocumentService.aiPuoLeggere(DocumentService.mimeEffettivo(r.file)));
+        const bottone = document.getElementById('suggerisciTuttiBtn');
+        const originale = bottone ? bottone.innerHTML : '';
+
+        if (bottone) bottone.disabled = true;
+
+        for (let i = 0; i < righe.length; i++) {
+            if (bottone) bottone.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ${i + 1} di ${righe.length}...`;
+            await this.suggerisciRiga(righe[i].id);
+        }
+
+        if (bottone) {
+            bottone.disabled = false;
+            bottone.innerHTML = originale;
+        }
     },
 
     downloadDocumento(documentoId) {

@@ -11,6 +11,10 @@
       "maxDuration": 60,
       "memory": 1024
     },
+    "api/suggerisci-documento.js": {
+      "maxDuration": 60,
+      "memory": 1024
+    },
     "api/sync-push-history.js": {
       "maxDuration": 300,
       "memory": 512

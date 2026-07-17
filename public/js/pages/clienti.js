@@ -421,8 +421,19 @@ const Clienti = {
                                         "></i>
 
                                         <div style="min-width: 0;">
-                                            <h5 style="margin: 0 0 0.25rem 0; color: var(--blu-700); font-weight: 700; font-size: 1rem;">
-                                                ${doc.nomeOriginale}
+                                            <h5 style="margin: 0 0 0.25rem 0; color: var(--blu-700); font-weight: 700; font-size: 1rem; display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                                                <span>${doc.nomeOriginale}</span>
+                                                <span style="
+                                                    display: inline-flex;
+                                                    align-items: center;
+                                                    gap: 0.3rem;
+                                                    background: ${DocumentService.getCategoria(doc.categoria).color};
+                                                    color: white;
+                                                    border-radius: 999px;
+                                                    padding: 0.1rem 0.5rem;
+                                                    font-size: 0.7rem;
+                                                    font-weight: 700;
+                                                "><i class="${DocumentService.getCategoria(doc.categoria).icon}"></i> ${DocumentService.getCategoria(doc.categoria).label}</span>
                                             </h5>
                                             <p style="margin: 0 0 0.5rem 0; color: var(--grigio-700); font-size: 0.9rem;">
                                                 ${doc.descrizione}
