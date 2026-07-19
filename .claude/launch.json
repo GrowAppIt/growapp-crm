@@ -6,6 +6,12 @@
       "runtimeExecutable": "python3",
       "runtimeArgs": ["-m", "http.server", "8091", "--directory", "/Users/giancarlocampisi/Documents/GitHub/comune-digital-segnalazioni/sito-vetrina"],
       "port": 8091
+    },
+    {
+      "name": "sonda-chiediapp",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "8092", "--directory", "/Users/giancarlocampisi/Documents/GitHub/CHIEDI ALL'APP/standalone/probe"],
+      "port": 8092
     }
   ]
 }
