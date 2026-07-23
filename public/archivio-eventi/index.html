@@ -352,6 +352,58 @@
             text-decoration: none;
         }
 
+        /* Miniatura/locandina evento (se disponibile in push_history) */
+        .event-thumb {
+            width: 100%;
+            height: 160px;
+            object-fit: cover;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            background: var(--grigio-100);
+            display: block;
+        }
+
+        /* Banner "aggiornamento non riuscito" mostrato SOPRA la cache
+           (non cancella la lista salvata, avvisa soltanto). */
+        .refresh-failed {
+            background: #FFF8E1;
+            border: 1px solid var(--giallo);
+            border-radius: 10px;
+            padding: 12px 14px;
+            margin-bottom: 14px;
+            font-size: 0.85rem;
+            color: #8a6d00;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .refresh-failed .rf-text { flex: 1; min-width: 160px; }
+
+        /* Pulsante "Riprova" (banner + stato di errore) */
+        .refresh-failed .rf-btn,
+        .retry-btn {
+            flex-shrink: 0;
+            padding: 8px 16px;
+            background: var(--blu-700);
+            color: var(--bianco);
+            border: none;
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .refresh-failed .rf-btn:hover,
+        .retry-btn:hover { background: var(--blu-500); }
+
+        .retry-btn { margin-top: 16px; }
+
         /* Desktop adjustments */
         @media (min-width: 640px) {
             .container { padding: 24px 20px 40px; }
@@ -446,37 +498,43 @@
             hasMore: true,
             loading: false,
             view: 'month',
-            archiveStartDate: null
+            archiveStartDate: null,
+            rendered: false,   // true appena mostriamo qualcosa (lista, vuoto o errore)
+            fromCache: false   // true se la lista attuale viene dalla cache locale
         };
 
         // ============================================================
-        // Inizializzazione Firebase
+        // Reti di sicurezza contro lo "spinner infinito"
+        // ------------------------------------------------------------
+        // In WebView / rete instabile una get() Firestore può restare
+        // "appesa" per sempre senza rispondere né dare errore. Senza
+        // queste protezioni la ruota gira all'infinito:
+        //   • QUERY_TIMEOUT_MS: ogni lettura Firestore viene abortita con
+        //     un errore se non risponde entro il tempo massimo.
+        //   • watchdogTimer: se dopo WATCHDOG_MS non è comparso NULLA
+        //     (né lista né errore), mostriamo un messaggio con "Riprova".
         // ============================================================
-        // Pattern: cerchiamo un'istanza già inizializzata con il nostro
-        // nome univoco ('archivio-eventi'). Se non c'è e abbiamo la
-        // config, la creiamo. Altrimenti tentiamo di usare l'istanza
-        // default già disponibile (es. se la pagina è inclusa in un
-        // contesto dove Firebase è già stato bootstrappato).
-        try {
-            var app = null;
-            if (CONFIG.firebase.apiKey) {
-                var existing = firebase.apps.find(function(a) { return a.name === 'archivio-eventi'; });
-                app = existing || firebase.initializeApp(CONFIG.firebase, 'archivio-eventi');
-                state.db = firebase.firestore(app);
-            } else if (firebase.apps.length > 0) {
-                // Fallback: config non caricata, ma c'è già un'app Firebase
-                state.db = firebase.firestore();
-            } else {
-                throw new Error('Configurazione Firebase non disponibile.');
-            }
-        } catch (e) {
-            console.error('[Archivio] Errore init Firebase:', e);
-            showError('Impossibile caricare gli eventi. Riprova più tardi.');
-            return;
+        var QUERY_TIMEOUT_MS = 12000;
+        var WATCHDOG_MS = 15000;
+        var watchdogTimer = null;
+
+        function withTimeout(promise, ms, label) {
+            return new Promise(function (resolve, reject) {
+                var timer = setTimeout(function () {
+                    reject(new Error('Timeout' + (label ? ' (' + label + ')' : '')));
+                }, ms || QUERY_TIMEOUT_MS);
+                Promise.resolve(promise).then(function (v) {
+                    clearTimeout(timer);
+                    resolve(v);
+                }, function (e) {
+                    clearTimeout(timer);
+                    reject(e);
+                });
+            });
         }
 
         // ============================================================
-        // Lettura appSlug dall'URL
+        // Lettura appSlug dall'URL (per primo: serve anche alla cache)
         // ============================================================
         var urlParams = new URLSearchParams(window.location.search);
         CONFIG.appSlug = (urlParams.get('app') || urlParams.get('comune') || '').toString().toLowerCase().trim();
@@ -517,31 +575,104 @@
         });
 
         // ============================================================
-        // Bootstrap: leggi nome comune + primi eventi
+        // Bootstrap
+        // ------------------------------------------------------------
+        // 1) Disegno SUBITO dalla cache locale (se c'è): l'utente di ritorno
+        //    vede l'archivio all'istante, anche con rete lenta o assente.
+        // 2) Armo il watchdog (scatta solo se non è ancora comparso nulla).
+        // 3) Inizializzo Firebase; se l'SDK non c'è non lascio lo spinner
+        //    appeso: o tengo la cache o mostro un errore con "Riprova".
+        // 4) Aggiorno in background con i dati freschi.
         // ============================================================
-        loadComuneInfo().then(loadEvents);
+        var hadCache = renderFromCache();
+
+        watchdogTimer = setTimeout(function () {
+            if (!state.rendered) {
+                showError('Il caricamento sta impiegando troppo tempo. Controlla la connessione e riprova.');
+            }
+        }, WATCHDOG_MS);
+
+        if (!initFirebase()) {
+            clearTimeout(watchdogTimer);
+            if (hadCache) {
+                showRefreshFailedNotice();
+            } else {
+                showError('Impossibile caricare gli eventi. Riprova più tardi.');
+            }
+            return;
+        }
+
+        // Nome comune ed eventi vengono caricati in PARALLELO: il nome serve
+        // solo ad arricchire l'header (non è un prerequisito per gli eventi),
+        // quindi NON lo aspettiamo — così la lista compare prima possibile e
+        // una lettura-metadati lenta non ritarda gli eventi.
+        loadComuneInfo();
+        loadEvents(false);
+
+        // ============================================================
+        // Inizializzazione Firebase
+        // ============================================================
+        // Cerchiamo un'istanza già inizializzata con il nostro nome univoco
+        // ('archivio-eventi'). Se non c'è e abbiamo la config, la creiamo.
+        // Altrimenti usiamo l'istanza default se già disponibile.
+        function initFirebase() {
+            // Guardia: se l'SDK gstatic non si è caricato (CDN lento, bloccato
+            // o filtrato dalla rete) la variabile globale 'firebase' resta
+            // undefined. Senza questa guardia initializeApp() lancerebbe un
+            // errore non gestito e la pagina resterebbe sullo spinner.
+            if (typeof firebase === 'undefined' || !firebase || !firebase.initializeApp) {
+                console.error('[Archivio] SDK Firebase non disponibile (CDN non raggiungibile?)');
+                return false;
+            }
+            try {
+                if (CONFIG.firebase.apiKey) {
+                    var existing = firebase.apps.find(function(a) { return a.name === 'archivio-eventi'; });
+                    var app = existing || firebase.initializeApp(CONFIG.firebase, 'archivio-eventi');
+                    state.db = firebase.firestore(app);
+                } else if (firebase.apps.length > 0) {
+                    state.db = firebase.firestore();
+                } else {
+                    console.error('[Archivio] Configurazione Firebase non disponibile.');
+                    return false;
+                }
+                return true;
+            } catch (e) {
+                console.error('[Archivio] Errore init Firebase:', e);
+                return false;
+            }
+        }
+
+        // ============================================================
+        // Nome del Comune (header + intro)
+        // ============================================================
+        function applyComuneName(nome) {
+            if (!nome) return;
+            // Il nome identificativo va nel TITOLO (serve a far capire all'utente
+            // di quale archivio sta parlando). Il sottotitolo resta generico.
+            document.getElementById('header-title').textContent = 'Archivio Eventi ' + nome;
+            document.getElementById('intro-title').innerHTML =
+                '<i class="fas fa-book" style="margin-right: 6px; color: var(--blu-500);"></i> Gli eventi di ' + escapeHtml(nome);
+            document.title = 'Archivio Eventi — ' + nome;
+        }
 
         async function loadComuneInfo() {
             var nome = await fetchComuneNome();
             if (nome) {
                 state.comuneNome = nome;
-                // Il nome identificativo va nel TITOLO (serve a far capire
-                // all'utente di quale archivio sta parlando). Il sottotitolo
-                // resta generico (niente riferimenti diretti a "paese" o
-                // "città", come richiesto).
-                document.getElementById('header-title').textContent = 'Archivio Eventi ' + nome;
-                document.getElementById('intro-title').innerHTML =
-                    '<i class="fas fa-book" style="margin-right: 6px; color: var(--blu-500);"></i> Gli eventi di ' + escapeHtml(nome);
-                document.title = 'Archivio Eventi — ' + nome;
+                applyComuneName(nome);
             }
         }
 
         // Legge il nome del Comune: prima dallo specchio pubblico 'app_public'
-        // (nome/slug, niente token), poi fallback su 'app'.
+        // (nome/slug, niente token), poi fallback su 'app'. Ogni get() è
+        // protetta da timeout: una lettura appesa qui NON deve bloccare il
+        // caricamento eventi che segue (loadComuneInfo è awaited).
         async function fetchComuneNome() {
             var slugLower = (CONFIG.appSlug || '').toLowerCase().trim();
             try {
-                var pub = await state.db.collection('app_public').doc(slugLower).get();
+                var pub = await withTimeout(
+                    state.db.collection('app_public').doc(slugLower).get(),
+                    QUERY_TIMEOUT_MS, 'app_public');
                 if (pub.exists) {
                     var pd = pub.data() || {};
                     if (pd.comune) return pd.comune;
@@ -550,15 +681,17 @@
                 console.warn('[Archivio] app_public non leggibile, provo app:', e && e.message);
             }
             try {
-                var snap = await state.db.collection('app')
-                    .where('appSlug', '==', CONFIG.appSlug)
-                    .limit(1).get();
+                var snap = await withTimeout(
+                    state.db.collection('app')
+                        .where('appSlug', '==', CONFIG.appSlug)
+                        .limit(1).get(),
+                    QUERY_TIMEOUT_MS, 'app');
                 if (!snap.empty) {
                     var data = snap.docs[0].data();
                     return data.comune || data.nome || CONFIG.appSlug;
                 }
             } catch (e) {
-                console.warn('[Archivio] Errore lettura nome comune:', e);
+                console.warn('[Archivio] Errore lettura nome comune:', e && e.message);
             }
             return '';
         }
@@ -571,7 +704,9 @@
             state.loading = true;
 
             var container = document.getElementById('content-container');
-            if (!append) {
+            // Mostriamo lo spinner SOLO se non c'è già nulla a schermo. Se stiamo
+            // aggiornando sopra la cache, la lista salvata resta visibile.
+            if (!append && state.events.length === 0) {
                 container.innerHTML = '<div class="loading"><div class="spinner"></div><p>Carico gli eventi...</p></div>';
             }
 
@@ -588,7 +723,7 @@
                     query = query.startAfter(state.lastDoc);
                 }
 
-                var snap = await query.get();
+                var snap = await withTimeout(query.get(), QUERY_TIMEOUT_MS, 'eventi');
                 var batch = [];
 
                 // Soglia "mezzanotte di oggi": sono considerati passati gli eventi
@@ -619,7 +754,10 @@
                     state.lastDoc = doc;
                 });
 
+                // Se aggiorniamo (non append) partiamo da lista pulita: la cache
+                // eventualmente mostrata viene rimpiazzata dai dati freschi.
                 state.events = append ? state.events.concat(batch) : batch;
+                state.fromCache = false;
                 state.hasMore = snap.size >= CONFIG.pageSize;
 
                 // Aggiorna la data mostrata nell'intro-note ad ogni caricamento:
@@ -628,22 +766,29 @@
                 computeArchiveStartDate();
 
                 renderEvents();
+                saveCache();
             } catch (e) {
-                console.error('[Archivio] Errore caricamento eventi:', e);
-                // Fallback senza orderBy (se manca indice composito)
+                console.error('[Archivio] Errore caricamento eventi:', e && e.message);
+                // Fallback senza orderBy (se manca l'indice composito), anch'esso con timeout
                 try {
-                    var fbQuery = state.db.collection('push_history')
-                        .where('appSlug', '==', CONFIG.appSlug)
-                        .where('source', '==', 'calendar_auto')
-                        .where('status', '==', 'sent')
-                        .limit(CONFIG.pageSize * 3);
-                    var fbSnap = await fbQuery.get();
+                    var fbSnap = await withTimeout(
+                        state.db.collection('push_history')
+                            .where('appSlug', '==', CONFIG.appSlug)
+                            .where('source', '==', 'calendar_auto')
+                            .where('status', '==', 'sent')
+                            .limit(CONFIG.pageSize * 3).get(),
+                        QUERY_TIMEOUT_MS, 'eventi-fallback');
                     var fbAll = [];
+                    var nowFb = new Date();
+                    var todayMidnightFb = new Date(nowFb.getFullYear(), nowFb.getMonth(), nowFb.getDate());
                     fbSnap.forEach(function(doc) {
                         var data = doc.data();
                         if (data.contentUnavailable === true) return;
                         // Stesso filtro del ramo principale: solo "In Programma"
                         if (!isInProgrammaTitle(data.title)) return;
+                        // e solo eventi passati (l'archivio non mostra futuri/oggi)
+                        var ed = data.sentAt && data.sentAt.toDate ? data.sentAt.toDate() : new Date(data.sentAt || 0);
+                        if (ed >= todayMidnightFb) return;
                         fbAll.push({ id: doc.id, ...data });
                     });
                     fbAll.sort(function(a, b) {
@@ -652,11 +797,20 @@
                         return db2 - da;
                     });
                     state.events = fbAll;
+                    state.fromCache = false;
                     state.hasMore = false;
                     computeArchiveStartDate();
                     renderEvents();
+                    saveCache();
                 } catch (e2) {
-                    showError('Impossibile caricare gli eventi. Riprova più tardi.');
+                    console.error('[Archivio] Errore fallback eventi:', e2 && e2.message);
+                    // Se abbiamo già dei contenuti a schermo (cache), NON li
+                    // cancelliamo con un errore: avvisiamo soltanto.
+                    if (state.events.length > 0) {
+                        showRefreshFailedNotice();
+                    } else {
+                        showError('Impossibile caricare gli eventi. Riprova più tardi.');
+                    }
                 }
             } finally {
                 state.loading = false;
@@ -699,6 +853,10 @@
         // Rendering
         // ============================================================
         function renderEvents() {
+            // Qualcosa sta per comparire a schermo → disarma il watchdog.
+            state.rendered = true;
+            clearTimeout(watchdogTimer);
+
             var container = document.getElementById('content-container');
 
             if (state.events.length === 0) {
@@ -788,6 +946,13 @@
             var badgeIcon = isPast ? 'fa-clock-rotate-left' : 'fa-calendar-alt';
             var badgeText = isPast ? 'Svolto' : 'In Programma';
 
+            // Locandina/miniatura: il proxy la salva in push_history quando
+            // qualcuno apre l'evento (article-proxy.js). Se manca, niente immagine.
+            // onerror la nasconde se l'URL è rotto (hotlink scaduto).
+            var thumbHtml = ev.thumbnail
+                ? '<img class="event-thumb" src="' + escapeAttr(ev.thumbnail) + '" alt="" loading="lazy" onerror="this.style.display=\'none\'">'
+                : '';
+
             // URL del reader: usiamo il reader DEDICATO dell'archivio eventi
             // (/archivio-eventi/article.html), così quando l'utente clicca
             // "Torna" il reader lo riporta qui nell'archivio eventi e NON
@@ -808,6 +973,7 @@
                 '</a>' : '';
 
             return '<article class="event-card">' +
+                   thumbHtml +
                    '<div class="event-header">' +
                    '<span class="' + badgeClass + '"><i class="fas ' + badgeIcon + '"></i> ' + badgeText + '</span>' +
                    '<span class="event-date"><i class="fas fa-calendar-day"></i> ' + escapeHtml(dateStr) + '</span>' +
@@ -822,10 +988,100 @@
             loadEvents(true);
         };
 
+        // "Riprova": il modo più semplice e sicuro è ricaricare la pagina
+        // (rilegge subito la cache e poi ritenta la rete).
+        window.__archivio_retry = function() {
+            try { window.location.reload(); } catch (e) {}
+        };
+
+        // ============================================================
+        // Cache locale (localStorage)
+        // ------------------------------------------------------------
+        // Salviamo l'ultima lista di eventi (max 60) per l'appSlug corrente.
+        // Alla riapertura la disegniamo all'istante e poi aggiorniamo in
+        // background: apertura immediata + resilienza se la rete è assente.
+        // Le date vengono salvate come millisecondi (i Timestamp Firestore
+        // non sono serializzabili); il rendering gestisce già entrambi i casi.
+        // ============================================================
+        function cacheKey() {
+            return 'archivioEventi:v1:' + CONFIG.appSlug;
+        }
+
+        function renderFromCache() {
+            try {
+                var raw = localStorage.getItem(cacheKey());
+                if (!raw) return false;
+                var obj = JSON.parse(raw);
+                if (!obj || !Array.isArray(obj.events) || obj.events.length === 0) return false;
+                if (obj.comuneNome) {
+                    state.comuneNome = obj.comuneNome;
+                    applyComuneName(obj.comuneNome);
+                }
+                state.events = obj.events;
+                state.fromCache = true;
+                // Dalla cache non paginiamo: l'aggiornamento fresco ripristina hasMore.
+                state.hasMore = false;
+                computeArchiveStartDate();
+                renderEvents();
+                return true;
+            } catch (e) {
+                return false;
+            }
+        }
+
+        function saveCache() {
+            try {
+                var slim = state.events.slice(0, 60).map(function(ev) {
+                    var d = ev.sentAt && ev.sentAt.toDate ? ev.sentAt.toDate() : new Date(ev.sentAt || 0);
+                    return {
+                        id: ev.id,
+                        message: ev.message || '',
+                        fullMessage: ev.fullMessage || '',
+                        title: ev.title || '',
+                        gbUrl: ev.gbUrl || '',
+                        thumbnail: ev.thumbnail || '',
+                        contentUnavailable: !!ev.contentUnavailable,
+                        sentAt: d.getTime()
+                    };
+                });
+                localStorage.setItem(cacheKey(), JSON.stringify({
+                    savedAt: Date.now(),
+                    comuneNome: state.comuneNome,
+                    events: slim
+                }));
+            } catch (e) { /* quota piena o modalità privata: ignoriamo */ }
+        }
+
         // ============================================================
         // Utility
         // ============================================================
+        // Avviso non bloccante mostrato SOPRA la cache quando l'aggiornamento
+        // fallisce: la lista salvata resta visibile, con un "Riprova".
+        function showRefreshFailedNotice() {
+            var container = document.getElementById('content-container');
+            if (!container) return;
+            if (document.getElementById('refresh-failed-notice')) return; // già presente
+            var bar = document.createElement('div');
+            bar.className = 'refresh-failed';
+            bar.id = 'refresh-failed-notice';
+            bar.innerHTML =
+                '<i class="fas fa-triangle-exclamation" style="color:var(--giallo);font-size:1.1rem;"></i>' +
+                '<span class="rf-text">Non è stato possibile aggiornare adesso. Stai vedendo gli eventi salvati.</span>' +
+                '<button class="rf-btn" type="button" onclick="window.__archivio_retry()">' +
+                '<i class="fas fa-rotate-right"></i> Riprova</button>';
+            container.insertBefore(bar, container.firstChild);
+        }
+
         function showError(message) {
+            // Disarma il watchdog e segna che ABBIAMO mostrato qualcosa.
+            clearTimeout(watchdogTimer);
+            state.rendered = true;
+            // Se abbiamo già eventi a schermo (cache), non li cancelliamo con un
+            // errore a tutto schermo: mostriamo solo un avviso non bloccante.
+            if (state.events && state.events.length > 0) {
+                showRefreshFailedNotice();
+                return;
+            }
             var container = document.getElementById('content-container');
             if (container) {
                 container.innerHTML =
@@ -833,6 +1089,8 @@
                     '  <i class="fas fa-circle-exclamation" style="color: var(--rosso);"></i>' +
                     '  <h3>Impossibile caricare</h3>' +
                     '  <p>' + escapeHtml(message) + '</p>' +
+                    '  <button class="retry-btn" type="button" onclick="window.__archivio_retry()">' +
+                    '<i class="fas fa-rotate-right"></i> Riprova</button>' +
                     '</div>';
             }
         }
@@ -842,6 +1100,12 @@
             var div = document.createElement('div');
             div.textContent = str;
             return div.innerHTML;
+        }
+
+        // Come escapeHtml ma sicura anche dentro un attributo tra virgolette
+        // doppie (es. src="..."): neutralizza anche le virgolette.
+        function escapeAttr(str) {
+            return escapeHtml(str).replace(/"/g, '&quot;');
         }
 
         // Verifica se il title della notifica sia esattamente "In Programma"

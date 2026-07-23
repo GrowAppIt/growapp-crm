@@ -379,6 +379,10 @@
         <i class="fas fa-exclamation-circle" id="error-icon"></i>
         <h2 id="error-title">Impossibile caricare il contenuto</h2>
         <p id="error-message">Si è verificato un errore durante il caricamento.</p>
+        <button type="button" id="error-retry-btn" class="hidden" onclick="window.location.reload()"
+            style="margin-top:8px;display:inline-flex;align-items:center;gap:8px;background:var(--blu-700);color:white;border:none;padding:10px 18px;border-radius:8px;font-family:inherit;font-size:0.85rem;font-weight:600;cursor:pointer;">
+            <i class="fas fa-rotate-right"></i> Riprova
+        </button>
         <a class="article-back-bottom" style="margin-top: 8px;" id="error-back-link" href="/archivio-eventi/landing.html" aria-label="Torna all'archivio eventi"
            ><span style="display:inline-flex;align-items:center;gap:8px;background:var(--blu-700);color:white;padding:10px 18px;border-radius:8px;text-decoration:none;font-size:0.85rem;font-weight:600;">
             <i class="fas fa-arrow-left"></i> Torna all'archivio eventi
@@ -483,12 +487,20 @@
         loadContent(gbUrl);
 
         async function loadContent(url) {
+            // Timeout lato client: il proxy ha già un suo limite server-side, ma
+            // se la tratta dispositivo→server si impianta (WebView / rete mobile
+            // instabile) il fetch resterebbe appeso e lo spinner girerebbe per
+            // sempre. AbortController lo interrompe dopo CLIENT_TIMEOUT_MS.
+            var CLIENT_TIMEOUT_MS = 15000;
+            var controller = new AbortController();
+            var timeoutId = setTimeout(function () { controller.abort(); }, CLIENT_TIMEOUT_MS);
             try {
                 var proxyUrl = '/api/article-proxy?url=' + encodeURIComponent(url);
                 if (notifIdParam) {
                     proxyUrl += '&notifId=' + encodeURIComponent(notifIdParam);
                 }
-                var resp = await fetch(proxyUrl);
+                var resp = await fetch(proxyUrl, { signal: controller.signal });
+                clearTimeout(timeoutId);
                 var data = null;
                 try { data = await resp.json(); } catch (e) { data = null; }
 
@@ -503,8 +515,13 @@
 
                 renderContent(data.article);
             } catch (e) {
+                clearTimeout(timeoutId);
                 console.error('[Reader] Errore:', e);
-                showError('Errore di rete. Verifica la connessione e riprova.', 'error');
+                if (e && e.name === 'AbortError') {
+                    showError('Il contenuto ha impiegato troppo tempo a caricare. Controlla la connessione e riprova.', 'error');
+                } else {
+                    showError('Errore di rete. Verifica la connessione e riprova.', 'error');
+                }
             }
         }
 
@@ -695,14 +712,19 @@
             var iconEl = document.getElementById('error-icon');
             var titleEl = document.getElementById('error-title');
 
+            var retryBtn = document.getElementById('error-retry-btn');
             if (kind === 'notfound') {
                 iconEl.className = 'fas fa-box-archive';
                 iconEl.style.color = 'var(--grigio-500)';
                 titleEl.textContent = 'Contenuto non più disponibile';
+                // Ricaricare non aiuta: il contenuto è stato rimosso dal CMS.
+                if (retryBtn) retryBtn.classList.add('hidden');
             } else {
                 iconEl.className = 'fas fa-exclamation-circle';
                 iconEl.style.color = 'var(--rosso)';
                 titleEl.textContent = 'Impossibile caricare il contenuto';
+                // Errore tecnico/rete → offriamo il "Riprova".
+                if (retryBtn) retryBtn.classList.remove('hidden');
             }
 
             document.getElementById('error-message').textContent = message;

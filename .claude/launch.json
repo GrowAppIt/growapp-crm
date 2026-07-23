@@ -12,6 +12,12 @@
       "runtimeExecutable": "python3",
       "runtimeArgs": ["-m", "http.server", "8092", "--directory", "/Users/giancarlocampisi/Documents/GitHub/CHIEDI ALL'APP/standalone/probe"],
       "port": 8092
+    },
+    {
+      "name": "academy-siderno",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "8093", "--directory", "/Users/giancarlocampisi/Desktop/webapp academy siderno/webapp"],
+      "port": 8093
     }
   ]
 }
