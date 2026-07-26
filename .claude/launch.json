@@ -4,7 +4,7 @@
     {
       "name": "vetrina-segnala",
       "runtimeExecutable": "python3",
-      "runtimeArgs": ["-m", "http.server", "8091", "--directory", "/Users/giancarlocampisi/Documents/GitHub/comune-digital-segnalazioni/sito-vetrina"],
+      "runtimeArgs": ["-m", "http.server", "8091", "--directory", "/Users/giancarlocampisi/Documents/GitHub/comune-digital-segnalazioni/public"],
       "port": 8091
     },
     {
