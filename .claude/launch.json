@@ -14,6 +14,12 @@
       "port": 8092
     },
     {
+      "name": "officina-cms",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "8099", "--directory", "/Users/giancarlocampisi/Documents/GitHub/comune-digital-cms/public"],
+      "port": 8099
+    },
+    {
       "name": "academy-siderno",
       "runtimeExecutable": "python3",
       "runtimeArgs": ["-m", "http.server", "8093", "--directory", "/Users/giancarlocampisi/Desktop/webapp academy siderno/webapp"],
