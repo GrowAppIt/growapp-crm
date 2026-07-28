@@ -20,6 +20,12 @@
       "port": 8099
     },
     {
+      "name": "navetta-sciacca",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "8094", "--directory", "/Users/giancarlocampisi/Downloads/bus navetta sciacca"],
+      "port": 8094
+    },
+    {
       "name": "academy-siderno",
       "runtimeExecutable": "python3",
       "runtimeArgs": ["-m", "http.server", "8093", "--directory", "/Users/giancarlocampisi/Desktop/webapp academy siderno/webapp"],
