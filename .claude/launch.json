@@ -4,31 +4,85 @@
     {
       "name": "vetrina-segnala",
       "runtimeExecutable": "python3",
-      "runtimeArgs": ["-m", "http.server", "8091", "--directory", "/Users/giancarlocampisi/Documents/GitHub/comune-digital-segnalazioni/public"],
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8091",
+        "--directory",
+        "/Users/giancarlocampisi/Documents/GitHub/comune-digital-segnalazioni/public"
+      ],
       "port": 8091
     },
     {
       "name": "sonda-chiediapp",
       "runtimeExecutable": "python3",
-      "runtimeArgs": ["-m", "http.server", "8092", "--directory", "/Users/giancarlocampisi/Documents/GitHub/CHIEDI ALL'APP/standalone/probe"],
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8092",
+        "--directory",
+        "/Users/giancarlocampisi/Documents/GitHub/CHIEDI ALL'APP/standalone/probe"
+      ],
       "port": 8092
     },
     {
       "name": "officina-cms",
       "runtimeExecutable": "python3",
-      "runtimeArgs": ["-m", "http.server", "8099", "--directory", "/Users/giancarlocampisi/Documents/GitHub/comune-digital-cms/public"],
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8099",
+        "--directory",
+        "/Users/giancarlocampisi/Documents/GitHub/comune-digital-cms/public"
+      ],
       "port": 8099
     },
     {
       "name": "navetta-sciacca",
       "runtimeExecutable": "python3",
-      "runtimeArgs": ["-m", "http.server", "8094", "--directory", "/Users/giancarlocampisi/Downloads/bus navetta sciacca"],
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8094",
+        "--directory",
+        "/Users/giancarlocampisi/Downloads/bus navetta sciacca"
+      ],
       "port": 8094
+    },
+    {
+      "name": "chiediapp-catania",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8095",
+        "--directory",
+        "/Users/giancarlocampisi/Desktop/app catania/chiediallapp"
+      ],
+      "port": 8095
+    },
+    {
+      "name": "chiediapp-nicosia",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8096",
+        "--directory",
+        "/Users/giancarlocampisi/Desktop/chiediapp-nicosia"
+      ],
+      "port": 8096
     },
     {
       "name": "academy-siderno",
       "runtimeExecutable": "python3",
-      "runtimeArgs": ["-m", "http.server", "8093", "--directory", "/Users/giancarlocampisi/Desktop/webapp academy siderno/webapp"],
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8093",
+        "--directory",
+        "/Users/giancarlocampisi/Desktop/webapp academy siderno/webapp"
+      ],
       "port": 8093
     }
   ]
