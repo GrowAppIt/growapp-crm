@@ -1300,7 +1300,7 @@
                 };
                 const linkCfg = LINK_CONFIG[source] || { text: 'Leggi di più', icon: 'fa-chevron-right', aria: 'Leggi il contenuto completo' };
 
-                const readerUrl = `/storico-notifiche/article.html?src=${encodeURIComponent(notif.gbUrl)}&comune=${encodeURIComponent(state.comuneNome || CONFIG.appSlug)}&app=${encodeURIComponent(CONFIG.appSlug)}&source=${encodeURIComponent(source)}&notifId=${encodeURIComponent(notif.id)}`;
+                const readerUrl = buildNotifPath(notif);
                 linkHtml = `
                     <a class="notif-link" href="${readerUrl}" aria-label="${linkCfg.aria}">
                         <i class="fas ${linkCfg.icon}" aria-hidden="true"></i> ${linkCfg.text}
@@ -1536,12 +1536,54 @@
         t._timer = setTimeout(function () { t.classList.remove('visible'); }, 2200);
     }
 
+    // ============================================================
+    // Indirizzi pubblici delle notifiche
+    // ------------------------------------------------------------
+    // ⚠️ REGOLA: nessun link mostrato o condiviso deve contenere
+    // l'indirizzo interno del contenuto (campo gbUrl). Quell'indirizzo
+    // appartiene al CMS che usiamo e non va reso pubblico: se aperto
+    // mostra dati tecnici e rivela il fornitore.
+    // Ogni notifica è quindi raggiungibile SOLO tramite il suo id, su una
+    // pagina nostra (l'archivio è pubblicato su notifiche.comune.digital);
+    // è il server (api/article-proxy) a risalire al contenuto vero.
+    // ============================================================
+
+    // Percorso (relativo) della pagina di lettura di una notifica.
+    function buildNotifPath(n) {
+        const source = n.source || 'manual';
+        return '/storico-notifiche/article.html'
+            + '?id=' + encodeURIComponent(n.id)
+            + '&comune=' + encodeURIComponent(state.comuneNome || CONFIG.appSlug)
+            + '&app=' + encodeURIComponent(CONFIG.appSlug)
+            + '&source=' + encodeURIComponent(source);
+    }
+
+    // Indirizzo dell'archivio del comune (usato quando la singola notifica
+    // non ha una pagina di lettura sensata da aprire).
+    function buildArchiveUrl() {
+        return window.location.origin + '/storico-notifiche/'
+            + (CONFIG.appSlug ? '?app=' + encodeURIComponent(CONFIG.appSlug) : '');
+    }
+
+    // Indirizzo completo da condividere: sempre una pagina nostra.
+    function buildShareUrl(n) {
+        // Contenuto già verificato come non più disponibile → mandare
+        // qualcuno su una pagina "contenuto rimosso" non ha senso:
+        // condividiamo l'archivio del comune.
+        if (n.contentUnavailable === true) return buildArchiveUrl();
+        // Per tutte le altre (anche le push di solo testo) la pagina di
+        // lettura funziona: il proxy ricostruisce il contenuto dall'id.
+        return window.location.origin + buildNotifPath(n);
+    }
+
     // Condividi una notifica (Web Share API, fallback copia negli appunti).
     window.shareNotif = function (id) {
         const n = state.notifications.find(function (x) { return x.id === id; });
         if (!n) return;
-        const text = (n.title ? n.title + '\n' : '') + (n.message || n.fullMessage || '');
-        const url = n.gbUrl || CONFIG.appBaseUrl || '';
+        // Nel testo condiviso preferiamo il messaggio completo: quello breve
+        // arriva troncato dalla push ("...") e chi lo riceve non capirebbe.
+        const text = (n.title ? n.title + '\n' : '') + (n.fullMessage || n.message || '');
+        const url = buildShareUrl(n);
         const data = { title: n.title || 'Avviso', text: text };
         if (url) data.url = url;
         if (navigator.share) {
@@ -1720,7 +1762,7 @@
     // dati di tutti gli altri Comuni). Timeout corto perché non essenziale.
     async function resolveComuneNome() {
         // 1) Prova lo specchio pubblico 'app_public' (contiene SOLO nome/slug, non
-        //    il documento 'app' completo col goodbarberToken). Doc-id = slug.
+        //    il documento 'app' completo coi token di servizio). Doc-id = slug.
         try {
             const pubSnap = await withTimeout(
                 state.db.collection('app_public').doc(CONFIG.appSlug).get(),

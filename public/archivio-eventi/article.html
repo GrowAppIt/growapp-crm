@@ -273,7 +273,7 @@
             text-decoration: underline;
         }
 
-        /* Normalizzazione HTML GoodBarber */
+        /* Normalizzazione dell'HTML in arrivo dal proxy */
         .article-content .texte p,
         .article-content p {
             margin-bottom: 12px;
@@ -434,7 +434,7 @@
         // ============================================================
         // Il reader decide l'etichetta in base a DUE fonti:
         //   1. source della notifica (passato via URL: ?source=manual, rss_auto, ecc.)
-        //   2. type restituito dal proxy GoodBarber (es. "event" → In Programma)
+        //   2. type restituito dal proxy dei contenuti (es. "event" → In Programma)
         // Se il proxy dice "event", sovrascriviamo sempre a "In Programma" anche
         // se il source originale era "manual" (accade per avvisi-evento classificati male).
         var BADGE_CONFIG = {
@@ -449,14 +449,16 @@
 
         // Leggi parametri URL
         var params = new URLSearchParams(window.location.search);
-        var gbUrl = params.get('src');
         var comuneNome = params.get('comune') || '';
         var appSlug = params.get('app') || '';
         // Nuovo parametro: tipo di notifica come da storico (default: manual se non passato)
         var sourceParam = (params.get('source') || 'manual').toLowerCase();
-        // ID Firestore della notifica — opzionale. Se presente, il proxy lo usa
-        // per marcare la notifica come non più disponibile in caso di 404.
-        var notifIdParam = (params.get('notifId') || '').trim();
+        // ID Firestore dell'evento: è LUI l'identificativo del contenuto.
+        // Il proxy risolve lato server l'indirizzo interno, che così non
+        // compare mai nella barra del browser né in un link condiviso.
+        var notifIdParam = (params.get('id') || params.get('notifId') || '').trim();
+        // Retrocompatibilità con i vecchi link che portano l'indirizzo in "src".
+        var legacySrc = params.get('src') || '';
 
         // Costruisci URL archivio per i pulsanti "torna" — punta all'archivio
         // eventi (NON allo storico notifiche) perché questo reader è dedicato
@@ -474,8 +476,8 @@
         // serve solo da invito a tornare indietro ("Torna all'archivio eventi"),
         // ed è volutamente neutro.
 
-        if (!gbUrl) {
-            showError('Nessun contenuto specificato. Parametro "src" mancante.');
+        if (!notifIdParam && !legacySrc) {
+            showError('Nessun contenuto specificato.');
             return;
         }
 
@@ -484,9 +486,9 @@
         document.getElementById('loading-text').textContent = 'Caricamento ' + initialCfg.label.toLowerCase() + '...';
 
         // Carica il contenuto tramite il nostro proxy API
-        loadContent(gbUrl);
+        loadContent();
 
-        async function loadContent(url) {
+        async function loadContent() {
             // Timeout lato client: il proxy ha già un suo limite server-side, ma
             // se la tratta dispositivo→server si impianta (WebView / rete mobile
             // instabile) il fetch resterebbe appeso e lo spinner girerebbe per
@@ -495,14 +497,21 @@
             var controller = new AbortController();
             var timeoutId = setTimeout(function () { controller.abort(); }, CLIENT_TIMEOUT_MS);
             try {
-                var proxyUrl = '/api/article-proxy?url=' + encodeURIComponent(url);
-                if (notifIdParam) {
-                    proxyUrl += '&notifId=' + encodeURIComponent(notifIdParam);
-                }
+                var proxyUrl = notifIdParam
+                    ? '/api/article-proxy?notifId=' + encodeURIComponent(notifIdParam)
+                    : '/api/article-proxy?url=' + encodeURIComponent(legacySrc);
                 var resp = await fetch(proxyUrl, { signal: controller.signal });
-                clearTimeout(timeoutId);
                 var data = null;
                 try { data = await resp.json(); } catch (e) { data = null; }
+
+                // Rete di sicurezza per i vecchi link: se la risoluzione per id
+                // non ha prodotto nulla, riproviamo con l'indirizzo nel link.
+                if ((!data || !data.ok || !data.article) && notifIdParam && legacySrc) {
+                    resp = await fetch('/api/article-proxy?url=' + encodeURIComponent(legacySrc) +
+                        '&notifId=' + encodeURIComponent(notifIdParam), { signal: controller.signal });
+                    try { data = await resp.json(); } catch (e) { data = null; }
+                }
+                clearTimeout(timeoutId);
 
                 if (!data || !data.ok || !data.article) {
                     var message = (data && data.error) ? data.error : 'Contenuto non disponibile.';
@@ -589,7 +598,7 @@
                 }
             }
 
-            // Contenuto (HTML da GoodBarber)
+            // Contenuto (HTML restituito dal proxy)
             var contentEl = document.getElementById('article-content');
             if (article.content) {
                 contentEl.innerHTML = sanitizeHtml(article.content);
@@ -686,7 +695,7 @@
         }
 
         // Sanitizzazione di base: rimuove script e iframe malformati per sicurezza.
-        // Mantiene il resto dell'HTML così com'è (GoodBarber lo genera già pulito).
+        // Mantiene il resto dell'HTML così com'è (arriva già pulito dal proxy).
         function sanitizeHtml(html) {
             if (!html) return '';
             var tmp = document.createElement('div');

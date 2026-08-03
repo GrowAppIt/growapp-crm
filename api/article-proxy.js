@@ -24,9 +24,20 @@
  * vista utente poi usa questo flag per nascondere il pulsante "Leggi..."
  * per tutte le visualizzazioni successive.
  *
+ * ⚠️ RISERVATEZZA DEL CMS (regola aziendale):
+ * L'URL del CMS non deve MAI comparire in un indirizzo visibile all'utente
+ * (barra del browser, link condiviso, "fonte originale"). Per questo il modo
+ * CORRETTO di chiamare questo proxy è passare SOLO `notifId`: il proxy legge
+ * lui stesso `gbUrl` da push_history/{notifId} e lo usa lato server. La forma
+ * con `url=` resta supportata solo per retrocompatibilità con vecchi link già
+ * condivisi in giro.
+ * Inoltre il campo `sourceUrl` restituito viene ripulito: se punta a un host
+ * del CMS non viene inoltrato al client.
+ *
  * Endpoint:
- *   GET /api/article-proxy?url={gbUrl}
- *   GET /api/article-proxy?url={gbUrl}&notifId={doc_id_firestore}
+ *   GET /api/article-proxy?notifId={doc_id_firestore}      ← forma consigliata
+ *   GET /api/article-proxy?url={gbUrl}                      (legacy)
+ *   GET /api/article-proxy?url={gbUrl}&notifId={doc_id_firestore}  (legacy)
  *
  * Risposta:
  *   {
@@ -97,6 +108,67 @@ async function markNotificationUnavailable(notifId, unavailable, extra) {
     }
 }
 
+// Host del CMS: tutto ciò che arriva da qui non deve MAI finire in un link
+// visibile all'utente finale.
+const CMS_HOSTS = ['.goodbarber.app', '.goodbarber.com', '.ww-api.com'];
+
+function isCmsHost(rawUrl) {
+    try {
+        const parsed = new URL(rawUrl);
+        return CMS_HOSTS.some(h => parsed.hostname.endsWith(h));
+    } catch (e) {
+        return false;
+    }
+}
+
+/**
+ * Legge il documento push_history/{notifId} e restituisce i campi che servono
+ * al reader. Serve per la forma "?notifId=..." dell'endpoint: il gbUrl resta
+ * lato server e non transita mai nel browser dell'utente.
+ *
+ * @returns {Promise<object|null>} { gbUrl, title, message, fullMessage, source, sentAt }
+ */
+async function loadNotification(notifId) {
+    if (!notifId || typeof notifId !== 'string') return null;
+    try {
+        const db = admin.firestore();
+        const snap = await db.collection('push_history').doc(notifId).get();
+        if (!snap.exists) return null;
+        const d = snap.data() || {};
+        let sentAt = null;
+        if (d.sentAt && typeof d.sentAt.toDate === 'function') {
+            sentAt = d.sentAt.toDate().toISOString();
+        } else if (d.sentAt) {
+            const parsedDate = new Date(d.sentAt);
+            if (!isNaN(parsedDate.getTime())) sentAt = parsedDate.toISOString();
+        }
+        return {
+            gbUrl: d.gbUrl || '',
+            title: d.title || '',
+            message: d.message || '',
+            fullMessage: d.fullMessage || '',
+            source: d.source || 'manual',
+            sentAt: sentAt
+        };
+    } catch (e) {
+        console.warn('[article-proxy] Impossibile leggere la notifica', notifId, ':', e.message);
+        return null;
+    }
+}
+
+// Trasforma il testo di una push in HTML sicuro (escape + a capo),
+// così il reader può mostrare anche le notifiche puramente testuali.
+function textToHtml(text) {
+    const escaped = (text || '').toString()
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+    return escaped
+        .split(/\n{2,}/)
+        .map(p => '<p>' + p.split('\n').join('<br>') + '</p>')
+        .join('');
+}
+
 module.exports = async function handler(req, res) {
     // CORS
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -113,23 +185,55 @@ module.exports = async function handler(req, res) {
         return res.status(405).json({ ok: false, error: 'Richiesta non valida.' });
     }
 
-    const { url, notifId } = req.query;
+    const { url: urlParam, notifId } = req.query;
+
+    // Risoluzione dell'indirizzo del contenuto.
+    //   - forma consigliata: solo notifId → l'indirizzo lo troviamo noi su Firestore
+    //   - forma legacy: url passato dal client (vecchi link già condivisi)
+    let url = urlParam || '';
+    let notifDoc = null;
 
     if (!url) {
-        return res.status(400).json({ ok: false, error: 'Contenuto non specificato.' });
+        if (!notifId) {
+            return res.status(400).json({ ok: false, error: 'Contenuto non specificato.' });
+        }
+        notifDoc = await loadNotification(notifId);
+        if (!notifDoc) {
+            return res.status(404).json({
+                ok: false,
+                error: 'Questo contenuto non è più disponibile. Potrebbe essere stato rimosso o archiviato.'
+            });
+        }
+        url = notifDoc.gbUrl || '';
+
+        // Notifica puramente testuale (nessun contenuto esteso da caricare):
+        // il reader mostra comunque titolo e testo della notifica, così anche
+        // questi avvisi hanno un indirizzo condivisibile.
+        if (!url) {
+            return res.status(200).json({
+                ok: true,
+                article: {
+                    id: notifId,
+                    title: notifDoc.title || '',
+                    content: textToHtml(notifDoc.fullMessage || notifDoc.message || ''),
+                    summary: notifDoc.message || '',
+                    thumbnail: '',
+                    sourceUrl: '',
+                    author: '',
+                    date: notifDoc.sentAt || '',
+                    type: 'notification',
+                    subtype: notifDoc.source || '',
+                    sortDate: null, endDate: null, allDay: false,
+                    address: null, latitude: null, longitude: null
+                }
+            });
+        }
     }
 
     // Sicurezza: accetta solo URL dei CMS autorizzati (allowlist interna).
     // All'utente non serve sapere quali sono — restituiamo messaggio generico.
-    try {
-        const parsed = new URL(url);
-        const validHosts = ['.goodbarber.app', '.goodbarber.com', '.ww-api.com'];
-        const isValid = validHosts.some(h => parsed.hostname.endsWith(h));
-        if (!isValid) {
-            return res.status(403).json({ ok: false, error: 'Link non consentito.' });
-        }
-    } catch (e) {
-        return res.status(400).json({ ok: false, error: 'Link non valido.' });
+    if (!isCmsHost(url)) {
+        return res.status(403).json({ ok: false, error: 'Link non consentito.' });
     }
 
     try {
@@ -209,7 +313,11 @@ module.exports = async function handler(req, res) {
                 content: item.content || '',
                 summary: item.summary || '',
                 thumbnail: item.largeThumbnail || item.thumbnail || item.xLargeThumbnail || '',
-                sourceUrl: item.url || '',
+                // "Fonte originale": la mostriamo solo se è un sito esterno
+                // (es. la pagina Facebook del Comune). Se punta a un host del
+                // CMS la eliminiamo: quell'indirizzo non deve mai arrivare
+                // all'utente né finire in una condivisione.
+                sourceUrl: (item.url && !isCmsHost(item.url)) ? item.url : '',
                 author: item.author || '',
                 date: item.date || '',
                 type: item.type || 'article',

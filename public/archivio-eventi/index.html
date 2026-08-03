@@ -959,12 +959,15 @@
             // allo storico notifiche (che è una webapp separata).
             var readerUrl = '';
             if (ev.gbUrl) {
+                // ⚠️ Nel link passiamo SOLO l'id dell'evento: l'indirizzo
+                // interno del contenuto (gbUrl) resta lato server, dove il
+                // proxy lo risolve. Non deve comparire nella barra del
+                // browser né in un eventuale link copiato dall'utente.
                 readerUrl = '/archivio-eventi/article.html' +
-                    '?src=' + encodeURIComponent(ev.gbUrl) +
+                    '?id=' + encodeURIComponent(ev.id) +
                     '&comune=' + encodeURIComponent(state.comuneNome || CONFIG.appSlug) +
                     '&app=' + encodeURIComponent(CONFIG.appSlug) +
-                    '&source=calendar_auto' +
-                    '&notifId=' + encodeURIComponent(ev.id);
+                    '&source=calendar_auto';
             }
 
             var linkHtml = readerUrl ?
