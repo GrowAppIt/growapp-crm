@@ -74,6 +74,30 @@
       "port": 8096
     },
     {
+      "name": "defagevolata-catania",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8097",
+        "--directory",
+        "/Users/giancarlocampisi/Downloads/definizione-agevolata-catania"
+      ],
+      "port": 8097
+    },
+    {
+      "name": "home-catania",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8098",
+        "--directory",
+        "/Users/giancarlocampisi/Desktop/app catania/home"
+      ],
+      "port": 8098
+    },
+    {
       "name": "academy-siderno",
       "runtimeExecutable": "python3",
       "runtimeArgs": [
