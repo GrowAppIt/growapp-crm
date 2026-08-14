@@ -98,6 +98,18 @@
       "port": 8098
     },
     {
+      "name": "booking-locale",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8090",
+        "--directory",
+        "/Users/giancarlocampisi/Documents/GitHub/comune.digital booking/public"
+      ],
+      "port": 8090
+    },
+    {
       "name": "academy-siderno",
       "runtimeExecutable": "python3",
       "runtimeArgs": [

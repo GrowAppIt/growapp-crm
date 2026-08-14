@@ -540,3 +540,33 @@ Alcuni clienti (in particolare Italiaonline) emettono una fattura unica che copr
 | `dettaglio-contratto.js` ~L443 | `renderScadenze()` | Mostra scadenze nel dettaglio contratto |
 | `dashboard.js` | Widget scadenzario | Conteggio e importo totale da emettere |
 | `scadenzario.js` | Pagina Scadenzario | Lista dettagliata per mese |
+
+---
+
+## 10. ⚠️ Slug dei Comuni: nome per intero, TUTTO ATTACCATO
+
+**Regola tassativa Comune.Digital**: lo slug di un Comune con nome composto si scrive per intero e **tutto attaccato**, senza trattini, apostrofi o accenti.
+
+| Nome Comune | ✅ slug corretto | ❌ sbagliato |
+|---|---|---|
+| Rocca Imperiale | `roccaimperiale` | `rocca-imperiale` |
+| San Filippo del Mela | `sanfilippodelmela` | `san-filippo-del-mela` |
+| Aci Sant'Antonio | `acisantantonio` | `aci-sant-antonio`, `acisantonio` |
+| Palma di Montechiaro | `palmadimontechiaro` | `palma-di-montechiaro` |
+
+Vale **ovunque** compaia lo slug:
+- dominio dell'app → `roccaimperiale.comune.digital`
+- knowledge base di "Chiedi all'app" → `app.comune.digital/docs/kb/roccaimperiale.js`
+- deep-link / `appScheme` delle tour app → `roccaimperiale://#!section=<ID>`
+- docId delle configurazioni home (CRM `generatore-home-configs`, CMS `homepages`)
+
+**Perché**: la forma col trattino non dà errore, dà un **404/410 silenzioso** (kb che non si carica, deep-link che non apre nulla), quindi il difetto si scopre solo in produzione.
+
+**Dove è implementata (agosto 2026)**:
+| Repo | File | Funzione |
+|---|---|---|
+| CRM | `public/js/pages/generatore-home.js` | `slugComune()` per scrivere, `slugCompatto()` solo per confrontare |
+| CMS | `public/js/officina/officina-data.js` | `slugify()`, `slugCompact()` |
+| CMS | `public/js/tourapp/tourapp-data.js` | `slugify()` (Comune/appScheme) vs `slugId()` (id interni di sezioni/POI/quiz: lì i trattini vanno bene) |
+
+**Retrocompatibilità**: i documenti già creati con lo slug vecchio (col trattino) restano validi — il docId non si cambia. Per riconoscerli come lo stesso Comune si confronta la forma *compatta* (`slugCompatto`/`slugCompact`), mai la stringa grezza: altrimenti il CRM crede a una rinomina e propone di creare un doppione.

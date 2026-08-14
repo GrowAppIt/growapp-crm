@@ -118,6 +118,14 @@
  *       avvisa (probabile mix di Comuni); (d) commento identificativo del
  *       Comune in cima all'HTML generato. Tutte le modifiche del punto 2 sono
  *       lato editor CRM: zero impatto sul preprocessor GoodBarber.
+ * v4.8.1 – Slug dei Comuni con nome composto: TUTTO ATTACCATO, senza trattini
+ *   ("Rocca Imperiale" -> roccaimperiale, non rocca-imperiale). E' la regola che
+ *   vale per il dominio dell'app, la knowledge base di "Chiedi all'app" e i
+ *   deep-link: la forma col trattino produce 404/410 silenziosi. Introdotte
+ *   slugComune() (per scrivere) e slugCompatto() (solo per confrontare), usate
+ *   dal nome del file scaricato e dal docId della config. Le config storiche con
+ *   docId col trattino restano valide: il confronto le riconosce come lo stesso
+ *   Comune e NON fa scattare il falso avviso di rinomina.
  * Si integra nel CRM come sezione dell'Officina Digitale.
  */
 window.GeneratoreHome = (function () {
@@ -1129,7 +1137,7 @@ window.GeneratoreHome = (function () {
       const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = state.nomeComune.toLowerCase().replace(/\s+/g, '-') + '-home.html';
+      a.download = slugComune(state.nomeComune) + '-home.html';
       a.click();
       URL.revokeObjectURL(a.href);
     });
@@ -2250,12 +2258,15 @@ window.GeneratoreHome = (function () {
     if (!state.nomeComune) { alert('Inserisci il nome del comune!'); return; }
     try {
       const db = firebase.firestore();
-      const nameDocId = state.nomeComune.toLowerCase().replace(/\s+/g, '-');
+      const nameDocId = slugComune(state.nomeComune);
       // Decide su QUALE documento salvare, in modo da non mescolare Comuni.
       let docId = currentLoadedDocId || nameDocId;
 
       // Caso RINOMINA: ho una config caricata ma il nome ora produce un id diverso.
-      if (currentLoadedDocId && nameDocId !== currentLoadedDocId) {
+      // Il confronto ignora i trattini: le config storiche hanno docId
+      // "rocca-imperiale" mentre oggi lo slug corretto e' "roccaimperiale", ed
+      // e' lo STESSO Comune — non una rinomina.
+      if (currentLoadedDocId && nameDocId !== slugCompatto(currentLoadedDocId)) {
         const creaNuova = confirm(
           'Hai caricato la configurazione "' + currentLoadedDocId + '" ma il Nome Comune ora è "' + state.nomeComune + '".\n\n' +
           'OK = crea/aggiorna una NUOVA configurazione "' + nameDocId + '" con questi dati.\n' +
@@ -2762,6 +2773,30 @@ window.GeneratoreHome = (function () {
 
     // Assemble full HTML
     return buildFullHTML(bp, gp, dbp, dgp, config, S);
+  }
+
+  /* ------------------------------------------------------------------
+     SLUG DEL COMUNE — regola Comune.Digital: nome per intero, TUTTO
+     ATTACCATO. Niente trattini, niente apostrofi, niente accenti.
+       "Rocca Imperiale"      -> roccaimperiale
+       "San Filippo del Mela" -> sanfilippodelmela
+       "Aci Sant'Antonio"     -> acisantantonio
+     E' lo stesso slug del dominio dell'app (roccaimperiale.comune.digital),
+     della knowledge base di "Chiedi all'app" e dei deep-link: scriverlo con
+     i trattini produce 404/410 silenziosi su tutta la filiera.
+
+     slugCompatto() serve SOLO a confrontare: le config storiche hanno docId
+     col trattino e devono continuare a essere riconosciute come lo stesso
+     Comune (il docId di un documento gia' creato non si cambia).
+  ------------------------------------------------------------------ */
+  function slugComune(nome) {
+    return String(nome || '')
+      .toLowerCase()
+      .normalize('NFD').replace(/[̀-ͯ]/g, '')
+      .replace(/[^a-z0-9]+/g, '');
+  }
+  function slugCompatto(s) {
+    return String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
   }
 
   /* ============================================================
