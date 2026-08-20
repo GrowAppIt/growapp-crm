@@ -11,13 +11,24 @@
  * Pagination: il campo next_page della risposta contiene l'URL della pagina
  *             successiva (spesso ospitato su api.ww-api.com).
  *
+ * Scoperta delle sezioni (agosto 2026): le sezioni Agenda vengono lette
+ * dall'endpoint PUBBLICO /apiv4/getSettings?platform=webapp del dominio
+ * dell'app, scartando le agende di servizio (raccolta differenziata, turni
+ * farmacie, "notifiche serali"...) sia per nome sia per contenuto. Prima si
+ * prendeva la prima push 'calendar_auto' disponibile: nei Comuni che mandano
+ * solo avvisi rifiuti questo importava il calendario della spazzatura dentro
+ * l'archivio eventi.
+ *
+ * LIMITE NOTO: l'API pubblica di GoodBarber restituisce SOLO gli eventi
+ * futuri di una sezione Agenda. Gli eventi già passati prima del primo
+ * backfill non sono recuperabili da qui (servirebbe la CMS API autenticata).
+ *
  * Endpoint:
  *   GET /api/backfill-events?appSlug=mezzolombardo&secret=XXX
- *     → Backfill del singolo comune
+ *     → Backfill del singolo comune (tutte le agende "eventi" trovate)
  *
  *   GET /api/backfill-events?appSlug=mezzolombardo&secret=XXX&sectionId=74672332
- *     → Backfill forzando manualmente l'ID sezione Agenda (se non scopribile
- *       automaticamente dalle notifiche push già presenti)
+ *     → Backfill forzando manualmente l'ID sezione Agenda
  *
  *   GET /api/backfill-events?appSlug=mezzolombardo&secret=XXX&dryRun=1
  *     → Simula il backfill senza scrivere su Firestore (solo conteggio)
@@ -110,21 +121,94 @@ async function getAppDoc(appSlug) {
 }
 
 // ============================================================================
-// Helper: scopre la sectionId dell'Agenda dalle push già sincronizzate.
-// Se il comune non ha mai avuto una push calendar_auto (perché il sync è
-// recente o perché non usa l'Agenda), restituisce null e il caller dovrà
-// specificare sectionId manualmente.
+// Sezioni Agenda che NON contengono eventi.
+// In GoodBarber anche il calendario della raccolta differenziata e i turni
+// delle farmacie sono sezioni di tipo Agenda: se le importassimo, l'archivio
+// eventi si riempirebbe di "Stasera esporre l'umido".
+// ============================================================================
+const AGENDA_NON_EVENTI = /(differenziat|rifiut|raccolt|porta a porta|farma|turni|spazzament|ecocentr|notifiche serali)/i;
+
+// Riconosce dal TESTO un promemoria di raccolta: serve come seconda rete,
+// perché non tutti i Comuni chiamano la sezione in modo riconoscibile
+// (es. "Notifiche Serali" a Santo Stefano di Magra e Favara = rifiuti).
+const TESTO_DA_RACCOLTA = /(stasera esporre|domattina esponi|esporre il |esporre i |esporre la |esporre l'|porta a porta|raccolta differenziata|mastello)/i;
+
+// ============================================================================
+// Helper: scopre le sezioni Agenda direttamente dalla configurazione dell'app.
+//
+// `/apiv4/getSettings?platform=webapp` è un endpoint PUBBLICO (niente token)
+// servito dal dominio dell'app e contiene l'elenco completo delle sezioni con
+// tipo e titolo. È la fonte più affidabile: non dipende dal fatto che il
+// Comune abbia già mandato delle push.
+//
+// Ritorna { tutte: [{id,title}], eventi: [{id,title}] } dove `eventi` esclude
+// le agende di servizio (differenziata, farmacie...).
+// ============================================================================
+async function discoverAgendaSectionsFromApp(appSlug) {
+    const hosts = [
+        `https://${appSlug}.comune.digital`,
+        `https://${appSlug}.goodbarber.app`
+    ];
+
+    for (const host of hosts) {
+        try {
+            const settings = await fetchWithTimeout(`${host}/apiv4/getSettings?platform=webapp`);
+            const found = [];
+            const visita = (node) => {
+                if (!node || typeof node !== 'object') return;
+                if (Array.isArray(node)) { node.forEach(visita); return; }
+                if (String(node.type || '') === 'GBModuleTypeAgenda' && node.id) {
+                    found.push({ id: String(node.id), title: String(node.title || node.name || '') });
+                }
+                Object.keys(node).forEach((k) => visita(node[k]));
+            };
+            visita(settings);
+
+            const seen = new Set();
+            const tutte = [];
+            for (const sec of found) {
+                if (seen.has(sec.id)) continue;
+                seen.add(sec.id);
+                tutte.push(sec);
+            }
+            if (tutte.length > 0) {
+                return { tutte, eventi: tutte.filter((s) => !AGENDA_NON_EVENTI.test(s.title)) };
+            }
+        } catch (e) {
+            console.warn(`[backfill-events] getSettings fallito su ${host}: ${e.message}`);
+        }
+    }
+
+    return { tutte: [], eventi: [] };
+}
+
+// ============================================================================
+// Helper (fallback): scopre la sectionId dell'Agenda dalle push già
+// sincronizzate, quando getSettings non è raggiungibile.
+//
+// ATTENZIONE: la source 'calendar_auto' include ANCHE i promemoria della
+// raccolta differenziata. Prendere la prima push calendar_auto che capita
+// (com'era prima) significa, nei Comuni che mandano solo avvisi rifiuti,
+// importare il calendario della spazzatura dentro l'archivio eventi.
+// Quindi teniamo solo le push con titolo da agenda vera.
 // ============================================================================
 async function discoverAgendaSectionId(appSlug) {
     try {
         const snap = await db.collection('push_history')
             .where('appSlug', '==', appSlug)
             .where('source', '==', 'calendar_auto')
-            .limit(1)
+            .limit(100)
             .get();
         if (snap.empty) return null;
-        const data = snap.docs[0].data();
-        return data.gbSectionId || null;
+
+        for (const doc of snap.docs) {
+            const data = doc.data() || {};
+            const title = String(data.title || '').trim();
+            if (AGENDA_NON_EVENTI.test(title)) continue;
+            if (!/^in\s+programma$/i.test(title) && !/^evento$/i.test(title)) continue;
+            if (data.gbSectionId) return String(data.gbSectionId);
+        }
+        return null;
     } catch (e) {
         console.warn(`[backfill-events] discoverAgendaSectionId fallito per ${appSlug}:`, e.message);
         return null;
@@ -283,73 +367,132 @@ async function backfillSingleApp(appSlug, options = {}) {
         };
     }
 
-    // 2. Scopri la sectionId dell'Agenda (o usa override)
-    let sectionId = sectionIdOverride;
-    if (!sectionId) {
-        sectionId = await discoverAgendaSectionId(slug);
+    // 2. Determina QUALI sezioni Agenda importare
+    //    a) override manuale via &sectionId=
+    //    b) sezioni Agenda dichiarate dall'app (esclusa differenziata/farmacie)
+    //    c) fallback: sezione dedotta dalle push già sincronizzate
+    let sezioni = [];
+    let sezioniScartate = [];
+
+    if (sectionIdOverride) {
+        sezioni = [{ id: String(sectionIdOverride), title: '(indicata a mano)' }];
+    } else {
+        const scoperte = await discoverAgendaSectionsFromApp(slug);
+        sezioni = scoperte.eventi;
+        sezioniScartate = scoperte.tutte
+            .filter((s) => !scoperte.eventi.some((e) => e.id === s.id))
+            .map((s) => `${s.id} (${s.title})`);
+
+        if (sezioni.length === 0) {
+            const fallbackId = await discoverAgendaSectionId(slug);
+            if (fallbackId) sezioni = [{ id: fallbackId, title: '(dedotta dalle push)' }];
+        }
     }
-    if (!sectionId) {
+
+    if (sezioni.length === 0) {
         return {
             appSlug: slug,
             comune: appData.comune,
-            error: 'Sezione Agenda non scopribile. Nessuna push calendar_auto già presente — passa sectionId manualmente via &sectionId=X.'
+            sezioniScartate,
+            error: 'Nessuna sezione Agenda di eventi trovata. Passa sectionId manualmente via &sectionId=X.'
         };
     }
 
-    // 3. Costruisci URL prima pagina
+    // 3. Importa ogni sezione, pagina per pagina
     const webzineId = appData.goodbarberWebzineId;
-    let nextUrl = `https://${slug}.goodbarber.app/front/get_items/${webzineId}/${sectionId}/`;
 
     let pagesScanned = 0;
     let totalItems = 0;
     let totalSaved = 0;
     let totalSkipped = 0;
     const errors = [];
+    const dettaglioSezioni = [];
+    let hitMaxPages = false;
 
-    while (nextUrl && pagesScanned < maxPages) {
-        pagesScanned++;
-        let data;
-        try {
-            data = await fetchWithTimeout(nextUrl);
-        } catch (e) {
-            errors.push(`pagina ${pagesScanned}: ${e.message}`);
-            break;
+    for (const sezione of sezioni) {
+        const sectionId = sezione.id;
+        let nextUrl = `https://${slug}.goodbarber.app/front/get_items/${webzineId}/${sectionId}/`;
+        let pagesSezione = 0;
+        let itemsSezione = 0;
+        let savedSezione = 0;
+
+        while (nextUrl && pagesSezione < maxPages) {
+            pagesSezione++;
+            pagesScanned++;
+            let data;
+            try {
+                data = await fetchWithTimeout(nextUrl);
+            } catch (e) {
+                errors.push(`sezione ${sectionId} pagina ${pagesSezione}: ${e.message}`);
+                break;
+            }
+
+            const items = Array.isArray(data.items) ? data.items : [];
+
+            if (items.length === 0) break;
+
+            // Seconda rete di sicurezza, sul CONTENUTO: se la prima pagina è
+            // fatta in prevalenza di promemoria rifiuti, la sezione non è un
+            // calendario eventi anche se il nome non lo diceva. Meglio non
+            // importarla che riempire l'archivio di "Stasera esporre l'umido".
+            if (pagesSezione === 1 && items.length >= 3) {
+                const quantiRifiuti = items.filter(
+                    (it) => TESTO_DA_RACCOLTA.test(String(it.title || '') + ' ' + String(it.summary || ''))
+                ).length;
+                if (quantiRifiuti / items.length >= 0.6) {
+                    sezioniScartate.push(`${sectionId} (${sezione.title} — contenuti da raccolta rifiuti)`);
+                    break;
+                }
+            }
+
+            itemsSezione += items.length;
+            totalItems += items.length;
+
+            try {
+                const res = await saveEventsBatch(items, appData, slug, sectionId, dryRun);
+                savedSezione += res.saved;
+                totalSaved += res.saved;
+                totalSkipped += res.skipped;
+            } catch (e) {
+                errors.push(`sezione ${sectionId} pagina ${pagesSezione} save: ${e.message}`);
+                break;
+            }
+
+            // Pagination: next_page può puntare a dominio diverso (api.ww-api.com)
+            nextUrl = data.next_page || null;
+
+            if (nextUrl && pagesSezione < maxPages) {
+                await new Promise(r => setTimeout(r, DELAY_BETWEEN_PAGES_MS));
+            }
         }
 
-        const items = Array.isArray(data.items) ? data.items : [];
-        totalItems += items.length;
+        if (pagesSezione >= maxPages && nextUrl) hitMaxPages = true;
 
-        if (items.length === 0) break;
-
-        // Salva su Firestore (o simula se dryRun)
-        try {
-            const res = await saveEventsBatch(items, appData, slug, sectionId, dryRun);
-            totalSaved += res.saved;
-            totalSkipped += res.skipped;
-        } catch (e) {
-            errors.push(`pagina ${pagesScanned} save: ${e.message}`);
-            break;
-        }
-
-        // Pagination: next_page può puntare a dominio diverso (api.ww-api.com)
-        nextUrl = data.next_page || null;
-
-        if (nextUrl && pagesScanned < maxPages) {
-            await new Promise(r => setTimeout(r, DELAY_BETWEEN_PAGES_MS));
-        }
+        dettaglioSezioni.push({
+            sectionId,
+            title: sezione.title,
+            pagine: pagesSezione,
+            items: itemsSezione,
+            salvati: savedSezione
+        });
     }
 
     return {
         appSlug: slug,
         comune: appData.comune || '',
         webzineId,
-        sectionId,
+        sezioni: dettaglioSezioni,
+        sezioniScartate,
         pagesScanned,
         totalItems,
         totalSaved,
         totalSkipped,
-        hitMaxPages: pagesScanned >= maxPages && !!nextUrl,
+        hitMaxPages,
         dryRun,
+        // Promemoria: l'API pubblica di GoodBarber espone SOLO gli eventi
+        // futuri di una sezione Agenda. Gli eventi già passati prima del
+        // primo backfill non sono recuperabili da qui.
+        nota: 'GoodBarber espone solo gli eventi futuri: il backfill cattura da oggi in avanti.',
         errors: errors.length > 0 ? errors : null
     };
 }

@@ -518,6 +518,13 @@
         var WATCHDOG_MS = 15000;
         var watchdogTimer = null;
 
+        // Scansione: quanti eventi cerchiamo di raccogliere per ogni giro e
+        // quante pagine da CONFIG.pageSize possiamo leggere al massimo per
+        // riuscirci (50 × 8 = 400 documenti, ~1 anno di push anche nei Comuni
+        // con promemoria rifiuti quotidiani).
+        var MIN_EVENTI_PER_GIRO = 12;
+        var MAX_PAGINE_PER_GIRO = 8;
+
         function withTimeout(promise, ms, label) {
             return new Promise(function (resolve, reject) {
                 var timer = setTimeout(function () {
@@ -710,55 +717,72 @@
                 container.innerHTML = '<div class="loading"><div class="spinner"></div><p>Carico gli eventi...</p></div>';
             }
 
+            // Soglia "mezzanotte di oggi": sono considerati passati gli eventi
+            // con sentAt strettamente precedente a questa. Gli eventi di oggi
+            // (che non hanno ancora avuto luogo) NON vengono mostrati:
+            // l'archivio contiene solo ciò che è già stato.
+            var now = new Date();
+            var todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
             try {
-                // Query: solo calendar_auto, stato sent, ordine cronologico decrescente
-                var query = state.db.collection('push_history')
-                    .where('appSlug', '==', CONFIG.appSlug)
-                    .where('source', '==', 'calendar_auto')
-                    .where('status', '==', 'sent')
-                    .orderBy('sentAt', 'desc')
-                    .limit(CONFIG.pageSize);
-
-                if (state.lastDoc) {
-                    query = query.startAfter(state.lastDoc);
-                }
-
-                var snap = await withTimeout(query.get(), QUERY_TIMEOUT_MS, 'eventi');
+                // ----------------------------------------------------
+                // Scansione a più pagine.
+                // ----------------------------------------------------
+                // La query Firestore può filtrare solo su appSlug/source/status:
+                // la distinzione "evento vero" vs "promemoria differenziata"
+                // avviene per forza lato client. Nei Comuni che mandano una push
+                // rifiuti ogni giorno, un'unica pagina da 50 documenti può essere
+                // fatta SOLO di rifiuti → l'archivio appariva vuoto pur avendo
+                // decine di eventi più indietro (caso reale: Favara, primo evento
+                // in posizione 52; Nocera Inferiore, posizione 60).
+                // Quindi continuiamo a leggere pagine finché non abbiamo raccolto
+                // abbastanza eventi, con un tetto per non fare letture infinite.
                 var batch = [];
+                var pagine = 0;
+                var ancoraDocumenti = true;
 
-                // Soglia "mezzanotte di oggi": sono considerati passati gli eventi
-                // con sortDate/sentAt strettamente precedente a questa. Gli eventi
-                // di oggi (che non hanno ancora avuto luogo) NON vengono mostrati
-                // nell'archivio — l'archivio contiene solo ciò che è già svolto.
-                var now = new Date();
-                var todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                while (ancoraDocumenti && pagine < MAX_PAGINE_PER_GIRO && batch.length < MIN_EVENTI_PER_GIRO) {
+                    var query = state.db.collection('push_history')
+                        .where('appSlug', '==', CONFIG.appSlug)
+                        .where('source', '==', 'calendar_auto')
+                        .where('status', '==', 'sent')
+                        .orderBy('sentAt', 'desc')
+                        .limit(CONFIG.pageSize);
 
-                snap.forEach(function(doc) {
-                    var data = doc.data();
-                    // Filtra eventi non disponibili (contenuto rimosso dal CMS)
-                    if (data.contentUnavailable === true) return;
+                    if (state.lastDoc) {
+                        query = query.startAfter(state.lastDoc);
+                    }
 
-                    // FILTRO FONDAMENTALE: l'archivio mostra SOLO eventi agenda
-                    // etichettati "In Programma". La source "calendar_auto" in
-                    // push_history include anche notifiche di raccolta differenziata,
-                    // rifiuti, avvisi ricorrenti: quelli NON sono eventi e vanno
-                    // esclusi. Match stretto su title (il sync salva esattamente
-                    // questa stringa per le push con prefisso "In Programma:").
-                    if (!isInProgrammaTitle(data.title)) return;
+                    var snap = await withTimeout(query.get(), QUERY_TIMEOUT_MS, 'eventi');
+                    pagine++;
 
-                    // Filtra eventi futuri e di oggi: l'archivio mostra solo passati
-                    var eventDate = data.sentAt && data.sentAt.toDate ? data.sentAt.toDate() : new Date(data.sentAt || 0);
-                    if (eventDate >= todayMidnight) return;
+                    snap.forEach(function(doc) {
+                        var data = doc.data();
 
-                    batch.push({ id: doc.id, ...data, _doc: doc });
-                    state.lastDoc = doc;
-                });
+                        // IMPORTANTE: il cursore avanza su OGNI documento letto,
+                        // anche su quelli scartati. Prima avanzava solo sugli
+                        // eventi tenuti: se una pagina era tutta di rifiuti il
+                        // cursore non si spostava e "Carica altri eventi"
+                        // rileggeva all'infinito la stessa pagina.
+                        state.lastDoc = doc;
+
+                        if (!isEventoArchivio(data)) return;
+
+                        var eventDate = data.sentAt && data.sentAt.toDate ? data.sentAt.toDate() : new Date(data.sentAt || 0);
+                        if (eventDate >= todayMidnight) return;
+
+                        batch.push({ id: doc.id, ...data, _doc: doc });
+                    });
+
+                    // Se la pagina è arrivata "piena" ci sono altri documenti dopo.
+                    ancoraDocumenti = snap.size >= CONFIG.pageSize;
+                }
 
                 // Se aggiorniamo (non append) partiamo da lista pulita: la cache
                 // eventualmente mostrata viene rimpiazzata dai dati freschi.
                 state.events = append ? state.events.concat(batch) : batch;
                 state.fromCache = false;
-                state.hasMore = snap.size >= CONFIG.pageSize;
+                state.hasMore = ancoraDocumenti;
 
                 // Aggiorna la data mostrata nell'intro-note ad ogni caricamento:
                 // se carichiamo una nuova pagina, la "data di partenza archivio"
@@ -776,19 +800,15 @@
                             .where('appSlug', '==', CONFIG.appSlug)
                             .where('source', '==', 'calendar_auto')
                             .where('status', '==', 'sent')
-                            .limit(CONFIG.pageSize * 3).get(),
+                            .limit(CONFIG.pageSize * 8).get(),
                         QUERY_TIMEOUT_MS, 'eventi-fallback');
                     var fbAll = [];
-                    var nowFb = new Date();
-                    var todayMidnightFb = new Date(nowFb.getFullYear(), nowFb.getMonth(), nowFb.getDate());
                     fbSnap.forEach(function(doc) {
                         var data = doc.data();
-                        if (data.contentUnavailable === true) return;
-                        // Stesso filtro del ramo principale: solo "In Programma"
-                        if (!isInProgrammaTitle(data.title)) return;
+                        if (!isEventoArchivio(data)) return;
                         // e solo eventi passati (l'archivio non mostra futuri/oggi)
                         var ed = data.sentAt && data.sentAt.toDate ? data.sentAt.toDate() : new Date(data.sentAt || 0);
-                        if (ed >= todayMidnightFb) return;
+                        if (ed >= todayMidnight) return;
                         fbAll.push({ id: doc.id, ...data });
                     });
                     fbAll.sort(function(a, b) {
@@ -819,13 +839,13 @@
 
         // Legge la data dell'evento più vecchio per mostrarla nel pannello intro.
         // Query una tantum: prendo 1 doc ordinato per sentAt ASC.
-        // Calcola la data del più vecchio evento "In Programma" tra quelli
+        // Calcola la data del più vecchio evento tra quelli
         // già caricati in state.events e la mostra nell'intro-note.
         // Chiamata dopo ogni caricamento (anche paginato): se carichiamo
         // una pagina più vecchia, la data si aggiorna di conseguenza.
         //
         // Perché usiamo state.events e non una query separata: gli eventi
-        // in lista sono GIÀ filtrati su "In Programma" (niente differenziata,
+        // in lista sono GIÀ passati da isEventoArchivio (niente differenziata,
         // niente rifiuti). Se facessimo una query separata su calendar_auto
         // ASC senza questo filtro, potremmo finire a pescare una notifica
         // di differenziata vecchia e mostrare la data sbagliata.
@@ -860,12 +880,19 @@
             var container = document.getElementById('content-container');
 
             if (state.events.length === 0) {
+                // Se il Comune ha ancora documenti più indietro (tipicamente
+                // centinaia di promemoria rifiuti) diamo comunque il pulsante
+                // per continuare a cercare: prima si finiva in un vicolo cieco.
                 container.innerHTML =
                     '<div class="empty-state">' +
                     '  <i class="fas fa-calendar-xmark"></i>' +
                     '  <h3>Nessun evento nell\'archivio</h3>' +
                     '  <p>Il Comune non ha ancora pubblicato eventi, oppure sono tutti molto recenti. Torna a trovarci!</p>' +
-                    '</div>';
+                    '</div>' +
+                    (state.hasMore
+                        ? '<button class="load-more" onclick="window.__archivio_loadMore()">' +
+                          '<i class="fas fa-chevron-down"></i> Cerca più indietro</button>'
+                        : '');
                 return;
             }
 
@@ -1111,13 +1138,48 @@
             return escapeHtml(str).replace(/"/g, '&quot;');
         }
 
-        // Verifica se il title della notifica sia esattamente "In Programma"
-        // (con tolleranza a spazi e capitalizzazione). Usato per filtrare
-        // via le notifiche "Differenziata", "Rifiuti", ecc. che condividono
-        // la stessa source "calendar_auto" nel push_history ma NON sono eventi.
-        function isInProgrammaTitle(title) {
+        // ============================================================
+        // Che cosa consideriamo "evento da archivio"
+        // ------------------------------------------------------------
+        // La source 'calendar_auto' di push_history NON contiene solo
+        // l'Agenda eventi: in GoodBarber anche il calendario della raccolta
+        // differenziata e' una sezione Agenda, quindi ci finiscono dentro
+        // anche i promemoria rifiuti. A distinguerli e' il "title" scritto
+        // dal sync (api/sync-push-history.js):
+        //   • 'In Programma' → push agenda con il prefisso classico
+        //   • 'Evento'       → push agenda riconosciuta dai metadati GB,
+        //                      quando il Comune NON usa il prefisso
+        //                      "In Programma:" nel testo della push
+        //   • 'Differenziata' / 'Rifiuti' / 'Allerta' → NON sono eventi
+        //
+        // Fino ad agosto 2026 accettavamo SOLO 'In Programma': i Comuni che
+        // pubblicano senza prefisso (Roccapalumba, Rodi Milici, Termini
+        // Imerese...) vedevano l'archivio vuoto pur avendo decine di eventi
+        // regolarmente sincronizzati.
+        // ============================================================
+        var TITOLI_NON_EVENTO = /^(differenziat|rifiut|raccolt|allert|meteo)/i;
+        var TESTO_DA_RACCOLTA = /(stasera esporre|domattina esponi|esporre il |esporre i |esporre la |esporre l'|porta a porta|raccolta differenziata)/i;
+
+        function isEventoArchivio(data) {
+            if (!data) return false;
+            if (data.contentUnavailable === true) return false;
+
+            var title = String(data.title || '').trim();
             if (!title) return false;
-            return /^in\s+programma$/i.test(String(title).trim());
+            if (TITOLI_NON_EVENTO.test(title)) return false;
+
+            var inProgramma = /^in\s+programma$/i.test(title);
+            var evento = /^evento$/i.test(title);
+            if (!inProgramma && !evento) return false;
+
+            // Rete di sicurezza: qualche Comune ha la sezione "avvisi rifiuti"
+            // senza prefisso nel testo, quindi il sync la etichetta 'Evento'.
+            // Se il messaggio e' palesemente un promemoria di raccolta lo
+            // scartiamo comunque (il match e' volutamente stretto, per non
+            // buttare via eventi veri tipo "Mostra del vetro soffiato").
+            if (evento && TESTO_DA_RACCOLTA.test(String(data.message || ''))) return false;
+
+            return true;
         }
 
     })();

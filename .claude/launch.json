@@ -120,6 +120,18 @@
         "/Users/giancarlocampisi/Desktop/webapp academy siderno/webapp"
       ],
       "port": 8093
+    },
+    {
+      "name": "crm-archivio",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8088",
+        "--directory",
+        "/Users/giancarlocampisi/Documents/GitHub/growapp-crm/public"
+      ],
+      "port": 8088
     }
   ]
 }

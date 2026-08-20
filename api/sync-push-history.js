@@ -354,9 +354,16 @@ function detectNotificationSource(notif) {
         /\b(event|agenda|calendar|calendario|manifestaz)/i.test(metaText) ||
         /\/(event|agenda|calendar)/i.test(url)
     ) {
+        // ATTENZIONE: in GoodBarber anche il calendario della raccolta
+        // differenziata è una sezione Agenda. Se il testo è chiaramente un
+        // promemoria rifiuti lo etichettiamo come 'Differenziata', altrimenti
+        // finirebbe nell'archivio eventi pubblico come se fosse un evento
+        // (l'archivio accetta i titoli 'In Programma' ed 'Evento').
+        const titoloDaPrefisso = extractTitleFromMessage(message);
+        const sembraRaccolta = /(stasera esporre|domattina esponi|esporre il |esporre i |esporre la |esporre l'|porta a porta|raccolta differenziata|mastello)/i.test(message);
         return {
             source: 'calendar_auto',
-            title: extractTitleFromMessage(message) || 'Evento',
+            title: titoloDaPrefisso || (sembraRaccolta ? 'Differenziata' : 'Evento'),
             body: stripKnownPrefixes(message)
         };
     }
