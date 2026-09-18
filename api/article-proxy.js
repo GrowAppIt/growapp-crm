@@ -169,6 +169,89 @@ function textToHtml(text) {
         .join('');
 }
 
+/**
+ * Il contenuto restituito dal CMS ha qualcosa da mostrare?
+ *
+ * Capita spesso (notizie RSS che sono solo un rimando, eventi senza
+ * descrizione) che il CMS risponda 200 con un contenuto vuoto tipo
+ * "<div></div>": il reader mostrava titolo e data e sotto il nulla.
+ * Conta come contenuto anche una sola immagine/video: moltissimi avvisi
+ * comunali SONO una locandina senza testo.
+ */
+function hasVisibleContent(html) {
+    if (!html) return false;
+    const s = String(html);
+    if (/<(img|iframe|video|audio|picture|source|embed|object)\b/i.test(s)) return true;
+    const text = s
+        .replace(/<[^>]*>/g, ' ')
+        .replace(/&nbsp;/gi, ' ')
+        .replace(/&[a-z]+;/gi, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+    return text.length > 0;
+}
+
+/**
+ * Ripulisce un indirizzo destinato a diventare un link o un'immagine per
+ * l'utente finale. Tiene SOLO http/https (niente javascript:, data:, ecc.).
+ */
+function cleanPublicUrl(raw) {
+    const s = (raw == null ? '' : String(raw)).trim();
+    if (!s) return '';
+    try {
+        const parsed = new URL(s);
+        if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return '';
+        return parsed.href;
+    } catch (e) {
+        return '';
+    }
+}
+
+// Esito del controllo https per host, ricordato finché l'istanza resta viva
+// (evita di rifare la verifica a ogni apertura dello stesso portale).
+const httpsSupportCache = new Map();
+
+/**
+ * Molti portali comunali arrivano dai feed con indirizzo http://.
+ * Android, da targetSdk 28, BLOCCA la navigazione in chiaro dentro la WebView
+ * (net::ERR_CLEARTEXT_NOT_PERMITTED) prima ancora di inviare la richiesta,
+ * quindi l'eventuale redirect 301 http->https del sito non viene mai seguito:
+ * il cittadino vede una pagina bianca.
+ *
+ * Qui proviamo a passare a https, ma SOLO dopo aver verificato che quel sito
+ * risponda davvero in https (basta che la connessione TLS vada a buon fine:
+ * anche un 403 o un 405 dimostrano che il certificato c'è). Se non risponde
+ * lasciamo l'indirizzo com'era: meglio un link che funziona su iOS e desktop
+ * che un link rotto ovunque.
+ */
+async function preferHttps(rawUrl) {
+    const url = cleanPublicUrl(rawUrl);
+    if (!url || !url.toLowerCase().startsWith('http://')) return url;
+
+    let host = '';
+    try { host = new URL(url).hostname; } catch (e) { return url; }
+
+    const secure = 'https://' + url.slice('http://'.length);
+
+    if (httpsSupportCache.has(host)) {
+        return httpsSupportCache.get(host) ? secure : url;
+    }
+
+    try {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 3500);
+        await fetch(secure, { method: 'HEAD', redirect: 'follow', signal: controller.signal });
+        clearTimeout(timer);
+        httpsSupportCache.set(host, true);
+        return secure;
+    } catch (e) {
+        // Handshake TLS fallito / host irraggiungibile in https → non forziamo.
+        httpsSupportCache.set(host, false);
+        console.warn('[article-proxy] https non disponibile su', host, '-', e.message);
+        return url;
+    }
+}
+
 module.exports = async function handler(req, res) {
     // CORS
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -228,6 +311,13 @@ module.exports = async function handler(req, res) {
                 }
             });
         }
+    }
+
+    // Forma legacy (?url=... con notifId al seguito): leggiamo comunque la
+    // notifica, così anche qui abbiamo il testo della push da mostrare se il
+    // contenuto del CMS arriva vuoto.
+    if (url && notifId && !notifDoc) {
+        notifDoc = await loadNotification(notifId);
     }
 
     // Sicurezza: accetta solo URL dei CMS autorizzati (allowlist interna).
@@ -298,26 +388,50 @@ module.exports = async function handler(req, res) {
         // non disponibile, "guariamo" il flag (contenuto ritornato visibile).
         // Scriviamo SOLO se notifId è presente — così non aggiungiamo il campo
         // a documenti che non l'hanno mai avuto.
+        const thumb = cleanPublicUrl(item.largeThumbnail || item.thumbnail || item.xLargeThumbnail || '');
+
         if (notifId) {
             // Arricchimento: salva anche la miniatura dell'articolo in push_history,
             // così l'archivio può mostrarla in lista senza altre chiamate.
-            const thumb = item.largeThumbnail || item.thumbnail || item.xLargeThumbnail || '';
             await markNotificationUnavailable(notifId, false, thumb ? { thumbnail: thumb } : undefined);
         }
+
+        // CONTENUTO VUOTO — il CMS risponde spesso 200 con "<div></div>"
+        // (notizie che sono solo un rimando, eventi senza descrizione).
+        // Prima il reader mostrava titolo, data e sotto il vuoto assoluto.
+        // Ora ricadiamo sul testo della notifica stessa, che abbiamo già letto
+        // da push_history: è esattamente ciò che il cittadino ha ricevuto.
+        let content = item.content || '';
+        if (!hasVisibleContent(content)) {
+            const fallbackText = notifDoc
+                ? (notifDoc.fullMessage || notifDoc.message || '')
+                : '';
+            if (fallbackText) {
+                content = textToHtml(fallbackText);
+            } else if (item.summary) {
+                content = textToHtml(item.summary);
+            } else {
+                content = '';
+            }
+        }
+
+        // "Fonte originale": solo se è un sito esterno (es. la pagina Facebook
+        // del Comune). Se punta a un host del CMS la eliminiamo: quell'indirizzo
+        // non deve mai arrivare all'utente né finire in una condivisione.
+        // Poi si prova a portarla in https (vedi preferHttps).
+        const sourceUrl = (item.url && !isCmsHost(item.url))
+            ? await preferHttps(item.url)
+            : '';
 
         return res.status(200).json({
             ok: true,
             article: {
                 id: item.id || null,
                 title: item.title || '',
-                content: item.content || '',
+                content: content,
                 summary: item.summary || '',
-                thumbnail: item.largeThumbnail || item.thumbnail || item.xLargeThumbnail || '',
-                // "Fonte originale": la mostriamo solo se è un sito esterno
-                // (es. la pagina Facebook del Comune). Se punta a un host del
-                // CMS la eliminiamo: quell'indirizzo non deve mai arrivare
-                // all'utente né finire in una condivisione.
-                sourceUrl: (item.url && !isCmsHost(item.url)) ? item.url : '',
+                thumbnail: thumb,
+                sourceUrl: sourceUrl,
                 author: item.author || '',
                 date: item.date || '',
                 type: item.type || 'article',

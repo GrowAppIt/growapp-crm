@@ -132,6 +132,18 @@
         "/Users/giancarlocampisi/Documents/GitHub/growapp-crm/public"
       ],
       "port": 8088
+    },
+    {
+      "name": "ecomed-app",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8087",
+        "--directory",
+        "/Users/giancarlocampisi/Documents/GitHub/app ecomed/ecomed-app/dist"
+      ],
+      "port": 8087
     }
   ]
 }

@@ -333,6 +333,33 @@
             background: var(--blu-500);
         }
 
+        /* Riprova (stato di errore) */
+        .article-retry {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 16px;
+            background: var(--verde-700);
+            color: #fff;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .article-retry:hover {
+            background: var(--verde-500);
+        }
+
+        .article-retry:disabled {
+            opacity: 0.6;
+            cursor: default;
+        }
+
         /* Footer */
         .article-footer {
             background: var(--blu-700);
@@ -376,6 +403,11 @@
         <i class="fas fa-exclamation-circle" id="error-icon"></i>
         <h2 id="error-title">Impossibile caricare il contenuto</h2>
         <p id="error-message">Si è verificato un errore durante il caricamento.</p>
+        <!-- Riprova: mostrato solo per gli errori tecnici/di rete, non quando il
+             contenuto è stato rimosso dal CMS (lì riprovare non serve a nulla). -->
+        <button class="article-retry hidden" id="error-retry" type="button">
+            <i class="fas fa-rotate-right"></i> Riprova
+        </button>
         <a class="article-back-bottom" style="margin-top: 8px;" id="error-back-link" href="/storico-notifiche/landing.html" aria-label="Torna all'archivio notifiche"
            ><span style="display:inline-flex;align-items:center;gap:8px;background:var(--blu-700);color:white;padding:10px 18px;border-radius:8px;text-decoration:none;font-size:0.85rem;font-weight:600;">
             <i class="fas fa-arrow-left"></i> Torna all'archivio notifiche
@@ -478,6 +510,27 @@
         var initialCfg = BADGE_CONFIG[sourceParam] || BADGE_CONFIG['default'];
         document.getElementById('loading-text').textContent = 'Caricamento ' + initialCfg.label.toLowerCase() + '...';
 
+        // TIMEOUT OBBLIGATORIO sulla chiamata al proxy: in webview e su rete
+        // mobile ballerina una fetch può restare appesa per minuti senza mai
+        // dare errore. Senza questo limite la pagina resterebbe sullo spinner
+        // "Caricamento contenuto..." all'infinito — il difetto che i cittadini
+        // segnalano come "non si apre".
+        // Va dichiarato QUI, prima della chiamata a loadContent(): se stesse
+        // sotto, al momento della chiamata varrebbe undefined e setTimeout
+        // farebbe scattare l'abort immediatamente.
+        var PROXY_TIMEOUT_MS = 15000;
+
+        // Riprova dallo stato di errore: torna al caricamento e ritenta.
+        var retryBtn = document.getElementById('error-retry');
+        if (retryBtn) {
+            retryBtn.addEventListener('click', function () {
+                retryBtn.disabled = true;
+                document.getElementById('state-error').classList.add('hidden');
+                document.getElementById('state-loading').classList.remove('hidden');
+                loadContent().then(function () { retryBtn.disabled = false; });
+            });
+        }
+
         // Carica il contenuto tramite il nostro proxy API
         loadContent();
 
@@ -511,17 +564,33 @@
                 renderContent(data.article);
             } catch (e) {
                 console.error('[Reader] Errore:', e);
-                showError('Errore di rete. Verifica la connessione e riprova.', 'error');
+                // Distinguiamo il "ci sta mettendo troppo" dal "connessione
+                // assente": per il cittadino sono due cose diverse.
+                var scaduto = e && (e.name === 'AbortError' || e.code === 20);
+                showError(scaduto
+                    ? 'Il contenuto ci sta mettendo troppo a caricare. Controlla la connessione e riprova.'
+                    : 'Errore di rete. Verifica la connessione e riprova.', 'error');
             }
         }
 
         // Chiama il proxy e restituisce { status, data } senza mai lanciare
         // su risposte non-JSON (così il chiamante può decidere il fallback).
+        //
         async function callProxy(proxyUrl) {
-            var resp = await fetch(proxyUrl);
-            var data = null;
-            try { data = await resp.json(); } catch (e) { data = null; }
-            return { status: resp.status, data: data };
+            var controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+            var timer = setTimeout(function () {
+                if (controller) controller.abort();
+            }, PROXY_TIMEOUT_MS);
+            try {
+                var resp = await fetch(proxyUrl, controller ? { signal: controller.signal } : undefined);
+                clearTimeout(timer);
+                var data = null;
+                try { data = await resp.json(); } catch (e) { data = null; }
+                return { status: resp.status, data: data };
+            } catch (e) {
+                clearTimeout(timer);
+                throw e;
+            }
         }
 
         function renderContent(article) {
@@ -586,22 +655,30 @@
                 }
             }
 
-            // Contenuto (HTML restituito dal proxy)
+            // Contenuto (HTML restituito dal proxy).
+            // Il CMS a volte risponde con un contenuto formalmente valido ma
+            // vuoto ("<div></div>"): in quel caso mostravamo una pagina bianca
+            // sotto il titolo. Il testo della notifica arriva già dal proxy, ma
+            // teniamo qui la stessa verifica come rete di sicurezza.
             var contentEl = document.getElementById('article-content');
-            if (article.content) {
+            if (hasVisibleContent(article.content)) {
                 contentEl.innerHTML = sanitizeHtml(article.content);
             } else if (article.summary) {
                 contentEl.textContent = article.summary;
             } else {
-                contentEl.innerHTML = '<p style="color:var(--grigio-500);font-style:italic;">Contenuto non disponibile.</p>';
+                contentEl.innerHTML = '<p style="color:var(--grigio-500);font-style:italic;">'
+                    + 'Questa notifica non ha un testo esteso.'
+                    + (article.sourceUrl ? ' Puoi aprire la fonte originale qui sotto.' : '')
+                    + '</p>';
             }
 
-            // Link alla fonte (Facebook/sito esterno per le notizie RSS)
-            // Per gli eventi/avvisi del comune di solito il sourceUrl punta al portale
-            // del comune stesso: lo mostriamo solo se c'è E se è diverso dall'URL interno
-            if (article.sourceUrl) {
+            // Link alla fonte (Facebook/sito esterno per le notizie RSS).
+            // Accettiamo solo http/https: un indirizzo con un altro schema non
+            // deve diventare un link cliccabile.
+            var safeSource = httpUrlOrEmpty(article.sourceUrl);
+            if (safeSource) {
                 var sourceDiv = document.getElementById('article-source');
-                document.getElementById('source-link').href = article.sourceUrl;
+                document.getElementById('source-link').href = safeSource;
                 sourceDiv.classList.remove('hidden');
             }
 
@@ -702,16 +779,37 @@
             }
             var root = doc.body || doc;
 
-            // Rimuovi eventuali script
-            root.querySelectorAll('script').forEach(function(el) { el.remove(); });
-            // Rimuovi iframe sospetti (mantieni solo YouTube/Vimeo)
-            root.querySelectorAll('iframe').forEach(function(el) {
-                var src = el.getAttribute('src') || '';
-                if (!/youtube\.com|youtu\.be|vimeo\.com/.test(src)) {
+            // Elementi che non hanno MAI ragione di stare dentro il testo di un
+            // avviso comunale e che, se ci finissero, cambierebbero il
+            // comportamento della pagina: script, form di raccolta dati,
+            // <base> (riscriverebbe tutti i link relativi), <style>/<link>
+            // (possono riscrivere la grafica), plugin e simili.
+            root.querySelectorAll('script,style,link,meta,base,form,object,embed,applet,noscript')
+                .forEach(function (el) { el.remove(); });
+
+            // Iframe: teniamo solo i video di YouTube/Vimeo, riconosciuti dal
+            // DOMINIO e non da un pezzo di stringa qualunque dentro
+            // l'indirizzo (prima "https://sito-finto.it/?x=youtube.com" passava).
+            var VIDEO_HOSTS = [
+                'youtube.com', 'www.youtube.com', 'youtube-nocookie.com',
+                'www.youtube-nocookie.com', 'youtu.be', 'www.youtu.be',
+                'vimeo.com', 'www.vimeo.com', 'player.vimeo.com'
+            ];
+            root.querySelectorAll('iframe').forEach(function (el) {
+                var probe = document.createElement('a');
+                probe.href = el.getAttribute('src') || '';
+                var host = (probe.hostname || '').toLowerCase();
+                var schemaOk = probe.protocol === 'https:' || probe.protocol === 'http:';
+                if (!schemaOk || VIDEO_HOSTS.indexOf(host) === -1) {
                     el.remove();
+                    return;
                 }
+                // srcdoc esegue HTML arbitrario: via comunque.
+                el.removeAttribute('srcdoc');
             });
-            // Rimuovi handler inline (on*) e neutralizza gli URL javascript:
+
+            // Rimuovi handler inline (on*) e neutralizza gli indirizzi non
+            // http/https (javascript:, data:, ecc.).
             root.querySelectorAll('*').forEach(function(el) {
                 (el.getAttributeNames ? el.getAttributeNames() : []).forEach(function(name) {
                     var lname = name.toLowerCase();
@@ -719,10 +817,23 @@
                         el.removeAttribute(name);
                         return;
                     }
+                    if (lname === 'srcdoc' || lname === 'formaction') {
+                        el.removeAttribute(name);
+                        return;
+                    }
                     if (lname === 'href' || lname === 'src' || lname === 'xlink:href') {
-                        var val = (el.getAttribute(name) || '').replace(/\s+/g, '').toLowerCase();
-                        if (val.indexOf('javascript:') === 0) {
-                            el.removeAttribute(name);
+                        var raw = el.getAttribute(name) || '';
+                        if (!raw.trim()) return;
+                        // Gli indirizzi relativi e le ancore (#) restano come sono.
+                        if (/^[a-z][a-z0-9+.-]*:/i.test(raw.replace(/\s+/g, ''))) {
+                            var probe2 = document.createElement('a');
+                            probe2.href = raw;
+                            // mailto: e tel: servono davvero negli avvisi comunali
+                            // (contatti degli uffici), quindi restano.
+                            var OK_SCHEMI = ['http:', 'https:', 'mailto:', 'tel:'];
+                            if (OK_SCHEMI.indexOf(probe2.protocol) === -1) {
+                                el.removeAttribute(name);
+                            }
                         }
                     }
                 });
@@ -737,6 +848,11 @@
             var iconEl = document.getElementById('error-icon');
             var titleEl = document.getElementById('error-title');
             var headerTitleEl = document.getElementById('header-title');
+
+            // "Riprova" ha senso solo per gli errori tecnici: se il contenuto è
+            // stato rimosso dal CMS, riprovare darebbe sempre lo stesso esito.
+            var retry = document.getElementById('error-retry');
+            if (retry) retry.classList.toggle('hidden', kind === 'notfound');
 
             if (kind === 'notfound') {
                 iconEl.className = 'fas fa-box-archive';
@@ -760,6 +876,33 @@
             var div = document.createElement('div');
             div.textContent = str;
             return div.innerHTML;
+        }
+
+        // Il contenuto ha qualcosa da mostrare? Una sola immagine basta:
+        // moltissimi avvisi comunali SONO una locandina senza testo.
+        function hasVisibleContent(html) {
+            if (!html) return false;
+            var s = String(html);
+            if (/<(img|iframe|video|audio|picture|source|embed|object)\b/i.test(s)) return true;
+            var text = s.replace(/<[^>]*>/g, ' ')
+                .replace(/&nbsp;/gi, ' ')
+                .replace(/&[a-z]+;/gi, ' ')
+                .replace(/\s+/g, ' ')
+                .trim();
+            return text.length > 0;
+        }
+
+        // Restituisce l'indirizzo solo se è http/https, altrimenti stringa vuota.
+        function httpUrlOrEmpty(raw) {
+            var s = (raw == null ? '' : String(raw)).trim();
+            if (!s) return '';
+            try {
+                var a = document.createElement('a');
+                a.href = s;
+                return (a.protocol === 'http:' || a.protocol === 'https:') ? a.href : '';
+            } catch (e) {
+                return '';
+            }
         }
     })();
     </script>

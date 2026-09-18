@@ -2,7 +2,8 @@
 <html lang="it">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <!-- Zoom consentito: bloccarlo impedisce a chi vede poco di ingrandire il testo -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
     <title>Archivio Notifiche</title>
 
     <!-- Titillium Web -->
@@ -761,7 +762,7 @@
                 <div class="subtitle" id="page-subtitle">Tutte le comunicazioni push</div>
             </div>
             <!-- IMMAGINE: Stemma del comune, formato quadrato ~36x36px, sfondo bianco -->
-            <img class="header-stemma" id="header-stemma" src="" alt="Stemma">
+            <img class="header-stemma" id="header-stemma" alt="" hidden>
         </div>
     </header>
 
@@ -1189,6 +1190,18 @@
         const container = document.getElementById('notifications-container');
 
         if (state.notifications.length === 0) {
+            // Slug che non corrisponde a nessun Comune: dirlo chiaramente invece
+            // di lasciar credere che il Comune non abbia mai mandato notifiche.
+            if (state.comuneTrovato === false && state.activeFilter === 'all') {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-circle-question"></i>
+                        <h3>Comune non trovato</h3>
+                        <p>L'indirizzo non corrisponde a nessun Comune. Apri l'archivio dalla sezione dedicata dell'app del tuo Comune.</p>
+                    </div>
+                `;
+                return;
+            }
             container.innerHTML = `
                 <div class="empty-state">
                     <i class="fas fa-bell-slash"></i>
@@ -1505,10 +1518,14 @@
             if (url) {
                 const clean = url.replace(/[.,;:)]+$/, '');
                 const tail = url.slice(clean.length);
-                return '<a href="' + clean + '" target="_blank" rel="noopener noreferrer">' + clean + '</a>' + tail;
+                // Le virgolette dentro un indirizzo chiuderebbero l'attributo
+                // href e permetterebbero di iniettare altri attributi nel link:
+                // qui vengono codificate (restano indirizzi validi).
+                const hrefSafe = clean.replace(/"/g, '%22').replace(/'/g, '%27');
+                return '<a href="' + hrefSafe + '" target="_blank" rel="noopener noreferrer">' + clean + '</a>' + tail;
             }
             if (email) {
-                return '<a href="mailto:' + email + '">' + email + '</a>';
+                return '<a href="mailto:' + email.replace(/"/g, '%22') + '">' + email + '</a>';
             }
             if (phone) {
                 const digits = phone.replace(/[^\d+]/g, '');
@@ -1769,11 +1786,20 @@
                 6000, 'nome-comune'
             );
             if (pubSnap.exists) {
+                state.comuneTrovato = true;
                 const nome = (pubSnap.data() || {}).comune;
                 if (nome) {
                     state.comuneNome = nome;
                     setComune(nome);
                     return;
+                }
+            } else {
+                // Lo specchio pubblico è leggibile e questo slug NON c'è:
+                // quasi sempre significa indirizzo sbagliato (?app=... errato),
+                // non "Comune senza notifiche". Se la lista è vuota lo diciamo.
+                state.comuneTrovato = false;
+                if (!state.loading && state.notifications.length === 0) {
+                    renderNotifications();
                 }
             }
         } catch (e) {
