@@ -570,3 +570,9 @@ Vale **ovunque** compaia lo slug:
 | CMS | `public/js/tourapp/tourapp-data.js` | `slugify()` (Comune/appScheme) vs `slugId()` (id interni di sezioni/POI/quiz: lì i trattini vanno bene) |
 
 **Retrocompatibilità**: i documenti già creati con lo slug vecchio (col trattino) restano validi — il docId non si cambia. Per riconoscerli come lo stesso Comune si confronta la forma *compatta* (`slugCompatto`/`slugCompact`), mai la stringa grezza: altrimenti il CRM crede a una rinomina e propone di creare un doppione.
+
+---
+
+## 11. Collegare le app GoodBarber all'MCP ("Pubblicazioni sulle app")
+
+Quando Giancarlo chiede di **collegare le app all'MCP** (o di riprendere i collegamenti), segui **`scripts/mcp-collega/ISTRUZIONI.md`**: procedura, divisione dei compiti tra te e Giancarlo, testo modello dei passi e casi particolari. Si lavora a gruppi di 10, un'app alla volta, e Giancarlo risponde "fatto" a ogni passo. Per sapere a che punto si è: `node scripts/mcp-collega/stato.js`.

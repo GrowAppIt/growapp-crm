@@ -144,6 +144,15 @@
         "/Users/giancarlocampisi/Documents/GitHub/app ecomed/ecomed-app/dist"
       ],
       "port": 8087
+    },
+    {
+      "name": "esplora-anteprima",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "/Users/giancarlocampisi/Documents/GitHub/comune-digital-cms/scripts/esplora/anteprima-locale.js",
+        "8790"
+      ],
+      "port": 8790
     }
   ]
 }
