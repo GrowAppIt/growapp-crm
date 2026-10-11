@@ -151,11 +151,13 @@ module.exports = async function handler(req, res) {
       headers: {
         'Content-Type': 'application/json',
         'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01'
+        'anthropic-version': '2023-06-01',
+        'anthropic-beta': 'server-side-fallback-2026-07-01'
       },
       body: JSON.stringify({
-        model: 'claude-opus-4-8',
-        max_tokens: 1024,
+        model: 'claude-sonnet-5-5',
+        max_tokens: 4096,
+        fallbacks: 'default',
         system: SYSTEM_PROMPT,
         output_config: {
           effort: 'low',

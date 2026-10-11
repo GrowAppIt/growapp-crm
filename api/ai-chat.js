@@ -64,7 +64,7 @@ function formatCurrency(amount) {
 }
 
 // === LIMITI PER EVITARE PAYLOAD TROPPO GRANDI ===
-const MAX_CONTEXT_CHARS = 90000; // ~22k token circa, sicuro per Haiku
+const MAX_CONTEXT_CHARS = 300000; // ~75k token: Sonnet 5.5 ha 1M di contesto (con Haiku 4.5 era 90000 e lo scadenzario in coda spariva)
 const MAX_APPS = 300;
 const MAX_CLIENTI = 200;
 const MAX_CONTRATTI = 200;
@@ -421,8 +421,13 @@ Questo e' SBAGLIATO perche' aggiunge informazioni non richieste e non cerca nei 
 
   try {
     let requestBody = JSON.stringify({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 4096,
+      model: 'claude-sonnet-5-5',
+      max_tokens: 8000,
+      // Chat: ragionamento leggero (risposte veloci); i dati del CRM restano in cache ~5 min tra una domanda e l'altra
+      output_config: { effort: 'low' },
+      cache_control: { type: 'ephemeral' },
+      // In caso di rifiuto per sicurezza l'API riprova da sola con un altro modello
+      fallbacks: 'default',
       system: systemPrompt,
       messages: messages
     });
@@ -435,7 +440,8 @@ Questo e' SBAGLIATO perche' aggiunge informazioni non richieste e non cerca nei 
       headers: {
         'Content-Type': 'application/json',
         'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01'
+        'anthropic-version': '2023-06-01',
+        'anthropic-beta': 'server-side-fallback-2026-07-01'
       },
       body: requestBody
     });
@@ -456,7 +462,10 @@ Questo e' SBAGLIATO perche' aggiunge informazioni non richieste e non cerca nei 
     }
 
     const data = await response.json();
-    const answer = data.content?.[0]?.text || 'Nessuna risposta generata.';
+    // Con i modelli recenti la risposta puo' contenere blocchi di "ragionamento" prima del testo: si prendono solo i blocchi di testo
+    const answer = (data.stop_reason === 'refusal')
+      ? 'Non posso rispondere a questa domanda.'
+      : ((data.content || []).filter(function (b) { return b.type === 'text'; }).map(function (b) { return b.text; }).join('') || 'Nessuna risposta generata.');
     const usage = data.usage || {};
 
     console.log(`[ai-chat] OK — input: ${usage.input_tokens || '?'}, output: ${usage.output_tokens || '?'} tokens`);

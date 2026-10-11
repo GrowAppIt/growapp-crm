@@ -4,7 +4,7 @@
   "outputDirectory": "public",
   "functions": {
     "api/ai-chat.js": {
-      "maxDuration": 30,
+      "maxDuration": 120,
       "memory": 1024
     },
     "api/app-publish-chat.js": {

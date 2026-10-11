@@ -189,8 +189,10 @@ Esempio: [{"idx":0,"cat":"eventi","score":8,"reason":"Evento con data e luogo sp
   try {
     // Costruisci il JSON e rimuovi eventuali surrogate pairs rotti dal body finale
     let requestBody = JSON.stringify({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 2048,
+      model: 'claude-sonnet-5-5',
+      max_tokens: 4096,
+      output_config: { effort: 'low' },
+      fallbacks: 'default',
       system: systemPrompt,
       messages: [
         { role: 'user', content: userMessage }
@@ -207,7 +209,8 @@ Esempio: [{"idx":0,"cat":"eventi","score":8,"reason":"Evento con data e luogo sp
       headers: {
         'Content-Type': 'application/json',
         'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01'
+        'anthropic-version': '2023-06-01',
+        'anthropic-beta': 'server-side-fallback-2026-07-01'
       },
       body: requestBody
     });
@@ -229,7 +232,8 @@ Esempio: [{"idx":0,"cat":"eventi","score":8,"reason":"Evento con data e luogo sp
     }
 
     const data = await response.json();
-    const textContent = data.content?.[0]?.text || '[]';
+    // Solo i blocchi di testo (i modelli recenti possono anteporre blocchi di ragionamento)
+    const textContent = (data.content || []).filter(function (b) { return b.type === 'text'; }).map(function (b) { return b.text; }).join('') || '[]';
 
     // Estrai il JSON dalla risposta
     let classifications;

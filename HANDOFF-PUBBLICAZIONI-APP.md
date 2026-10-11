@@ -1,6 +1,6 @@
 # Handoff — "Pubblicazioni sulle app" (chat MCP del CRM)
 
-_Ultimo aggiornamento: 11/10/2026 · CRM **10.7.0** (allineatore mappa generale) pubblicata · **10.7.1** (lasciapassare in collezione protetta) scritta, **NON ancora pubblicata**._
+_Ultimo aggiornamento: 11/10/2026 · CRM **10.7.0** (allineatore mappa generale) pubblicata · **10.7.1** (lasciapassare in collezione protetta) pubblicata e migrata._
 
 > Per riprendere: in una nuova sessione scrivi **"riprendiamo le Pubblicazioni sulle app: leggi HANDOFF-PUBBLICAZIONI-APP.md"**.
 > Giancarlo NON è sviluppatore: un passo alla volta, linguaggio semplice, aspettare il suo "fatto". Pubblica lui da GitHub Desktop (Claude non committa/pusha). Dopo ogni push controllare che la versione sia online prima di testare (Vercel impiega 1–4 minuti).
@@ -26,9 +26,12 @@ Scoperto su **Città della Spezia** (docId `P5nsfHzjIr6fpEjQHawz`): la mappa gen
 - Prova in sola lettura su La Spezia (11/10): 611 punti, 249 già nella generale, 243 da aggiungere (95 Presidi e Servizi Locali, 55 Rifornimenti e Colonnine, 33 DAE, 25 Scuole…). Da decidere con Giancarlo quali mappe spuntare prima di allineare.
 - **Collaudo da fare**: pubblicare, aprire La Spezia → Scheda Comune → impostare → Anteprima → allineare prima una mappa piccola (es. Associazioni) e controllare su GoodBarber che il punto compaia in entrambe le mappe e che nulla sia sparito.
 
+## Modelli AI del CRM (v10.7.2, scritta 12/10, NON pubblicata)
+Chat Pubblicazioni resta su Opus 5.5. Tutto il resto passa a **Sonnet 5.5** (scelta di Giancarlo): assistente AI (`api/ai-chat.js`, effort low, cache dei dati, contesto 90k→300k caratteri così lo scadenzario non sparisce più, maxDuration 120), classificazione notizie (effort low), lettere (effort medium), suggerimento documenti (prima Opus 4.8). Tutti con `fallbacks: "default"` e lettura dei soli blocchi di testo (i modelli nuovi possono anteporre blocchi di ragionamento: prima si leggeva `content[0].text`). Provato con la chiave di prova: tutte e 4 le forme accettate, cache funzionante. La chiave usata in produzione è `ANTHROPIC_API_KEY` su Vercel per tutte le funzioni; quella in `scripts/banco-prova` serve solo ai test locali.
+
 ## Altri punti aperti
 - Vecchio campo `mcpApiKey` di Cefalù: con la 10.7.1 viene spostato in `app_mcp_segreti` (`mcpApiKeyVecchia`). Resta da decidere se revocare il set "MCP CEFALU"/"CMP" su GoodBarber (decide Giancarlo).
-- **Lasciapassare spostati in un posto protetto (v10.7.1, scritto 11/10, NON pubblicato)**: collezione `app_mcp_segreti` (bloccata dal browser, verificato), migrazione automatica al primo rinnovo in `lib/mcp-token.js`, scheda app senza più campi per incollare i token (solo stato). Dopo la pubblicazione: lanciare il rinnovo (o aspettare il cron del lunedì 03:10 UTC) e controllare con `node scripts/mcp-collega/stato.js` che i lasciapassare nel formato vecchio scendano a 0. ⚠️ Finché la 10.7.1 non è online NON usare il nuovo `collega-app.js`: scriverebbe nel posto nuovo, che il codice in produzione non conosce ancora.
+- **Lasciapassare spostati in un posto protetto (v10.7.1, pubblicata 11/10)**: collezione `app_mcp_segreti` (bloccata dal browser, verificato). Migrazione fatta l'11/10 lanciando il keepalive dal CRM: 115/115 rinnovate, 0 errori, 0 segreti rimasti nei doc `app`; script locali verificati sul formato nuovo. La scheda app mostra solo lo stato del collegamento.
 - Il modulo "Configurazione App" in `dettaglio-app.js` **inventa gli URL** dal nome se mancano: correggere.
 - Booking senza spunta sui set delle app collegate prima di Diamante.
 - Nomi GB "Santo Stefano di Magra di Magra" e "Villa San Giovann": si cambiano in La mia app → Icona dell'app, ma richiedono un nuovo invio agli store → Giancarlo ha deciso (11/10) di lasciarli così.
