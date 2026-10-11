@@ -1561,39 +1561,8 @@ const DettaglioApp = {
                             </div>
                         </div>
 
-                        <!-- Collegamento MCP (Pubblicazioni) -->
-                        <div style="margin-bottom: 1.5rem; border-top: 1px solid var(--grigio-200, #e5e5e5); padding-top: 1.25rem;">
-                            <label style="display:block; font-size:0.85rem; font-weight:700; color:var(--grigio-700); margin-bottom:0.4rem;">
-                                <i class="fas fa-paper-plane" style="color:var(--blu-700);"></i> Collegamento MCP (Pubblicazioni)
-                            </label>
-                            <p style="font-size:0.78rem; color:var(--grigio-500); margin:0 0 0.85rem;">
-                                Serve alla sezione "Pubblicazioni sulle app". Il server MCP di GoodBarber usa OAuth: esegui una volta il login con <code>scripts/mcp-login.js</code> e incolla qui sotto <strong>Client ID</strong> e <strong>Refresh Token</strong> che lo script ti dà. Il server rinnova il token da solo: il login si fa una volta sola.
-                            </p>
-                            <div style="margin-bottom: 0.85rem;">
-                                <label style="display:block; font-size:0.8rem; font-weight:600; color:var(--grigio-600); margin-bottom:0.3rem;">URL Server MCP</label>
-                                <input type="url" id="configMcpUrl" value="${app.mcpServerUrl || ''}" placeholder="https://mcp.ww-api.com/000000/mcp/sse"
-                                    style="width:100%; padding:0.6rem; border:1px solid var(--grigio-300); border-radius:6px; font-family:'Titillium Web',sans-serif; font-size:0.9rem;" />
-                            </div>
-                            <div style="margin-bottom: 0.85rem;">
-                                <label style="display:block; font-size:0.8rem; font-weight:600; color:var(--grigio-600); margin-bottom:0.3rem;">
-                                    Client ID ${app.mcpClientId ? '<span style="color:var(--verde-successo,#2e7d32); font-weight:700;">• salvato</span>' : ''}
-                                </label>
-                                <input type="text" id="configMcpClientId" value="${app.mcpClientId || ''}" autocomplete="off"
-                                    placeholder="Es: c73a88747b604258846b901c47e8f9ac"
-                                    style="width:100%; padding:0.6rem; border:1px solid var(--grigio-300); border-radius:6px; font-family:'Titillium Web',sans-serif; font-size:0.9rem;" />
-                            </div>
-                            <div>
-                                <label style="display:block; font-size:0.8rem; font-weight:600; color:var(--grigio-600); margin-bottom:0.3rem;">
-                                    Refresh Token ${app.mcpRefreshToken ? '<span style="color:var(--verde-successo,#2e7d32); font-weight:700;">• salvato</span>' : ''}
-                                </label>
-                                <input type="password" id="configMcpRefresh" value="" autocomplete="new-password"
-                                    placeholder="${app.mcpRefreshToken ? '•••••••••• (presente) — lascia vuoto per mantenerlo' : 'Incolla qui il Refresh Token'}"
-                                    style="width:100%; padding:0.6rem; border:1px solid var(--grigio-300); border-radius:6px; font-family:'Titillium Web',sans-serif; font-size:0.9rem;" />
-                                <p style="font-size:0.72rem; color:var(--grigio-500); margin-top:0.3rem;">
-                                    <i class="fas fa-lock"></i> Salvato in modo sicuro; usato solo dal server per rinnovare l'accesso, mai mostrato in chiaro.
-                                </p>
-                            </div>
-                        </div>
+                        <!-- Collegamento MCP (Pubblicazioni) — solo stato: i segreti stanno nella collezione protetta app_mcp_segreti -->
+                        ${this._statoMcpHtml(app)}
 
                         <!-- Pulsante Salva -->
                         <button id="btnSalvaConfigApp" class="btn btn-primary" onclick="DettaglioApp.salvaConfigApp()" style="width: 100%;">
@@ -1603,6 +1572,37 @@ const DettaglioApp = {
                 </div>
             </div>
         `;
+    },
+
+    // Stato del collegamento MCP (solo lettura). Il collegamento si fa con scripts/mcp-collega/collega-app.js
+    // e i segreti (client id, refresh token) stanno in app_mcp_segreti, non leggibile dal browser.
+    _statoMcpHtml(app) {
+        const esc = v => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        const data = v => {
+            if (!v) return '';
+            const d = typeof v.toDate === 'function' ? v.toDate() : new Date(v);
+            return isNaN(d) ? '' : d.toLocaleString('it-IT', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+        };
+        const collegata = !!(app.mcpCollegato || app.mcpRefreshToken);
+        const errore = app.mcpStato === 'errore';
+        const colore = !collegata ? 'var(--grigio-500)' : errore ? '#D32F2F' : '#3CA434';
+        const stato = !collegata ? 'Non collegata' : errore ? 'Collegata, ma l\u2019ultimo rinnovo è fallito' : 'Collegata';
+        return `
+                        <div style="margin-bottom: 1.5rem; border-top: 1px solid var(--grigio-200, #e5e5e5); padding-top: 1.25rem;">
+                            <label style="display:block; font-size:0.85rem; font-weight:700; color:var(--grigio-700); margin-bottom:0.4rem;">
+                                <i class="fas fa-paper-plane" style="color:var(--blu-700);"></i> Collegamento MCP (Pubblicazioni)
+                            </label>
+                            <div style="font-size:0.9rem; font-weight:700; color:${colore}; margin-bottom:0.35rem;">
+                                <i class="fas ${collegata && !errore ? 'fa-check-circle' : collegata ? 'fa-exclamation-triangle' : 'fa-unlink'}"></i> ${stato}
+                            </div>
+                            ${collegata ? `<p style="font-size:0.78rem; color:var(--grigio-600); margin:0 0 0.3rem;">
+                                ${app.mcpCollegatoIl ? 'Collegata il ' + esc(data(app.mcpCollegatoIl)) + '. ' : ''}${app.mcpUltimoRinnovo ? 'Ultimo rinnovo: ' + esc(data(app.mcpUltimoRinnovo)) + '.' : ''}
+                            </p>` : ''}
+                            ${errore && app.mcpUltimoErrore ? `<p style="font-size:0.75rem; color:#D32F2F; margin:0 0 0.3rem;">${esc(app.mcpUltimoErrore)}</p>` : ''}
+                            <p style="font-size:0.72rem; color:var(--grigio-500); margin:0;">
+                                <i class="fas fa-lock"></i> Le chiavi del collegamento sono custodite dal server in un archivio protetto e non sono visibili dal CRM. Il collegamento (o un nuovo collegamento) lo fa Claude con la procedura di <code>scripts/mcp-collega</code>.
+                            </p>
+                        </div>`;
     },
 
     // Toggle accordion configurazione app
@@ -1664,9 +1664,6 @@ const DettaglioApp = {
         try {
             const urlSito = document.getElementById('configUrlSito')?.value?.trim() || '';
             const urlCruscotto = document.getElementById('configUrlCruscotto')?.value?.trim() || '';
-            const mcpServerUrl = document.getElementById('configMcpUrl')?.value?.trim() || '';
-            const mcpClientId = document.getElementById('configMcpClientId')?.value?.trim() || '';
-            const mcpRefreshInput = document.getElementById('configMcpRefresh')?.value?.trim() || '';
             const fileInput = document.getElementById('configIconaFile');
             let iconaUrl = this.app.iconaUrl || '';
 
@@ -1687,24 +1684,14 @@ const DettaglioApp = {
             const updateData = {
                 iconaUrl: iconaUrl,
                 urlSito: urlSito,
-                urlCruscotto: urlCruscotto,
-                mcpServerUrl: mcpServerUrl,
-                mcpClientId: mcpClientId
+                urlCruscotto: urlCruscotto
             };
-            // Il refresh token si aggiorna solo se l'utente ne ha incollato uno nuovo
-            // (campo vuoto = mantieni quello esistente, non lo sovrascrive)
-            if (mcpRefreshInput) {
-                updateData.mcpRefreshToken = mcpRefreshInput;
-            }
             await db.collection('app').doc(this.appId).update(updateData);
 
             // Aggiorna dati locali
             this.app.iconaUrl = iconaUrl;
             this.app.urlSito = urlSito;
             this.app.urlCruscotto = urlCruscotto;
-            this.app.mcpServerUrl = mcpServerUrl;
-            this.app.mcpClientId = mcpClientId;
-            if (mcpRefreshInput) this.app.mcpRefreshToken = mcpRefreshInput;
 
             UI.showSuccess('Configurazione salvata!');
 

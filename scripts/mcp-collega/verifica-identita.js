@@ -72,12 +72,14 @@ function estrai(text) {
 }
 
 async function identitaMcp(app) {
+  const seg = await db.segretiMcp(app);
+  if (!seg) throw new Error('lasciapassare non trovato');
   // Rispetta il lucchetto di lib/mcp-token.js: se il CRM sta usando l'app in questo momento, non toccarla.
-  if (app.mcpRinnovoLockFino && app.mcpRinnovoLockFino > Date.now()) throw new Error('app occupata dal CRM in questo momento, riprova');
-  const { accessToken, newRefreshToken } = await mintAccessToken(app.mcpServerUrl, app.mcpClientId, app.mcpRefreshToken);
+  if (seg.occupataFino > Date.now()) throw new Error('app occupata dal CRM in questo momento, riprova');
+  const { accessToken, newRefreshToken } = await mintAccessToken(seg.mcpServerUrl, seg.mcpClientId, seg.mcpRefreshToken);
   // GoodBarber ruota il refresh_token a ogni uso: va salvato subito, altrimenti il collegamento si perde.
-  if (newRefreshToken) await db.patchDoc('app', app._id, { mcpRefreshToken: newRefreshToken });
-  const url = app.mcpServerUrl;
+  if (newRefreshToken) await db.salvaRefreshMcp(app._id, seg, newRefreshToken);
+  const url = seg.mcpServerUrl;
   const init = await mcpCall(url, accessToken, { jsonrpc: '2.0', id: 1, method: 'initialize',
     params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'crm-verifica', version: '1.0' } } });
   if (init.status >= 300) throw new Error('initialize HTTP ' + init.status);
@@ -110,7 +112,7 @@ async function identitaPubblica(host) {
 (async () => {
   const filtro = process.argv.slice(2);
   const tutte = await db.listAll('app');
-  const apps = tutte.filter(a => a.mcpRefreshToken && (!filtro.length || filtro.includes(a._id)))
+  const apps = tutte.filter(a => db.collegata(a) && (!filtro.length || filtro.includes(a._id)))
     .sort((a, b) => String(a.nome).localeCompare(String(b.nome)));
   const out = [];
   for (const app of apps) {
@@ -131,7 +133,7 @@ async function identitaPubblica(host) {
       else if (idOk) riga.esito = 'OK (solo foto)';
       else { riga.esito = 'DUBBIA'; riga.problemi.push('nessun indirizzo nei contenuti; foto con webzine ' + (m.ids.join('/') || '-') + ' invece di ' + wz); }
       if (riga.esito === 'NESSUN DATO') riga.problemi.push('MCP: nessun contenuto da cui ricavare l\'identità');
-      if (!app.mcpServerUrl.includes('/' + wz + '/')) riga.problemi.push('mcpServerUrl non contiene il webzine del CRM');
+      if (!String(app.mcpServerUrl || '').includes('/' + wz + '/')) riga.problemi.push('mcpServerUrl non contiene il webzine del CRM');
     } catch (e) { riga.problemi.push('MCP errore: ' + e.message); }
     const pub = await identitaPubblica(hostCrm || hostSito);
     Object.assign(riga, { webzinePubblico: pub.webzine, titoloPubblico: pub.titolo });

@@ -5,6 +5,7 @@
  * per un mese da "Pubblicazioni sulle app" perde il collegamento (successo a Cefalù, ott 2026).
  * Questa funzione, lanciata da Vercel Cron una volta a settimana, rinnova il lasciapassare
  * di tutte le app collegate e salva quello nuovo (lib/mcp-token.js: un'app alla volta, con lucchetto).
+ * Dalla v10.7.1 i segreti stanno in `app_mcp_segreti`: il primo giro sposta lì quelli rimasti nel doc `app`.
  *
  * Non legge né modifica contenuti delle app: fa solo il rinnovo OAuth.
  * Esito per app nel doc `app`: mcpStato ('ok'|'errore'), mcpUltimoRinnovo, mcpUltimoErrore.
@@ -57,7 +58,8 @@ module.exports = async function handler(req, res) {
 
   const inizio = Date.now();
   const snap = await db.collection('app').get();
-  const apps = snap.docs.filter(d => (d.data() || {}).mcpRefreshToken);
+  // Collegate = segreti già nella collezione protetta (mcpCollegato) o ancora nel formato vecchio (vengono spostati al rinnovo)
+  const apps = snap.docs.filter(d => { const x = d.data() || {}; return x.mcpCollegato || x.mcpRefreshToken; });
   const errori = [];
   let ok = 0;
 

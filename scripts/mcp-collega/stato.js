@@ -9,13 +9,15 @@ const db = require('./fsrest.js');
 (async () => {
   const n = parseInt(process.argv[2], 10) || 10;
   const apps = await db.listAll('app');
-  const collegate = apps.filter(a => a.mcpRefreshToken).map(a => a.nome).sort();
+  const collegate = apps.filter(db.collegata).map(a => a.nome).sort();
   const daFare = apps
-    .filter(a => a.statoApp === 'ATTIVA' && a.goodbarberWebzineId && !a.mcpRefreshToken)
+    .filter(a => a.statoApp === 'ATTIVA' && a.goodbarberWebzineId && !db.collegata(a))
     .sort((a, b) => a.nome.localeCompare(b.nome));
   const senzaId = apps.filter(a => a.statoApp === 'ATTIVA' && !a.goodbarberWebzineId).map(a => a.nome);
 
   console.log('Collegate:', collegate.length);
+  const vecchie = apps.filter(a => a.mcpRefreshToken).length;
+  console.log('Lasciapassare ancora nel doc app (formato vecchio, il server li sposta al primo rinnovo):', vecchie);
   console.log('Attive ancora da collegare:', daFare.length);
   if (senzaId.length) console.log('Attive SENZA goodbarberWebzineId (da segnalare):', senzaId.join(', '));
   console.log('\nProssimo gruppo (docId | webzineId | nome | cruscotto):');

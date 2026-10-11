@@ -59,11 +59,13 @@ async function getDoc(coll, id) {
 }
 
 // Aggiorna SOLO i campi indicati (updateMask), il resto del documento resta intatto.
-async function patchDoc(coll, id, data) {
+// Un valore `undefined` CANCELLA quel campo. Con { crea: true } il documento viene creato se non esiste.
+async function patchDoc(coll, id, data, opz) {
   const keys = Object.keys(data);
   const mask = keys.map(k => 'updateMask.fieldPaths=' + encodeURIComponent(k)).join('&');
-  const fields = {}; for (const k of keys) fields[k] = toValue(data[k]);
-  const r = await fetch(`${BASE}/${coll}/${encodeURIComponent(id)}?${mask}&currentDocument.exists=true`, {
+  const fields = {}; for (const k of keys) if (data[k] !== undefined) fields[k] = toValue(data[k]);
+  const cond = opz && opz.crea ? '' : '&currentDocument.exists=true';
+  const r = await fetch(`${BASE}/${coll}/${encodeURIComponent(id)}?${mask}${cond}`, {
     method: 'PATCH',
     headers: { Authorization: 'Bearer ' + await token(), 'Content-Type': 'application/json' },
     body: JSON.stringify({ fields })
@@ -71,4 +73,27 @@ async function patchDoc(coll, id, data) {
   if (!r.ok) throw new Error('patch ' + r.status + ' ' + (await r.text()).slice(0, 200));
 }
 
-module.exports = { listAll, getDoc, patchDoc };
+// --- Lasciapassare MCP (v10.7.1): i segreti stanno nella collezione protetta `app_mcp_segreti/{appId}`.
+// Le app non ancora spostate li hanno nel doc `app` (formato vecchio): il server li sposta al primo rinnovo.
+const COLL_SEGRETI = 'app_mcp_segreti';
+const collegata = app => !!(app && (app.mcpCollegato || app.mcpRefreshToken));
+
+// → { mcpServerUrl, mcpClientId, mcpRefreshToken, occupataFino, formato: 'nuovo' | 'vecchio' } oppure null
+async function segretiMcp(app) {
+  if (app.mcpRefreshToken) {
+    return { mcpServerUrl: app.mcpServerUrl, mcpClientId: app.mcpClientId, mcpRefreshToken: app.mcpRefreshToken,
+      occupataFino: app.mcpRinnovoLockFino || 0, formato: 'vecchio' };
+  }
+  const seg = await getDoc(COLL_SEGRETI, app._id);
+  if (!seg || !seg.mcpRefreshToken) return null;
+  return { mcpServerUrl: seg.mcpServerUrl || app.mcpServerUrl, mcpClientId: seg.mcpClientId, mcpRefreshToken: seg.mcpRefreshToken,
+    occupataFino: seg.lockFino || 0, formato: 'nuovo' };
+}
+
+// Salva il refresh token ruotato nello stesso posto da cui è stato letto
+async function salvaRefreshMcp(appId, seg, nuovo) {
+  if (seg.formato === 'vecchio') await patchDoc('app', appId, { mcpRefreshToken: nuovo });
+  else await patchDoc(COLL_SEGRETI, appId, { mcpRefreshToken: nuovo, aggiornatoIl: new Date() });
+}
+
+module.exports = { listAll, getDoc, patchDoc, COLL_SEGRETI, collegata, segretiMcp, salvaRefreshMcp };

@@ -10,22 +10,24 @@ const db = require('../mcp-collega/fsrest.js');
 const chiave = (fsx.readFileSync(path.join(__dirname, 'chiave.txt'), 'utf8').match(/sk-ant-[A-Za-z0-9_\-]+/) || [])[0];
 if (!chiave) { console.error('Chiave non trovata in chiave.txt'); process.exit(1); }
 
-async function rinnova(app) {
-  const base = app.mcpServerUrl.replace(/\/mcp\/sse\/?$/, '');
+async function rinnova(app, seg) {
+  const base = seg.mcpServerUrl.replace(/\/mcp\/sse\/?$/, '');
   const r = await fetch(base + '/token', { method: 'POST',
     headers: { 'content-type': 'application/x-www-form-urlencoded', accept: 'application/json' },
-    body: new URLSearchParams({ grant_type: 'refresh_token', refresh_token: app.mcpRefreshToken, client_id: app.mcpClientId, resource: app.mcpServerUrl }).toString() });
+    body: new URLSearchParams({ grant_type: 'refresh_token', refresh_token: seg.mcpRefreshToken, client_id: seg.mcpClientId, resource: seg.mcpServerUrl }).toString() });
   if (!r.ok) throw new Error('rinnovo rifiutato HTTP ' + r.status);
   const j = await r.json();
-  if (j.refresh_token && j.refresh_token !== app.mcpRefreshToken) await db.patchDoc('app', app._id, { mcpRefreshToken: j.refresh_token });
+  if (j.refresh_token && j.refresh_token !== seg.mcpRefreshToken) await db.salvaRefreshMcp(app._id, seg, j.refresh_token);
   return j.access_token;
 }
 
 (async () => {
   const [modello, docId, domanda] = process.argv.slice(2);
   const app = await db.getDoc('app', docId);
-  if (app.mcpRinnovoLockFino && app.mcpRinnovoLockFino > Date.now()) throw new Error('app occupata dal CRM, riprova');
-  const accessToken = await rinnova(app);
+  const seg = await db.segretiMcp(app);
+  if (!seg) throw new Error('app non collegata');
+  if (seg.occupataFino > Date.now()) throw new Error('app occupata dal CRM, riprova');
+  const accessToken = await rinnova(app, seg);
   // Prompt di sistema identico a quello di produzione
   const src = fsx.readFileSync(path.join(__dirname, '../../api/app-publish-chat.js'), 'utf8');
   const fn = new Function(src.slice(src.indexOf('function buildSystemPrompt'), src.indexOf('// --- CORS')) + '; return buildSystemPrompt;')();
@@ -33,7 +35,7 @@ async function rinnova(app) {
     model: modello, max_tokens: 16000, system: fn(app.nome),
     cache_control: process.env.NOCACHE ? undefined : { type: 'ephemeral' },
     fallbacks: process.env.FALLBACK ? 'default' : undefined,
-    mcp_servers: [{ type: 'url', name: 'goodbarber', url: app.mcpServerUrl, authorization_token: accessToken }],
+    mcp_servers: [{ type: 'url', name: 'goodbarber', url: seg.mcpServerUrl, authorization_token: accessToken }],
     tools: [(function () {
       const m = src.match(/const STRUMENTI_DISATTIVATI = \[([\s\S]*?)\];/);
       const nomi = m ? m[1].match(/'([a-z0-9_]+)'/g).map(x => x.slice(1, -1)) : [];

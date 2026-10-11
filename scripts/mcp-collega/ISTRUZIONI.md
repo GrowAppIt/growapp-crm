@@ -12,7 +12,7 @@
   3. scrive il link di autorizzazione in `auth-url.txt`;
   4. aspetta il ritorno su `localhost:8765` (max 15 min);
   5. fa una **prova in sola lettura** (initialize + elenco strumenti);
-  6. salva `mcpServerUrl` / `mcpClientId` / `mcpRefreshToken` / `mcpCollegatoIl` nel doc `app` su Firestore.
+  6. salva `mcpClientId` / `mcpRefreshToken` nella collezione protetta **`app_mcp_segreti/{docId}`** e nel doc `app` solo `mcpServerUrl` / `mcpCollegato` / `mcpCollegatoIl` (dalla v10.7.1).
 - I token **non vengono mai stampati**. Non scriverli mai in chat, file, log o riepiloghi.
 
 ## 2. Divisione dei compiti (OBBLIGATA dalle regole di sicurezza)
@@ -97,5 +97,10 @@ Il set: **User + Stats + Cms + Booking, tutti Lettura e scrittura** (dall'11/10/
 - Se un'app risulta scaduta (`refresh rifiutato HTTP 400`), si ricollega con `collega-app.js <docId> --force`.
 - Verifica che ogni chiave apra l'app giusta: `node scripts/mcp-collega/verifica-identita.js [docId…]`. È in sola lettura su GoodBarber e salva i token ruotati.
 
-## 7. Punto aperto
-I refresh token stanno nel doc `app`, leggibile anche lato client (come le vecchie credenziali). Prima o poi vanno spostati in una collezione protetta da regole Firestore: cambiano `api/app-publish-chat.js`, `dettaglio-app.js`, `pubblicazioni-app.js` e questo script.
+## 7. Dove stanno i lasciapassare (dalla v10.7.1, 11/10/2026)
+- I segreti (client id, refresh token, lucchetto `lockFino`/`lockDi`) stanno in **`app_mcp_segreti/{docId}`**. Le regole Firestore del CRM bloccano dal browser ogni collezione fuori elenco: verificato l'11/10 che anche un SUPER_ADMIN loggato riceve `permission-denied` in lettura e scrittura. La leggono solo il server (Admin SDK) e gli script di Giancarlo (credenziali Firebase CLI).
+- Nel doc `app` restano solo dati non segreti: `mcpServerUrl`, `mcpCollegato`, `mcpCollegatoIl`, `mcpStato`, `mcpUltimoRinnovo`, `mcpUltimoErrore`.
+- **Migrazione automatica**: `lib/mcp-token.js` sposta i segreti rimasti nel doc `app` al primo rinnovo (chat, calendario o cron del lunedì), nella stessa transazione in cui li cancella dal doc `app`. Un token trovato nel doc `app` è sempre considerato il più recente.
+- `fsrest.js` espone `collegata(app)`, `segretiMcp(app)` e `salvaRefreshMcp(...)`: gli script leggono da entrambi i formati.
+- `stato.js` dice quanti lasciapassare sono ancora nel formato vecchio.
+- La vecchia chiave statica di Cefalù (`mcpApiKey`) è spostata in `app_mcp_segreti` come `mcpApiKeyVecchia`. Revocare il set su GoodBarber lo decide Giancarlo.

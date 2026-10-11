@@ -1,6 +1,6 @@
 # Handoff — "Pubblicazioni sulle app" (chat MCP del CRM)
 
-_Ultimo aggiornamento: 11/10/2026 · CRM **10.7.0** (allineatore mappa generale) scritto, **NON ancora pubblicato** né provato in scrittura._
+_Ultimo aggiornamento: 11/10/2026 · CRM **10.7.0** (allineatore mappa generale) pubblicata · **10.7.1** (lasciapassare in collezione protetta) scritta, **NON ancora pubblicata**._
 
 > Per riprendere: in una nuova sessione scrivi **"riprendiamo le Pubblicazioni sulle app: leggi HANDOFF-PUBBLICAZIONI-APP.md"**.
 > Giancarlo NON è sviluppatore: un passo alla volta, linguaggio semplice, aspettare il suo "fatto". Pubblica lui da GitHub Desktop (Claude non committa/pusha). Dopo ogni push controllare che la versione sia online prima di testare (Vercel impiega 1–4 minuti).
@@ -14,11 +14,11 @@ _Ultimo aggiornamento: 11/10/2026 · CRM **10.7.0** (allineatore mappa generale)
   - La risposta include `nuoviMessaggi`: il browser li accoda tutti (cronologia append-only, necessaria per Opus 5.5).
 - **UI chat**: risposte impaginate (markdown sicuro, link cliccabili), graffetta "Allega locandina" (upload su Storage `documenti/app/{id}/pubblicazione_{ts}.jpg`: le regole Storage NON ammettono sottocartelle), pulsanti rapidi (Nuovo evento, Avviso differenziata straordinario, Nuovo punto mappa, Aggiungi l'inglese, Controlla la settimana).
 - **Lasciapassare MCP**: `lib/mcp-token.js`. GoodBarber **ruota il refresh_token a ogni uso** e lo fa **scadere dopo ~30 giorni** → lucchetto per app (`mcpRinnovoLockFino/Di`) + salvataggio immediato; cron settimanale `api/mcp-keepalive.js` (lunedì 03:10 UTC), esito in `app.mcpStato/mcpUltimoRinnovo/mcpUltimoErrore` e `sistema/mcpKeepalive`.
-- **Collegamenti**: 110/110 app attive collegate (procedura in `scripts/mcp-collega/ISTRUZIONI.md`). Identità verificata con `scripts/mcp-collega/verifica-identita.js` (sola lettura su GB). Manca solo Italo Greek Monasteries (senza webzineId).
+- **Collegamenti**: 110/110 app attive collegate + 5 non attive collegate l'11/10 su richiesta (per compilare le sezioni in fase di sviluppo): Acireale (DEMO), Chiaramonte Gulfi, Seminara, Terranova da Sibari, Trabia (= "Visit Trabia" su GB, webzine 4567353 inserito nel CRM l'11/10). `stato.js` propone solo le ATTIVE: le altre si collegano indicando il docId (procedura in `scripts/mcp-collega/ISTRUZIONI.md`). Identità verificata con `scripts/mcp-collega/verifica-identita.js` (sola lettura su GB). Manca solo Italo Greek Monasteries (senza webzineId).
 - **Calendario differenziata**: `api/calendario-ricorrente.js` (azioni `sezioni`, `anteprima`, `crea`, `proponi`), calcolo puro in `lib/calendario.js` (festivi nazionali + Pasqua, festività locali, eccezioni, frequenze settimanale/quindicinale/mensile, zone, fuso Europe/Rome), creazione diretta via `lib/mcp-client.js` a lotti di 40, dedup per `categoria|data|titolo`. Regole in `app/{id}.schedaComune.differenziata`. "Proponi le regole" legge le ultime 14 settimane di avvisi. Scheda di **Cefalù già compilata** (non creati avvisi: il test lo fa Giancarlo).
 - **Prove locali**: `scripts/banco-prova/prova-modello.js <modello> <docIdApp> "<domanda>"` (stessa richiesta della produzione; env `FALLBACK=1`, `IMG=<url>`). Chiave API di prova in `scripts/banco-prova/chiave.txt` (gitignored, **scade a metà novembre 2026**, chiave non legata a un workspace → header `anthropic-workspace-id: wrkspc_01HFKPWGSjcNz9t6zxVDpYMq`).
 
-## Allineatore mappa generale (v10.7.0 — scritto, da pubblicare e collaudare)
+## Allineatore mappa generale (v10.7.0 — pubblicata, da collaudare)
 Scoperto su **Città della Spezia** (docId `P5nsfHzjIr6fpEjQHawz`): la mappa generale è una normale sezione mappa ("Mappa", id 67497103, categoria 14014404); i punti ci compaiono solo se hanno spuntata anche quella categoria.
 - **Scheda Comune** → blocco "Mappa generale": spunta, scelta sezione›categoria della generale (proposta in automatico se si chiama "Mappa"), caselle delle mappe che vi confluiscono. Escluse di default (ma spuntabili): emergenze, protezione civile, aree di attesa/ricovero/ammassamento, C.O.C. Salvato in `app/{id}.schedaComune.mappaGenerale = { attiva, sezioneId, categoriaId, titolo, sorgenti:[{id,titolo}] }`.
 - **Pulsante "Allinea mappa generale"** nella chat → `api/calendario-ricorrente.js` azioni `mappa-anteprima` (legge tutti i punti, ~30 s per 600 punti) e `mappa-allinea` (max 40 id per chiamata; il server rilegge i punti con `cms_list_maps` filtro id e manda `cms_update_map` con categorie attuali + quella della generale, mai togliere). Calcolo puro in `lib/mappa-generale.js`.
@@ -27,10 +27,10 @@ Scoperto su **Città della Spezia** (docId `P5nsfHzjIr6fpEjQHawz`): la mappa gen
 - **Collaudo da fare**: pubblicare, aprire La Spezia → Scheda Comune → impostare → Anteprima → allineare prima una mappa piccola (es. Associazioni) e controllare su GoodBarber che il punto compaia in entrambe le mappe e che nulla sia sparito.
 
 ## Altri punti aperti
-- Vecchio campo `mcpApiKey` (chiave statica GB) ancora nel doc di Cefalù, leggibile dal client: da togliere e valutare la revoca del set "MCP CEFALU"/"CMP" (decide Giancarlo).
-- I refresh token stanno nel doc `app` leggibile lato client: spostarli in una collezione protetta (tocca app-publish-chat, mcp-token, collega-app, dettaglio-app).
+- Vecchio campo `mcpApiKey` di Cefalù: con la 10.7.1 viene spostato in `app_mcp_segreti` (`mcpApiKeyVecchia`). Resta da decidere se revocare il set "MCP CEFALU"/"CMP" su GoodBarber (decide Giancarlo).
+- **Lasciapassare spostati in un posto protetto (v10.7.1, scritto 11/10, NON pubblicato)**: collezione `app_mcp_segreti` (bloccata dal browser, verificato), migrazione automatica al primo rinnovo in `lib/mcp-token.js`, scheda app senza più campi per incollare i token (solo stato). Dopo la pubblicazione: lanciare il rinnovo (o aspettare il cron del lunedì 03:10 UTC) e controllare con `node scripts/mcp-collega/stato.js` che i lasciapassare nel formato vecchio scendano a 0. ⚠️ Finché la 10.7.1 non è online NON usare il nuovo `collega-app.js`: scriverebbe nel posto nuovo, che il codice in produzione non conosce ancora.
 - Il modulo "Configurazione App" in `dettaglio-app.js` **inventa gli URL** dal nome se mancano: correggere.
 - Booking senza spunta sui set delle app collegate prima di Diamante.
-- Nomi GB da sistemare: "Santo Stefano di Magra di Magra", "Villa San Giovann".
+- Nomi GB "Santo Stefano di Magra di Magra" e "Villa San Giovann": si cambiano in La mia app → Icona dell'app, ma richiedono un nuovo invio agli store → Giancarlo ha deciso (11/10) di lasciarli così.
 - 2 file di prova 10×10 px in Storage `documenti/app/ahsLdIWDeljJRQN66GDj/` (Zambrone), non cancellabili dal client.
 - Ottimizzazione: in `crea` del calendario la rilettura degli esistenti costa ~40 s per lotto su app grandi.

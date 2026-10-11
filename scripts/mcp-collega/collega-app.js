@@ -4,7 +4,8 @@
 // - registra un client OAuth, scrive il link di autorizzazione in ./auth-url.txt
 // - aspetta il ritorno su localhost:8765/callback (max 15 min)
 // - prova in SOLA LETTURA (initialize + tools/list)
-// - salva mcpServerUrl / mcpClientId / mcpRefreshToken nel doc app (mai stampati)
+// - salva mcpClientId / mcpRefreshToken nella collezione protetta app_mcp_segreti (mai stampati)
+//   e nel doc app solo i dati non segreti (mcpServerUrl, mcpCollegato, mcpCollegatoIl)
 'use strict';
 const http = require('http');
 const crypto = require('crypto');
@@ -36,7 +37,7 @@ async function main() {
   const app = await db.getDoc('app', docId);
   if (!app) throw new Error('doc app non trovato: ' + docId);
   if (!app.goodbarberWebzineId) throw new Error('SALTATA: nessun goodbarberWebzineId nel CRM');
-  if (app.mcpRefreshToken && !process.argv.includes('--force')) throw new Error('SALTATA: già collegata');
+  if (db.collegata(app) && !process.argv.includes('--force')) throw new Error('SALTATA: già collegata');
 
   const mcpUrl = `https://mcp.ww-api.com/${app.goodbarberWebzineId}/mcp/sse`;
   const base = mcpUrl.replace(/\/mcp\/sse$/, '');
@@ -91,9 +92,15 @@ async function main() {
   log('Prova lettura: initialize OK, server', srvName || '?', '| strumenti disponibili:', tools.length);
   if (!tools.length) throw new Error('tools/list vuoto o fallito HTTP ' + tl.status);
 
+  // Prima i segreti (collezione protetta), poi il doc app: se il secondo passo fallisse, il token resta salvo
+  await db.patchDoc(db.COLL_SEGRETI, docId, {
+    mcpServerUrl: mcpUrl, mcpClientId: clientId, mcpRefreshToken: tok.refresh_token, aggiornatoIl: new Date(), lockFino: 0, lockDi: ''
+  }, { crea: true });
   await db.patchDoc('app', docId, {
-    mcpServerUrl: mcpUrl, mcpClientId: clientId, mcpRefreshToken: tok.refresh_token,
-    mcpCollegatoIl: new Date(), mcpCollegatoDa: 'Claude Code (collegamento automatico)'
+    mcpServerUrl: mcpUrl, mcpCollegato: true, mcpStato: 'ok', mcpUltimoErrore: '',
+    mcpCollegatoIl: new Date(), mcpCollegatoDa: 'Claude Code (collegamento automatico)',
+    // eventuali segreti del formato vecchio rimasti nel doc app (es. ricollegamento con --force)
+    mcpClientId: undefined, mcpRefreshToken: undefined, mcpRinnovoLockFino: undefined, mcpRinnovoLockDi: undefined
   });
   log('✅ COLLEGATA e salvata nel CRM:', app.nome);
 }

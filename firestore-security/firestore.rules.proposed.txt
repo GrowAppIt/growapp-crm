@@ -189,6 +189,15 @@ service cloud.firestore {
 
 
     // ------------------------------------------------------------------------
+    // COLLEZIONI SOLO-SERVER (NON vanno mai aggiunte a isCrmCollection)
+    //   'app_mcp_segreti' — lasciapassare MCP GoodBarber (v10.7.1): li usano solo
+    //   le function Vercel (Admin SDK) e gli script di Giancarlo. Bloccata dal
+    //   catch-all qui sotto: verificato l'11/10/2026 che un SUPER_ADMIN loggato
+    //   riceve permission-denied in lettura e scrittura.
+    //   'sistema' — riepiloghi dei cron (es. mcpKeepalive).
+    // ------------------------------------------------------------------------
+
+    // ------------------------------------------------------------------------
     // CATCH-ALL: tutto ciò che non è stato matchato sopra è BLOCCATO
     // ------------------------------------------------------------------------
 
