@@ -38,7 +38,7 @@ async function rinnova(app) {
       const m = src.match(/const STRUMENTI_DISATTIVATI = \[([\s\S]*?)\];/);
       const nomi = m ? m[1].match(/'([a-z0-9_]+)'/g).map(x => x.slice(1, -1)) : [];
       return { type: 'mcp_toolset', mcp_server_name: 'goodbarber', configs: Object.fromEntries(nomi.map(n => [n, { enabled: false }])) };
-    })()]
+    })(), new Function('return ' + src.slice(src.indexOf('const STRUMENTO_COORDINATE = ') + 'const STRUMENTO_COORDINATE = '.length, src.indexOf('};', src.indexOf('const STRUMENTO_COORDINATE = ')) + 1))()]
   };
   let convo = [{ role: 'user', content: process.env.IMG ? [{ type: 'image', source: { type: 'url', url: process.env.IMG } }, { type: 'text', text: domanda + '\n\n[Immagine allegata dall\'operatore — indirizzo: ' + process.env.IMG + ']' }] : domanda }];
   const t0 = Date.now(); let last, giri = 0, inT = 0, outT = 0, cR = 0, cW = 0;
@@ -50,6 +50,16 @@ async function rinnova(app) {
     last = await r.json();
     inT += last.usage.input_tokens || 0; outT += last.usage.output_tokens || 0; cR += last.usage.cache_read_input_tokens || 0; cW += last.usage.cache_creation_input_tokens || 0;
     if (last.stop_reason === 'pause_turn') { convo = convo.concat([{ role: 'assistant', content: last.content }]); continue; }
+    if (last.stop_reason === 'tool_use') {
+      const { trovaCoordinate } = require('../../lib/geocodifica.js');
+      const ris = [];
+      for (const b of last.content.filter(x => x.type === 'tool_use')) {
+        const e = b.name === 'trova_coordinate' ? await trovaCoordinate(b.input.indirizzo, b.input.comune) : { errore: 'sconosciuto' };
+        console.log('  [strumento CRM]', b.name, JSON.stringify(b.input), '→', e.errore || (e.candidati.length + ' candidati'));
+        ris.push({ type: 'tool_result', tool_use_id: b.id, content: JSON.stringify(e), is_error: !!e.errore });
+      }
+      convo = convo.concat([{ role: 'assistant', content: last.content }, { role: 'user', content: ris }]); continue;
+    }
     break;
   }
   const strumenti = last.content.filter(b => b.type === 'mcp_tool_use').map(b => b.name);

@@ -313,7 +313,10 @@ const PubblicazioniApp = {
       // Mostra la risposta e salva il turno assistant nella cronologia (formato API)
       const answer = data.answer || '(nessuna risposta)';
       if (loadingEl) loadingEl.querySelector('.pub-msg-bubble').innerHTML = this.renderMarkdown(answer);
-      if (Array.isArray(data.content)) {
+      if (Array.isArray(data.nuoviMessaggi) && data.nuoviMessaggi.length) {
+        // v10.6.2: accoda anche i passaggi intermedi (strumenti), così la cronologia resta integra
+        data.nuoviMessaggi.forEach(m => this._messages.push(m));
+      } else if (Array.isArray(data.content)) {
         this._messages.push({ role: 'assistant', content: data.content });
       } else {
         this._messages.push({ role: 'assistant', content: answer });

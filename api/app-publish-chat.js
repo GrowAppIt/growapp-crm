@@ -23,6 +23,7 @@
 
 const admin = require('firebase-admin');
 const { ottieniAccessToken } = require('../lib/mcp-token.js');
+const { trovaCoordinate } = require('../lib/geocodifica.js');
 
 // --- Init firebase-admin (stesso schema delle altre function del CRM) ---
 if (!admin.apps.length) {
@@ -63,6 +64,21 @@ const MCP_TOOLSET = {
   configs: Object.fromEntries(STRUMENTI_DISATTIVATI.map(n => [n, { enabled: false }]))
 };
 
+// --- Strumento del CRM (eseguito qui, non su GoodBarber): coordinate da un indirizzo ---
+const STRUMENTO_COORDINATE = {
+  name: 'trova_coordinate',
+  description: 'Trova latitudine e longitudine di un indirizzo italiano (OpenStreetMap). Usalo SEMPRE prima di creare o spostare un punto mappa: non inventare mai le coordinate. Restituisce fino a 3 candidati con un link "verifica" da mostrare all\'operatore.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      indirizzo: { type: 'string', description: 'Via e numero civico, oppure nome del luogo (es. "Piazza Duomo 1" o "Stazione ferroviaria").' },
+      comune: { type: 'string', description: 'Comune e provincia, per evitare omonimie (es. "Cefalù PA").' }
+    },
+    required: ['indirizzo', 'comune'],
+    additionalProperties: false
+  }
+};
+
 // --- System prompt: il "playbook" di sicurezza ---
 function buildSystemPrompt(appName, scheda) {
   return [
@@ -80,6 +96,13 @@ function buildSystemPrompt(appName, scheda) {
     `   - Formato delle date con fuso orario, ad esempio 2026-09-01T18:00:00+02:00.`,
     `6. TESTI CURATI E INGLESE (sempre, già dalla prima bozza): riscrivi il materiale ricevuto in un italiano chiaro ed elegante, adatto all'app di un Comune (niente maiuscolo urlato, niente refusi, frasi brevi). La descrizione si scrive in HTML semplice: paragrafi <p>, <strong> per le informazioni chiave (data, orario, luogo, costo), elenchi <ul><li> se servono. Sotto il testo italiano aggiungi una riga <hr> e poi la TRADUZIONE INGLESE completa in corsivo, racchiusa in <p><em>…</em></p>. Il titolo resta in italiano. Se l'app ha anche una sezione separata in inglese (per esempio "Events"), chiedi se creare lì anche l'evento in inglese.`,
     `6a. LOCANDINE E IMMAGINI: se l'operatore allega un'immagine (di solito la locandina), leggila con attenzione per ricavare titolo, date, orari, luogo, organizzatore, contatti e costi; se qualcosa non si legge bene, chiedi. Dopo aver creato la bozza dell'evento, aggiungi la locandina come immagine dell'evento con cms_create_event_paragraph (type "photo", originalThumbnail = l'indirizzo dell'immagine indicato nel messaggio, isThumbnail true). Usa solo indirizzi di immagini forniti dall'operatore.`,
+    `7. PUNTI MAPPA (sezioni di tipo mappa, con categorie e sottocategorie, es. "Utilità & Servizi" › "Forze dell'Ordine", "Food & Drink" › "Bar", "Visit" › "Chiese"):`,
+    `   a) Scegli il PUNTO MODELLO: un punto già esistente nella stessa sottocategoria (o quello indicato dall'operatore, es. "fallo come la Polizia Municipale"). Leggilo con cms_list_maps (filtro id) e cms_list_map_paragraphs.`,
+    `   b) COPIA dal modello: TUTTE le sue categorie (di solito la categoria generale/filtro della sezione + la sottocategoria: senza la generale il punto non compare nel filtro), commentsEnabled, l'ordine dei paragrafi (di solito prima la foto, poi il testo) e lo STILE HTML del paragrafo di testo (stessi tag e stessi attributi style, cambiando solo i contenuti).`,
+    `   c) COORDINATE: usa sempre lo strumento trova_coordinate; mostra all'operatore l'indirizzo trovato e il link "verifica" e fallo confermare. Se l'operatore incolla un link di Google Maps o delle coordinate, usa quelle. Non inventare mai latitudine e longitudine.`,
+    `   d) Contatti nei campi appositi (address, phoneNumber, email, website), non solo nel testo.`,
+    `   e) Foto: se l'operatore allega una foto usala; altrimenti, se nel modello la foto è un'icona della categoria (uguale per i punti simili), proponi di riusare la stessa immagine (originalThumbnail del modello). Dopo il paragrafo foto con isThumbnail true, se nel modello useThumbAsPinIcon è attivo, attivalo anche sul nuovo punto con cms_update_map.`,
+    `   f) Crea sempre in bozza (status "draft") e alla fine riepiloga: sezione/categorie, indirizzo, coordinate con link di verifica, contatti, punto modello usato.`,
     `6b. Strumenti non disponibili per scelta: non puoi inviare notifiche push, cancellare interi contenuti (eventi, articoli, punti mappa, foto, video, audio) né gestire prenotazioni. Se te lo chiedono, spiega che va fatto a mano dal back office GoodBarber.`,
     `7. Dopo aver creato/modificato, RILEGGI il risultato (con una lista/ricerca) e mostralo all'operatore per conferma. Nota: la lettura del singolo elemento può essere in cache, quindi verifica con la lista.`,
     `8. Prima di scrivere, mostra sempre un'ANTEPRIMA testuale di cosa stai per creare e chiedi conferma se qualcosa non è chiaro.`,
@@ -209,7 +232,7 @@ module.exports = async function handler(req, res) {
       mcp_servers: [
         { type: 'url', name: 'goodbarber', url: mcpUrl, authorization_token: accessToken }
       ],
-      tools: [MCP_TOOLSET]
+      tools: [MCP_TOOLSET, STRUMENTO_COORDINATE]
     };
 
     // Copia la cronologia (verrà estesa se ci sono pause_turn)
@@ -246,8 +269,27 @@ module.exports = async function handler(req, res) {
         convo = convo.concat([{ role: 'assistant', content: last.content }]);
         continue;
       }
+      // tool_use: l'assistente ha chiesto uno strumento del CRM (trova_coordinate) — lo eseguiamo qui
+      if (last.stop_reason === 'tool_use') {
+        const richieste = last.content.filter(b => b.type === 'tool_use');
+        const risultati = [];
+        for (const b of richieste) {
+          let esito;
+          try {
+            esito = b.name === 'trova_coordinate'
+              ? await trovaCoordinate(b.input && b.input.indirizzo, b.input && b.input.comune)
+              : { errore: 'Strumento sconosciuto: ' + b.name };
+          } catch (e) { esito = { errore: 'Errore: ' + e.message }; }
+          risultati.push({ type: 'tool_result', tool_use_id: b.id, content: JSON.stringify(esito), is_error: !!esito.errore });
+        }
+        convo = convo.concat([{ role: 'assistant', content: last.content }, { role: 'user', content: risultati }]);
+        continue;
+      }
       break;
     }
+    // Tutti i turni aggiunti in questa richiesta (passaggi intermedi compresi): il browser li accoda
+    // alla cronologia così com'è, senza tagli, come richiede il modello per le conversazioni lunghe.
+    const nuoviMessaggi = convo.slice(messages.length).concat(last ? [{ role: 'assistant', content: last.content }] : []);
 
     let answer = (last && Array.isArray(last.content))
       ? last.content.filter(b => b.type === 'text').map(b => b.text).join('\n').trim()
@@ -260,6 +302,7 @@ module.exports = async function handler(req, res) {
     return res.status(200).json({
       answer: answer || '(nessun testo nella risposta)',
       content: last ? last.content : [],
+      nuoviMessaggi,
       stop_reason: last ? last.stop_reason : null,
       usage: usageTotal,
       app: { nome: appName }
