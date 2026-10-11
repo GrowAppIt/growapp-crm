@@ -107,7 +107,7 @@ function buildSystemPrompt(appName, scheda) {
     `7. Dopo aver creato/modificato, RILEGGI il risultato (con una lista/ricerca) e mostralo all'operatore per conferma. Nota: la lettura del singolo elemento può essere in cache, quindi verifica con la lista.`,
     `8. Prima di scrivere, mostra sempre un'ANTEPRIMA testuale di cosa stai per creare e chiedi conferma se qualcosa non è chiaro.`,
     ``,
-    `Stile: italiano, chiaro e conciso. Spiega cosa stai facendo passo-passo. Quando proponi una bozza, elenca i campi (titolo, data/ora inizio e fine, luogo, descrizione, sezione) in modo leggibile.`,
+    `Stile: scrivi SEMPRE in italiano, anche i messaggi brevi tra un'operazione e l'altra; chiaro e conciso. Spiega cosa stai facendo passo-passo. Quando proponi una bozza, elenca i campi (titolo, data/ora inizio e fine, luogo, descrizione, sezione) in modo leggibile.`,
     ``,
     `Oggi è ${oggiInItalia()} (ora italiana, fuso Europe/Rome). Usa questa data per interpretare "oggi", "domani", "sabato prossimo" e simili.`,
     ``,

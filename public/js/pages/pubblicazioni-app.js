@@ -177,6 +177,13 @@ const PubblicazioniApp = {
           <div class="pub-chat-messages" id="pubChatMessages">
             ${this._welcomeMessage()}
           </div>
+          <div class="pub-quick">
+            <button onclick="PubblicazioniApp._rapido('evento')"><i class="fas fa-calendar-plus"></i> Nuovo evento</button>
+            <button onclick="PubblicazioniApp._rapido('differenziata')"><i class="fas fa-recycle"></i> Avviso differenziata straordinario</button>
+            <button onclick="PubblicazioniApp._rapido('mappa')"><i class="fas fa-map-marker-alt"></i> Nuovo punto mappa</button>
+            <button onclick="PubblicazioniApp._rapido('inglese')"><i class="fas fa-language"></i> Aggiungi l'inglese</button>
+            <button onclick="PubblicazioniApp._rapido('controlla')"><i class="fas fa-search"></i> Controlla la settimana</button>
+          </div>
           <div class="pub-attach-preview" id="pubAttachPreview" style="display:none;"></div>
           <div class="pub-chat-inputbar">
             <input type="file" id="pubAttachFile" accept="image/jpeg,image/png,image/webp" style="display:none;">
@@ -336,6 +343,27 @@ const PubblicazioniApp = {
   // ============================================================================
   // Utility
   // ============================================================================
+  // v10.6.3: pulsanti rapidi — preparano una richiesta già impostata da completare
+  _rapido(tipo) {
+    const input = document.getElementById('pubChatInput');
+    if (!input) return;
+    const modelli = {
+      evento: 'Nuovo evento in bozza:\nTitolo: \nData e orario reale: \nLuogo: \nDescrizione: \nOrganizzatore / contatti / link: \nA che ora far partire la notifica: ',
+      differenziata: 'Avviso straordinario della differenziata (in bozza):\nCosa cambia (es. raccolta spostata per festività, sospesa, recupero): \nData/e: \nZona (se serve): \nA che ora far partire la notifica: ',
+      mappa: 'Nuovo punto mappa in bozza:\nNome: \nSezione e sottocategoria (es. Utilità › Farmacie, Food & Drink › Bar, Visit › Chiese): \nIndirizzo (o link di Google Maps): \nTelefono / email / sito: \nOrari e descrizione: \nPunto modello da copiare (facoltativo): ',
+      inglese: 'Aggiungi la traduzione inglese (in corsivo, sotto il testo italiano) a: \n(scrivi il titolo dell\'evento o del punto mappa; lascia in bozza le modifiche e mostrami prima l\'anteprima)',
+      controlla: 'Controlla gli eventi di questa settimana e della prossima e dimmi se ci sono problemi da sistemare: titoli, testi, orario reale nel titolo, immagini mancanti, traduzione inglese, doppioni. Non modificare nulla.'
+    };
+    input.value = modelli[tipo] || '';
+    input.style.height = 'auto';
+    input.style.height = Math.min(input.scrollHeight, 160) + 'px';
+    if (tipo === 'controlla') { this._sendMessage(); return; }
+    input.focus();
+    // cursore alla fine della prima riga da compilare
+    const pos = input.value.indexOf(': \n');
+    if (pos > 0) input.setSelectionRange(pos + 2, pos + 2);
+  },
+
   // v10.5.9: carica la locandina su Firebase Storage (ridotta a max 2000 px, JPEG) e ne tiene l'indirizzo pubblico
   async _caricaAllegato(file) {
     if (!/^image\/(jpeg|png|webp)$/.test(file.type)) { UI.showError && UI.showError('Allega un\'immagine JPG, PNG o WEBP.'); return; }
@@ -393,10 +421,19 @@ const PubblicazioniApp = {
   // Sicuro: il testo viene prima "escapato" e solo dopo si aggiungono i pochi tag ammessi.
   renderMarkdown(text) {
     const esc = s => this.escapeHtml(s);
-    const inline = s => esc(s)
+    const inline = s => {
+      // Link: prima quelli in formato [testo](https://…), poi gli indirizzi "nudi". Solo http/https.
+      const link = [];
+      const segna = html => '\u0000' + (link.push(html) - 1) + '\u0000';
+      let t = esc(s)
+        .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, (m, testo, url) => segna(`<a href="${url}" target="_blank" rel="noopener">${testo}</a>`))
+        .replace(/(^|[\s(])(https?:\/\/[^\s<)]+)/g, (m, pre, url) => pre + segna(`<a href="${url}" target="_blank" rel="noopener">${url.length > 60 ? url.slice(0, 57) + '…' : url}</a>`));
+      t = t
       .replace(/`([^`]+)`/g, '<code>$1</code>')
       .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
       .replace(/(^|[\s(])\*([^*\n]+)\*(?=[\s).,;:!?]|$)/g, '$1<em>$2</em>');
+      return t.replace(/\u0000(\d+)\u0000/g, (m, i) => link[Number(i)]);
+    };
     const righe = String(text || '').replace(/\r/g, '').split('\n');
     const out = [];
     let lista = null; // 'ul' | 'ol'
@@ -502,6 +539,11 @@ const PubblicazioniApp = {
                           font-family:inherit; font-size:.92rem; line-height:1.4; max-height:160px; }
         .pub-chat-input:focus { outline:none; border-color:var(--blu-500,#2E6DA8); }
         .pub-chat-send { flex-shrink:0; height:42px; width:48px; display:flex; align-items:center; justify-content:center; }
+        .pub-quick { display:flex; gap:.4rem; flex-wrap:wrap; padding:.55rem .75rem 0; border-top:1px solid var(--grigio-300); background:white; }
+        .pub-quick button { border:1px solid var(--blu-300,#7BA7CE); background:var(--blu-100,#D1E2F2); color:var(--blu-700,#145284); border-radius:16px;
+                            padding:.28rem .7rem; font-family:inherit; font-size:.8rem; font-weight:600; cursor:pointer; }
+        .pub-quick button:hover { background:#fff; }
+        .pub-msg-bubble a { color:var(--blu-700,#145284); text-decoration:underline; word-break:break-all; }
         .pub-chat-tools { margin-left:auto; display:flex; gap:.5rem; flex-wrap:wrap; }
         .pub-chat-tools .btn { font-size:.85rem; padding:.4rem .75rem; }
         .pub-chat-attach { flex-shrink:0; height:42px; width:44px; display:flex; align-items:center; justify-content:center; }
