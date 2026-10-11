@@ -277,8 +277,7 @@ const PubblicazioniApp = {
 
       // Mostra la risposta e salva il turno assistant nella cronologia (formato API)
       const answer = data.answer || '(nessuna risposta)';
-      if (loadingEl) loadingEl.querySelector('.pub-msg-bubble').innerHTML =
-        this.escapeHtml(answer).replace(/\n/g, '<br>');
+      if (loadingEl) loadingEl.querySelector('.pub-msg-bubble').innerHTML = this.renderMarkdown(answer);
       if (Array.isArray(data.content)) {
         this._messages.push({ role: 'assistant', content: data.content });
       } else {
@@ -299,6 +298,46 @@ const PubblicazioniApp = {
   // ============================================================================
   // Utility
   // ============================================================================
+  // v10.5.7: impagina le risposte dell'assistente (grassetto, corsivo, titoli, elenchi, tabelle, codice).
+  // Sicuro: il testo viene prima "escapato" e solo dopo si aggiungono i pochi tag ammessi.
+  renderMarkdown(text) {
+    const esc = s => this.escapeHtml(s);
+    const inline = s => esc(s)
+      .replace(/`([^`]+)`/g, '<code>$1</code>')
+      .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+      .replace(/(^|[\s(])\*([^*\n]+)\*(?=[\s).,;:!?]|$)/g, '$1<em>$2</em>');
+    const righe = String(text || '').replace(/\r/g, '').split('\n');
+    const out = [];
+    let lista = null; // 'ul' | 'ol'
+    const chiudiLista = () => { if (lista) { out.push('</' + lista + '>'); lista = null; } };
+    for (let i = 0; i < righe.length; i++) {
+      const r = righe[i];
+      // Tabella: riga con | seguita da riga separatrice |---|
+      if (/^\s*\|.*\|\s*$/.test(r) && i + 1 < righe.length && /^\s*\|?\s*:?-{2,}/.test(righe[i + 1])) {
+        chiudiLista();
+        const celle = x => x.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map(c => c.trim());
+        let html = '<div class="pub-md-table"><table><thead><tr>' + celle(r).map(c => '<th>' + inline(c) + '</th>').join('') + '</tr></thead><tbody>';
+        i += 2;
+        while (i < righe.length && /^\s*\|.*\|\s*$/.test(righe[i])) {
+          html += '<tr>' + celle(righe[i]).map(c => '<td>' + inline(c) + '</td>').join('') + '</tr>';
+          i++;
+        }
+        i--;
+        out.push(html + '</tbody></table></div>');
+        continue;
+      }
+      let m;
+      if ((m = r.match(/^\s*#{1,6}\s+(.*)$/))) { chiudiLista(); out.push('<div class="pub-md-h">' + inline(m[1]) + '</div>'); continue; }
+      if (/^\s*(-{3,}|\*{3,})\s*$/.test(r)) { chiudiLista(); out.push('<hr class="pub-md-hr">'); continue; }
+      if ((m = r.match(/^\s*[-*•]\s+(.*)$/))) { if (lista !== 'ul') { chiudiLista(); out.push('<ul>'); lista = 'ul'; } out.push('<li>' + inline(m[1]) + '</li>'); continue; }
+      if ((m = r.match(/^\s*\d+[.)]\s+(.*)$/))) { if (lista !== 'ol') { chiudiLista(); out.push('<ol>'); lista = 'ol'; } out.push('<li>' + inline(m[1]) + '</li>'); continue; }
+      chiudiLista();
+      out.push(r.trim() === '' ? '<div class="pub-md-gap"></div>' : '<div>' + inline(r) + '</div>');
+    }
+    chiudiLista();
+    return out.join('');
+  },
+
   escapeHtml(value) {
     if (value === null || value === undefined) return '';
     return String(value)
@@ -357,6 +396,16 @@ const PubblicazioniApp = {
         .pub-msg-bubble { background:white; border:1px solid var(--grigio-200,#e5e5e5); border-radius:12px; padding:.7rem .9rem;
                           font-size:.92rem; color:var(--grigio-800); line-height:1.45; }
         .pub-msg-user .pub-msg-bubble { background:var(--blu-700); color:white; border-color:var(--blu-700); }
+        .pub-msg-bubble ul, .pub-msg-bubble ol { margin:.3rem 0 .3rem 1.2rem; padding:0; }
+        .pub-msg-bubble li { margin:.15rem 0; }
+        .pub-msg-bubble code { background:var(--grigio-100,#F5F5F5); border-radius:4px; padding:0 .25rem; font-size:.85em; }
+        .pub-md-h { font-weight:700; color:var(--blu-700,#145284); margin:.5rem 0 .2rem; }
+        .pub-md-gap { height:.45rem; }
+        .pub-md-hr { border:0; border-top:1px solid var(--grigio-300,#D9D9D9); margin:.5rem 0; }
+        .pub-md-table { overflow-x:auto; margin:.4rem 0; }
+        .pub-md-table table { border-collapse:collapse; font-size:.85rem; min-width:100%; }
+        .pub-md-table th, .pub-md-table td { border:1px solid var(--grigio-300,#D9D9D9); padding:.3rem .5rem; text-align:left; vertical-align:top; }
+        .pub-md-table th { background:var(--blu-100,#D1E2F2); color:var(--blu-700,#145284); }
         .pub-chat-inputbar { display:flex; gap:.6rem; align-items:flex-end; padding:.75rem; border-top:1px solid var(--grigio-300); background:white; }
         .pub-chat-input { flex:1; resize:none; border:1px solid var(--grigio-300); border-radius:10px; padding:.65rem .8rem;
                           font-family:inherit; font-size:.92rem; line-height:1.4; max-height:160px; }
