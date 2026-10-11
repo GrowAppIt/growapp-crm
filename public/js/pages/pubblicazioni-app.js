@@ -337,7 +337,7 @@ const PubblicazioniApp = {
     this._mostraAllegato();
     try {
       const blob = await this._riduciImmagine(file, 2000, 0.88);
-      const path = `documenti/app/${this.currentApp.id}/pubblicazioni/${Date.now()}.jpg`;
+      const path = `documenti/app/${this.currentApp.id}/pubblicazione_${Date.now()}.jpg`; // stessa cartella delle icone: le regole Storage non ammettono sottocartelle
       const ref = storage.ref().child(path);
       await ref.put(blob, { contentType: 'image/jpeg' });
       const url = await ref.getDownloadURL();
