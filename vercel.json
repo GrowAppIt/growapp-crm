@@ -8,7 +8,7 @@
       "memory": 1024
     },
     "api/app-publish-chat.js": {
-      "maxDuration": 60,
+      "maxDuration": 300,
       "memory": 1024
     },
     "api/suggerisci-documento.js": {

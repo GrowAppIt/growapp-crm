@@ -9,7 +9,10 @@
  * Body: { appId: string, messages: [{role, content}, ...] }
  * Response: { answer, content, stop_reason, usage, app: {nome} }
  *
- * Modello: Claude Sonnet 4.6 — MCP connector (beta mcp-client-2025-11-20).
+ * Modello: Claude Opus 5.5 — MCP connector (beta mcp-client-2025-11-20).
+ * v10.5.6: Opus 5.5 al posto di Sonnet 4.6 (provato in sola lettura su Cefalù l'11/10/2026),
+ * cache dei prompt (gli ~84 strumenti GoodBarber si rileggono dalla cache: ~0,04 $ invece di ~1 $
+ * a richiesta), data di oggi nel prompt, rete di sicurezza sui rifiuti (fallbacks "default").
  *
  * SICUREZZA (v10.5.5): la chiamata richiede un utente loggato nel CRM
  * (Authorization: Bearer <Firebase ID token>) con un ruolo abilitato (RUOLI_PUBBLICAZIONE),
@@ -42,8 +45,8 @@ if (!admin.apps.length) {
 const db = admin.firestore();
 
 const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
-const MODEL = 'claude-sonnet-4-6';
-const MCP_BETA = 'mcp-client-2025-11-20';
+const MODEL = 'claude-opus-5-5';
+const MCP_BETA = 'mcp-client-2025-11-20,server-side-fallback-2026-07-01';
 const MAX_CONTINUATIONS = 6; // per gestire pause_turn (loop tool lato server)
 
 // --- System prompt: il "playbook" di sicurezza ---
@@ -62,8 +65,15 @@ function buildSystemPrompt(appName) {
     `7. Dopo aver creato/modificato, RILEGGI il risultato (con una lista/ricerca) e mostralo all'operatore per conferma. Nota: la lettura del singolo elemento può essere in cache, quindi verifica con la lista.`,
     `8. Prima di scrivere, mostra sempre un'ANTEPRIMA testuale di cosa stai per creare e chiedi conferma se qualcosa non è chiaro.`,
     ``,
-    `Stile: italiano, chiaro e conciso. Spiega cosa stai facendo passo-passo. Quando proponi una bozza, elenca i campi (titolo, data/ora inizio e fine, luogo, descrizione, sezione) in modo leggibile.`
+    `Stile: italiano, chiaro e conciso. Spiega cosa stai facendo passo-passo. Quando proponi una bozza, elenca i campi (titolo, data/ora inizio e fine, luogo, descrizione, sezione) in modo leggibile.`,
+    ``,
+    `Oggi è ${oggiInItalia()} (ora italiana, fuso Europe/Rome). Usa questa data per interpretare "oggi", "domani", "sabato prossimo" e simili.`
   ].join('\n');
+}
+
+// Data di oggi in italiano (solo il giorno: cambia una volta al giorno, così la cache dei prompt regge)
+function oggiInItalia() {
+  return new Intl.DateTimeFormat('it-IT', { timeZone: 'Europe/Rome', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date());
 }
 
 // --- CORS: solo il CRM (e il server locale di sviluppo) ---
@@ -145,7 +155,11 @@ module.exports = async function handler(req, res) {
     // Richiesta base verso Claude con MCP connector agganciato
     const basePayload = {
       model: MODEL,
-      max_tokens: 4096,
+      max_tokens: 16000,
+      // Cache automatica: strumenti, istruzioni e cronologia si rileggono a ~1/10 del prezzo
+      cache_control: { type: 'ephemeral' },
+      // Se Opus rifiuta per un falso allarme dei filtri di sicurezza, il server riprova con un altro modello
+      fallbacks: 'default',
       system: buildSystemPrompt(appName),
       mcp_servers: [
         { type: 'url', name: 'goodbarber', url: mcpUrl, authorization_token: accessToken }
@@ -192,9 +206,13 @@ module.exports = async function handler(req, res) {
       break;
     }
 
-    const answer = (last && Array.isArray(last.content))
+    let answer = (last && Array.isArray(last.content))
       ? last.content.filter(b => b.type === 'text').map(b => b.text).join('\n').trim()
       : '';
+    if (last && last.stop_reason === 'refusal') {
+      const cat = last.stop_details && last.stop_details.category ? ' (' + last.stop_details.category + ')' : '';
+      answer = (answer ? answer + '\n\n' : '') + '⚠️ L\'assistente non ha potuto completare questa richiesta' + cat + '. Prova a riformularla o a dividerla in parti più semplici.';
+    }
 
     return res.status(200).json({
       answer: answer || '(nessun testo nella risposta)',
