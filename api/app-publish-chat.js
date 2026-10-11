@@ -49,6 +49,20 @@ const MODEL = 'claude-opus-5-5';
 const MCP_BETA = 'mcp-client-2025-11-20,server-side-fallback-2026-07-01';
 const MAX_CONTINUATIONS = 6; // per gestire pause_turn (loop tool lato server)
 
+// --- Strumenti GoodBarber TOLTI all'assistente (v10.5.8) ---
+// Push ai cittadini, cancellazioni di interi contenuti e prenotazioni restano manuali.
+// (Le cancellazioni di singoli paragrafi restano attive: servono per correggere testi e foto.)
+const STRUMENTI_DISATTIVATI = [
+  'classic_create_push_broadcast', 'classic_create_push_by_groups', 'classic_v1_create_push_notification',
+  'cms_delete_article', 'cms_delete_event', 'cms_delete_map', 'cms_delete_photo', 'cms_delete_sound', 'cms_delete_video',
+  'booking_cancel_booking', 'booking_create_closing_day', 'booking_delete_closing_day'
+];
+const MCP_TOOLSET = {
+  type: 'mcp_toolset',
+  mcp_server_name: 'goodbarber',
+  configs: Object.fromEntries(STRUMENTI_DISATTIVATI.map(n => [n, { enabled: false }]))
+};
+
 // --- System prompt: il "playbook" di sicurezza ---
 function buildSystemPrompt(appName) {
   return [
@@ -64,7 +78,8 @@ function buildSystemPrompt(appName) {
     `   - Quando leggi gli eventi, considera reale l'orario scritto nel titolo o nel testo. NON segnalare come errore la differenza tra ora di inizio salvata e orario nel titolo: è voluta.`,
     `   - Quando crei un evento, scrivi l'orario reale nel titolo come negli eventi già presenti nell'app. L'anticipo della notifica si decide ogni volta: se l'operatore non ti ha detto a che ora far partire la notifica, CHIEDIGLIELO prima di creare la bozza (proponi tu un orario sensato, ad esempio qualche ora prima o la mattina stessa, ma fallo confermare).`,
     `   - Formato delle date con fuso orario, ad esempio 2026-09-01T18:00:00+02:00.`,
-    `6. Lingua: se l'app ha sezioni in italiano e in inglese e il contenuto è turistico, proponi anche la versione inglese; altrimenti chiedi.`,
+    `6. TESTI CURATI E INGLESE (sempre, già dalla prima bozza): riscrivi il materiale ricevuto in un italiano chiaro ed elegante, adatto all'app di un Comune (niente maiuscolo urlato, niente refusi, frasi brevi). La descrizione si scrive in HTML semplice: paragrafi <p>, <strong> per le informazioni chiave (data, orario, luogo, costo), elenchi <ul><li> se servono. Sotto il testo italiano aggiungi una riga <hr> e poi la TRADUZIONE INGLESE completa in corsivo, racchiusa in <p><em>…</em></p>. Il titolo resta in italiano. Se l'app ha anche una sezione separata in inglese (per esempio "Events"), chiedi se creare lì anche l'evento in inglese.`,
+    `6b. Strumenti non disponibili per scelta: non puoi inviare notifiche push, cancellare interi contenuti (eventi, articoli, punti mappa, foto, video, audio) né gestire prenotazioni. Se te lo chiedono, spiega che va fatto a mano dal back office GoodBarber.`,
     `7. Dopo aver creato/modificato, RILEGGI il risultato (con una lista/ricerca) e mostralo all'operatore per conferma. Nota: la lettura del singolo elemento può essere in cache, quindi verifica con la lista.`,
     `8. Prima di scrivere, mostra sempre un'ANTEPRIMA testuale di cosa stai per creare e chiedi conferma se qualcosa non è chiaro.`,
     ``,
@@ -167,9 +182,7 @@ module.exports = async function handler(req, res) {
       mcp_servers: [
         { type: 'url', name: 'goodbarber', url: mcpUrl, authorization_token: accessToken }
       ],
-      tools: [
-        { type: 'mcp_toolset', mcp_server_name: 'goodbarber' }
-      ]
+      tools: [MCP_TOOLSET]
     };
 
     // Copia la cronologia (verrà estesa se ci sono pause_turn)

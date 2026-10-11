@@ -34,7 +34,11 @@ async function rinnova(app) {
     cache_control: process.env.NOCACHE ? undefined : { type: 'ephemeral' },
     fallbacks: process.env.FALLBACK ? 'default' : undefined,
     mcp_servers: [{ type: 'url', name: 'goodbarber', url: app.mcpServerUrl, authorization_token: accessToken }],
-    tools: [{ type: 'mcp_toolset', mcp_server_name: 'goodbarber' }]
+    tools: [(function () {
+      const m = src.match(/const STRUMENTI_DISATTIVATI = \[([\s\S]*?)\];/);
+      const nomi = m ? m[1].match(/'([a-z0-9_]+)'/g).map(x => x.slice(1, -1)) : [];
+      return { type: 'mcp_toolset', mcp_server_name: 'goodbarber', configs: Object.fromEntries(nomi.map(n => [n, { enabled: false }])) };
+    })()]
   };
   let convo = [{ role: 'user', content: domanda }];
   const t0 = Date.now(); let last, giri = 0, inT = 0, outT = 0, cR = 0, cW = 0;
