@@ -40,7 +40,7 @@ async function rinnova(app) {
       return { type: 'mcp_toolset', mcp_server_name: 'goodbarber', configs: Object.fromEntries(nomi.map(n => [n, { enabled: false }])) };
     })()]
   };
-  let convo = [{ role: 'user', content: domanda }];
+  let convo = [{ role: 'user', content: process.env.IMG ? [{ type: 'image', source: { type: 'url', url: process.env.IMG } }, { type: 'text', text: domanda + '\n\n[Immagine allegata dall\'operatore — indirizzo: ' + process.env.IMG + ']' }] : domanda }];
   const t0 = Date.now(); let last, giri = 0, inT = 0, outT = 0, cR = 0, cW = 0;
   for (; giri <= 6; giri++) {
     const r = await fetch('https://api.anthropic.com/v1/messages', { method: 'POST',

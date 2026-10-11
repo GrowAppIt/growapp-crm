@@ -173,9 +173,14 @@ const PubblicazioniApp = {
           <div class="pub-chat-messages" id="pubChatMessages">
             ${this._welcomeMessage()}
           </div>
+          <div class="pub-attach-preview" id="pubAttachPreview" style="display:none;"></div>
           <div class="pub-chat-inputbar">
+            <input type="file" id="pubAttachFile" accept="image/jpeg,image/png,image/webp" style="display:none;">
+            <button class="btn btn-secondary pub-chat-attach" id="pubAttachBtn" title="Allega locandina o foto">
+              <i class="fas fa-paperclip"></i>
+            </button>
             <textarea id="pubChatInput" class="pub-chat-input" rows="1"
-              placeholder="Es: incolla qui un'email o una locandina con i dati dell'evento…"></textarea>
+              placeholder="Incolla un'email o il testo dell'evento, oppure allega la locandina con la graffetta…"></textarea>
             <button class="btn btn-primary pub-chat-send" id="pubChatSend" title="Invia">
               <i class="fas fa-paper-plane"></i>
             </button>
@@ -202,6 +207,15 @@ const PubblicazioniApp = {
       }
     });
     send.addEventListener('click', () => this._sendMessage());
+    // v10.5.9: allega locandina
+    this._allegato = null;
+    const fileInput = document.getElementById('pubAttachFile');
+    document.getElementById('pubAttachBtn').addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', () => {
+      const f = fileInput.files && fileInput.files[0];
+      fileInput.value = '';
+      if (f) this._caricaAllegato(f);
+    });
     input.focus();
   },
 
@@ -227,17 +241,34 @@ const PubblicazioniApp = {
     const sendBtn = document.getElementById('pubChatSend');
     if (!input || !box) return;
 
-    const text = input.value.trim();
-    if (!text || this._sending) return;
+    let text = input.value.trim();
+    const allegato = this._allegato;
+    if (this._sending) return;
+    if (allegato && allegato.caricamento) { UI.showError && UI.showError('Attendi la fine del caricamento della locandina.'); return; }
+    if (!text && !(allegato && allegato.url)) return;
+    if (!text && allegato) text = 'Ti allego la locandina: preparami la bozza dell\'evento.';
 
     // Messaggio utente in UI + in cronologia (formato API)
     box.insertAdjacentHTML('beforeend', `
       <div class="pub-msg pub-msg-user">
-        <div class="pub-msg-bubble">${this.escapeHtml(text).replace(/\n/g, '<br>')}</div>
+        <div class="pub-msg-bubble">
+          ${allegato && allegato.url ? `<img src="${this.escapeHtml(allegato.url)}" alt="Locandina allegata" class="pub-msg-img">` : ''}
+          ${this.escapeHtml(text).replace(/\n/g, '<br>')}
+        </div>
         <div class="pub-msg-avatar"><i class="fas fa-user"></i></div>
       </div>
     `);
-    this._messages.push({ role: 'user', content: text });
+    if (allegato && allegato.url) {
+      // L'assistente "vede" l'immagine e riceve anche l'indirizzo per caricarla su GoodBarber
+      this._messages.push({ role: 'user', content: [
+        { type: 'image', source: { type: 'url', url: allegato.url } },
+        { type: 'text', text: text + '\n\n[Immagine allegata dall\'operatore — indirizzo da usare per caricarla su GoodBarber: ' + allegato.url + ']' }
+      ] });
+    } else {
+      this._messages.push({ role: 'user', content: text });
+    }
+    this._allegato = null;
+    this._mostraAllegato();
 
     input.value = '';
     input.style.height = 'auto';
@@ -298,6 +329,59 @@ const PubblicazioniApp = {
   // ============================================================================
   // Utility
   // ============================================================================
+  // v10.5.9: carica la locandina su Firebase Storage (ridotta a max 2000 px, JPEG) e ne tiene l'indirizzo pubblico
+  async _caricaAllegato(file) {
+    if (!/^image\/(jpeg|png|webp)$/.test(file.type)) { UI.showError && UI.showError('Allega un\'immagine JPG, PNG o WEBP.'); return; }
+    if (file.size > 20 * 1024 * 1024) { UI.showError && UI.showError('Immagine troppo grande (massimo 20 MB).'); return; }
+    this._allegato = { nome: file.name, caricamento: true, anteprima: URL.createObjectURL(file) };
+    this._mostraAllegato();
+    try {
+      const blob = await this._riduciImmagine(file, 2000, 0.88);
+      const path = `documenti/app/${this.currentApp.id}/pubblicazioni/${Date.now()}.jpg`;
+      const ref = storage.ref().child(path);
+      await ref.put(blob, { contentType: 'image/jpeg' });
+      const url = await ref.getDownloadURL();
+      if (this._allegato) { this._allegato.url = url; this._allegato.caricamento = false; }
+    } catch (e) {
+      console.error('[PubblicazioniApp] upload locandina', e);
+      this._allegato = null;
+      UI.showError && UI.showError('Caricamento della locandina non riuscito. Riprova.');
+    }
+    this._mostraAllegato();
+  },
+
+  _riduciImmagine(file, maxLato, qualita) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        const k = Math.min(1, maxLato / Math.max(img.width, img.height));
+        const c = document.createElement('canvas');
+        c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+        const ctx = c.getContext('2d');
+        ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
+        ctx.drawImage(img, 0, 0, c.width, c.height);
+        c.toBlob(b => b ? resolve(b) : reject(new Error('conversione fallita')), 'image/jpeg', qualita);
+      };
+      img.onerror = () => reject(new Error('immagine non leggibile'));
+      img.src = URL.createObjectURL(file);
+    });
+  },
+
+  _mostraAllegato() {
+    const box = document.getElementById('pubAttachPreview');
+    if (!box) return;
+    const a = this._allegato;
+    if (!a) { box.style.display = 'none'; box.innerHTML = ''; return; }
+    box.style.display = 'flex';
+    box.innerHTML = `
+      <img src="${this.escapeHtml(a.anteprima || a.url || '')}" alt="">
+      <div class="pub-attach-info">
+        <strong>${this.escapeHtml(a.nome || 'Locandina')}</strong>
+        <span>${a.caricamento ? '<i class="fas fa-spinner fa-spin"></i> Caricamento…' : '<i class="fas fa-check" style="color:var(--verde-700,#3CA434)"></i> Pronta: scrivi eventuali indicazioni e invia'}</span>
+      </div>
+      <button class="pub-attach-remove" title="Togli allegato" onclick="PubblicazioniApp._allegato=null;PubblicazioniApp._mostraAllegato();"><i class="fas fa-times"></i></button>`;
+  },
+
   // v10.5.7: impagina le risposte dell'assistente (grassetto, corsivo, titoli, elenchi, tabelle, codice).
   // Sicuro: il testo viene prima "escapato" e solo dopo si aggiungono i pochi tag ammessi.
   renderMarkdown(text) {
@@ -411,6 +495,12 @@ const PubblicazioniApp = {
                           font-family:inherit; font-size:.92rem; line-height:1.4; max-height:160px; }
         .pub-chat-input:focus { outline:none; border-color:var(--blu-500,#2E6DA8); }
         .pub-chat-send { flex-shrink:0; height:42px; width:48px; display:flex; align-items:center; justify-content:center; }
+        .pub-chat-attach { flex-shrink:0; height:42px; width:44px; display:flex; align-items:center; justify-content:center; }
+        .pub-attach-preview { display:flex; align-items:center; gap:.7rem; padding:.55rem .75rem; border-top:1px solid var(--grigio-300); background:var(--blu-100,#D1E2F2); }
+        .pub-attach-preview img { width:52px; height:52px; object-fit:cover; border-radius:6px; border:1px solid var(--grigio-300); }
+        .pub-attach-info { flex:1; display:flex; flex-direction:column; font-size:.85rem; color:var(--grigio-700); }
+        .pub-attach-remove { background:none; border:none; color:var(--grigio-500); cursor:pointer; font-size:1rem; padding:.3rem; }
+        .pub-msg-img { display:block; max-width:220px; max-height:260px; border-radius:8px; margin-bottom:.4rem; }
 
         @media (max-width:768px) {
           .pub-msg { max-width:95%; }
