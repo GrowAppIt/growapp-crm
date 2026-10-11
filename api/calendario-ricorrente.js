@@ -9,13 +9,14 @@
  *   { azione: 'sezioni',   appId }                      → sezioni/categorie Agenda dell'app
  *   { azione: 'anteprima', appId, dal, al }             → avvisi calcolati + quali esistono già + saltati
  *   { azione: 'crea',      appId, dal, al, chiavi:[…] } → crea (max ~40 per chiamata) gli avvisi indicati
+ *   { azione: 'proponi',   appId, categoriaId? }       → ricava le regole dagli avvisi già presenti (sola lettura)
  * Accesso: utente loggato al CRM con ruolo abilitato (come "Pubblicazioni sulle app").
  */
 
 const admin = require('firebase-admin');
 const { ottieniAccessToken } = require('../lib/mcp-token.js');
 const { apriSessione } = require('../lib/mcp-client.js');
-const { generaAvvisi } = require('../lib/calendario.js');
+const { generaAvvisi, proponiRegole } = require('../lib/calendario.js');
 
 if (!admin.apps.length) {
   if (process.env.FIREBASE_SERVICE_ACCOUNT) {
@@ -93,6 +94,32 @@ module.exports = async function handler(req, res) {
     if (azione === 'sezioni') {
       const r = await mcp.chiama('cms_list_cms_sections', { type: 'agenda' });
       return res.status(200).json({ sezioni: r.sections || r });
+    }
+
+    if (azione === 'proponi') {
+      let categoriaId = Number(body.categoriaId) || null;
+      if (!categoriaId) {
+        const r = await mcp.chiama('cms_list_cms_sections', { type: 'agenda' });
+        const candidate = [];
+        for (const sz of (r.sections || [])) {
+          if (!/porta a porta|differenziat|rifiut|raccolt|mastell|notifiche serali|conferiment/i.test(sz.title || '')) continue;
+          for (const c of (sz.categories || [])) if (c.id) candidate.push({ categoriaId: c.id, sezione: sz.title });
+        }
+        if (candidate.length !== 1) {
+          return res.status(200).json({ daScegliere: true, candidate,
+            messaggio: candidate.length ? 'Ho trovato più sezioni possibili: scegli quella della differenziata nel menu "Sezione Agenda" e riprova.' : 'Non trovo una sezione della differenziata: scegline una nel menu "Sezione Agenda" e riprova.' });
+        }
+        categoriaId = candidate[0].categoriaId;
+      }
+      let items = [];
+      for (let page = 1; page <= 60; page++) {
+        const x = await mcp.chiama('cms_list_events', { category: [categoriaId], per_page: 100, page, sort: 'recent' });
+        items = items.concat(x.items || []);
+        if (!x.has_next_page) break;
+      }
+      const p = proponiRegole(items, categoriaId);
+      if (p.errore) return res.status(200).json({ errore: p.errore, categoriaId });
+      return res.status(200).json({ categoriaId, differenziata: p.differenziata, riepilogo: p.riepilogo });
     }
 
     const regole = ((t.app || {}).schedaComune || {}).differenziata;

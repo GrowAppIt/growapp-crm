@@ -42,6 +42,7 @@ const PubScheda = {
   // ---------------------------------------------------------------- SCHEDA COMUNE
   async apriScheda() {
     const app = PubblicazioniApp.currentApp;
+    this._esitoProposta = '';
     const base = { regoleGenerali: '', differenziata: { attiva: false, orarioNotifica: '20:00', giorniPrima: 1, orarioFine: '23:59',
       testo: 'lasciare il mastello col rifiuto del giorno al mattino dalle ore 6.00 alle ore 8.30', stato: 'draft',
       saltaFestivi: true, festivitaLocali: [], eccezioni: [], zone: [{ nome: 'Tutto il Comune', suffissoTitolo: '', categoriaId: null, raccolte: [] }] } };
@@ -100,6 +101,11 @@ const PubScheda = {
 
       <h4><i class="fas fa-recycle"></i> Raccolta differenziata</h4>
       <label class="psc-check"><input type="checkbox" ${d.attiva ? 'checked' : ''} onchange="PubScheda._scheda.differenziata.attiva=this.checked;PubScheda._disegnaScheda()"> Questo Comune ha gli avvisi della differenziata nell'app</label>
+      <div class="psc-proponi">
+        <button class="btn btn-secondary psc-small" id="pscProponiBtn" onclick="PubScheda.proponi()"><i class="fas fa-magic"></i> Proponi le regole dagli avvisi già presenti</button>
+        <span class="psc-muted">Legge gli avvisi della differenziata già nell'app e compila giorni, titoli, immagini e orari. Poi controlla e salva.</span>
+      </div>
+      <div id="pscProponiEsito">${this._esitoProposta || ''}</div>
       ${d.attiva ? `
         <div class="psc-row">
           <label>Promemoria<select onchange="PubScheda._scheda.differenziata.giorniPrima=Number(this.value)">
@@ -126,6 +132,29 @@ const PubScheda = {
         ${zone}
         <button class="btn btn-secondary psc-small" onclick="PubScheda._scheda.differenziata.zone.push({nome:'Zona '+String.fromCharCode(65+PubScheda._scheda.differenziata.zone.length),suffissoTitolo:'',categoriaId:null,raccolte:[]});PubScheda._disegnaScheda()"><i class="fas fa-plus"></i> Aggiungi zona</button>
       ` : ''}`;
+  },
+
+  async proponi() {
+    const btn = document.getElementById('pscProponiBtn');
+    const z0 = (this._scheda.differenziata.zone || [])[0] || {};
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Leggo gli avvisi… (fino a un minuto)'; }
+    try {
+      const r = await this._api({ azione: 'proponi', appId: PubblicazioniApp.currentApp.id, categoriaId: z0.categoriaId || null });
+      if (r.daScegliere || r.errore) {
+        this._esitoProposta = `<div class="psc-warn"><i class="fas fa-info-circle"></i> ${this.esc(r.messaggio || r.errore)}</div>`;
+        this._scheda.differenziata.attiva = true;
+      } else {
+        const regoleLibere = this._scheda.regoleGenerali;
+        this._scheda.differenziata = r.differenziata;
+        this._scheda.regoleGenerali = regoleLibere;
+        this._esitoProposta = `<div class="psc-ok"><strong><i class="fas fa-check-circle"></i> Regole proposte dagli avvisi esistenti — controllale e poi clicca "Salva scheda":</strong>
+          <ul>${r.riepilogo.map(x => `<li>${this.esc(x)}</li>`).join('')}</ul>
+          <span class="psc-muted">Festività locali (es. patrono) ed eccezioni non si possono ricavare: aggiungile tu se servono.</span></div>`;
+      }
+    } catch (e) {
+      this._esitoProposta = `<div class="psc-warn"><i class="fas fa-exclamation-triangle"></i> ${this.esc(e.message)}</div>`;
+    }
+    this._disegnaScheda();
   },
 
   _rigaRaccolta(zi, ri, r) {
@@ -293,6 +322,9 @@ const PubScheda = {
       .psc-del { background:none; border:none; color:#D32F2F; cursor:pointer; }
       .psc-small { padding:.3rem .7rem; font-size:.85rem; }
       .psc-align { margin-bottom:.6rem; }
+      .psc-proponi { display:flex; gap:.7rem; align-items:center; flex-wrap:wrap; margin:.3rem 0 .5rem; }
+      .psc-ok { background:#E2F8DE; border-left:4px solid #3CA434; padding:.6rem .8rem; border-radius:6px; margin:.5rem 0; font-size:.88rem; }
+      .psc-ok ul { margin:.3rem 0 .3rem 1.1rem; padding:0; }
       .psc-warn { background:#FFF6D6; border-left:4px solid #FFCC00; padding:.6rem .8rem; border-radius:6px; margin:.5rem 0; }
       .psc-loading { color:#4A4A4A; padding:.8rem 0; }
       .psc-sommario { display:flex; gap:.5rem; flex-wrap:wrap; margin:.6rem 0; }
