@@ -21,14 +21,15 @@
 |---|---|
 | Lancia `stato.js` e propone il gruppo da 10 | Dà l'ok al gruppo |
 | Lancia `collega-app.js` per l'app | — |
-| Apre in Chrome la pagina di autorizzazione (scheda "Collega il tuo assistente AI") | Apre il back office dell'app **dal pannello reseller** |
-| — | Crea il set di chiavi, copia la chiave, la incolla nella pagina di autorizzazione, clicca **Autorizza** |
+| Apre in Chrome la pagina di autorizzazione (scheda "Collega il tuo assistente AI") | — |
+| Apre il back office cliccando la riga dell'app nel pannello reseller, va in `/manage/settings/publicapi/`, compila il set e clicca **Aggiungere chiave** (autorizzato da Giancarlo l'11/10/2026) | — |
+| — | Copia la chiave dai dettagli del set, la incolla nella pagina di autorizzazione, clicca **Autorizza** |
 | Controlla l'esito, passa all'app successiva | Scrive "fatto" |
 
 **Cose che Claude NON può fare** (il classifier le blocca: non provare ad aggirarle):
-- creare il set di chiavi nel back office (è una concessione di permessi);
+- leggere, copiare o incollare la chiave generata (la copia e la incolla Giancarlo). Creare il set invece è ok: autorizzato da Giancarlo l'11/10/2026;
 - scrivere o incollare chiavi o token in un campo;
-- aprire il back office col link `data-href` del pannello reseller (contiene un accesso automatico);
+- navigare direttamente al link `data-href` del pannello reseller (contiene un accesso automatico). Cliccare la riga nel pannello invece funziona (11/10/2026): si apre una nuova scheda nel gruppo;
 - inserire password o fare login;
 - modificarsi i permessi (`settings.local.json`);
 - scrivere su Firestore con script diversi da `collega-app.js`. Per correggere un dato dell'app si passa dalla scheda dell'app nel CRM, in Chrome.
@@ -46,21 +47,24 @@
    rm -f scripts/mcp-collega/auth-url.txt && (node scripts/mcp-collega/collega-app.js <docId> > <scratchpad>/app.log 2>&1 &) ; for i in $(seq 1 15); do [ -f scripts/mcp-collega/auth-url.txt ] && break; sleep 1; done; cat scripts/mcp-collega/auth-url.txt
    ```
    (La regola allow in `.claude/settings.local.json` copre `Bash(node scripts/mcp-collega/collega-app.js *)`.)
-2. Con `navigate` apri quel link nella scheda di autorizzazione. Riporta anche il pannello reseller alla lista.
-3. Dai a Giancarlo il passo (testo modello qui sotto).
-4. Dopo "fatto": `tail -2 <scratchpad>/app.log`. Deve dire `✅ COLLEGATA e salvata nel CRM`. Poi passa subito all'app successiva (stesso messaggio: esito + nuovo passo).
+2. Con `navigate` apri quel link nella scheda di autorizzazione.
+3. Pannello reseller: triple_click sul campo "Cerca" + `type` dell'**ID webzine** (il trucco jQuery keyup non filtra più), aspetta ~3 s, verifica che `tr[data-id=<webzineId>]` sia l'app giusta, poi clicca la riga → si apre il back office in una nuova scheda.
+4. Nella nuova scheda: `navigate` a `https://<host>/manage/settings/publicapi/` (l'host si legge dal titolo/URL della scheda; non è sempre `*.comune.digital`, es. Conservatorio = `conservatoriomusicalefrancescocilea.istituti.eu`). Controlla i set già presenti (se uno ha già Cms → chiedi). Clicca "Creare un nuovo set di chiavi", scrivi il nome nel campo "Nome del set" (click + type), poi via JS nel contenitore del nome: checkbox `booking` spuntata e radio `user/stats/cms/booking_permission` = `READ_WRITE`; se tutto torna, clic su **Aggiungere chiave** e controlla che compaia "MCP CRM GrowApp (data)" senza leggere la chiave. Se un set esistente ha già Cms o si chiama GrowApp → fermati e chiedi.
+5. Chiudi la scheda back office dell'app precedente e dai a Giancarlo il passo (testo modello qui sotto).
+6. **Controllo prima di passare all'app successiva** (lezione 11/10/2026, San Vito): se il log NON dice `✅ COLLEGATA`, non lanciare l'app dopo. Il nuovo script morirebbe con `EADDRINUSE` sulla porta 8765, e il log precedente verrebbe sovrascritto. Ricarica invece la pagina di ritorno (localhost:8765/callback) oppure chiedi a Giancarlo. Usa un log separato per ogni app. A volte lo script resta vivo anche dopo `COLLEGATA`: `pkill -f collega-app.js` prima di lanciare il successivo.
+   Se Giancarlo incolla per errore la chiave di un'altra app, la pagina di ritorno mostra il nome sbagliato. In quel caso rifai l'app con `--force` e la chiave giusta (il set esiste già, basta copiarla da "Visualizza i dettagli").
+7. Dopo "fatto": `tail -2 <scratchpad>/app.log`. Deve dire `✅ COLLEGATA e salvata nel CRM`. Poi passa subito all'app successiva (stesso messaggio: esito + nuovo passo).
 
 ### Testo modello del passo per Giancarlo
 > ✅ <app precedente> collegata.
 >
 > **N/10 – <Nome app>** (ID <webzineId>). La pagina di autorizzazione è pronta e lo script è in attesa.
-> 1. Dal **pannello reseller** apri **<Nome app>** → **Impostazioni → MCP Server & API pubbliche**.
-> 2. Crea il set `MCP CRM GrowApp` (User, Stats e Cms tutti in Lettura e scrittura) e copia la chiave.
-> 3. Incollala in **"Collega il tuo assistente AI"** e clicca **Autorizza**.
+> Ho creato il set `MCP CRM GrowApp` (tutti e 4 i moduli in Lettura e scrittura): la chiave è nei dettagli del set.
+> Copiala, incollala in **"Collega il tuo assistente AI"** e clicca **Autorizza**.
 >
 > Poi scrivimi "fatto".
 
-Il set va configurato come "MCP CEFALU": **User + Stats + Cms, tutti Lettura e scrittura**, **Booking senza spunta**.
+Il set: **User + Stats + Cms + Booking, tutti Lettura e scrittura** (dall'11/10/2026, da Diamante in poi; le app precedenti hanno Booking senza spunta).
 
 ### Fine gruppo
 - Riepilogo **breve**: app collegate, app saltate e perché, anomalie trovate. Poi aspetta l'ok per il gruppo successivo.
@@ -69,7 +73,7 @@ Il set va configurato come "MCP CEFALU": **User + Stats + Cms, tutti Lettura e s
 
 ## 4. Casi particolari (non improvvisare: segnala o chiedi)
 
-- **L'app ha già un set con Cms R-W** (es. Basicò, set "crm"): chiedi. La scelta consigliata, già usata su Basicò, è creare comunque `MCP CRM GrowApp` e non toccare il set esistente.
+- **L'app ha già un set con Cms R-W** (es. Basicò, Rocca Imperiale, San Cataldo, set "CRM"): dall'11/10/2026 Giancarlo ha detto di **procedere senza chiedere**. Crea comunque `MCP CRM GrowApp`, non toccare il set esistente e segnalalo nel riepilogo di fine gruppo. Se esiste già un set chiamato GrowApp, invece, fermati e chiedi.
 - **Set già presenti "CRM" (User & Stats) / "Allerte PC" / "Avvisi PC"**: sono normali, non toccarli e non usarli (non hanno Cms).
 - **Lo script esce con `SALTATA: già collegata`**: l'app è già a posto. Per ricollegarla serve `--force`, ma solo con l'ok di Giancarlo.
 - **`timeout`**: sono passati 15 minuti senza autorizzazione. Rilancia lo script: genera un link nuovo, quello vecchio non vale più.
@@ -87,5 +91,11 @@ Il set va configurato come "MCP CEFALU": **User + Stats + Cms, tutti Lettura e s
 | `fsrest.js` | Firestore REST con le credenziali del Firebase CLI di Giancarlo (progetto `crm-comunedigital`) |
 | `auth-url.txt` | Link di autorizzazione temporaneo (ignorato da git) |
 
-## 6. Punto aperto
+## 6. Lasciapassare: rotazione e scadenza (scoperto l'11/10/2026)
+- GoodBarber **ruota il refresh_token a ogni rinnovo**: quello vecchio smette di valere. Chi lo usa deve salvare subito il nuovo, e due rinnovi in contemporanea sulla stessa app rompono il collegamento. In produzione se ne occupa `lib/mcp-token.js`, con un lucchetto per app (campi `mcpRinnovoLockFino`/`mcpRinnovoLockDi`).
+- Il refresh_token **scade dopo ~30 giorni**. `api/mcp-keepalive.js` (Vercel Cron, lunedì 03:10 UTC) rinnova tutte le app. Esito per app in `mcpStato`/`mcpUltimoRinnovo`/`mcpUltimoErrore`, riepilogo in `sistema/mcpKeepalive`.
+- Se un'app risulta scaduta (`refresh rifiutato HTTP 400`), si ricollega con `collega-app.js <docId> --force`.
+- Verifica che ogni chiave apra l'app giusta: `node scripts/mcp-collega/verifica-identita.js [docId…]`. È in sola lettura su GoodBarber e salva i token ruotati.
+
+## 7. Punto aperto
 I refresh token stanno nel doc `app`, leggibile anche lato client (come le vecchie credenziali). Prima o poi vanno spostati in una collezione protetta da regole Firestore: cambiano `api/app-publish-chat.js`, `dettaglio-app.js`, `pubblicazioni-app.js` e questo script.

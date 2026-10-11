@@ -255,9 +255,13 @@ const PubblicazioniApp = {
     box.scrollTop = box.scrollHeight;
 
     try {
+      // v10.5.5: l'API richiede il login al CRM (Firebase ID token)
+      const headers = { 'Content-Type': 'application/json' };
+      const _u = firebase.auth().currentUser;
+      if (_u) { const _t = await _u.getIdToken(); if (_t) headers['Authorization'] = 'Bearer ' + _t; }
       const resp = await fetch('/api/app-publish-chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ appId: this.currentApp.id, messages: this._messages })
       });
 

@@ -153,6 +153,30 @@
         "8790"
       ],
       "port": 8790
+    },
+    {
+      "name": "raduno-ccdr",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8097",
+        "--directory",
+        "/Users/giancarlocampisi/Downloads/raduno CCDR/nuova-app"
+      ],
+      "port": 8097
+    },
+    {
+      "name": "sportcity",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8085",
+        "--directory",
+        "/Users/giancarlocampisi/Downloads/Sportcity/DA CARICARE"
+      ],
+      "port": 8085
     }
   ]
 }

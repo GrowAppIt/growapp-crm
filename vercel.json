@@ -34,6 +34,10 @@
     "api/enrich-thumbnails.js": {
       "maxDuration": 120,
       "memory": 512
+    },
+    "api/mcp-keepalive.js": {
+      "maxDuration": 300,
+      "memory": 512
     }
   },
   "crons": [
@@ -52,6 +56,10 @@
     {
       "path": "/api/enrich-thumbnails",
       "schedule": "5,20,35,50 * * * *"
+    },
+    {
+      "path": "/api/mcp-keepalive",
+      "schedule": "10 3 * * 1"
     }
   ],
   "redirects": [

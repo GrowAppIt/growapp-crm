@@ -10,9 +10,16 @@
  * Response: { answer, content, stop_reason, usage, app: {nome} }
  *
  * Modello: Claude Sonnet 4.6 — MCP connector (beta mcp-client-2025-11-20).
+ *
+ * SICUREZZA (v10.5.5): la chiamata richiede un utente loggato nel CRM
+ * (Authorization: Bearer <Firebase ID token>) con un ruolo abilitato (RUOLI_PUBBLICAZIONE),
+ * e il browser chiamante deve essere il CRM (CORS ristretto).
+ * Il lasciapassare MCP si rinnova tramite lib/mcp-token.js: un'app alla volta (lucchetto)
+ * e token ruotato sempre salvato.
  */
 
 const admin = require('firebase-admin');
+const { ottieniAccessToken } = require('../lib/mcp-token.js');
 
 // --- Init firebase-admin (stesso schema delle altre function del CRM) ---
 if (!admin.apps.length) {
@@ -59,56 +66,45 @@ function buildSystemPrompt(appName) {
   ].join('\n');
 }
 
-// --- OAuth: la base del server di autorizzazione si ricava dall'URL MCP ---
-// (es. https://mcp.ww-api.com/376069/mcp/sse -> https://mcp.ww-api.com/376069)
-function authBaseFromMcpUrl(mcpUrl) {
-  return mcpUrl.replace(/\/mcp\/sse\/?$/, '').replace(/\/sse\/?$/, '');
-}
-
-// Ottiene un access_token FRESCO dal refresh_token (grant OAuth refresh_token).
-// Il server MCP GoodBarber è OAuth: NON accetta chiavi statiche, solo questo.
-// Ritorna { accessToken, newRefreshToken|null } (newRefreshToken se è stato ruotato).
-async function mintAccessToken({ mcpUrl, clientId, refreshToken }) {
-  const tokenEndpoint = authBaseFromMcpUrl(mcpUrl) + '/token';
-  const body = new URLSearchParams({
-    grant_type: 'refresh_token',
-    refresh_token: refreshToken,
-    client_id: clientId,
-    resource: mcpUrl
-  }).toString();
-
-  const r = await fetch(tokenEndpoint, {
-    method: 'POST',
-    headers: { 'content-type': 'application/x-www-form-urlencoded', 'accept': 'application/json' },
-    body
-  });
-  const text = await r.text().catch(() => '');
-  if (!r.ok) {
-    const e = new Error(`Refresh token rifiutato dal server MCP (HTTP ${r.status}). ${text.slice(0, 300)}`);
-    e.code = 'MCP_AUTH';
-    throw e;
+// --- CORS: solo il CRM (e il server locale di sviluppo) ---
+const ORIGINI_AMMESSE = ['https://crm.comune.digital', 'http://localhost:8080', 'http://127.0.0.1:8080'];
+function setCors(req, res) {
+  const origin = req.headers.origin || '';
+  if (ORIGINI_AMMESSE.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Vary', 'Origin');
   }
-  let j; try { j = JSON.parse(text); } catch (_) { j = {}; }
-  if (!j.access_token) {
-    const e = new Error('Risposta OAuth senza access_token.');
-    e.code = 'MCP_AUTH';
-    throw e;
-  }
-  const newRefreshToken = (j.refresh_token && j.refresh_token !== refreshToken) ? j.refresh_token : null;
-  return { accessToken: j.access_token, newRefreshToken };
-}
-
-// --- CORS ---
-function setCors(res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+}
+
+// --- Chi può pubblicare sulle app (ruoli del CRM, campo utenti/{uid}.ruolo) ---
+const RUOLI_PUBBLICAZIONE = ['SUPER_ADMIN', 'ADMIN', 'CTO', 'SVILUPPATORE', 'CONTENT_MANAGER'];
+
+async function verificaUtente(req) {
+  const h = req.headers.authorization || '';
+  if (!h.startsWith('Bearer ')) return { ok: false, status: 401, error: 'Accesso negato: serve il login al CRM.' };
+  let decoded;
+  try {
+    decoded = await admin.auth().verifyIdToken(h.slice(7).trim());
+  } catch (e) {
+    return { ok: false, status: 401, error: 'Sessione scaduta o non valida: ricarica il CRM e rifai il login.' };
+  }
+  const u = await db.collection('utenti').doc(decoded.uid).get();
+  const ruolo = u.exists ? (u.data() || {}).ruolo : null;
+  if (!RUOLI_PUBBLICAZIONE.includes(ruolo)) {
+    return { ok: false, status: 403, error: 'Il tuo ruolo non è abilitato alle pubblicazioni sulle app.' };
+  }
+  return { ok: true, uid: decoded.uid, ruolo };
 }
 
 module.exports = async function handler(req, res) {
-  setCors(res);
+  setCors(req, res);
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Metodo non consentito. Usa POST.' });
+
+  const utente = await verificaUtente(req).catch(e => ({ ok: false, status: 500, error: 'Verifica accesso fallita: ' + e.message }));
+  if (!utente.ok) return res.status(utente.status).json({ error: utente.error });
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
@@ -124,38 +120,25 @@ module.exports = async function handler(req, res) {
     if (!appId) return res.status(400).json({ error: 'appId mancante.' });
     if (!messages || messages.length === 0) return res.status(400).json({ error: 'Nessun messaggio da elaborare.' });
 
-    // Leggi credenziali MCP dell'app DAL SERVER (mai dal browser)
-    const doc = await db.collection('app').doc(String(appId)).get();
-    if (!doc.exists) return res.status(404).json({ error: 'App non trovata.' });
-    const app = doc.data() || {};
-
-    const mcpUrl = (app.mcpServerUrl || '').trim();
-    const clientId = (app.mcpClientId || '').trim();
-    const refreshToken = (app.mcpRefreshToken || '').trim();
-    const appName = app.nome || 'App';
-
-    if (!mcpUrl || !clientId || !refreshToken) {
-      return res.status(400).json({
-        error: 'Collegamento MCP non configurato per questa app.',
-        detail: 'Esegui il login MCP (scripts/mcp-login.js) e incolla Client ID e Refresh Token nella scheda dell\'app (Configurazione App → Collegamento MCP).'
-      });
-    }
-
-    // Il server MCP GoodBarber è OAuth: ottieni un access_token fresco dal refresh_token.
-    let accessToken;
+    // Credenziali MCP lette e rinnovate DAL SERVER (mai dal browser), un'app alla volta.
+    let accessToken, mcpUrl, appName;
     try {
-      const minted = await mintAccessToken({ mcpUrl, clientId, refreshToken });
-      accessToken = minted.accessToken;
-      // Se il server ha ruotato il refresh_token, salva quello nuovo per le prossime volte
-      if (minted.newRefreshToken) {
-        await db.collection('app').doc(String(appId)).update({ mcpRefreshToken: minted.newRefreshToken });
-      }
+      const t = await ottieniAccessToken(db, appId, admin);
+      accessToken = t.accessToken; mcpUrl = t.mcpUrl; appName = t.appName;
     } catch (e) {
-      console.error('[app-publish-chat] mintAccessToken', e.message);
+      if (e.code === 'NOT_FOUND') return res.status(404).json({ error: 'App non trovata.' });
+      if (e.code === 'MCP_NOT_CONFIGURED') {
+        return res.status(400).json({
+          error: 'Collegamento MCP non configurato per questa app.',
+          detail: 'Collega l\'app con scripts/mcp-collega/collega-app.js (vedi scripts/mcp-collega/ISTRUZIONI.md).'
+        });
+      }
+      if (e.code === 'MCP_BUSY') return res.status(409).json({ error: e.message });
+      console.error('[app-publish-chat] rinnovo lasciapassare', e.message);
       return res.status(502).json({
         error: 'Autenticazione MCP fallita.',
         detail: e.message,
-        hint: 'Il refresh token potrebbe essere scaduto o revocato: rifai il login con scripts/mcp-login.js e aggiorna Client ID e Refresh Token nella scheda dell\'app.'
+        hint: 'Il collegamento potrebbe essere scaduto (non usato per 30 giorni) o revocato: ricollega l\'app con scripts/mcp-collega/collega-app.js --force.'
       });
     }
 
