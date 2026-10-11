@@ -2332,9 +2332,20 @@
           feedName: it.feedName || ''
         }));
 
+        // L'endpoint richiede il token Firebase dell'utente del CRM (dalla v10.1.8): senza, risponde 401
+        // e la classificazione veniva saltata in silenzio. Il token si prende dal CRM che ospita l'iframe.
+        const headers = { 'Content-Type': 'application/json' };
+        try {
+          const fb = (window.parent && window.parent.firebase) || window.firebase;
+          const u = fb && fb.auth ? fb.auth().currentUser : null;
+          if (u) headers['Authorization'] = 'Bearer ' + await u.getIdToken();
+        } catch (e) {
+          console.warn('[AI] Token Firebase non disponibile:', e.message);
+        }
+
         const response = await fetch(baseUrl + '/api/classify-news', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: headers,
           body: JSON.stringify({ items: payload })
         });
 

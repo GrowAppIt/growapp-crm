@@ -64,13 +64,13 @@ function formatCurrency(amount) {
 }
 
 // === LIMITI PER EVITARE PAYLOAD TROPPO GRANDI ===
-const MAX_CONTEXT_CHARS = 300000; // ~75k token: Sonnet 5.5 ha 1M di contesto (con Haiku 4.5 era 90000 e lo scadenzario in coda spariva)
-const MAX_APPS = 300;
-const MAX_CLIENTI = 200;
-const MAX_CONTRATTI = 200;
-const MAX_FATTURE = 300;
-const MAX_SCADENZE = 150;
-const MAX_DOCUMENTI = 400;
+const MAX_CONTEXT_CHARS = 600000; // ~170k token: Sonnet 5.5 ha 1M di contesto (con Haiku 4.5 era 90000 e lo scadenzario in coda spariva)
+const MAX_APPS = 500;
+const MAX_CLIENTI = 500;
+const MAX_CONTRATTI = 500;
+const MAX_FATTURE = 3000; // v10.7.3: prima 300 su ~1200 fatture reali → risposte su incassi incomplete
+const MAX_SCADENZE = 500;
+const MAX_DOCUMENTI = 500;
 
 // === CONTEXT BUILDERS ===
 
@@ -423,8 +423,8 @@ Questo e' SBAGLIATO perche' aggiunge informazioni non richieste e non cerca nei 
     let requestBody = JSON.stringify({
       model: 'claude-sonnet-5-5',
       max_tokens: 8000,
-      // Chat: ragionamento leggero (risposte veloci); i dati del CRM restano in cache ~5 min tra una domanda e l'altra
-      output_config: { effort: 'low' },
+      // Chat: ragionamento medio (analisi di fatture/contratti più accurate); i dati del CRM restano in cache ~5 min tra una domanda e l'altra
+      output_config: { effort: 'medium' },
       cache_control: { type: 'ephemeral' },
       // In caso di rifiuto per sicurezza l'API riprova da sola con un altro modello
       fallbacks: 'default',

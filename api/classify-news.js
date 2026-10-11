@@ -1,7 +1,7 @@
 /**
  * Serverless Function — Classificazione AI notizie RSS
  *
- * Proxy sicuro verso l'API Anthropic (Claude Haiku).
+ * Proxy sicuro verso l'API Anthropic (Claude Sonnet 5.5).
  * La chiave API resta nelle Environment Variables di Vercel,
  * mai esposta al frontend.
  *

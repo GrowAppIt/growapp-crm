@@ -1,7 +1,7 @@
 /**
  * Serverless Function — Generazione Lettere AI Personalizzate
  *
- * Proxy sicuro verso l'API Anthropic (Claude Haiku 4.5).
+ * Proxy sicuro verso l'API Anthropic (Claude Sonnet 5.5).
  * La chiave API resta nelle Environment Variables di Vercel,
  * mai esposta al frontend.
  *

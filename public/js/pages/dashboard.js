@@ -3312,7 +3312,7 @@ const Dashboard = {
                 </div>
                 <div style="flex: 1;">
                     <div style="color: white; font-weight: 700; font-size: 0.95rem;">AI Assistant</div>
-                    <div style="color: rgba(255,255,255,0.7); font-size: 0.7rem;">Analisi dati CRM • Claude Haiku</div>
+                    <div style="color: rgba(255,255,255,0.7); font-size: 0.7rem;">Analisi dati CRM • Claude Sonnet 5.5</div>
                 </div>
                 <button onclick="Dashboard.clearAIChat()" style="background: rgba(255,255,255,0.15); color: white; border: none; padding: 0.3rem 0.6rem; border-radius: 6px; font-size: 0.7rem; cursor: pointer;" title="Nuova conversazione">
                     <i class="fas fa-trash-alt"></i>
@@ -3660,9 +3660,9 @@ const Dashboard = {
                     }).catch(e => { console.warn('AI: errore caricamento contratti:', e); })
                 );
 
-                // Fatture (ultime 500 per non esagerare)
+                // Fatture: TUTTE (v10.7.3; prima le ultime 500, poi tagliate a 300 → l'assistente vedeva 1/4 delle fatture)
                 loadPromises.push(
-                    db.collection('fatture').orderBy('dataEmissione', 'desc').limit(500).get().then(snap => {
+                    db.collection('fatture').orderBy('dataEmissione', 'desc').get().then(snap => {
                         const raw = snap.docs.map(doc => ({ ...doc.data(), id: doc.id }));
                         this._aiChatDataCache.fatture = this._buildLightFattureSummary(raw);
                     }).catch(e => { console.warn('AI: errore caricamento fatture:', e); })
@@ -3698,7 +3698,7 @@ const Dashboard = {
             }));
 
             // Prepara il payload — limita i record per evitare errore 413/502
-            const MAX_ITEMS = { app: 300, clienti: 200, contratti: 200, fatture: 300, scadenze: 150, documenti: 400 };
+            const MAX_ITEMS = { app: 500, clienti: 500, contratti: 500, fatture: 3000, scadenze: 500, documenti: 500 }; // v10.7.3: prima 300 fatture su ~1200 → risposte incomplete
             const payload = {
                 question: question,
                 appCorrente: null,
