@@ -10,6 +10,8 @@
  *   { azione: 'anteprima', appId, dal, al }             → avvisi calcolati + quali esistono già + saltati
  *   { azione: 'crea',      appId, dal, al, chiavi:[…] } → crea (max ~40 per chiamata) gli avvisi indicati
  *   { azione: 'proponi',   appId, categoriaId? }       → ricava le regole dagli avvisi già presenti (sola lettura)
+ *   { azione: 'mappa-anteprima', appId }                → punti delle mappe "sorgenti" che mancano nella mappa generale
+ *   { azione: 'mappa-allinea',   appId, ids:[…] }       → aggiunge (max ~40 per chiamata) la categoria della generale a quei punti
  * Accesso: utente loggato al CRM con ruolo abilitato (come "Pubblicazioni sulle app").
  */
 
@@ -17,6 +19,7 @@ const admin = require('firebase-admin');
 const { ottieniAccessToken } = require('../lib/mcp-token.js');
 const { apriSessione } = require('../lib/mcp-client.js');
 const { generaAvvisi, proponiRegole } = require('../lib/calendario.js');
+const { puntiDaAllineare } = require('../lib/mappa-generale.js');
 
 if (!admin.apps.length) {
   if (process.env.FIREBASE_SERVICE_ACCOUNT) {
@@ -93,7 +96,49 @@ module.exports = async function handler(req, res) {
 
     if (azione === 'sezioni') {
       const r = await mcp.chiama('cms_list_cms_sections', { type: 'agenda' });
-      return res.status(200).json({ sezioni: r.sections || r });
+      let sezioniMappa = [];
+      try { const m = await mcp.chiama('cms_list_cms_sections', { type: 'maps' }); sezioniMappa = m.sections || []; } catch (_) {}
+      return res.status(200).json({ sezioni: r.sections || r, sezioniMappa });
+    }
+
+    if (azione === 'mappa-anteprima' || azione === 'mappa-allinea') {
+      const regole = ((t.app || {}).schedaComune || {}).mappaGenerale;
+      if (!regole || !regole.attiva || !regole.categoriaId || !(regole.sorgenti || []).length) {
+        return res.status(400).json({ error: 'Mappa generale non impostata nella Scheda Comune.' });
+      }
+      if (azione === 'mappa-anteprima') {
+        let punti = [], totale = 0;
+        for (let page = 1; page <= 200; page++) {
+          const x = await mcp.chiama('cms_list_maps', { per_page: 100, page, sort: 'recent' });
+          punti = punti.concat(x.items || []);
+          totale = x.total || punti.length;
+          if (!x.has_next_page) break;
+        }
+        const daAllineare = puntiDaAllineare(punti, regole).map(p => ({ id: p.id, titolo: p.titolo, stato: p.stato, sezioni: p.sezioni }));
+        const giaDentro = punti.filter(p => (p.sections || []).some(sz => (sz.categories || []).some(c => Number(c.id) === Number(regole.categoriaId)))).length;
+        return res.status(200).json({ totale, giaDentro, daAllineare });
+      }
+      // Si rilegge ogni punto da GoodBarber: si aggiorna solo se il calcolo conferma che manca (niente dati arbitrari dal browser)
+      const ids = [...new Set((body.ids || []).map(Number).filter(n => n > 0))].slice(0, MAX_PER_CHIAMATA);
+      if (!ids.length) return res.status(400).json({ error: 'Nessun punto indicato.' });
+      const letti = await mcp.chiama('cms_list_maps', { id: ids, per_page: 100 });
+      const daFare = new Map(puntiDaAllineare(letti.items || [], regole).map(p => [p.id, p]));
+      const trovati = new Set((letti.items || []).map(p => Number(p.id)));
+      const inizio = Date.now();
+      const risultati = [];
+      for (const id of ids) {
+        if (Date.now() - inizio > 240000) { risultati.push({ id, ok: false, rimandato: true }); continue; }
+        if (!trovati.has(id)) { risultati.push({ id, ok: false, errore: 'punto non trovato' }); continue; }
+        const p = daFare.get(id);
+        if (!p) { risultati.push({ id, ok: true, giaPresente: true }); continue; }
+        try {
+          await mcp.chiama('cms_update_map', { id, categories: p.nuoveCategorie });
+          risultati.push({ id, ok: true });
+        } catch (e) {
+          risultati.push({ id, ok: false, errore: String(e.message || e).slice(0, 200) });
+        }
+      }
+      return res.status(200).json({ risultati });
     }
 
     if (azione === 'proponi') {

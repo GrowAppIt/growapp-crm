@@ -6,8 +6,11 @@
  *   Salvata nel doc Firestore `app/{id}.schedaComune`.
  * - Calendario: anteprima calcolata dal server (/api/calendario-ricorrente) e creazione
  *   a blocchi degli avvisi su GoodBarber, senza doppioni.
+ * - Mappa generale (v10.7.0): quale sezione mappa raccoglie i punti delle altre e quali mappe
+ *   vi confluiscono; l'allineatore aggiunge la categoria della generale ai punti che mancano.
  */
 const PubScheda = {
+  ESCLUSE_MAPPA: /emergenz|protezione civile|aree di (attesa|ricovero|ammassamento)|piano comunale|centro operativo|c\.o\.c\b/i,
   GIORNI: ['Domenica', 'Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato'],
   _sezioni: null,
   _scheda: null,
@@ -45,10 +48,12 @@ const PubScheda = {
     this._esitoProposta = '';
     const base = { regoleGenerali: '', differenziata: { attiva: false, orarioNotifica: '20:00', giorniPrima: 1, orarioFine: '23:59',
       testo: 'lasciare il mastello col rifiuto del giorno al mattino dalle ore 6.00 alle ore 8.30', stato: 'draft',
-      saltaFestivi: true, festivitaLocali: [], eccezioni: [], zone: [{ nome: 'Tutto il Comune', suffissoTitolo: '', categoriaId: null, raccolte: [] }] } };
+      saltaFestivi: true, festivitaLocali: [], eccezioni: [], zone: [{ nome: 'Tutto il Comune', suffissoTitolo: '', categoriaId: null, raccolte: [] }] },
+      mappaGenerale: { attiva: false, sezioneId: null, categoriaId: null, titolo: '', sorgenti: [] } };
     this._scheda = JSON.parse(JSON.stringify(Object.assign({}, base, app.schedaComune || {})));
     if (!this._scheda.differenziata) this._scheda.differenziata = base.differenziata;
     if (!Array.isArray(this._scheda.differenziata.zone) || !this._scheda.differenziata.zone.length) this._scheda.differenziata.zone = base.differenziata.zone;
+    if (!this._scheda.mappaGenerale) this._scheda.mappaGenerale = base.mappaGenerale;
     this._modale(`<i class="fas fa-id-card"></i> Scheda del Comune — ${this.esc(app.nome)}`,
       '<div class="psc-loading"><i class="fas fa-spinner fa-spin"></i> Leggo le sezioni Agenda dell\'app…</div>',
       `<button class="btn btn-secondary" onclick="PubScheda.chiudi()">Annulla</button>
@@ -56,10 +61,10 @@ const PubScheda = {
     try {
       if (!this._sezioni || this._sezioni.appId !== app.id) {
         const r = await this._api({ azione: 'sezioni', appId: app.id });
-        this._sezioni = { appId: app.id, elenco: r.sezioni || [] };
+        this._sezioni = { appId: app.id, elenco: r.sezioni || [], mappe: r.sezioniMappa || [] };
       }
     } catch (e) {
-      this._sezioni = { appId: app.id, elenco: [], errore: e.message };
+      this._sezioni = { appId: app.id, elenco: [], mappe: [], errore: e.message };
     }
     this._disegnaScheda();
   },
@@ -131,7 +136,79 @@ const PubScheda = {
         <p class="psc-muted">Festivi nazionali già inclusi in automatico: Capodanno, Epifania, Pasqua e Pasquetta, 25 aprile, 1° maggio, 2 giugno, Ferragosto, Ognissanti, Immacolata, Natale, Santo Stefano.</p>
         ${zone}
         <button class="btn btn-secondary psc-small" onclick="PubScheda._scheda.differenziata.zone.push({nome:'Zona '+String.fromCharCode(65+PubScheda._scheda.differenziata.zone.length),suffissoTitolo:'',categoriaId:null,raccolte:[]});PubScheda._disegnaScheda()"><i class="fas fa-plus"></i> Aggiungi zona</button>
-      ` : ''}`;
+      ` : ''}
+      ${this._bloccoMappaGenerale()}`;
+  },
+
+  // ---------------------------------------------------------------- MAPPA GENERALE (scheda)
+  _bloccoMappaGenerale() {
+    const mg = this._scheda.mappaGenerale;
+    const mappe = (this._sezioni && this._sezioni.mappe) || [];
+    let corpo = '';
+    if (mg.attiva) {
+      if (!mappe.length) {
+        corpo = `<div class="psc-warn"><i class="fas fa-info-circle"></i> Non trovo sezioni mappa in questa app.</div>`;
+      } else {
+        const opz = ['<option value="">— scegli la mappa generale —</option>'];
+        for (const s of mappe) for (const c of (s.categories || [])) {
+          if (!c.id) continue;
+          const et = s.title + (c.title && !/^(categoria principale|tutte le categorie)$/i.test(c.title) ? ' › ' + c.title : '');
+          opz.push(`<option value="${s.id}|${c.id}" ${Number(mg.categoriaId) === Number(c.id) ? 'selected' : ''}>${this.esc(et)}</option>`);
+        }
+        const sorg = new Set((mg.sorgenti || []).map(x => Number(x.id)));
+        const altre = mappe.filter(s => Number(s.id) !== Number(mg.sezioneId));
+        corpo = `
+          <label>Mappa generale <small>(la sezione e la categoria da spuntare sui punti)</small>
+            <select onchange="PubScheda._sceltaGenerale(this.value)">${opz.join('')}</select></label>
+          ${mg.categoriaId ? `
+            <div class="psc-label">Mappe che confluiscono nella generale</div>
+            <div class="psc-checks">${altre.map(s => `
+              <label class="psc-check"><input type="checkbox" ${sorg.has(Number(s.id)) ? 'checked' : ''} onchange="PubScheda._sorgente(${Number(s.id)}, this.checked)"> ${this.esc(s.title)}</label>`).join('')}
+            </div>
+            <p class="psc-muted">Le mappe di emergenza e protezione civile sono lasciate fuori in automatico: spuntale solo se servono davvero.</p>` : ''}`;
+      }
+    }
+    return `
+      <h4><i class="fas fa-map-marked-alt"></i> Mappa generale</h4>
+      <label class="psc-check"><input type="checkbox" ${mg.attiva ? 'checked' : ''} onchange="PubScheda._attivaGenerale(this.checked)"> Questa app ha una mappa generale che raccoglie i punti delle altre mappe</label>
+      ${corpo}`;
+  },
+
+  _attivaGenerale(on) {
+    const mg = this._scheda.mappaGenerale;
+    mg.attiva = on;
+    if (on && !mg.categoriaId) {
+      // Proposta: la sezione che si chiama "Mappa" (o "Mappa generale"), con la sua prima categoria
+      const s = ((this._sezioni && this._sezioni.mappe) || []).find(x => /^mappa( generale)?$/i.test(String(x.title || '').trim()));
+      const c = s && (s.categories || [])[0];
+      if (c) this._sceltaGenerale(s.id + '|' + c.id, true);
+    }
+    this._disegnaScheda();
+  },
+
+  _sceltaGenerale(v, senzaRidisegno) {
+    const mg = this._scheda.mappaGenerale;
+    const [sid, cid] = String(v || '').split('|').map(Number);
+    const mappe = (this._sezioni && this._sezioni.mappe) || [];
+    const s = mappe.find(x => Number(x.id) === sid);
+    const primaVolta = !mg.categoriaId;
+    mg.sezioneId = sid || null;
+    mg.categoriaId = cid || null;
+    mg.titolo = s ? s.title : '';
+    if (primaVolta && s) {
+      mg.sorgenti = mappe.filter(x => Number(x.id) !== sid && !this.ESCLUSE_MAPPA.test(x.title || '')).map(x => ({ id: Number(x.id), titolo: x.title }));
+    }
+    mg.sorgenti = (mg.sorgenti || []).filter(x => Number(x.id) !== sid);
+    if (!senzaRidisegno) this._disegnaScheda();
+  },
+
+  _sorgente(id, on) {
+    const mg = this._scheda.mappaGenerale;
+    mg.sorgenti = (mg.sorgenti || []).filter(x => Number(x.id) !== id);
+    if (on) {
+      const s = ((this._sezioni && this._sezioni.mappe) || []).find(x => Number(x.id) === id);
+      mg.sorgenti.push({ id, titolo: s ? s.title : String(id) });
+    }
   },
 
   async proponi() {
@@ -199,6 +276,11 @@ const PubScheda = {
           if (r.frequenza === 'quindicinale' && !r.dataRiferimento) { UI.showError('Per "' + r.titolo + '" (ogni 2 settimane) serve una data di raccolta valida.'); return; }
         }
       }
+    }
+    const mg = s.mappaGenerale;
+    if (mg && mg.attiva) {
+      if (!mg.categoriaId) { UI.showError('Scegli qual è la mappa generale (o togli la spunta).'); return; }
+      if (!(mg.sorgenti || []).length) { UI.showError('Spunta almeno una mappa che confluisce nella generale.'); return; }
     }
     try {
       s.aggiornataIl = new Date().toISOString();
@@ -298,6 +380,81 @@ const PubScheda = {
       <button class="btn btn-primary" onclick="PubScheda.chiudi()">Chiudi</button>`;
   },
 
+  // ---------------------------------------------------------------- MAPPA GENERALE (allineatore)
+  apriAllineaMappa() {
+    const app = PubblicazioniApp.currentApp;
+    const mg = (app.schedaComune || {}).mappaGenerale;
+    if (!mg || !mg.attiva || !mg.categoriaId) {
+      this._modale('<i class="fas fa-map-marked-alt"></i> Mappa generale',
+        `<p>Per questa app la mappa generale non è ancora impostata.</p><p>Apri la <strong>Scheda Comune</strong>, spunta "Mappa generale", scegli la sezione e le mappe che vi confluiscono, poi salva.</p>`,
+        `<button class="btn btn-primary" onclick="PubScheda.apriScheda()"><i class="fas fa-id-card"></i> Apri la Scheda Comune</button>`);
+      return;
+    }
+    this._modale(`<i class="fas fa-map-marked-alt"></i> Allinea mappa generale — ${this.esc(app.nome)}`, `
+      <p class="psc-muted">Cerco i punti delle mappe <strong>${this.esc((mg.sorgenti || []).map(x => x.titolo).join(', '))}</strong> che non compaiono nella mappa generale <strong>${this.esc(mg.titolo || '')}</strong>.
+      Ai punti mancanti si aggiunge solo la spunta della generale: le loro categorie restano tutte come sono.</p>
+      <div id="pscRisultato"></div>`,
+      `<button class="btn btn-secondary" onclick="PubScheda.chiudi()">Chiudi</button>`);
+    this.anteprimaMappa();
+  },
+
+  async anteprimaMappa() {
+    const box = document.getElementById('pscRisultato');
+    box.innerHTML = '<div class="psc-loading"><i class="fas fa-spinner fa-spin"></i> Leggo tutti i punti mappa dell’app… (può richiedere fino a un minuto)</div>';
+    document.getElementById('pscFoot').innerHTML = `<button class="btn btn-secondary" onclick="PubScheda.chiudi()">Chiudi</button>`;
+    try {
+      const r = await this._api({ azione: 'mappa-anteprima', appId: PubblicazioniApp.currentApp.id });
+      this._anteprimaMappa = r;
+      const statoTxt = s => s === 'published' ? 'pubblicato' : s === 'draft' ? 'bozza' : this.esc(s || '');
+      box.innerHTML = `
+        <div class="psc-sommario">
+          <span class="psc-pill psc-verde">${r.daAllineare.length} da aggiungere</span>
+          <span class="psc-pill">${r.giaDentro} già nella generale</span>
+          <span class="psc-pill">${r.totale} punti in tutto</span>
+        </div>
+        ${r.daAllineare.length ? `<div class="psc-scroll"><table class="psc-tab"><thead><tr><th>Punto</th><th>Mappa</th><th>Stato</th></tr></thead><tbody>
+          ${r.daAllineare.map(p => `<tr><td>${this.esc(p.titolo)}</td><td>${this.esc(p.sezioni.join(', '))}</td><td>${statoTxt(p.stato)}</td></tr>`).join('')}
+        </tbody></table></div>` : `<div class="psc-ok"><i class="fas fa-check-circle"></i> Tutto in ordine: la mappa generale contiene già tutti i punti delle mappe scelte.</div>`}`;
+      if (r.daAllineare.length) {
+        document.getElementById('pscFoot').innerHTML = `
+          <button class="btn btn-secondary" onclick="PubScheda.chiudi()">Chiudi</button>
+          <button class="btn btn-primary" onclick="PubScheda.allineaMappa()"><i class="fas fa-plus-circle"></i> Aggiungi ${r.daAllineare.length} punti alla mappa generale</button>`;
+      }
+    } catch (e) {
+      box.innerHTML = `<div class="psc-warn"><i class="fas fa-exclamation-triangle"></i> ${this.esc(e.message)}</div>`;
+    }
+  },
+
+  async allineaMappa() {
+    const a = this._anteprimaMappa; if (!a) return;
+    let daFare = a.daAllineare.map(p => p.id);
+    const totale = daFare.length; let fatti = 0; const errori = [];
+    const foot = document.getElementById('pscFoot');
+    const box = document.getElementById('pscRisultato');
+    foot.innerHTML = '';
+    box.insertAdjacentHTML('afterbegin', `<div class="psc-progress"><div class="psc-bar"><div id="pscBar" style="width:0%"></div></div><div id="pscProgTxt">Aggiungo i punti… 0 di ${totale}</div></div>`);
+    let tentativiVuoti = 0;
+    while (daFare.length && tentativiVuoti < 3) {
+      const lotto = daFare.slice(0, 40);
+      let r;
+      try { r = await this._api({ azione: 'mappa-allinea', appId: PubblicazioniApp.currentApp.id, ids: lotto }); }
+      catch (e) { errori.push(e.message); tentativiVuoti++; await new Promise(res => setTimeout(res, 3000)); continue; }
+      const ok = new Set(r.risultati.filter(x => x.ok).map(x => x.id));
+      const falliti = new Set(r.risultati.filter(x => !x.ok && !x.rimandato).map(x => x.id));
+      r.risultati.filter(x => !x.ok && !x.rimandato).forEach(x => errori.push(x.errore || 'errore'));
+      if (!ok.size) tentativiVuoti++; else tentativiVuoti = 0;
+      fatti += ok.size;
+      daFare = daFare.filter(id => !ok.has(id) && !falliti.has(id));
+      document.getElementById('pscBar').style.width = Math.round(fatti / totale * 100) + '%';
+      document.getElementById('pscProgTxt').textContent = `Aggiungo i punti… ${fatti} di ${totale}`;
+    }
+    document.getElementById('pscProgTxt').innerHTML = errori.length
+      ? `<span style="color:#D32F2F"><i class="fas fa-exclamation-triangle"></i> Aggiunti ${fatti} di ${totale}. Problemi: ${this.esc([...new Set(errori)].slice(0, 3).join(' · '))}</span>`
+      : `<span style="color:#3CA434"><i class="fas fa-check-circle"></i> Fatto: ${fatti} punti ora compaiono anche nella mappa generale.</span>`;
+    foot.innerHTML = `<button class="btn btn-secondary" onclick="PubScheda.anteprimaMappa()"><i class="fas fa-redo"></i> Ricontrolla</button>
+      <button class="btn btn-primary" onclick="PubScheda.chiudi()">Chiudi</button>`;
+  },
+
   _stili() {
     return `<style>
       .psc-overlay { position:fixed; inset:0; background:rgba(20,40,60,.45); z-index:9999; display:flex; align-items:center; justify-content:center; padding:1rem; }
@@ -311,6 +468,9 @@ const PubScheda = {
       .psc-body input[type=text], .psc-body input[type=url], .psc-body input[type=time], .psc-body input[type=date], .psc-body select, .psc-area { border:1px solid #D9D9D9; border-radius:6px; padding:.45rem .55rem; font-family:inherit; font-size:.9rem; width:100%; box-sizing:border-box; }
       .psc-row { display:flex; gap:.8rem; flex-wrap:wrap; align-items:flex-end; }
       .psc-check { flex-direction:row !important; align-items:center; gap:.45rem !important; }
+      .psc-label { font-size:.85rem; font-weight:600; color:#4A4A4A; margin:.2rem 0 .3rem; }
+      .psc-checks { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:0 .8rem; }
+      .psc-checks .psc-check { margin-bottom:.3rem; font-weight:400; }
       .psc-muted { color:#9B9B9B; font-size:.85rem; margin:.2rem 0 .6rem; }
       .psc-zona { border:1px solid #7BA7CE; border-radius:10px; padding:.8rem; margin:.8rem 0; background:#F5F9FD; }
       .psc-tab { width:100%; border-collapse:collapse; font-size:.85rem; margin:.4rem 0; }

@@ -1,6 +1,6 @@
 # Handoff — "Pubblicazioni sulle app" (chat MCP del CRM)
 
-_Ultimo aggiornamento: 11/10/2026 · CRM versione **10.6.3** pubblicata · tutto committato._
+_Ultimo aggiornamento: 11/10/2026 · CRM **10.7.0** (allineatore mappa generale) scritto, **NON ancora pubblicato** né provato in scrittura._
 
 > Per riprendere: in una nuova sessione scrivi **"riprendiamo le Pubblicazioni sulle app: leggi HANDOFF-PUBBLICAZIONI-APP.md"**.
 > Giancarlo NON è sviluppatore: un passo alla volta, linguaggio semplice, aspettare il suo "fatto". Pubblica lui da GitHub Desktop (Claude non committa/pusha). Dopo ogni push controllare che la versione sia online prima di testare (Vercel impiega 1–4 minuti).
@@ -18,14 +18,13 @@ _Ultimo aggiornamento: 11/10/2026 · CRM versione **10.6.3** pubblicata · tutto
 - **Calendario differenziata**: `api/calendario-ricorrente.js` (azioni `sezioni`, `anteprima`, `crea`, `proponi`), calcolo puro in `lib/calendario.js` (festivi nazionali + Pasqua, festività locali, eccezioni, frequenze settimanale/quindicinale/mensile, zone, fuso Europe/Rome), creazione diretta via `lib/mcp-client.js` a lotti di 40, dedup per `categoria|data|titolo`. Regole in `app/{id}.schedaComune.differenziata`. "Proponi le regole" legge le ultime 14 settimane di avvisi. Scheda di **Cefalù già compilata** (non creati avvisi: il test lo fa Giancarlo).
 - **Prove locali**: `scripts/banco-prova/prova-modello.js <modello> <docIdApp> "<domanda>"` (stessa richiesta della produzione; env `FALLBACK=1`, `IMG=<url>`). Chiave API di prova in `scripts/banco-prova/chiave.txt` (gitignored, **scade a metà novembre 2026**, chiave non legata a un workspace → header `anthropic-workspace-id: wrkspc_01HFKPWGSjcNz9t6zxVDpYMq`).
 
-## PROSSIMO PASSO — "Allineatore mappa generale" (punto 6)
-Scoperto su **Città della Spezia** (docId `P5nsfHzjIr6fpEjQHawz`, webzine 3954832): la mappa generale è una normale **sezione mappa chiamata "Mappa"** (id sezione 67497103). I punti ci entrano perché **spuntati anche lì**, oltre alla loro mappa (Visit, Utilità, Food&Drink…). Numeri: 611 punti totali, 249 nella "Mappa" generale, 293 in più sezioni. Le mappe restano separate perché ognuna ha il suo feed RSS (es. Visit → "Scopri" di Esplora).
-Da costruire (stesso schema del calendario):
-1. Nella **Scheda Comune**: scelta della **sezione mappa generale** e di **quali mappe vi confluiscono**.
-2. Azione `anteprima` (nuovo endpoint o azione in `calendario-ricorrente.js`): elenca i punti delle mappe scelte che NON hanno la categoria della generale.
-3. Azione `allinea`: `cms_update_map` con `categories` = categorie attuali + categoria della generale (mai togliere categorie), a lotti, con barra di avanzamento.
-4. Regola nel prompt: i nuovi punti mappa vanno spuntati anche nella generale se la loro mappa vi confluisce.
-Attenzione: chiedere a Giancarlo se ci sono mappe da ESCLUDERE dalla generale (es. Emergenze, Aree di emergenza).
+## Allineatore mappa generale (v10.7.0 — scritto, da pubblicare e collaudare)
+Scoperto su **Città della Spezia** (docId `P5nsfHzjIr6fpEjQHawz`): la mappa generale è una normale sezione mappa ("Mappa", id 67497103, categoria 14014404); i punti ci compaiono solo se hanno spuntata anche quella categoria.
+- **Scheda Comune** → blocco "Mappa generale": spunta, scelta sezione›categoria della generale (proposta in automatico se si chiama "Mappa"), caselle delle mappe che vi confluiscono. Escluse di default (ma spuntabili): emergenze, protezione civile, aree di attesa/ricovero/ammassamento, C.O.C. Salvato in `app/{id}.schedaComune.mappaGenerale = { attiva, sezioneId, categoriaId, titolo, sorgenti:[{id,titolo}] }`.
+- **Pulsante "Allinea mappa generale"** nella chat → `api/calendario-ricorrente.js` azioni `mappa-anteprima` (legge tutti i punti, ~30 s per 600 punti) e `mappa-allinea` (max 40 id per chiamata; il server rilegge i punti con `cms_list_maps` filtro id e manda `cms_update_map` con categorie attuali + quella della generale, mai togliere). Calcolo puro in `lib/mappa-generale.js`.
+- **Prompt chat**: se la scheda ha la mappa generale, i nuovi punti nelle mappe sorgenti prendono anche la categoria della generale.
+- Prova in sola lettura su La Spezia (11/10): 611 punti, 249 già nella generale, 243 da aggiungere (95 Presidi e Servizi Locali, 55 Rifornimenti e Colonnine, 33 DAE, 25 Scuole…). Da decidere con Giancarlo quali mappe spuntare prima di allineare.
+- **Collaudo da fare**: pubblicare, aprire La Spezia → Scheda Comune → impostare → Anteprima → allineare prima una mappa piccola (es. Associazioni) e controllare su GoodBarber che il punto compaia in entrambe le mappe e che nulla sia sparito.
 
 ## Altri punti aperti
 - Vecchio campo `mcpApiKey` (chiave statica GB) ancora nel doc di Cefalù, leggibile dal client: da togliere e valutare la revoca del set "MCP CEFALU"/"CMP" (decide Giancarlo).

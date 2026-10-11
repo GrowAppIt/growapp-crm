@@ -164,6 +164,7 @@ const PubblicazioniApp = {
           <div class="pub-chat-tools">
             <button class="btn btn-secondary" onclick="PubScheda.apriScheda()" title="Regole fisse del Comune e della differenziata"><i class="fas fa-id-card"></i> Scheda Comune</button>
             <button class="btn btn-secondary" onclick="PubScheda.apriCalendario()" title="Crea gli avvisi della differenziata per più mesi"><i class="fas fa-recycle"></i> Calendario differenziata</button>
+            <button class="btn btn-secondary" onclick="PubScheda.apriAllineaMappa()" title="Aggiunge alla mappa generale i punti delle altre mappe che mancano"><i class="fas fa-map-marked-alt"></i> Allinea mappa generale</button>
           </div>
         </div>
 
