@@ -161,6 +161,10 @@ const PubblicazioniApp = {
               ${comune ? `<div class="pub-chat-appcomune">${comune}</div>` : ''}
             </div>
           </div>
+          <div class="pub-chat-tools">
+            <button class="btn btn-secondary" onclick="PubScheda.apriScheda()" title="Regole fisse del Comune e della differenziata"><i class="fas fa-id-card"></i> Scheda Comune</button>
+            <button class="btn btn-secondary" onclick="PubScheda.apriCalendario()" title="Crea gli avvisi della differenziata per più mesi"><i class="fas fa-recycle"></i> Calendario differenziata</button>
+          </div>
         </div>
 
         ${!collegabile ? `
@@ -495,6 +499,8 @@ const PubblicazioniApp = {
                           font-family:inherit; font-size:.92rem; line-height:1.4; max-height:160px; }
         .pub-chat-input:focus { outline:none; border-color:var(--blu-500,#2E6DA8); }
         .pub-chat-send { flex-shrink:0; height:42px; width:48px; display:flex; align-items:center; justify-content:center; }
+        .pub-chat-tools { margin-left:auto; display:flex; gap:.5rem; flex-wrap:wrap; }
+        .pub-chat-tools .btn { font-size:.85rem; padding:.4rem .75rem; }
         .pub-chat-attach { flex-shrink:0; height:42px; width:44px; display:flex; align-items:center; justify-content:center; }
         .pub-attach-preview { display:flex; align-items:center; gap:.7rem; padding:.55rem .75rem; border-top:1px solid var(--grigio-300); background:var(--blu-100,#D1E2F2); }
         .pub-attach-preview img { width:52px; height:52px; object-fit:cover; border-radius:6px; border:1px solid var(--grigio-300); }

@@ -64,7 +64,7 @@ const MCP_TOOLSET = {
 };
 
 // --- System prompt: il "playbook" di sicurezza ---
-function buildSystemPrompt(appName) {
+function buildSystemPrompt(appName, scheda) {
   return [
     `Sei l'assistente di pubblicazione per l'app comunale "${appName}" dentro il CRM Comune.Digital.`,
     `Aiuti un operatore a pubblicare contenuti (soprattutto EVENTI dell'agenda) sull'app, partendo da materiale grezzo (email, testo, link, locandine).`,
@@ -86,8 +86,33 @@ function buildSystemPrompt(appName) {
     ``,
     `Stile: italiano, chiaro e conciso. Spiega cosa stai facendo passo-passo. Quando proponi una bozza, elenca i campi (titolo, data/ora inizio e fine, luogo, descrizione, sezione) in modo leggibile.`,
     ``,
-    `Oggi è ${oggiInItalia()} (ora italiana, fuso Europe/Rome). Usa questa data per interpretare "oggi", "domani", "sabato prossimo" e simili.`
+    `Oggi è ${oggiInItalia()} (ora italiana, fuso Europe/Rome). Usa questa data per interpretare "oggi", "domani", "sabato prossimo" e simili.`,
+    ``,
+    `CALENDARI RICORRENTI (raccolta differenziata e simili): non creare a mano decine di avvisi uno per uno. Per creare gli avvisi della differenziata per settimane o mesi l'operatore usa il pulsante "Calendario differenziata" in alto nella chat, che applica le regole salvate nella "Scheda Comune". Puoi aiutare a definire o correggere quelle regole, e creare singoli avvisi straordinari (es. un cambio di giorno per una festività).`,
+    schedaComuneTesto(scheda)
   ].join('\n');
+}
+
+// Regole fisse del Comune (doc app/{id}.schedaComune) da far rispettare all'assistente
+function schedaComuneTesto(scheda) {
+  if (!scheda) return '';
+  const righe = [];
+  if (scheda.regoleGenerali && String(scheda.regoleGenerali).trim()) {
+    righe.push('', 'REGOLE FISSE DI QUESTO COMUNE (scheda del Comune, da rispettare sempre):', String(scheda.regoleGenerali).trim().slice(0, 4000));
+  }
+  const d = scheda.differenziata;
+  if (d && d.attiva) {
+    const giorni = ['domenica', 'lunedì', 'martedì', 'mercoledì', 'giovedì', 'venerdì', 'sabato'];
+    righe.push('', 'DIFFERENZIATA di questo Comune (regole della scheda): promemoria ' + (Number(d.giorniPrima) === 1 ? 'la sera prima' : 'il giorno stesso') +
+      ' alle ' + (d.orarioNotifica || '20:00') + '; testo: "' + (d.testo || '') + '"; festivi ' + (d.saltaFestivi !== false ? 'saltati' : 'non saltati') + '.');
+    for (const z of (d.zone || [])) {
+      righe.push('- ' + (z.nome || 'Zona') + ' (categoria ' + (z.categoriaId || '?') + '): ' +
+        (z.raccolte || []).map(r => giorni[Number(r.giorno)] + ' → "' + r.titolo + '"' + (r.frequenza && r.frequenza !== 'settimanale' ? ' (' + r.frequenza + ')' : '')).join('; '));
+    }
+  } else if (d && d.attiva === false) {
+    righe.push('', 'Questo Comune NON ha gli avvisi della differenziata nell\'app.');
+  }
+  return righe.join('\n');
 }
 
 // Data di oggi in italiano (solo il giorno: cambia una volta al giorno, così la cache dei prompt regge)
@@ -150,10 +175,11 @@ module.exports = async function handler(req, res) {
     if (!messages || messages.length === 0) return res.status(400).json({ error: 'Nessun messaggio da elaborare.' });
 
     // Credenziali MCP lette e rinnovate DAL SERVER (mai dal browser), un'app alla volta.
-    let accessToken, mcpUrl, appName;
+    let accessToken, mcpUrl, appName, schedaComune;
     try {
       const t = await ottieniAccessToken(db, appId, admin);
       accessToken = t.accessToken; mcpUrl = t.mcpUrl; appName = t.appName;
+      schedaComune = (t.app || {}).schedaComune || null;
     } catch (e) {
       if (e.code === 'NOT_FOUND') return res.status(404).json({ error: 'App non trovata.' });
       if (e.code === 'MCP_NOT_CONFIGURED') {
@@ -179,7 +205,7 @@ module.exports = async function handler(req, res) {
       cache_control: { type: 'ephemeral' },
       // Se Opus rifiuta per un falso allarme dei filtri di sicurezza, il server riprova con un altro modello
       fallbacks: 'default',
-      system: buildSystemPrompt(appName),
+      system: buildSystemPrompt(appName, schedaComune),
       mcp_servers: [
         { type: 'url', name: 'goodbarber', url: mcpUrl, authorization_token: accessToken }
       ],
