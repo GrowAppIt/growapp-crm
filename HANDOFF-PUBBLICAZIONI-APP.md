@@ -1,62 +1,37 @@
-# Handoff — "Pubblicazioni sulle app" (chat MCP)
+# Handoff — "Pubblicazioni sulle app" (chat MCP del CRM)
 
-_Ultimo aggiornamento: sessione del 21/06/2026 · CRM versione 10.1.2 · codice committato._
+_Ultimo aggiornamento: 11/10/2026 · CRM versione **10.6.3** pubblicata · tutto committato._
 
-## Obiettivo
-Dare al CRM Comune.Digital una sezione **"Pubblicazioni sulle app"**: una chat (Claude) collegata, per ogni app GoodBarber, al **suo server MCP**, per agevolare chi ogni giorno carica a mano gli eventi sulle app. Principio di sicurezza: **fonte → Claude prepara una BOZZA → l'operatore conferma → si pubblica**. L'assistente non pubblica mai da solo.
+> Per riprendere: in una nuova sessione scrivi **"riprendiamo le Pubblicazioni sulle app: leggi HANDOFF-PUBBLICAZIONI-APP.md"**.
+> Giancarlo NON è sviluppatore: un passo alla volta, linguaggio semplice, aspettare il suo "fatto". Pubblica lui da GitHub Desktop (Claude non committa/pusha). Dopo ogni push controllare che la versione sia online prima di testare (Vercel impiega 1–4 minuti).
 
-## Decisioni prese (con l'utente)
-- **Architettura: MCP connector** dell'API Messages di Anthropic (Anthropic si collega al server MCP dell'app). Non l'API classica.
-- **Modello: `claude-sonnet-4-6`**.
-- **Sicurezza prima versione: "semplice"** = chiave R-W + regole nel system prompt + conferma esplicita per pubblicare/cancellare. (Le bozze non sono pubbliche.)
-- **Credenziali per app**: inserite nella **scheda della singola app** (non in una pagina globale).
-- Un evento va **quasi sempre su una sola app**.
+## Com'è fatto oggi
+- **Pagina CRM**: Pubblicazioni sulle app (`public/js/pages/pubblicazioni-app.js`) + Scheda Comune / Calendario (`public/js/pages/pubblicazioni-scheda.js`).
+- **Chat**: `api/app-publish-chat.js` → API Messages con **MCP connector** verso il server MCP GoodBarber dell'app.
+  - Modello **`claude-opus-5-5`** (deciso con Giancarlo), `cache_control` automatico (≈0,04 $ a richiesta invece di ≈1 $), `fallbacks: "default"` (beta `server-side-fallback-2026-07-01` insieme a `mcp-client-2025-11-20`), `max_tokens` 16000, `maxDuration` 300.
+  - **Sicurezza**: serve login CRM (Firebase ID token) con ruolo SUPER_ADMIN/ADMIN/CTO/SVILUPPATORE/CONTENT_MANAGER; CORS solo crm.comune.digital. Strumenti GoodBarber **tolti** all'assistente: 3 push, cancellazioni di interi contenuti, prenotazioni (`STRUMENTI_DISATTIVATI`).
+  - Prompt: bozze sempre; data di oggi; **regola orari**: l'ora di INIZIO evento = ora della notifica push (anticipata, nascosta), l'orario reale va nel TITOLO, l'anticipo lo si chiede ogni volta; testi curati in HTML + **inglese in corsivo** sotto `<hr>`; locandine (immagine allegata → paragrafo foto); **punti mappa** con punto modello (copia TUTTE le categorie incl. quella generale/filtro, stile HTML del testo, icona pin) + strumento CRM `trova_coordinate` (`lib/geocodifica.js`, OpenStreetMap); Scheda Comune iniettata nel prompt.
+  - La risposta include `nuoviMessaggi`: il browser li accoda tutti (cronologia append-only, necessaria per Opus 5.5).
+- **UI chat**: risposte impaginate (markdown sicuro, link cliccabili), graffetta "Allega locandina" (upload su Storage `documenti/app/{id}/pubblicazione_{ts}.jpg`: le regole Storage NON ammettono sottocartelle), pulsanti rapidi (Nuovo evento, Avviso differenziata straordinario, Nuovo punto mappa, Aggiungi l'inglese, Controlla la settimana).
+- **Lasciapassare MCP**: `lib/mcp-token.js`. GoodBarber **ruota il refresh_token a ogni uso** e lo fa **scadere dopo ~30 giorni** → lucchetto per app (`mcpRinnovoLockFino/Di`) + salvataggio immediato; cron settimanale `api/mcp-keepalive.js` (lunedì 03:10 UTC), esito in `app.mcpStato/mcpUltimoRinnovo/mcpUltimoErrore` e `sistema/mcpKeepalive`.
+- **Collegamenti**: 110/110 app attive collegate (procedura in `scripts/mcp-collega/ISTRUZIONI.md`). Identità verificata con `scripts/mcp-collega/verifica-identita.js` (sola lettura su GB). Manca solo Italo Greek Monasteries (senza webzineId).
+- **Calendario differenziata**: `api/calendario-ricorrente.js` (azioni `sezioni`, `anteprima`, `crea`, `proponi`), calcolo puro in `lib/calendario.js` (festivi nazionali + Pasqua, festività locali, eccezioni, frequenze settimanale/quindicinale/mensile, zone, fuso Europe/Rome), creazione diretta via `lib/mcp-client.js` a lotti di 40, dedup per `categoria|data|titolo`. Regole in `app/{id}.schedaComune.differenziata`. "Proponi le regole" legge le ultime 14 settimane di avvisi. Scheda di **Cefalù già compilata** (non creati avvisi: il test lo fa Giancarlo).
+- **Prove locali**: `scripts/banco-prova/prova-modello.js <modello> <docIdApp> "<domanda>"` (stessa richiesta della produzione; env `FALLBACK=1`, `IMG=<url>`). Chiave API di prova in `scripts/banco-prova/chiave.txt` (gitignored, **scade a metà novembre 2026**, chiave non legata a un workspace → header `anthropic-workspace-id: wrkspc_01HFKPWGSjcNz9t6zxVDpYMq`).
 
-## Scoperta DEFINITIVA (22/06/2026 — non ricaderci): il server MCP è OAuth, NON chiave statica
-La vecchia teoria "la Chiave API è un JWT statico Bearer, basta Copia chiave" era **SBAGLIATA** ed è la **causa del calvario ricorrente "chiave tronca"**. La verità, provata sul server:
-- POST al server MCP risponde `401` con `www-authenticate: Bearer resource_metadata=".../.well-known/oauth-protected-resource/376069/mcp/sse"` → è un **OAuth Protected Resource**. La chiave statica del back-office (100 caratteri, 1 punto) viene **sempre** rifiutata: è il tipo di credenziale sbagliato.
-- Metadati auth server (`https://mcp.ww-api.com/376069/.well-known/oauth-authorization-server`): grant `authorization_code` + `refresh_token` (NIENTE `client_credentials`), PKCE S256, client pubblico (`token_endpoint_auth_method: none`), endpoint `/authorize` `/token` `/register` sotto `.../376069/`.
-- **SOLUZIONE**: login OAuth interattivo **una volta** per app (con `scripts/mcp-login.js`) → si ottiene un **refresh_token**; il backend lo usa per generare access_token freschi e restare headless. Niente più "Copia chiave".
+## PROSSIMO PASSO — "Allineatore mappa generale" (punto 6)
+Scoperto su **Città della Spezia** (docId `P5nsfHzjIr6fpEjQHawz`, webzine 3954832): la mappa generale è una normale **sezione mappa chiamata "Mappa"** (id sezione 67497103). I punti ci entrano perché **spuntati anche lì**, oltre alla loro mappa (Visit, Utilità, Food&Drink…). Numeri: 611 punti totali, 249 nella "Mappa" generale, 293 in più sezioni. Le mappe restano separate perché ognuna ha il suo feed RSS (es. Visit → "Scopri" di Esplora).
+Da costruire (stesso schema del calendario):
+1. Nella **Scheda Comune**: scelta della **sezione mappa generale** e di **quali mappe vi confluiscono**.
+2. Azione `anteprima` (nuovo endpoint o azione in `calendario-ricorrente.js`): elenca i punti delle mappe scelte che NON hanno la categoria della generale.
+3. Azione `allinea`: `cms_update_map` con `categories` = categorie attuali + categoria della generale (mai togliere categorie), a lotti, con barra di avanzamento.
+4. Regola nel prompt: i nuovi punti mappa vanno spuntati anche nella generale se la loro mappa vi confluisce.
+Attenzione: chiedere a Giancarlo se ci sono mappe da ESCLUDERE dalla generale (es. Emergenze, Aree di emergenza).
 
-## Cosa è stato costruito (file toccati)
-- **UI credenziali** — `public/js/pages/dettaglio-app.js`
-  - `renderConfigurazioneApp`: nuova sezione **"Collegamento MCP"** con campi *URL Server MCP* e *Chiave API (R-W)* (chiave mascherata se già presente).
-  - `salvaConfigApp`: salva `mcpServerUrl` e `mcpApiKey` su Firestore (la chiave si aggiorna **solo** se ne digiti una nuova).
-- **Backend (motore)** — `api/app-publish-chat.js` (NUOVO)
-  - Legge `mcpServerUrl` + `mcpApiKey` dal doc app **lato server** (firebase-admin), mai dal browser.
-  - Chiama `api.anthropic.com/v1/messages` con beta `mcp-client-2025-11-20`, `mcp_servers:[{type:url,name:goodbarber,url,authorization_token:<chiave>}]`, `tools:[{type:mcp_toolset,mcp_server_name:goodbarber}]`, modello `claude-sonnet-4-6`, system prompt = playbook di sicurezza. Gestisce `pause_turn`.
-- **Chat (frontend)** — `public/js/pages/pubblicazioni-app.js`
-  - `_sendMessage` collegato a `/api/app-publish-chat` (invia `appId` + cronologia in formato API, spinner di attesa, salva il turno assistant).
-  - Badge app: **"Collegata / Da collegare"** in base a `mcpServerUrl` + `mcpApiKey`.
-- **Collegamenti** — `public/index.html` (voce menu "Pubblicazioni sulle app", `<script>`, `APP_VERSION` 10.1.2), `public/js/ui.js` (case routing), `public/js/auth.js` (permessi pagina).
-- **Config** — `vercel.json`: `api/app-publish-chat.js` con `maxDuration 60`, `memory 1024`.
-
-Campi nuovi nel doc Firestore `app`: **`mcpServerUrl`**, **`mcpApiKey`**.
-Env già presenti e usate: `ANTHROPIC_API_KEY`, `FIREBASE_*` (service account).
-
-## Come provare (CRM 10.1.3, dopo il deploy)
-0. **Login OAuth una-tantum** (sul Mac, nel repo): `node scripts/mcp-login.js` → si apre il browser, accedi/approvi su GoodBarber → lo script stampa **Client ID** e **Refresh Token** e conferma `initialize → HTTP 200 ✅`.
-1. **App → Cefalù → Configurazione App → Collegamento MCP**: incolla **URL** (`https://mcp.ww-api.com/376069/mcp/sse`), **Client ID** e **Refresh Token**. Salva.
-2. **Pubblicazioni sulle app → Cefalù** → prova in **sola lettura**: _"leggi cosa c'è negli eventi da oggi in poi"_.
-   - Se elenca gli eventi/sezioni → il collegamento funziona. ✅
-3. **Per ogni altra app**: rifare `node scripts/mcp-login.js "<URL MCP di quell'app>"` e incollare i suoi Client ID + Refresh Token nella sua scheda.
-
-## Cosa resta (prossimi step)
-1. **Esito prova di lettura** (la riferisce l'utente).
-2. Se ok → **prima bozza di evento end-to-end** (da email/locandina → bozza → conferma).
-3. Estendere la configurazione **alle altre app**.
-4. (Opzionale) **Hardening sicurezza**: oggi `mcpApiKey` sta nel doc app, leggibile anche client-side (come già il vecchio token GoodBarber e le password Apple). Valutare collezione separata / regole Firestore.
-5. (Opzionale) Allowlist degli strumenti MCP (disabilitare cancellazione/pubblicazione lato Claude per sicurezza extra).
-6. Gestione **IT/EN** per eventi turistici.
-
-## Rischi / cose da osservare
-- **Auth**: atteso `Authorization: Bearer <JWT>` (token statico) → dovrebbe funzionare al primo colpo. Se desse errore di autenticazione, controllare prima di tutto che la chiave **non sia troncata**.
-- **Timeout**: turni con molti strumenti potrebbero avvicinarsi ai 60s della function.
-- **Cache GoodBarber**: dopo una scrittura, il singolo `get` può essere in cache qualche minuto → verificare con la **lista/ricerca** (già previsto nel system prompt).
-
-## Come riprendere in un'altra sessione
-1. In una nuova chat, dì qualcosa come: **"riprendiamo le Pubblicazioni sulle app del CRM"**. La memoria persistente richiama il contesto (vedi nota `crm-pubblicazioni-app-mcp`).
-2. Riferisci **com'è andata la prova di lettura**:
-   - ✅ se ha elencato le sezioni → procediamo con la **bozza di evento**.
-   - ❌ se ha dato errore → **incolla il messaggio d'errore esatto** mostrato in chat (così diagnostichiamo sul fatto, senza tentativi a naso).
-3. Questo file (`HANDOFF-PUBBLICAZIONI-APP.md`) è il riepilogo completo del punto in cui siamo.
+## Altri punti aperti
+- Vecchio campo `mcpApiKey` (chiave statica GB) ancora nel doc di Cefalù, leggibile dal client: da togliere e valutare la revoca del set "MCP CEFALU"/"CMP" (decide Giancarlo).
+- I refresh token stanno nel doc `app` leggibile lato client: spostarli in una collezione protetta (tocca app-publish-chat, mcp-token, collega-app, dettaglio-app).
+- Il modulo "Configurazione App" in `dettaglio-app.js` **inventa gli URL** dal nome se mancano: correggere.
+- Booking senza spunta sui set delle app collegate prima di Diamante.
+- Nomi GB da sistemare: "Santo Stefano di Magra di Magra", "Villa San Giovann".
+- 2 file di prova 10×10 px in Storage `documenti/app/ahsLdIWDeljJRQN66GDj/` (Zambrone), non cancellabili dal client.
+- Ottimizzazione: in `crea` del calendario la rilettura degli esistenti costa ~40 s per lotto su app grandi.
