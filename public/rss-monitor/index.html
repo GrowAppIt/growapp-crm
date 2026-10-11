@@ -2400,7 +2400,24 @@
      * Chiamata DOPO il fetch dei feed, in background.
      * Non blocca il rendering — i badge appariranno al prossimo refresh.
      */
+    // Una sola classificazione alla volta: l'auto-refresh (ogni 10 min) ne faceva partire una seconda
+    // in parallelo sulle stesse notizie, pagando due volte lo stesso lavoro.
+    let _classificazioneInCorso = false;
+
     async function classifyUnclassifiedItems(allItems) {
+      if (_classificazioneInCorso) {
+        console.log('[AI] Classificazione già in corso, salto.');
+        return;
+      }
+      _classificazioneInCorso = true;
+      try {
+        await classifyUnclassifiedItemsInner(allItems);
+      } finally {
+        _classificazioneInCorso = false;
+      }
+    }
+
+    async function classifyUnclassifiedItemsInner(allItems) {
       const classifications = getCachedClassifications() || {};
 
       // Filtra solo notizie dal 1° marzo 2026 in poi, non ancora classificate
@@ -2455,6 +2472,12 @@
 
           classified += results.length;
           console.log(`[AI] Classificate ${classified}/${unclassified.length} notizie`);
+
+          // Mostra i badge man mano (ogni 5 blocchi = 100 notizie): l'arretrato può richiedere diversi minuti
+          // e prima i badge comparivano solo alla fine di tutto
+          if ((i / BATCH_SIZE) % 5 === 4) {
+            await renderItems(window.allItems);
+          }
 
         } catch (batchErr) {
           // Errore su questo batch: logga e CONTINUA col prossimo
