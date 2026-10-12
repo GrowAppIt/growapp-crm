@@ -137,9 +137,10 @@ function schedaComuneTesto(scheda) {
   }
   const mg = scheda.mappaGenerale;
   if (mg && mg.attiva && mg.categoriaId && (mg.sorgenti || []).length) {
-    righe.push('', 'MAPPA GENERALE di questo Comune: la sezione mappa "' + (mg.titolo || '') + '" (categoria ' + mg.categoriaId + ') raccoglie i punti delle mappe: ' +
-      mg.sorgenti.map(s => '"' + s.titolo + '" (sezione ' + s.id + ')').join(', ') + '. ' +
-      'Quando crei un punto in una di queste mappe, aggiungi ai suoi categories ANCHE la categoria ' + mg.categoriaId + ' (oltre a quelle copiate dal punto modello), così compare anche nella mappa generale; dillo nel riepilogo. ' +
+    righe.push('', 'MAPPA GENERALE di questo Comune: la sezione mappa "' + (mg.titolo || '') + '" (categoria completa ' + mg.categoriaId + ') raccoglie i punti delle mappe: ' +
+      mg.sorgenti.map(s => '"' + s.titolo + '" (sezione ' + s.id + (s.filtroId ? ', filtro nella generale: categoria ' + s.filtroId : '') + ')').join(', ') + '. ' +
+      'Quando crei un punto in una di queste mappe, aggiungi ai suoi categories ANCHE la categoria ' + mg.categoriaId + ' e, se indicato, il filtro nella generale di quella mappa (oltre a quelle copiate dal punto modello), così compare anche nella mappa generale e nel suo filtro; dillo nel riepilogo. ' +
+      'Se una mappa non ha il filtro indicato, guarda le categorie della sezione "' + (mg.titolo || '') + '": se ce n\'è una con lo stesso nome della mappa, aggiungi anche quella. ' +
       'I punti delle altre mappe (es. aree di emergenza) NON vanno nella generale. Per sistemare in blocco i punti già esistenti c\'è il pulsante "Allinea mappa generale" in alto nella chat.');
   }
   return righe.join('\n');

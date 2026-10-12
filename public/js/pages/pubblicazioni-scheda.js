@@ -8,6 +8,7 @@
  *   a blocchi degli avvisi su GoodBarber, senza doppioni.
  * - Mappa generale (v10.7.0): quale sezione mappa raccoglie i punti delle altre e quali mappe
  *   vi confluiscono; l'allineatore aggiunge la categoria della generale ai punti che mancano.
+ *   v10.7.5: anche il FILTRO della generale dedicato a ogni mappa (es. "Food&Drink"), trovato per nome.
  */
 const PubScheda = {
   ESCLUSE_MAPPA: /emergenz|protezione civile|aree di (attesa|ricovero|ammassamento)|piano comunale|centro operativo|c\.o\.c\b/i,
@@ -155,17 +156,27 @@ const PubScheda = {
           const et = s.title + (c.title && !/^(categoria principale|tutte le categorie)$/i.test(c.title) ? ' › ' + c.title : '');
           opz.push(`<option value="${s.id}|${c.id}" ${Number(mg.categoriaId) === Number(c.id) ? 'selected' : ''}>${this.esc(et)}</option>`);
         }
-        const sorg = new Set((mg.sorgenti || []).map(x => Number(x.id)));
+        const sorg = new Map((mg.sorgenti || []).map(x => [Number(x.id), x]));
         const altre = mappe.filter(s => Number(s.id) !== Number(mg.sezioneId));
+        const filtri = this._categorieFiltro();
+        const selFiltro = s => {
+          const x = sorg.get(Number(s.id));
+          if (!x || !filtri.length) return '';
+          const scelto = this._filtroDi(x);
+          return `<select class="psc-filtro" title="Filtro della mappa generale per i punti di ${this.esc(s.title)}" onchange="PubScheda._filtroSorgente(${Number(s.id)}, this.value)">
+            <option value="0" ${!scelto ? 'selected' : ''}>— nessun filtro —</option>
+            ${filtri.map(c => `<option value="${Number(c.id)}" ${scelto === Number(c.id) ? 'selected' : ''}>filtro: ${this.esc(c.title)}</option>`).join('')}
+          </select>`;
+        };
         corpo = `
-          <label>Mappa generale <small>(la sezione e la categoria da spuntare sui punti)</small>
+          <label>Mappa generale <small>(la sezione e la categoria completa da spuntare su tutti i punti, es. TUTTO)</small>
             <select onchange="PubScheda._sceltaGenerale(this.value)">${opz.join('')}</select></label>
           ${mg.categoriaId ? `
-            <div class="psc-label">Mappe che confluiscono nella generale</div>
+            <div class="psc-label">Mappe che confluiscono nella generale${filtri.length ? ' <small>(e il filtro della generale in cui finiscono i loro punti)</small>' : ''}</div>
             <div class="psc-checks">${altre.map(s => `
-              <label class="psc-check"><input type="checkbox" ${sorg.has(Number(s.id)) ? 'checked' : ''} onchange="PubScheda._sorgente(${Number(s.id)}, this.checked)"> ${this.esc(s.title)}</label>`).join('')}
+              <div class="psc-sorg"><label class="psc-check"><input type="checkbox" ${sorg.has(Number(s.id)) ? 'checked' : ''} onchange="PubScheda._sorgente(${Number(s.id)}, this.checked)"> ${this.esc(s.title)}</label>${selFiltro(s)}</div>`).join('')}
             </div>
-            <p class="psc-muted">Le mappe di emergenza e protezione civile sono lasciate fuori in automatico: spuntale solo se servono davvero.</p>` : ''}`;
+            <p class="psc-muted">Il filtro viene proposto da solo quando ha lo stesso nome della mappa. Le mappe di emergenza e protezione civile sono lasciate fuori in automatico: spuntale solo se servono davvero.</p>` : ''}`;
       }
     }
     return `
@@ -209,6 +220,32 @@ const PubScheda = {
       const s = ((this._sezioni && this._sezioni.mappe) || []).find(x => Number(x.id) === id);
       mg.sorgenti.push({ id, titolo: s ? s.title : String(id) });
     }
+    // Ridisegno (compare/sparisce la scelta del filtro) restando nello stesso punto della scheda
+    const body = document.getElementById('pscBody'); const y = body ? body.scrollTop : 0;
+    this._disegnaScheda();
+    if (body) body.scrollTop = y;
+  },
+
+  // Categorie-filtro della sezione generale (tutte tranne quella completa, es. TUTTO)
+  _categorieFiltro() {
+    const mg = this._scheda.mappaGenerale;
+    const s = ((this._sezioni && this._sezioni.mappe) || []).find(x => Number(x.id) === Number(mg.sezioneId));
+    return ((s && s.categories) || []).filter(c => c.id && Number(c.id) !== Number(mg.categoriaId));
+  },
+
+  // Filtro di una sorgente: quello scelto (0 = nessuno) oppure, se mai scelto, quello con lo stesso nome
+  _filtroDi(sorgente) {
+    const filtri = this._categorieFiltro();
+    if (sorgente.filtroId === 0) return 0;
+    if (sorgente.filtroId) return filtri.some(c => Number(c.id) === Number(sorgente.filtroId)) ? Number(sorgente.filtroId) : 0;
+    const k = t => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const c = filtri.find(x => k(x.title) === k(sorgente.titolo));
+    return c ? Number(c.id) : 0;
+  },
+
+  _filtroSorgente(id, v) {
+    const x = (this._scheda.mappaGenerale.sorgenti || []).find(s => Number(s.id) === id);
+    if (x) x.filtroId = Number(v) || 0;
   },
 
   async proponi() {
@@ -281,6 +318,10 @@ const PubScheda = {
     if (mg && mg.attiva) {
       if (!mg.categoriaId) { UI.showError('Scegli qual è la mappa generale (o togli la spunta).'); return; }
       if (!(mg.sorgenti || []).length) { UI.showError('Spunta almeno una mappa che confluisce nella generale.'); return; }
+      // Si salva il filtro proposto per nome, così lo legge anche l'assistente della chat
+      if (this._sezioni && (this._sezioni.mappe || []).length) {
+        for (const x of mg.sorgenti) { const f = this._filtroDi(x); if (f || x.filtroId === 0) x.filtroId = f; else delete x.filtroId; }
+      }
     }
     try {
       s.aggiornataIl = new Date().toISOString();
@@ -391,8 +432,8 @@ const PubScheda = {
       return;
     }
     this._modale(`<i class="fas fa-map-marked-alt"></i> Allinea mappa generale — ${this.esc(app.nome)}`, `
-      <p class="psc-muted">Cerco i punti delle mappe <strong>${this.esc((mg.sorgenti || []).map(x => x.titolo).join(', '))}</strong> che non compaiono nella mappa generale <strong>${this.esc(mg.titolo || '')}</strong>.
-      Ai punti mancanti si aggiunge solo la spunta della generale: le loro categorie restano tutte come sono.</p>
+      <p class="psc-muted">Cerco i punti delle mappe <strong>${this.esc((mg.sorgenti || []).map(x => x.titolo).join(', '))}</strong> che mancano nella mappa generale <strong>${this.esc(mg.titolo || '')}</strong> o nel suo filtro.
+      Ai punti si aggiungono solo le spunte della generale (categoria completa + filtro della loro mappa): le altre categorie restano tutte come sono.</p>
       <div id="pscRisultato"></div>`,
       `<button class="btn btn-secondary" onclick="PubScheda.chiudi()">Chiudi</button>`);
     this.anteprimaMappa();
@@ -406,19 +447,25 @@ const PubScheda = {
       const r = await this._api({ azione: 'mappa-anteprima', appId: PubblicazioniApp.currentApp.id });
       this._anteprimaMappa = r;
       const statoTxt = s => s === 'published' ? 'pubblicato' : s === 'draft' ? 'bozza' : this.esc(s || '');
+      const senzaFiltro = (r.filtri || []).filter(f => !f.filtro).map(f => f.sorgente);
+      const note = [];
+      if (senzaFiltro.length) note.push(`Senza un filtro con lo stesso nome nella generale (i loro punti vanno solo nella categoria completa): <strong>${this.esc(senzaFiltro.join(', '))}</strong>. Se il filtro c'è con un altro nome, sceglilo nella Scheda Comune.`);
+      if ((r.fuori || []).length) note.push(`Restano fuori perché la loro mappa non è spuntata nella Scheda Comune: ${r.fuori.map(f => `<strong>${this.esc(f.titolo)}</strong> (${f.n})`).join(', ')}.`);
+      if (r.senzaSezione) note.push(`${r.senzaSezione} punti non sono in nessuna mappa (archivio o sezione cancellata): non compaiono nell'app e non vengono toccati.`);
       box.innerHTML = `
         <div class="psc-sommario">
-          <span class="psc-pill psc-verde">${r.daAllineare.length} da aggiungere</span>
+          <span class="psc-pill psc-verde">${r.daAllineare.length} da sistemare</span>
           <span class="psc-pill">${r.giaDentro} già nella generale</span>
           <span class="psc-pill">${r.totale} punti in tutto</span>
         </div>
-        ${r.daAllineare.length ? `<div class="psc-scroll"><table class="psc-tab"><thead><tr><th>Punto</th><th>Mappa</th><th>Stato</th></tr></thead><tbody>
-          ${r.daAllineare.map(p => `<tr><td>${this.esc(p.titolo)}</td><td>${this.esc(p.sezioni.join(', '))}</td><td>${statoTxt(p.stato)}</td></tr>`).join('')}
-        </tbody></table></div>` : `<div class="psc-ok"><i class="fas fa-check-circle"></i> Tutto in ordine: la mappa generale contiene già tutti i punti delle mappe scelte.</div>`}`;
+        ${note.length ? `<div class="psc-warn"><i class="fas fa-info-circle"></i> ${note.join('<br>')}</div>` : ''}
+        ${r.daAllineare.length ? `<div class="psc-scroll"><table class="psc-tab"><thead><tr><th>Punto</th><th>Mappa</th><th>Si aggiunge</th><th>Stato</th></tr></thead><tbody>
+          ${r.daAllineare.map(p => `<tr><td>${this.esc(p.titolo)}</td><td>${this.esc(p.sezioni.join(', '))}</td><td>${this.esc((p.aggiunte || []).join(' + '))}</td><td>${statoTxt(p.stato)}</td></tr>`).join('')}
+        </tbody></table></div>` : `<div class="psc-ok"><i class="fas fa-check-circle"></i> Tutto in ordine: la mappa generale e i suoi filtri contengono già tutti i punti delle mappe scelte.</div>`}`;
       if (r.daAllineare.length) {
         document.getElementById('pscFoot').innerHTML = `
           <button class="btn btn-secondary" onclick="PubScheda.chiudi()">Chiudi</button>
-          <button class="btn btn-primary" onclick="PubScheda.allineaMappa()"><i class="fas fa-plus-circle"></i> Aggiungi ${r.daAllineare.length} punti alla mappa generale</button>`;
+          <button class="btn btn-primary" onclick="PubScheda.allineaMappa()"><i class="fas fa-plus-circle"></i> Sistema ${r.daAllineare.length} punti nella mappa generale</button>`;
       }
     } catch (e) {
       box.innerHTML = `<div class="psc-warn"><i class="fas fa-exclamation-triangle"></i> ${this.esc(e.message)}</div>`;
@@ -432,7 +479,7 @@ const PubScheda = {
     const foot = document.getElementById('pscFoot');
     const box = document.getElementById('pscRisultato');
     foot.innerHTML = '';
-    box.insertAdjacentHTML('afterbegin', `<div class="psc-progress"><div class="psc-bar"><div id="pscBar" style="width:0%"></div></div><div id="pscProgTxt">Aggiungo i punti… 0 di ${totale}</div></div>`);
+    box.insertAdjacentHTML('afterbegin', `<div class="psc-progress"><div class="psc-bar"><div id="pscBar" style="width:0%"></div></div><div id="pscProgTxt">Sistemo i punti… 0 di ${totale}</div></div>`);
     let tentativiVuoti = 0;
     while (daFare.length && tentativiVuoti < 3) {
       const lotto = daFare.slice(0, 40);
@@ -446,11 +493,11 @@ const PubScheda = {
       fatti += ok.size;
       daFare = daFare.filter(id => !ok.has(id) && !falliti.has(id));
       document.getElementById('pscBar').style.width = Math.round(fatti / totale * 100) + '%';
-      document.getElementById('pscProgTxt').textContent = `Aggiungo i punti… ${fatti} di ${totale}`;
+      document.getElementById('pscProgTxt').textContent = `Sistemo i punti… ${fatti} di ${totale}`;
     }
     document.getElementById('pscProgTxt').innerHTML = errori.length
-      ? `<span style="color:#D32F2F"><i class="fas fa-exclamation-triangle"></i> Aggiunti ${fatti} di ${totale}. Problemi: ${this.esc([...new Set(errori)].slice(0, 3).join(' · '))}</span>`
-      : `<span style="color:#3CA434"><i class="fas fa-check-circle"></i> Fatto: ${fatti} punti ora compaiono anche nella mappa generale.</span>`;
+      ? `<span style="color:#D32F2F"><i class="fas fa-exclamation-triangle"></i> Sistemati ${fatti} di ${totale}. Problemi: ${this.esc([...new Set(errori)].slice(0, 3).join(' · '))}</span>`
+      : `<span style="color:#3CA434"><i class="fas fa-check-circle"></i> Fatto: ${fatti} punti ora compaiono nella mappa generale e nel loro filtro.</span>`;
     foot.innerHTML = `<button class="btn btn-secondary" onclick="PubScheda.anteprimaMappa()"><i class="fas fa-redo"></i> Ricontrolla</button>
       <button class="btn btn-primary" onclick="PubScheda.chiudi()">Chiudi</button>`;
   },
@@ -471,6 +518,9 @@ const PubScheda = {
       .psc-label { font-size:.85rem; font-weight:600; color:#4A4A4A; margin:.2rem 0 .3rem; }
       .psc-checks { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:0 .8rem; }
       .psc-checks .psc-check { margin-bottom:.3rem; font-weight:400; }
+      .psc-sorg { display:flex; flex-direction:column; gap:.2rem; margin-bottom:.45rem; }
+      .psc-sorg .psc-check { margin-bottom:0; }
+      .psc-body select.psc-filtro { font-size:.78rem; padding:.2rem .4rem; margin-left:1.5rem; width:calc(100% - 1.5rem); color:#145284; }
       .psc-muted { color:#9B9B9B; font-size:.85rem; margin:.2rem 0 .6rem; }
       .psc-zona { border:1px solid #7BA7CE; border-radius:10px; padding:.8rem; margin:.8rem 0; background:#F5F9FD; }
       .psc-tab { width:100%; border-collapse:collapse; font-size:.85rem; margin:.4rem 0; }

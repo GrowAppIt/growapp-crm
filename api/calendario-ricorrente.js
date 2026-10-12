@@ -11,7 +11,7 @@
  *   { azione: 'crea',      appId, dal, al, chiavi:[…] } → crea (max ~40 per chiamata) gli avvisi indicati
  *   { azione: 'proponi',   appId, categoriaId? }       → ricava le regole dagli avvisi già presenti (sola lettura)
  *   { azione: 'mappa-anteprima', appId }                → punti delle mappe "sorgenti" che mancano nella mappa generale
- *   { azione: 'mappa-allinea',   appId, ids:[…] }       → aggiunge (max ~40 per chiamata) la categoria della generale a quei punti
+ *   { azione: 'mappa-allinea',   appId, ids:[…] }       → aggiunge (max ~40 per chiamata) la categoria della generale e il filtro della loro mappa
  * Accesso: utente loggato al CRM con ruolo abilitato (come "Pubblicazioni sulle app").
  */
 
@@ -19,7 +19,7 @@ const admin = require('firebase-admin');
 const { ottieniAccessToken } = require('../lib/mcp-token.js');
 const { apriSessione } = require('../lib/mcp-client.js');
 const { generaAvvisi, proponiRegole } = require('../lib/calendario.js');
-const { puntiDaAllineare } = require('../lib/mappa-generale.js');
+const { puntiDaAllineare, filtriSorgenti } = require('../lib/mappa-generale.js');
 
 if (!admin.apps.length) {
   if (process.env.FIREBASE_SERVICE_ACCOUNT) {
@@ -106,6 +106,11 @@ module.exports = async function handler(req, res) {
       if (!regole || !regole.attiva || !regole.categoriaId || !(regole.sorgenti || []).length) {
         return res.status(400).json({ error: 'Mappa generale non impostata nella Scheda Comune.' });
       }
+      // Filtri della generale (una categoria per ogni mappa sorgente, es. "Food&Drink"): letti dalla sezione generale
+      const sezMappe = ((await mcp.chiama('cms_list_cms_sections', { type: 'maps' })) || {}).sections || [];
+      const sezGen = sezMappe.find(sz => Number(sz.id) === Number(regole.sezioneId)) ||
+        sezMappe.find(sz => (sz.categories || []).some(c => Number(c.id) === Number(regole.categoriaId)));
+      const filtri = filtriSorgenti(regole, (sezGen || {}).categories || []);
       if (azione === 'mappa-anteprima') {
         let punti = [], totale = 0;
         for (let page = 1; page <= 200; page++) {
@@ -114,15 +119,29 @@ module.exports = async function handler(req, res) {
           totale = x.total || punti.length;
           if (!x.has_next_page) break;
         }
-        const daAllineare = puntiDaAllineare(punti, regole).map(p => ({ id: p.id, titolo: p.titolo, stato: p.stato, sezioni: p.sezioni }));
+        const daAllineare = puntiDaAllineare(punti, regole, filtri).map(p => ({ id: p.id, titolo: p.titolo, stato: p.stato, sezioni: p.sezioni, aggiunte: p.aggiunte }));
         const giaDentro = punti.filter(p => (p.sections || []).some(sz => (sz.categories || []).some(c => Number(c.id) === Number(regole.categoriaId)))).length;
-        return res.status(200).json({ totale, giaDentro, daAllineare });
+        // Per l'operatore: quale filtro riceve ogni mappa, e i punti che restano fuori di proposito
+        const sorgentiIds = new Set((regole.sorgenti || []).map(s => Number(s.id)));
+        const fuori = {};
+        let senzaSezione = 0;
+        for (const p of punti) {
+          const ss = (p.sections || []).filter(sz => Number(sz.id) !== Number(regole.sezioneId));
+          if (!(p.sections || []).length) { senzaSezione++; continue; }
+          if (ss.some(sz => sorgentiIds.has(Number(sz.id)))) continue;
+          for (const sz of ss) fuori[sz.title || sz.id] = (fuori[sz.title || sz.id] || 0) + 1;
+        }
+        return res.status(200).json({
+          totale, giaDentro, daAllineare, senzaSezione,
+          fuori: Object.entries(fuori).map(([titolo, n]) => ({ titolo, n })),
+          filtri: (regole.sorgenti || []).map(s => ({ sorgente: s.titolo, filtro: (filtri.get(Number(s.id)) || {}).titolo || null }))
+        });
       }
       // Si rilegge ogni punto da GoodBarber: si aggiorna solo se il calcolo conferma che manca (niente dati arbitrari dal browser)
       const ids = [...new Set((body.ids || []).map(Number).filter(n => n > 0))].slice(0, MAX_PER_CHIAMATA);
       if (!ids.length) return res.status(400).json({ error: 'Nessun punto indicato.' });
       const letti = await mcp.chiama('cms_list_maps', { id: ids, per_page: 100 });
-      const daFare = new Map(puntiDaAllineare(letti.items || [], regole).map(p => [p.id, p]));
+      const daFare = new Map(puntiDaAllineare(letti.items || [], regole, filtri).map(p => [p.id, p]));
       const trovati = new Set((letti.items || []).map(p => Number(p.id)));
       const inizio = Date.now();
       const risultati = [];
