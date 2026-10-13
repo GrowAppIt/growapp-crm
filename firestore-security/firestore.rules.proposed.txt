@@ -17,6 +17,8 @@ rules_version = '2';
 //      Tutto il resto bloccato dal catch-all.
 //   5. Tutto richiede stato != 'DISATTIVO' (un utente disattivato può loggarsi
 //      ma non legge/scrive niente).
+//   7. (2026-10-13) Aggiunte 'fornitori' e 'fornitori_valutazioni' a isCrmCollection
+//      (registro fornitori ISO 9001, CRM v10.8.0). PUBBLICATO in Console il 13/10/2026.
 //   6. (2026-07-08) Aggiunta 'app_public' (specchio pubblico nome/slug, write:false).
 //      FASE 2 (rendere 'app' read auth-only): risulta FATTA — verificata in
 //      produzione il 2026-09-18, vedi la nota sul match /app/.
