@@ -35,7 +35,8 @@ const AuthService = {
             'view_company_info', // ✅ Può vedere card Growapp (ma non modificare)
             'view_officina_digitale', 'manage_officina_digitale', // ✅ Officina Digitale
             'delete_clients', // ✅ Eliminazione cliente + dati collegati
-            'use_ai_assistant' // ✅ Assistente AI in Dashboard
+            'use_ai_assistant', // ✅ Assistente AI in Dashboard
+            'manage_suppliers' // ✅ Registro fornitori qualificati (ISO 9001)
         ],
         CTO: [
             'view_all_data', 'manage_apps', 'manage_dev_tasks', 'view_dev_tasks',
@@ -355,6 +356,7 @@ const AuthService = {
             'mappa': ['*', 'view_all_data', 'view_own_data', 'view_clients', 'manage_clients', 'view_apps', 'view_dev_tasks', 'manage_dev_tasks', 'view_company_info'],
             'promemoria': ['*', 'view_all_data', 'view_own_data', 'view_clients', 'manage_clients', 'view_apps', 'view_dev_tasks', 'manage_dev_tasks', 'view_company_info'],
             'report': ['*', 'view_reports'],
+            'fornitori': ['*', 'manage_suppliers'], // Registro fornitori qualificati ISO 9001: solo Super Admin e Admin
             'impostazioni': ['*', 'manage_settings', 'manage_users', 'view_company_info', 'manage_business_card'], // ✅ Tutti possono vedere Impostazioni (almeno le card base)
             'monitor-rss': ['*', 'view_all_data', 'manage_apps', 'manage_app_content'], // Monitor RSS: NO agenti (esclusi view_clients, manage_clients che ha l'agente)
             'report-app': ['*', 'view_all_data', 'view_apps', 'manage_apps', 'manage_app_content'],

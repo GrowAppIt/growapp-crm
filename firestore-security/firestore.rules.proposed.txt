@@ -89,7 +89,9 @@ service cloud.firestore {
         'od_attivita', 'od_changelog', 'od_componenti', 'od_istanze_componenti', 'od_prodotti',
         'presence', 'promemoria', 'push_broadcast_log', 'saleRiunioni', 'scadenzario',
         'settings', 'tasks',
-        'rss_feeds', 'rss_assignments', 'rss_classifications', 'rss_read'
+        'rss_feeds', 'rss_assignments', 'rss_classifications', 'rss_read',
+        // v10.8.0 — registro fornitori qualificati ISO 9001 (pagina solo admin)
+        'fornitori', 'fornitori_valutazioni'
       ];
     }
 

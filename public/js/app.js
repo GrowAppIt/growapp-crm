@@ -380,7 +380,8 @@ const App = {
             'report-app', 'push-broadcast', 'aggiorna-push', 'monitor-rss', 'generatore-webapp', 'storico-push', 'officina-digitale',
             'dettaglio-cliente', 'dettaglio-contratto', 'dettaglio-app',
             'dettaglio-fattura', 'dettaglio-scadenza',
-            'sala-riunioni', 'centro-notifiche'   // v10.2.0: destinazioni linkTo delle notifiche
+            'sala-riunioni', 'centro-notifiche',   // v10.2.0: destinazioni linkTo delle notifiche
+            'fornitori'   // v10.8.0: registro fornitori qualificati (#/fornitori/<id> = scheda)
         ];
 
         // Pattern: #/pagina/id (per pagine dettaglio o deep link task)

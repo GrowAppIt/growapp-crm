@@ -152,6 +152,9 @@ const UI = {
             case 'promemoria':
                 Promemoria.render();
                 break;
+            case 'fornitori':
+                Fornitori.render(id);
+                break;
             case 'centro-notifiche':
                 CentroNotifiche.render();
                 break;
@@ -283,6 +286,7 @@ const UI = {
             'report': 'Torna al report',
             'report-app': 'Torna al Report App',
             'promemoria': 'Torna ai promemoria',
+            'fornitori': 'Torna ai fornitori',
             'mappa': 'Torna alla mappa',
             'push-broadcast': 'Torna a Push Broadcast',
             'aggiorna-push': 'Torna ad Aggiorna Push',
@@ -538,6 +542,7 @@ const UI = {
             'report':        () => skCardGrid('fa-chart-bar', 'Report', 4),
             'mappa':         () => skCardGrid('fa-map-marked-alt', 'Mappa Clienti', 1),
             'promemoria':    () => skCardGrid('fa-bell', 'Promemoria', 3),
+            'fornitori':     () => skCardGrid('fa-award', 'Registro fornitori qualificati', 6),
             'impostazioni':  () => skCardGrid('fa-cog', 'Impostazioni', 3),
             'monitor-rss':   () => skCardGrid('fa-rss', 'Monitor RSS', 2),
             'dettaglio-cliente':   () => skDettaglio('fa-user', 'Dettaglio Cliente'),
