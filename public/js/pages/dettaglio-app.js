@@ -1749,6 +1749,8 @@ const DettaglioApp = {
                     </div>
                 </div>
 
+                ${this._renderReportPubblicoCard(app)}
+
                 <!-- Container per i dati (verrà popolato da aggiornaStatisticheGB o dalla cache) -->
                 <div id="gbStatsContainer">
                     ${cache ? this._renderGBStatsContent(cache) : `
@@ -1760,6 +1762,117 @@ const DettaglioApp = {
                 </div>
             </div>
         `;
+    },
+
+    // === REPORT PUBBLICO PER IL COMUNE ===
+    // Link segreto /report/?r=<token> con download totali e ultimi 12 mesi.
+    // Dati generati lato server (api/report-pubblico.js) e aggiornati ogni notte.
+
+    _reportPubblicoUrl(token) {
+        return window.location.origin + '/report/?r=' + encodeURIComponent(token);
+    },
+
+    _renderReportPubblicoCard(app) {
+        const token = app.reportPubblicoToken || null;
+        const puoGestire = AuthService.hasPermission('manage_apps');
+        if (!token && !puoGestire) return '';
+
+        if (!token) {
+            return `
+                <div class="card" id="reportPubblicoCard" style="display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap;">
+                    <div>
+                        <h3 style="margin:0;color:var(--blu-700);font-size:1.05rem;"><i class="fas fa-share-nodes"></i> Report pubblico per il Comune</h3>
+                        <p style="margin:0.25rem 0 0;color:var(--grigio-500);font-size:0.9rem;">Una pagina da condividere con il Comune: download totali e ultimi 12 mesi di visualizzazioni e sessioni.</p>
+                    </div>
+                    <button class="btn btn-primary btn-sm" id="btnReportPubblico" onclick="DettaglioApp.gestisciReportPubblico('crea')">
+                        <i class="fas fa-link"></i> Crea link pubblico
+                    </button>
+                </div>`;
+        }
+
+        const url = this._reportPubblicoUrl(token);
+        const creato = app.reportPubblicoCreatoIl ? new Date(app.reportPubblicoCreatoIl).toLocaleDateString('it-IT') : null;
+        return `
+            <div class="card" id="reportPubblicoCard">
+                <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;flex-wrap:wrap;margin-bottom:0.75rem;">
+                    <div>
+                        <h3 style="margin:0;color:var(--blu-700);font-size:1.05rem;"><i class="fas fa-share-nodes"></i> Report pubblico per il Comune</h3>
+                        <p style="margin:0.25rem 0 0;color:var(--grigio-500);font-size:0.9rem;">Chi ha il link vede il report senza login. Dati aggiornati ogni notte${creato ? ` · link creato il ${creato}` : ''}.</p>
+                    </div>
+                </div>
+                <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;">
+                    <input type="text" readonly value="${url}" onclick="this.select()"
+                        style="flex:1;min-width:240px;font-family:monospace;font-size:0.85rem;padding:0.5rem 0.75rem;border:1px solid var(--grigio-300);border-radius:8px;background:var(--grigio-100);">
+                    <button class="btn btn-primary btn-sm" onclick="DettaglioApp.copiaLinkReport()"><i class="fas fa-copy"></i> Copia</button>
+                    <a class="btn btn-secondary btn-sm" href="${url}" target="_blank" rel="noopener"><i class="fas fa-external-link-alt"></i> Apri</a>
+                </div>
+                ${puoGestire ? `
+                <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:0.75rem;">
+                    <button class="btn btn-secondary btn-sm" id="btnReportPubblico" onclick="DettaglioApp.gestisciReportPubblico('aggiorna')">
+                        <i class="fas fa-sync-alt"></i> Aggiorna dati ora
+                    </button>
+                    <button class="btn btn-secondary btn-sm" onclick="DettaglioApp.gestisciReportPubblico('rigenera')">
+                        <i class="fas fa-rotate"></i> Nuovo link
+                    </button>
+                    <button class="btn btn-secondary btn-sm" style="color:var(--rosso-errore, #D32F2F);" onclick="DettaglioApp.gestisciReportPubblico('disattiva')">
+                        <i class="fas fa-link-slash"></i> Disattiva
+                    </button>
+                </div>` : ''}
+            </div>`;
+    },
+
+    async gestisciReportPubblico(azione) {
+        const app = this.app;
+        if (azione === 'rigenera' && !confirm('Creare un nuovo link?\n\nIl link attuale smetterà di funzionare: chi lo ha ricevuto non potrà più aprire il report.')) return;
+        if (azione === 'disattiva' && !confirm('Disattivare il report pubblico?\n\nIl link smetterà di funzionare e i dati pubblici verranno eliminati.')) return;
+
+        const card = document.getElementById('reportPubblicoCard');
+        if (card) card.querySelectorAll('button').forEach(b => { b.disabled = true; });
+        const btn = document.getElementById('btnReportPubblico');
+        if (btn && (azione === 'crea' || azione === 'aggiorna')) btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Preparo i dati...';
+
+        try {
+            const resp = await fetch('/api/report-pubblico', {
+                method: 'POST',
+                headers: await window.CRM_authHeaders(),
+                body: JSON.stringify({ appId: app.id, azione })
+            });
+            const data = await resp.json().catch(() => ({}));
+            if (!resp.ok) throw new Error(data.error || ('Errore ' + resp.status));
+
+            if (data.token) {
+                if (data.token !== app.reportPubblicoToken) app.reportPubblicoCreatoIl = new Date().toISOString();
+                app.reportPubblicoToken = data.token;
+            } else {
+                delete app.reportPubblicoToken;
+                delete app.reportPubblicoCreatoIl;
+            }
+
+            const messaggi = {
+                crea: 'Link pubblico pronto',
+                aggiorna: 'Dati del report aggiornati',
+                rigenera: 'Nuovo link creato: il precedente non funziona più',
+                disattiva: 'Report pubblico disattivato'
+            };
+            UI.showSuccess(messaggi[azione]);
+            if (card) card.outerHTML = this._renderReportPubblicoCard(app);
+            if (azione === 'crea' || azione === 'rigenera') this.copiaLinkReport(true);
+        } catch (e) {
+            UI.showError('Report pubblico: ' + e.message);
+            const c = document.getElementById('reportPubblicoCard');
+            if (c) c.outerHTML = this._renderReportPubblicoCard(app);
+        }
+    },
+
+    async copiaLinkReport(silenzioso) {
+        const token = this.app.reportPubblicoToken;
+        if (!token) return;
+        try {
+            await navigator.clipboard.writeText(this._reportPubblicoUrl(token));
+            if (!silenzioso) UI.showSuccess('Link copiato');
+        } catch (e) {
+            if (!silenzioso) UI.showError('Copia non riuscita: seleziona il link e copialo a mano');
+        }
     },
 
     async testGBConnection() {

@@ -31,6 +31,14 @@
       "maxDuration": 300,
       "memory": 512
     },
+    "api/refresh-report-pubblici.js": {
+      "maxDuration": 300,
+      "memory": 512
+    },
+    "api/report-pubblico.js": {
+      "maxDuration": 60,
+      "memory": 512
+    },
     "api/enrich-thumbnails.js": {
       "maxDuration": 120,
       "memory": 512
@@ -56,6 +64,10 @@
     {
       "path": "/api/refresh-gb-stats",
       "schedule": "30 4 * * *"
+    },
+    {
+      "path": "/api/refresh-report-pubblici",
+      "schedule": "0 5 * * *"
     },
     {
       "path": "/api/enrich-thumbnails",
@@ -135,6 +147,14 @@
       "destination": "/archivio-eventi/index.html"
     },
     {
+      "source": "/report",
+      "destination": "/report/index.html"
+    },
+    {
+      "source": "/report/",
+      "destination": "/report/index.html"
+    },
+    {
       "source": "/rss-monitor/(.*)",
       "destination": "/rss-monitor/$1"
     },
@@ -183,6 +203,23 @@
         {
           "key": "Content-Security-Policy",
           "value": "frame-ancestors 'self' https://archivioeventi.comune.digital https://notifiche.comune.digital https://crm.comune.digital https://*.comune.digital https://*.goodbarber.com https://*.goodbarber.app"
+        }
+      ]
+    },
+    {
+      "source": "/report/(.*)",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "no-referrer"
+        },
+        {
+          "key": "Content-Security-Policy",
+          "value": "frame-ancestors 'self' https://crm.comune.digital https://*.comune.digital https://*.goodbarber.com https://*.goodbarber.app"
         }
       ]
     },
