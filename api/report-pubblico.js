@@ -3,6 +3,8 @@
  *
  *   GET  /api/report-pubblico?r=<token>
  *        Pubblico, senza login: restituisce i dati della pagina /report/?r=<token>.
+ *   GET  /api/report-pubblico?r=<token>&formato=pdf
+ *        Lo stesso report come PDF A4 (pulsante "Scarica PDF" della pagina).
  *        Legge `report_pubblici/{token}` con l'Admin SDK, così le regole
  *        Firestore restano chiuse (nessun accesso diretto dal browser).
  *
@@ -16,6 +18,7 @@
 
 const admin = require('firebase-admin');
 const { COLLEZIONE, generaToken, tokenValido, salvaReport } = require('../lib/report-pubblico.js');
+const { generaPdf, nomeFile } = require('../lib/report-pdf.js');
 
 if (!admin.apps.length) {
     try {
@@ -68,10 +71,23 @@ async function leggiReport(req, res) {
     const snap = await db.collection(COLLEZIONE).doc(token).get();
     if (!snap.exists || !snap.data().report) return res.status(404).json({ error: 'Report non trovato.' });
 
+    const report = snap.data().report;
     // I dati cambiano una volta a notte: la CDN può tenerli 10 minuti.
     res.setHeader('Cache-Control', 'public, s-maxage=600, stale-while-revalidate=3600');
     res.setHeader('X-Robots-Tag', 'noindex, nofollow');
-    return res.status(200).json(snap.data().report);
+
+    if (req.query.formato === 'pdf') {
+        const pdf = await generaPdf(report);
+        const nome = nomeFile(report);
+        const ascii = nome.normalize('NFD').replace(/[^\x20-\x7e]/g, '').replace(/"/g, '');
+        res.setHeader('Content-Type', 'application/pdf');
+        // "inline": i browser interni delle app (Telegram, WhatsApp) mostrano il PDF
+        // e permettono di condividerlo/salvarlo; un "attachment" spesso lo ignorano.
+        res.setHeader('Content-Disposition', 'inline; filename="' + ascii + '"; filename*=UTF-8\'\'' + encodeURIComponent(nome));
+        res.setHeader('Content-Length', pdf.length);
+        return res.status(200).send(pdf);
+    }
+    return res.status(200).json(report);
 }
 
 async function gestisciLink(req, res) {

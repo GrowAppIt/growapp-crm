@@ -269,6 +269,8 @@
   .kpis.n2 { grid-template-columns: repeat(2, 1fr); }
   @media (max-width: 900px) { .kpis.n3 { grid-template-columns: 1fr 1fr; } }
   @media (max-width: 560px) { .kpis.n3, .kpis.n2 { grid-template-columns: 1fr; } }
+  .inapp-note { display: flex; gap: 8px; align-items: flex-start; margin: 12px 0 0; font-size: 0.85rem; color: var(--cd-gray-500); max-width: 560px; }
+  .inapp-note i { color: var(--cd-blue-500); margin-top: 3px; }
   [hidden] { display: none !important; }
 </style>
 </head>
@@ -365,9 +367,13 @@
   </section>
 
   <div class="actions">
-    <button class="btn btn-primary" type="button" onclick="window.print()"><i class="fa-solid fa-file-pdf"></i>Scarica PDF</button>
+    <a class="btn btn-primary" id="pdfBtn" href="#" target="_blank" rel="noopener"><i class="fa-solid fa-file-pdf"></i>Scarica PDF</a>
     <button class="btn btn-outline" type="button" id="copyBtn"><i class="fa-solid fa-link"></i>Copia link</button>
   </div>
+  <p class="inapp-note" id="inappNote" hidden>
+    <i class="fa-solid fa-circle-info"></i>
+    <span>Stai usando il browser interno di un'app (Telegram, WhatsApp…). Se il PDF non si apre, tocca <strong>⋮</strong> o <strong>···</strong> in alto, scegli <strong>Apri nel browser</strong> e premi di nuovo «Scarica PDF».</span>
+  </p>
 </main>
 
 <footer>Report a cura di <strong>Comune.Digital</strong></footer>
@@ -414,9 +420,23 @@ function mostraErrore(testo) {
   if (testo) document.getElementById("errorText").textContent = testo;
 }
 
+// Browser interni delle app (Telegram, WhatsApp, Instagram…): WebView Android
+// ("; wv)") o WebView iOS senza il marcatore "Safari/". Lì i download possono non funzionare.
+function browserInterno() {
+  const ua = navigator.userAgent || "";
+  if (typeof window.TelegramWebviewProxy !== "undefined") return true;
+  if (/Telegram|FBAN|FBAV|Instagram|WhatsApp|Line\//i.test(ua)) return true;
+  if (/Android/.test(ua) && /; wv\)/.test(ua)) return true;
+  if (/iPhone|iPad|iPod/.test(ua) && !/Safari\//.test(ua)) return true;
+  return false;
+}
+
 async function carica() {
   const token = new URLSearchParams(location.search).get("r");
   if (!token) return mostraErrore();
+  // Il PDF lo crea il server: è un normale link a un file, niente stampa del browser.
+  document.getElementById("pdfBtn").href = API_URL + "?r=" + encodeURIComponent(token) + "&formato=pdf";
+  if (browserInterno()) document.getElementById("inappNote").hidden = false;
   try {
     const resp = await fetch(API_URL + "?r=" + encodeURIComponent(token));
     if (resp.status === 404) return mostraErrore();
@@ -535,7 +555,7 @@ function sparkline(values) {
 function niceMax(v) {
   if (!(v > 0)) return 10;
   const p = Math.pow(10, Math.floor(Math.log10(v)));
-  for (const s of [1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10]) if (s * p >= v) return s * p;
+  for (const s of [1, 2, 4, 6, 8, 10]) if (s * p >= v) return s * p; // diviso 4 dà tacche tonde
   return 10 * p;
 }
 

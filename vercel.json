@@ -37,7 +37,8 @@
     },
     "api/report-pubblico.js": {
       "maxDuration": 60,
-      "memory": 512
+      "memory": 512,
+      "includeFiles": "lib/fonts/**"
     },
     "api/enrich-thumbnails.js": {
       "maxDuration": 120,
