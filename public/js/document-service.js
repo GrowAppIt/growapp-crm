@@ -349,6 +349,44 @@ const DocumentService = {
     },
 
     /**
+     * Scarica davvero il file, con il nome originale.
+     *
+     * NON basta un <a download> sul downloadUrl: Storage è su un altro dominio
+     * e serve i file "inline", quindi il browser ignora `download` e apre il
+     * file in una scheda. Il server genera un link firmato che forza il download.
+     */
+    async scaricaDocumento(documentoId) {
+        try {
+            UI.showLoading('Preparazione download...');
+            const token = await firebase.auth().currentUser.getIdToken();
+            const risposta = await fetch('/api/scarica-documento', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + token
+                },
+                body: JSON.stringify({ documentoId })
+            });
+            const dati = await risposta.json().catch(() => ({}));
+            if (!risposta.ok || !dati.url) {
+                throw new Error(dati.error || 'Impossibile preparare il download.');
+            }
+
+            // Il link risponde "attachment": parte il download e la pagina resta dov'è.
+            const a = document.createElement('a');
+            a.href = dati.url;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        } catch (error) {
+            console.error('Errore download documento:', error);
+            UI.showError(error.message || 'Errore durante il download');
+        } finally {
+            UI.hideLoading();
+        }
+    },
+
+    /**
      * Formatta dimensione file in formato leggibile
      */
     formatFileSize(bytes) {

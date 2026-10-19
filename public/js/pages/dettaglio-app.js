@@ -1306,7 +1306,7 @@ const DettaglioApp = {
 
                                 <!-- Azioni -->
                                 <div style="display: flex; gap: 0.5rem; flex-direction: column;">
-                                    <button class="btn btn-primary" onclick="DettaglioApp.downloadDocumento('${doc.downloadUrl}', '${doc.nomeOriginale}')" style="
+                                    <button class="btn btn-primary" onclick="DettaglioApp.downloadDocumento('${doc.id}')" style="
                                         white-space: nowrap;
                                         padding: 0.5rem 1rem;
                                     ">
@@ -1418,14 +1418,8 @@ const DettaglioApp = {
         });
     },
 
-    downloadDocumento(url, nomeFile) {
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = nomeFile;
-        a.target = '_blank';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
+    downloadDocumento(documentoId) {
+        DocumentService.scaricaDocumento(documentoId);
     },
 
     async deleteDocumento(documentoId, storagePath, nomeFile) {

@@ -2209,13 +2209,7 @@ const DettaglioCliente = {
             UI.showError('Documento non trovato');
             return;
         }
-        const a = document.createElement('a');
-        a.href = doc.downloadUrl;
-        a.download = doc.nomeOriginale;
-        a.target = '_blank';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
+        DocumentService.scaricaDocumento(doc.id);
     },
 
     async deleteDocumento(documentoId) {
