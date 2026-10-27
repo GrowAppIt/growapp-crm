@@ -40,6 +40,29 @@ const PushHistoryService = {
     },
 
     /**
+     * Chiede al server di copiare le notifiche appena salvate nello specchio
+     * pubblico push_public (letto dall'archivio nelle app dei Comuni). Il
+     * browser non può scriverlo: lo fa api/push-public-mirror rileggendo
+     * push_history. Best-effort: se fallisce lo storico CRM è comunque salvo,
+     * manca solo la copia pubblica (la ripristina scripts/backfill-push-public.js).
+     */
+    async _mirrorToPublic(ids) {
+        if (!ids || ids.length === 0) return;
+        try {
+            const user = (typeof firebase !== 'undefined' && firebase.auth) ? firebase.auth().currentUser : null;
+            const token = user ? await user.getIdToken() : '';
+            const resp = await fetch('/api/push-public-mirror', {
+                method: 'POST',
+                headers: Object.assign({ 'Content-Type': 'application/json' }, token ? { 'Authorization': 'Bearer ' + token } : {}),
+                body: JSON.stringify({ ids: ids })
+            });
+            if (!resp.ok) console.warn('[PushHistory] Copia pubblica non riuscita:', resp.status);
+        } catch (e) {
+            console.warn('[PushHistory] Copia pubblica non riuscita:', e.message);
+        }
+    },
+
+    /**
      * Registra una singola notifica push nello storico
      *
      * @param {Object} data
@@ -79,6 +102,7 @@ const PushHistoryService = {
 
             const docRef = await db.collection('push_history').add(record);
             console.log('[PushHistory] Notifica registrata:', docRef.id, '—', data.comune);
+            await this._mirrorToPublic([docRef.id]);
 
             return { success: true, id: docRef.id };
         } catch (error) {
@@ -102,6 +126,7 @@ const PushHistoryService = {
             // Firestore batch supporta max 500 operazioni
             const batchSize = 450;
             let totalWritten = 0;
+            const writtenIds = [];
 
             for (let i = 0; i < notifications.length; i += batchSize) {
                 const chunk = notifications.slice(i, i + batchSize);
@@ -111,6 +136,7 @@ const PushHistoryService = {
                     // Normalizza appSlug a lowercase+trim per ogni entry del batch
                     const slugNorm = ((data.appSlug || '') + '').toLowerCase().trim();
                     const docRef = db.collection('push_history').doc();
+                    writtenIds.push(docRef.id);
                     batch.set(docRef, {
                         appId: data.appId || '',
                         appSlug: slugNorm,
@@ -133,6 +159,7 @@ const PushHistoryService = {
             }
 
             console.log('[PushHistory] Batch registrato:', totalWritten, 'notifiche');
+            await this._mirrorToPublic(writtenIds);
             return { success: true, count: totalWritten };
         } catch (error) {
             console.error('[PushHistory] Errore batch:', error);

@@ -1,7 +1,9 @@
 // =============================================================================
-// FIRESTORE SECURITY RULES — v3 PUBBLICATA il 2026-10-27 (audit monitoraggio)
-// Ruleset be0f3c9a-d2f7-45eb-af79-567aae4ed9cd. Per tornare indietro: ripubblicare
-// a9731702-98cc-41ba-9f3f-e1e4eb7cf3d4 (= firestore.rules.current.txt, la v2).
+// FIRESTORE SECURITY RULES — v4 DA PUBBLICARE (specchio pubblico push_public)
+// = v3 live + punti 4 e 5 qui sotto. NON ancora pubblicata.
+// v3 PUBBLICATA il 2026-10-27: ruleset be0f3c9a-d2f7-45eb-af79-567aae4ed9cd.
+// Per tornare indietro alla v2: ripubblicare a9731702-98cc-41ba-9f3f-e1e4eb7cf3d4
+// (= firestore.rules.current.txt). Per tornare alla v3: be0f3c9a-...
 // =============================================================================
 // Costruita sulle regole REALMENTE pubblicate (backup in
 // firestore.rules.current.txt, scaricato dall'API il 27/10/2026).
@@ -24,13 +26,24 @@
 //
 // IMPORTANTE: in Firestore Rules tutti i match si valutano in OR (union).
 // NON sostituire la whitelist isCrmCollection con un /{document=**} permissivo.
-// ⚠️ APERTO: 'push_history' resta leggibile da chiunque con campi interni
-//    (gbUrl, sentBy...). Serve uno specchio 'push_public' (vedi audit 2026-09-18).
+//
+// v4 (27/10/2026) — specchio pubblico 'push_public' (chiude il punto
+// aperto dell'audit 2026-09-18: push_history esponeva gbUrl, sentBy...):
+//   4. 'push_public': lettura pubblica, scrittura solo server (Admin SDK).
+//      Contiene solo i campi dell'archivio (lib/push-public.js), stesso doc ID.
+//   5. 'push_history': lettura solo utenti CRM attivi (prima: chiunque).
+// ⚠️ ORDINE DI PUBBLICAZIONE (altrimenti l'archivio nelle app resta vuoto):
+//   passo 1 = questo file ma con 'push_history' ancora "allow read: if true"
+//   (cioè v3 live + solo il blocco push_public); poi indici push_public,
+//   backfill, deploy del codice; solo dopo, passo 2 = questo file così com'è.
+// Collaudo (passo 1 e 2): scripts/test-firestore-rules.js [--passo1].
 // =============================================================================
 
 rules_version = '2';
 
-// FIRESTORE SECURITY RULES — FASE A (v3: monitoraggio notifiche solo staff)
+// FIRESTORE SECURITY RULES — FASE A (v4: archivio pubblico da push_public)
+// v4 (27/10/2026): le pagine pubbliche leggono lo specchio push_public;
+// push_history (con i campi interni) solo per gli utenti CRM attivi.
 // v3 (audit 27/10/2026): gli AGENTI non possono più toccare il monitoraggio
 // notifiche (User ID fantasma, slug, toggle, stato sync) né lo storico push;
 // health_status lo scrive solo il server e lo legge solo lo staff.
@@ -117,10 +130,17 @@ service cloud.firestore {
         || (isActive() && !request.resource.data.diff(resource.data).affectedKeys().hasAny(monitorFields()));
       allow delete: if isStaff();
     }
-    // Storico notifiche: letto dalle pagine pubbliche, scritto dal server e dallo
-    // staff (Push Broadcast registra gli invii). Gli agenti non scrivono.
-    match /push_history/{document} {
+    // Specchio pubblico dello storico notifiche: solo i campi che mostra
+    // l'archivio nelle app dei Comuni (niente gbUrl, sentBy, metadata...).
+    // Lo scrive solo il server (sync, proxy, api/push-public-mirror).
+    match /push_public/{document} {
       allow read: if true;
+      allow write: if false;
+    }
+    // Storico notifiche completo (con i campi interni): solo utenti CRM attivi.
+    // Scritto dal server e dallo staff (Push Broadcast registra gli invii).
+    match /push_history/{document} {
+      allow read: if isActive();
       allow write: if isStaff();
     }
     // Fotografia giornaliera della salute del monitoraggio: la scrive solo il

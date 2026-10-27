@@ -880,7 +880,7 @@
         } catch (e) { /* cross-origin, ignora */ }
     }
 
-    // Normalizza appSlug a lowercase + trim (i documenti in push_history sono salvati lowercase)
+    // Normalizza appSlug a lowercase + trim (i documenti in push_public sono salvati lowercase)
     // Senza questo, un URL con maiuscole (es. ?app=Zambrone) non matcherebbe i doc (appSlug='zambrone').
     CONFIG.appSlug = (CONFIG.appSlug || '').toString().toLowerCase().trim();
 
@@ -1007,7 +1007,7 @@
                 ? CONFIG.pageSize
                 : CONFIG.pageSize * 3;
 
-            let query = state.db.collection('push_history')
+            let query = state.db.collection('push_public')
                 .where('appSlug', '==', CONFIG.appSlug)
                 .where('status', '==', 'sent')
                 .orderBy('sentAt', 'desc')
@@ -1045,7 +1045,7 @@
 
             // Fallback: prova senza orderBy (indice (appSlug+status+sentAt) mancante)
             try {
-                let fallbackQuery = state.db.collection('push_history')
+                let fallbackQuery = state.db.collection('push_public')
                     .where('appSlug', '==', CONFIG.appSlug)
                     .where('status', '==', 'sent')
                     .limit(CONFIG.pageSize * 3);
@@ -1122,7 +1122,7 @@
 
             // 1) TOTAL con count aggregato + fallback
             try {
-                const agg = await withTimeout(state.db.collection('push_history')
+                const agg = await withTimeout(state.db.collection('push_public')
                     .where('appSlug', '==', CONFIG.appSlug)
                     .where('status', '==', 'sent')
                     .count().get(), QUERY_TIMEOUT_MS, 'stats-total');
@@ -1130,7 +1130,7 @@
             } catch (eCount) {
                 // Fallback: se count() non disponibile o non indicizzato,
                 // stima prudente = contiamo leggendo con cap a 500 doc.
-                const snap = await withTimeout(state.db.collection('push_history')
+                const snap = await withTimeout(state.db.collection('push_public')
                     .where('appSlug', '==', CONFIG.appSlug)
                     .where('status', '==', 'sent')
                     .limit(500)
@@ -1140,7 +1140,7 @@
 
             // 2) MONTH + TODAY — query limitata al mese corrente
             try {
-                const monthSnap = await withTimeout(state.db.collection('push_history')
+                const monthSnap = await withTimeout(state.db.collection('push_public')
                     .where('appSlug', '==', CONFIG.appSlug)
                     .where('status', '==', 'sent')
                     .where('sentAt', '>=', startOfMonth)
@@ -1157,7 +1157,7 @@
                 // È meno preciso ma non rompe la UI.
                 console.warn('[Storico] Fallback month stats (indice range mancante):', eMonth.message);
                 try {
-                    const fb = await withTimeout(state.db.collection('push_history')
+                    const fb = await withTimeout(state.db.collection('push_public')
                         .where('appSlug', '==', CONFIG.appSlug)
                         .where('status', '==', 'sent')
                         .limit(100)
@@ -1290,18 +1290,18 @@
             const sourceIcon = getSourceIcon(source);
             const timeStr = formatTime(sentAt);
 
-            // Link "Leggi il dettaglio" per qualunque tipo di notifica con gbUrl
-            // disponibile. Il reader (article.html) legge il parametro "source"
+            // Link "Leggi il dettaglio" per qualunque tipo di notifica con un
+            // contenuto da aprire (hasDetail). Il reader (article.html) legge il parametro "source"
             // per scegliere badge, icona e comportamento (es. evento passato).
             // Il testo e l'icona del pulsante cambiano in base al tipo.
             //
             // Il pulsante NON viene mostrato quando:
-            //   - la notifica non ha gbUrl (push puramente testuale)
+            //   - la notifica non ha hasDetail (push puramente testuale)
             //   - la notifica ha contentUnavailable === true (già verificato
             //     in passato che il contenuto era 404 sul CMS — tipico per
             //     vecchi comunicati RSS ruotati fuori dal feed)
             let linkHtml = '';
-            if (notif.gbUrl && notif.contentUnavailable !== true) {
+            if (notif.hasDetail === true && notif.contentUnavailable !== true) {
                 // Tabella label/icona per ogni tipo di notifica
                 const LINK_CONFIG = {
                     'rss_auto':      { text: 'Leggi la notizia',       icon: 'fa-newspaper',      aria: 'Leggi la notizia completa' },
@@ -1650,7 +1650,7 @@
                 return {
                     id: n.id, title: n.title || '', message: n.message || '',
                     fullMessage: n.fullMessage || '', source: n.source || 'manual',
-                    gbUrl: n.gbUrl || null, contentUnavailable: !!n.contentUnavailable,
+                    hasDetail: n.hasDetail === true, contentUnavailable: !!n.contentUnavailable,
                     thumbnail: n.thumbnail || null, sentAt: d.toISOString()
                 };
             });
@@ -1660,7 +1660,16 @@
     function loadCache() {
         try {
             const raw = localStorage.getItem(cacheKey());
-            return raw ? JSON.parse(raw) : null;
+            const cache = raw ? JSON.parse(raw) : null;
+            // Copie salvate prima di push_public avevano gbUrl: lo
+            // trasformiamo in hasDetail e non lo teniamo in memoria.
+            if (cache && cache.items) {
+                cache.items.forEach(function (it) {
+                    if (it.hasDetail === undefined) it.hasDetail = !!it.gbUrl;
+                    delete it.gbUrl;
+                });
+            }
+            return cache;
         } catch (e) { return null; }
     }
 

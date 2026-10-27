@@ -39,6 +39,7 @@
 
 const admin = require('firebase-admin');
 const { verificaAccesso } = require('../lib/staff-auth');
+const { batchSetPublic } = require('../lib/push-public');
 
 // Inizializza Firebase Admin (singleton)
 if (!admin.apps.length) {
@@ -636,7 +637,9 @@ async function saveNotifications(notifications, appData) {
         return { saved: 0, skipped: 0, skippedReasons: [] };
     }
 
-    const BATCH_SIZE = 450;
+    // 2 scritture per notifica (push_history + specchio push_public): 225 × 2
+    // resta sotto il limite di 500 operazioni per batch.
+    const BATCH_SIZE = 225;
     const FUTURE_TOLERANCE_MS = 60 * 60 * 1000; // 1 ora
     const futureCutoff = new Date(Date.now() + FUTURE_TOLERANCE_MS);
 
@@ -683,7 +686,7 @@ async function saveNotifications(notifications, appData) {
             const docId = pushDocId(appSlugNorm || appData.appSlug, notif.id);
             const docRef = db.collection('push_history').doc(docId);
 
-            batch.set(docRef, {
+            const record = {
                 appId: appData.id,
                 appSlug: appSlugNorm,           // sempre lowercase
                 comune: appData.comune,
@@ -706,7 +709,10 @@ async function saveNotifications(notifications, appData) {
                     rootzine: notif.rootzine || null,
                     pushed_at_original: notif.pushed_at_date || notif.pushed_at
                 }
-            }, { merge: true }); // merge per non sovrascrivere eventuali arricchimenti manuali
+            };
+            batch.set(docRef, record, { merge: true }); // merge per non sovrascrivere eventuali arricchimenti manuali
+            // Specchio pubblico (solo i campi che servono all'archivio, niente gbUrl)
+            batchSetPublic(batch, db, docId, record);
 
             chunkWrites++;
         }

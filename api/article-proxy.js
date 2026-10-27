@@ -54,6 +54,7 @@
  */
 
 const admin = require('firebase-admin');
+const { updatePublic } = require('../lib/push-public');
 
 // Inizializza Firebase Admin (singleton, lazy). Non serve per la chiamata
 // principale al CMS: serve solo per marcare la notifica come non più
@@ -81,7 +82,8 @@ if (!admin.apps.length) {
 }
 
 /**
- * Scrive sul doc push_history/{notifId} il flag contentUnavailable.
+ * Scrive sul doc push_history/{notifId} (e sullo specchio push_public) il
+ * flag contentUnavailable.
  * Operazione best-effort: se fallisce, logga ma non rompe il flusso
  * principale (l'utente riceve comunque la sua risposta dal proxy).
  *
@@ -99,6 +101,9 @@ async function markNotificationUnavailable(notifId, unavailable, extra) {
         // Campi extra opzionali (es. { thumbnail }) per arricchire il doc.
         if (extra && typeof extra === 'object') Object.assign(payload, extra);
         await db.collection('push_history').doc(notifId).update(payload);
+        // Stesso aggiornamento sullo specchio pubblico push_public (solo i
+        // campi pubblici: contentUnavailable e l'eventuale thumbnail).
+        await updatePublic(db, notifId, payload);
         console.log('[article-proxy] Aggiornata notifica', notifId, 'contentUnavailable:', unavailable);
     } catch (e) {
         // Se il doc non esiste o c'è un problema di permessi, NON falliamo —

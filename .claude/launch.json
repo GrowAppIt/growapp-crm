@@ -177,6 +177,14 @@
         "/Users/giancarlocampisi/Downloads/Sportcity/DA CARICARE"
       ],
       "port": 8085
+    },
+    {
+      "name": "booking-v2-mock",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "/Users/giancarlocampisi/Documents/GitHub/comune-digital-booking-v2/mock-server/server.js"
+      ],
+      "port": 8787
     }
   ]
 }

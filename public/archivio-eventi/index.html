@@ -352,7 +352,7 @@
             text-decoration: none;
         }
 
-        /* Miniatura/locandina evento (se disponibile in push_history) */
+        /* Miniatura/locandina evento (se disponibile in push_public) */
         .event-thumb {
             width: 100%;
             height: 160px;
@@ -742,7 +742,7 @@
                 var ancoraDocumenti = true;
 
                 while (ancoraDocumenti && pagine < MAX_PAGINE_PER_GIRO && batch.length < MIN_EVENTI_PER_GIRO) {
-                    var query = state.db.collection('push_history')
+                    var query = state.db.collection('push_public')
                         .where('appSlug', '==', CONFIG.appSlug)
                         .where('source', '==', 'calendar_auto')
                         .where('status', '==', 'sent')
@@ -796,7 +796,7 @@
                 // Fallback senza orderBy (se manca l'indice composito), anch'esso con timeout
                 try {
                     var fbSnap = await withTimeout(
-                        state.db.collection('push_history')
+                        state.db.collection('push_public')
                             .where('appSlug', '==', CONFIG.appSlug)
                             .where('source', '==', 'calendar_auto')
                             .where('status', '==', 'sent')
@@ -973,7 +973,7 @@
             var badgeIcon = isPast ? 'fa-clock-rotate-left' : 'fa-calendar-alt';
             var badgeText = isPast ? 'Svolto' : 'In Programma';
 
-            // Locandina/miniatura: il proxy la salva in push_history quando
+            // Locandina/miniatura: il proxy la salva in push_public quando
             // qualcuno apre l'evento (article-proxy.js). Se manca, niente immagine.
             // onerror la nasconde se l'URL è rotto (hotlink scaduto).
             var thumbHtml = ev.thumbnail
@@ -985,7 +985,7 @@
             // "Torna" il reader lo riporta qui nell'archivio eventi e NON
             // allo storico notifiche (che è una webapp separata).
             var readerUrl = '';
-            if (ev.gbUrl) {
+            if (ev.hasDetail === true) {
                 // ⚠️ Nel link passiamo SOLO l'id dell'evento: l'indirizzo
                 // interno del contenuto (gbUrl) resta lato server, dove il
                 // proxy lo risolve. Non deve comparire nella barra del
@@ -1047,6 +1047,12 @@
                     state.comuneNome = obj.comuneNome;
                     applyComuneName(obj.comuneNome);
                 }
+                // Copie salvate prima di push_public avevano gbUrl: lo
+                // trasformiamo in hasDetail e non lo teniamo in memoria.
+                obj.events.forEach(function(ev) {
+                    if (ev.hasDetail === undefined) ev.hasDetail = !!ev.gbUrl;
+                    delete ev.gbUrl;
+                });
                 state.events = obj.events;
                 state.fromCache = true;
                 // Dalla cache non paginiamo: l'aggiornamento fresco ripristina hasMore.
@@ -1068,7 +1074,7 @@
                         message: ev.message || '',
                         fullMessage: ev.fullMessage || '',
                         title: ev.title || '',
-                        gbUrl: ev.gbUrl || '',
+                        hasDetail: ev.hasDetail === true,
                         thumbnail: ev.thumbnail || '',
                         contentUnavailable: !!ev.contentUnavailable,
                         sentAt: d.getTime()
@@ -1141,7 +1147,7 @@
         // ============================================================
         // Che cosa consideriamo "evento da archivio"
         // ------------------------------------------------------------
-        // La source 'calendar_auto' di push_history NON contiene solo
+        // La source 'calendar_auto' di push_public NON contiene solo
         // l'Agenda eventi: in GoodBarber anche il calendario della raccolta
         // differenziata e' una sezione Agenda, quindi ci finiscono dentro
         // anche i promemoria rifiuti. A distinguerli e' il "title" scritto

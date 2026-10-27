@@ -41,6 +41,7 @@
  */
 
 const admin = require('firebase-admin');
+const { batchSetPublic } = require('../lib/push-public');
 
 // Inizializza Firebase Admin (singleton)
 if (!admin.apps.length) {
@@ -259,7 +260,8 @@ async function saveEventsBatch(events, appData, appSlug, sectionId, dryRun) {
         return { saved: events.length - skipped, skipped, dryRun: true };
     }
 
-    const BATCH_SIZE = 450;
+    // 2 scritture per evento (push_history + specchio push_public)
+    const BATCH_SIZE = 225;
     let saved = 0;
     let skipped = 0;
     const appSlugNorm = (appSlug || '').toLowerCase().trim();
@@ -289,7 +291,7 @@ async function saveEventsBatch(events, appData, appSlug, sectionId, dryRun) {
             const parsedEndDate = parseDate(ev.endDate);
             const addressNorm = normalizeAddress(ev.address);
 
-            batch.set(docRef, {
+            const record = {
                 appId: appData.id,
                 appSlug: appSlugNorm,
                 comune: appData.comune || '',
@@ -325,7 +327,10 @@ async function saveEventsBatch(events, appData, appSlug, sectionId, dryRun) {
                     source: 'backfill',
                     pushed_at_original: ev.sortDate || ev.date
                 }
-            }, { merge: true });
+            };
+            batch.set(docRef, record, { merge: true });
+            // Specchio pubblico (solo i campi che servono all'archivio, niente gbUrl)
+            batchSetPublic(batch, db, docId, record);
 
             writes++;
         }

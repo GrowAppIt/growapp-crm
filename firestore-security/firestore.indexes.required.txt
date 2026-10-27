@@ -5,7 +5,7 @@
 // (Firestore -> Indici -> Composito). Questo file è solo un promemoria di
 // QUALI indici servono e a cosa, così non si perde traccia.
 // Progetto: crm-comunedigital
-// Aggiornato: 2026-07-08
+// Aggiornato: 2026-10-27 (specchio pubblico push_public, sezioni 4-6)
 //
 // COME VERIFICARE/CREARE VELOCEMENTE:
 // Il modo più semplice è aprire una pagina che usa la query con la Console
@@ -66,3 +66,53 @@
 //
 // SE MANCA: il cron fa un full-scan di TUTTI i doc dell'app a ogni ciclo
 // (ogni 15 min), costoso e lento sui Comuni grandi (es. Catania).
+
+
+// =============================================================================
+// SPECCHIO PUBBLICO push_public (27/10/2026)
+// -----------------------------------------------------------------------------
+// Da quando esiste push_public le pagine pubbliche leggono SOLO lì (stesse
+// query di prima, solo il nome della collezione cambia). Gli indici 1) e 2)
+// su push_history restano per il CRM (Storico Push) e il cron.
+// ⚠️ Crearli e aspettare che siano "Abilitato" PRIMA del deploy delle pagine.
+// =============================================================================
+
+
+// -----------------------------------------------------------------------------
+// 4) ARCHIVIO NOTIFICHE PUBBLICO — query principale
+//    File: public/storico-notifiche/index.html  (loadNotifications)
+// -----------------------------------------------------------------------------
+// Collection:  push_public
+// Campi:       appSlug   Ascending
+//              status    Ascending
+//              sentAt    Descending
+// SE MANCA: come 1) — fallback senza ordine, ~60 notifiche, niente "Carica altre".
+
+
+// -----------------------------------------------------------------------------
+// 5) ARCHIVIO NOTIFICHE PUBBLICO — statistiche "questo mese / oggi"
+//    File: public/storico-notifiche/index.html  (loadStats)
+// -----------------------------------------------------------------------------
+// Collection:  push_public
+// Campi:       appSlug   Ascending
+//              status    Ascending
+//              sentAt    Ascending
+// SE MANCA: come 2) — stats mese/oggi approssimate.
+
+
+// -----------------------------------------------------------------------------
+// 6) ARCHIVIO EVENTI PUBBLICO
+//    File: public/archivio-eventi/index.html  (loadEvents)
+//    Query: where appSlug == <slug>
+//           where source == 'calendar_auto'
+//           where status == 'sent'
+//           orderBy sentAt DESC
+// -----------------------------------------------------------------------------
+// Collection:  push_public
+// Campi:       appSlug   Ascending
+//              source    Ascending
+//              status    Ascending
+//              sentAt    Descending
+// NOTA: su push_history questo indice NON è mai esistito (verificato con l'API
+// il 27/10/2026): l'archivio eventi girava sempre col fallback senza ordine
+// (al massimo 400 documenti, niente "Carica altri eventi").
