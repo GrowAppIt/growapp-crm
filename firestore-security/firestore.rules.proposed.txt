@@ -1,6 +1,10 @@
 // =============================================================================
 // FIRESTORE SECURITY RULES — v4 DA PUBBLICARE (specchio pubblico push_public)
-// = v3 live + punti 4 e 5 qui sotto. NON ancora pubblicata.
+// = v3 live + punti 4 e 5 qui sotto.
+// PASSO 1 PUBBLICATO il 2026-10-27 14:47 UTC (ruleset 805fbcc7-cd56-4071-ae96-d14d22d512de):
+// v3 + solo il blocco push_public, push_history ancora leggibile da tutti.
+// Indici push_public 4-5-6 creati (READY) e backfill eseguito (45.179 doc) lo stesso giorno.
+// PASSO 2 (push_history solo utenti CRM) NON ancora pubblicato.
 // v3 PUBBLICATA il 2026-10-27: ruleset be0f3c9a-d2f7-45eb-af79-567aae4ed9cd.
 // Per tornare indietro alla v2: ripubblicare a9731702-98cc-41ba-9f3f-e1e4eb7cf3d4
 // (= firestore.rules.current.txt). Per tornare alla v3: be0f3c9a-...
