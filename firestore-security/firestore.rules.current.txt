@@ -1,5 +1,5 @@
 // =============================================================================
-// FIRESTORE SECURITY RULES — STATO ATTUALE IN PRODUZIONE
+// FIRESTORE SECURITY RULES — v2, IN PRODUZIONE FINO AL 2026-10-27 (sostituita dalla v3)
 // =============================================================================
 // Scaricato dall'API Firebase Rules il 2026-10-27 (release cloud.firestore,
 // pubblicata il 2026-10-13). Progetto: crm-comunedigital.
