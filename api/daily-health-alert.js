@@ -25,9 +25,16 @@
  *
  * Cron (vercel.json): "0 7 * * *" = 07:00 UTC
  *   → 09:00 Europa/Roma (estate CEST) / 08:00 (inverno CET)
+ *
+ * Audit 27/10/2026: lo stato del sync usa la regola UNICA condivisa con la
+ * Dashboard e la pagina Storico Push (public/js/push-monitor-health.js); le app
+ * non ancora ATTIVE (es. IN_SVILUPPO) non generano allarmi; accesso via
+ * lib/staff-auth.js.
  */
 
 const admin = require('firebase-admin');
+const PushMonitorHealth = require('../public/js/push-monitor-health.js');
+const { verificaAccesso } = require('../lib/staff-auth');
 
 // Inizializza Firebase Admin (singleton)
 if (!admin.apps.length) {
@@ -70,40 +77,12 @@ const RUOLI_DESTINATARI = ['SUPER_ADMIN', 'ADMIN', 'CTO', 'CONTENT_MANAGER'];
 // se il cron sync-push-history riesce a parlare con GoodBarber. Se il sync è
 // rotto/fermo/incompleto, push_history si ferma e l'app sembra "non ricevere
 // notifiche da N giorni" mentre il Comune le riceve davvero (falso positivo,
-// caso Chiaramonte Gulfi). Qui rileviamo se il DATO è inaffidabile, così il
-// report può dire la verità ("monitoraggio rotto") invece di accusare il Comune.
-// Ritorna una stringa-motivo se il sync è inaffidabile, altrimenti null.
+// caso Chiaramonte Gulfi). Ritorna una stringa-motivo se il sync è
+// inaffidabile, altrimenti null. Regola condivisa: push-monitor-health.js.
 // ============================================================================
 function syncBrokenReason(data, now) {
-    const MS_PER_HOUR = 60 * 60 * 1000;
-
-    // Credenziali incomplete → getMonitoredApps del sync scarta l'app: non
-    // riceverà MAI dati, quindi push_history sarà sempre vuoto per costruzione.
-    if (!data.goodbarberWebzineId || !data.monitorPushUserId) {
-        return 'Configurazione monitoraggio incompleta (manca Webzine ID o User ID GoodBarber): la sincronizzazione non parte.';
-    }
-
-    const status = data.lastPushSyncStatus || null;
-    if (status === 'error') {
-        return 'Sincronizzazione in errore: ' + (data.lastPushSyncError || 'errore GoodBarber');
-    }
-
-    const lastSync = data.lastPushSync && typeof data.lastPushSync.toDate === 'function'
-        ? data.lastPushSync.toDate()
-        : (data.lastPushSync ? new Date(data.lastPushSync) : null);
-    if (!lastSync) {
-        return 'Mai sincronizzata: nessun dato importato da GoodBarber.';
-    }
-
-    // Il cron gira ogni 15 min: oltre 6h senza sync riuscito il dato di
-    // "giorni senza notifiche" non è affidabile.
-    const ageH = (now - lastSync) / MS_PER_HOUR;
-    if (ageH > 6) {
-        const lbl = ageH >= 48 ? (Math.round(ageH / 24) + ' giorni') : (Math.round(ageH) + ' ore');
-        return 'Sincronizzazione ferma da ' + lbl + ': il dato sulle notifiche non è aggiornato.';
-    }
-
-    return null; // sync sano → push_history è affidabile
+    const h = PushMonitorHealth.syncHealth(data, now.getTime());
+    return PushMonitorHealth.isSyncBroken(h) ? (h.label + ': ' + h.hint) : null;
 }
 
 // ============================================================================
@@ -123,7 +102,8 @@ async function collectHealthStatus() {
         ok: [],
         warn: [],
         error: [],
-        syncBroken: []   // sync rotto/fermo/incompleto: il dato notifiche è inaffidabile
+        syncBroken: [],  // sync rotto/fermo/incompleto: il dato notifiche è inaffidabile
+        inPreparazione: [] // monitor acceso ma app non ancora ATTIVA: nessun allarme
     };
 
     for (const doc of appsSnap.docs) {
@@ -131,6 +111,12 @@ async function collectHealthStatus() {
         const slug = ((data.appSlug || '') + '').toLowerCase().trim();
         const comune = data.comune || data.nome || slug;
         if (!slug) continue;
+
+        // App non ancora in produzione (IN_SVILUPPO, IN_PROVA…): niente allarmi.
+        if (data.statoApp && data.statoApp !== 'ATTIVA') {
+            report.inPreparazione.push({ slug, comune, statoApp: data.statoApp });
+            continue;
+        }
 
         report.totalMonitored++;
 
@@ -295,8 +281,8 @@ async function getDestinatari() {
     const ids = [];
     snap.forEach(d => {
         const data = d.data() || {};
-        // Esclude utenti disattivati
-        if (data.attivo === false) return;
+        // Esclude utenti disattivati (il CRM usa stato:'DISATTIVO'; 'attivo' è legacy)
+        if (data.attivo === false || data.stato === 'DISATTIVO') return;
         ids.push(d.id);
     });
     return ids;
@@ -386,6 +372,7 @@ async function persistHealthStatus(report, notifyRes) {
             // App il cui MONITORAGGIO è rotto: la dashboard le mostra con un
             // messaggio diverso ("sync in errore", non "il Comune non invia").
             syncBrokenApps: (report.syncBroken || []).map(mapApp),
+            inPreparazioneCount: (report.inPreparazione || []).length,
             notifyResult: notifyRes || null
         }, { merge: false });
     } catch (e) {
@@ -397,22 +384,14 @@ async function persistHealthStatus(report, notifyRes) {
 // Handler Vercel
 // ============================================================================
 module.exports = async function handler(req, res) {
-    // FIX M27 (v10.1.8): protezione come gli altri cron. Se CRON_SECRET (o SYNC_SECRET) è impostata,
-    // la richiesta deve presentarla (Vercel Cron la invia da solo) oppure essere riconosciuta come
-    // cron Vercel. Senza secret il comportamento resta invariato (nessuna rottura del cron).
-    const _cronSecret = process.env.CRON_SECRET || process.env.SYNC_SECRET;
-    if (_cronSecret) {
-        const _auth = req.headers.authorization || '';
-        const _q = (req.query && req.query.secret) || '';
-        const _ua = (req.headers['user-agent'] || '').toLowerCase();
-        const _isCron = _ua.includes('vercel-cron') || req.headers['x-vercel-cron'];
-        const _ok = _isCron || _auth === 'Bearer ' + _cronSecret || _q === _cronSecret;
-        if (!_ok) {
-            return res.status(401).json({ ok: false, error: 'Non autorizzato' });
-        }
+    // Accesso: cron Vercel, CRON_SECRET/SYNC_SECRET o staff (lib/staff-auth.js).
+    // Il "cron da User-Agent" (imitabile) non può usare ?force.
+    const auth = await verificaAccesso(req, admin);
+    if (!auth.ok) {
+        return res.status(auth.status || 401).json({ ok: false, error: auth.error || 'Non autorizzato' });
     }
 
-    const force = req.query && (req.query.force === '1' || req.query.force === 'true');
+    const force = auth.livello === 'completo' && req.query && (req.query.force === '1' || req.query.force === 'true');
 
     try {
         const report = await collectHealthStatus();

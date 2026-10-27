@@ -576,3 +576,14 @@ Vale **ovunque** compaia lo slug:
 ## 11. Collegare le app GoodBarber all'MCP ("Pubblicazioni sulle app")
 
 Quando Giancarlo chiede di **collegare le app all'MCP** (o di riprendere i collegamenti), segui **`scripts/mcp-collega/ISTRUZIONI.md`**: procedura, divisione dei compiti tra te e Giancarlo, testo modello dei passi e casi particolari. Si lavora a gruppi di 10, un'app alla volta, e Giancarlo risponde "fatto" a ogni passo. Per sapere a che punto si è: `node scripts/mcp-collega/stato.js`.
+
+---
+
+## 12. Monitoraggio notifiche push (User ID fantasma → Storico Push → archivio pubblico)
+
+Audit del 27/10/2026. Regole da rispettare:
+- **Una sola regola di salute**: `public/js/push-monitor-health.js` (UMD: `window.PushMonitorHealth` nel CRM, `require` nelle function). La usano pagina Storico Push, banner Dashboard e cron `daily-health-alert`. Non riscrivere la logica altrove.
+- Il banner Dashboard calcola "monitoraggio da sistemare" **dal vivo** dai doc `app`; `health_status/latest` (fotografia delle 07:00 UTC) serve solo per "giorni senza notifiche", sempre ricontrollato. Le app non ATTIVE non danno allarmi in Dashboard.
+- **Niente agenti**: banner e pagina visibili solo con `canAccessPage('storico-push')`; endpoint `sync-push-history`, `diag-*`, `daily-health-alert` protetti da `lib/staff-auth.js` (staff = SUPER_ADMIN, ADMIN, CTO, SVILUPPATORE, CONTENT_MANAGER, CONTABILE). Il "cron" riconosciuto solo dall'User-Agent può fare solo il giro standard.
+- Regole Firestore: i campi del monitoraggio sul doc `app` (`monitorFields()` in `firestore-security/firestore.rules.proposed.txt`) li scrive solo lo staff; se aggiungi un campo `lastPushSync*`, aggiungilo anche lì.
+- Il sync riconosce le notifiche già importate dall'ID deterministico `gb_<slug>_<gbPushId>` (getAll della pagina), non leggendo le ultime 500: non cambiare il formato dell'ID.

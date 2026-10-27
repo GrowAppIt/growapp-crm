@@ -24,10 +24,13 @@
  *     → Scansiona fino a 3 pagine per ogni comune (default: 2 = 40 notifiche).
  *
  * L'endpoint NON modifica NIENTE su Firestore. È solo lettura.
- * Protetto dallo stesso SYNC_SECRET degli altri endpoint.
+ * Accesso: lib/staff-auth.js (SYNC_SECRET o staff del CRM, mai agenti).
+ * Prima, senza SYNC_SECRET, era aperto a chiunque ed elencava gli User ID
+ * fantasma di tutti i Comuni.
  */
 
 const admin = require('firebase-admin');
+const { verificaAccesso } = require('../lib/staff-auth');
 
 // ---------------------------------------------------------------------------
 // Inizializzazione Firebase Admin (singleton, stesso pattern degli altri file)
@@ -284,10 +287,11 @@ module.exports = async function handler(req, res) {
     if (req.method === 'OPTIONS') return res.status(200).end();
     if (req.method !== 'GET') return res.status(405).json({ error: 'Usa GET.' });
 
-    // Protezione token segreto
-    const authToken = req.headers['authorization'] || req.query.secret;
-    if (process.env.SYNC_SECRET && authToken !== `Bearer ${process.env.SYNC_SECRET}` && authToken !== process.env.SYNC_SECRET) {
-        return res.status(401).json({ error: 'Non autorizzato' });
+    // Fail-closed: serve SYNC_SECRET/CRON_SECRET o un utente staff. Il "cron da
+    // User-Agent" non basta (è imitabile e questo endpoint non è un cron).
+    const auth = await verificaAccesso(req, admin);
+    if (!auth.ok || auth.livello !== 'completo') {
+        return res.status(auth.status || 401).json({ error: auth.error || 'Non autorizzato' });
     }
 
     const daysWindow = Math.max(1, Math.min(parseInt(req.query.days) || 2, 30));

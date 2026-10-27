@@ -24,6 +24,7 @@
  */
 
 const admin = require('firebase-admin');
+const { verificaAccesso } = require('../lib/staff-auth');
 
 // Inizializza Firebase Admin (singleton) — stesso codice del sync
 if (!admin.apps.length) {
@@ -174,16 +175,11 @@ module.exports = async function handler(req, res) {
     if (req.method === 'OPTIONS') return res.status(200).end();
     if (req.method !== 'GET') return res.status(405).json({ error: 'Usa GET.' });
 
-    // Protezione con token segreto (stessa logica del sync).
-    // Fail-CLOSED: se SYNC_SECRET non è configurato sul server, l'endpoint
-    // diagnostico resta DISABILITATO invece di diventare pubblico. Prima l'&&
-    // cortocircuitava sul primo operando falsy e lasciava passare chiunque.
-    const authToken = req.headers['authorization'] || req.query.secret;
-    if (!process.env.SYNC_SECRET) {
-        return res.status(503).json({ error: 'Endpoint diagnostico disabilitato: SYNC_SECRET non configurato sul server.' });
-    }
-    if (authToken !== `Bearer ${process.env.SYNC_SECRET}` && authToken !== process.env.SYNC_SECRET) {
-        return res.status(401).json({ error: 'Non autorizzato' });
+    // Fail-CLOSED (lib/staff-auth.js): SYNC_SECRET/CRON_SECRET o utente staff
+    // del CRM. Agenti → 403; "cron da User-Agent" non basta.
+    const auth = await verificaAccesso(req, admin);
+    if (!auth.ok || auth.livello !== 'completo') {
+        return res.status(auth.status || 401).json({ error: auth.error || 'Non autorizzato' });
     }
 
     const { appSlug, q } = req.query;

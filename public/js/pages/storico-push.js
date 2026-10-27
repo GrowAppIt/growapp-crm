@@ -10,6 +10,11 @@
  * -----------------------------------------------------------------------------
  * CHANGELOG
  * -----------------------------------------------------------------------------
+ * 2026-10-27 — Audit monitoraggio
+ *   - _computeHealth usa la regola unica PushMonitorHealth (stessa di Dashboard
+ *     e cron giornaliero): ora segnala anche Webzine ID / User ID mancanti, e un
+ *     errore GoodBarber isolato è "temporaneo" (giallo) invece che critico.
+ *   - render() ricontrolla i permessi (difesa in profondità: niente agenti).
  * 2026-07-09 — Configuratore Archivio Notifiche: affidabilità + restyle
  *   BUG RISOLTO ("sembra non salvare slug/user id"): saveConfig() scriveva su
  *   Firestore con un db.batch() grezzo SENZA invalidare la cache app di
@@ -55,6 +60,12 @@ const StoricoPush = {
     // ================================================================
 
     async render() {
+        // Il monitoraggio (User ID fantasma, slug, toggle) è solo per lo staff:
+        // UI.showPage già filtra, ma la pagina non deve mai disegnarsi per un agente.
+        if (typeof AuthService !== 'undefined' && !AuthService.canAccessPage('storico-push')) {
+            UI.showAccessDenied('storico-push');
+            return;
+        }
         try {
             UI.showLoading();
 
@@ -1420,37 +1431,10 @@ const StoricoPush = {
         }
     },
 
-    // Salute di un'app calcolata SOLO dai campi già presenti sul doc app
-    // (0 letture Firestore extra). Il cron /api/sync-push-history gira ogni
-    // 15 min per TUTTE le app (normalmente lastPushSync < 15 min), quindi una
-    // lastPushSync vecchia o uno status 'error' indicano un problema reale.
+    // Salute di un'app: regola UNICA condivisa con Dashboard e cron giornaliero
+    // (public/js/push-monitor-health.js), così le tre viste non si contraddicono.
     _computeHealth(app) {
-        const HOUR = 3600 * 1000;
-        const now = Date.now();
-        const lastSync = (app.lastPushSync && app.lastPushSync.toDate) ? app.lastPushSync.toDate().getTime() : null;
-        const status = app.lastPushSyncStatus || null;
-
-        if (!app.appSlug) {
-            return { level: 'error', label: 'Slug mancante', hint: "Manca l'App Slug: l'archivio non è raggiungibile e la sincronizzazione non parte." };
-        }
-        if (status === 'error') {
-            return { level: 'error', label: 'Errore sync', hint: app.lastPushSyncError || 'La sincronizzazione ha restituito un errore.' };
-        }
-        if (!lastSync) {
-            return { level: 'never', label: 'Mai sincronizzata', hint: 'Nessuna sincronizzazione ancora eseguita. Premi Sincronizza o attendi il prossimo ciclo (ogni 15 min).' };
-        }
-        const ageH = (now - lastSync) / HOUR;
-        if (ageH > 6) {
-            const lbl = ageH >= 48 ? (Math.round(ageH / 24) + ' giorni') : (Math.round(ageH) + ' ore');
-            return { level: 'error', label: 'Ferma da ' + lbl, hint: 'Il cron sincronizza ogni 15 min: oltre 6h senza sync indica un problema (token GoodBarber scaduto, app sospesa, credenziali).' };
-        }
-        if (status === 'warning') {
-            return { level: 'warn', label: 'Avviso sync', hint: app.lastPushSyncWarning || 'La sincronizzazione ha restituito un avviso.' };
-        }
-        if (ageH > 1) {
-            return { level: 'warn', label: 'Sync ' + Math.round(ageH) + 'h fa', hint: 'Sincronizzazione più vecchia del previsto (atteso ~15 min).' };
-        }
-        return { level: 'ok', label: 'Attiva', hint: 'Sincronizzazione recente e senza errori.' };
+        return PushMonitorHealth.syncHealth(app);
     },
     // Escaping per il CONTENUTO di un attributo ("..."): escapeHtml non escapa
     // i doppi apici, quindi un messaggio di errore con una " romperebbe title="...".

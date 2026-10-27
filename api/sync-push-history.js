@@ -21,9 +21,24 @@
  *   { id, message, rootzine, item_id, section_id, pushed_at, url, pushed_at_date }
  *
  * Richiede FIREBASE_SERVICE_ACCOUNT o le singole variabili Firebase Admin.
+ *
+ * Audit 27/10/2026:
+ *   - Accesso: lib/staff-auth.js. Niente più agenti, niente più "finto cron"
+ *     con ?full=true; il cron riconosciuto solo dall'User-Agent fa il giro standard.
+ *   - "Già sincronizzata?" si controlla leggendo i doc con ID deterministico
+ *     della pagina appena scaricata (~20-40 letture per app) invece di leggere
+ *     ogni volta le ultime 500 notifiche (~40.000 letture a giro, ~3,9 milioni
+ *     al giorno con 109 app). Verificato: tutti i 44.884 doc GoodBarber hanno
+ *     l'ID gb_<slug>_<gbPushId>.
+ *   - Le notifiche con data futura (push programmate) non generano più un
+ *     "avviso" permanente; un errore GoodBarber isolato non è più subito critico
+ *     (lastPushSyncErrorStreak, vedi public/js/push-monitor-health.js).
+ *   - app_public si aggiorna una volta l'ora e solo se cambia qualcosa; i Comuni
+ *     spenti nel configuratore escono dalla landing pubblica.
  */
 
 const admin = require('firebase-admin');
+const { verificaAccesso } = require('../lib/staff-auth');
 
 // Inizializza Firebase Admin (singleton)
 if (!admin.apps.length) {
@@ -86,23 +101,28 @@ async function getMonitoredApps(filterSlug = null) {
 
     const snapshot = await query.get();
     const apps = [];
+    // Tutte le app col monitor acceso (anche con configurazione incompleta):
+    // servono allo specchio pubblico app_public.
+    const enabled = [];
 
     snapshot.forEach(doc => {
         const data = doc.data();
+        const slugNorm = (data.appSlug || '').toLowerCase().trim();
+        if (slugNorm) enabled.push({ appSlug: slugNorm, comune: data.comune || '' });
         if (data.goodbarberWebzineId && data.monitorPushUserId) {
-            const slugNorm = (data.appSlug || '').toLowerCase().trim();
             apps.push({
                 id: doc.id,
                 appSlug: slugNorm,              // sempre lowercase nel flusso sync
                 comune: data.comune || '',
                 webzineId: data.goodbarberWebzineId,
                 monitorUserId: data.monitorPushUserId,
+                errorStreak: typeof data.lastPushSyncErrorStreak === 'number' ? data.lastPushSyncErrorStreak : 0,
                 appUrl: data.appUrl || (slugNorm ? `https://${slugNorm}.comune.digital` : '')
             });
         }
     });
 
-    return apps;
+    return { apps, enabled };
 }
 
 /**
@@ -112,91 +132,83 @@ async function getMonitoredApps(filterSlug = null) {
  * il goodbarberToken e altri dati riservati.
  * Doc-id = appSlug (lowercase). Campi pubblici: appSlug, comune, pushMonitorEnabled.
  * Scritta SOLO dal server (Admin SDK): nelle regole 'app_public' è write:false.
+ *
+ * Scrive solo i documenti che cambiano (prima: 109 scritture ogni 15 minuti) e
+ * mette pushMonitorEnabled=false ai Comuni spenti nel configuratore, che prima
+ * restavano per sempre nella landing pubblica.
  * Non-fatale: se fallisce logga e prosegue, senza bloccare il sync push.
  */
-async function syncAppPublicMirror(apps) {
+async function syncAppPublicMirror(enabled) {
     try {
+        const voluti = new Map();
+        for (const a of enabled) if (a.appSlug) voluti.set(a.appSlug, a.comune || '');
+
+        const attuali = new Map();
+        const snap = await db.collection('app_public').get();
+        snap.forEach(d => attuali.set(d.id, d.data() || {}));
+
+        const ops = [];
+        for (const [slug, comune] of voluti) {
+            const cur = attuali.get(slug);
+            if (!cur || cur.pushMonitorEnabled !== true || (cur.comune || '') !== comune || cur.appSlug !== slug) {
+                ops.push({ slug, data: { appSlug: slug, comune, pushMonitorEnabled: true } });
+            }
+        }
+        for (const [slug, cur] of attuali) {
+            if (!voluti.has(slug) && cur.pushMonitorEnabled === true) {
+                ops.push({ slug, data: { pushMonitorEnabled: false } });
+            }
+        }
+
         const CHUNK = 400; // limite batch Firestore = 500 operazioni
-        let total = 0;
-        for (let i = 0; i < apps.length; i += CHUNK) {
-            const slice = apps.slice(i, i + CHUNK);
+        for (let i = 0; i < ops.length; i += CHUNK) {
             const batch = db.batch();
-            let n = 0;
-            for (const app of slice) {
-                if (!app.appSlug) continue;
-                const ref = db.collection('app_public').doc(app.appSlug);
-                batch.set(ref, {
-                    appSlug: app.appSlug,
-                    comune: app.comune || '',
-                    pushMonitorEnabled: true,
+            for (const op of ops.slice(i, i + CHUNK)) {
+                batch.set(db.collection('app_public').doc(op.slug), {
+                    ...op.data,
                     updatedAt: admin.firestore.FieldValue.serverTimestamp()
                 }, { merge: true });
-                n++;
             }
-            if (n > 0) { await batch.commit(); total += n; }
+            await batch.commit();
         }
-        console.log(`[sync] app_public aggiornata: ${total} comuni`);
+        console.log(`[sync] app_public: ${ops.length} documenti aggiornati su ${voluti.size} comuni monitorati`);
     } catch (e) {
         console.error('[sync] Errore aggiornamento app_public (non fatale):', e.message);
     }
 }
 
 /**
- * Recupera l'INSIEME degli ultimi N gbPushId già sincronizzati per una specifica app.
- *
- * Serve per la sincronizzazione incrementale. NON è più sufficiente conoscere
- * il "max id" perché GoodBarber NON garantisce gbPushId monotonicamente crescenti
- * nel tempo: notifiche generate da template/eventi ricorrenti riusano l'ID del
- * template originale, quindi una notifica spedita oggi può avere un ID più basso
- * di una spedita la settimana scorsa. Usando un Set di ID già visti il sync
- * riconosce correttamente le notifiche già importate indipendentemente dall'ordine.
- *
- * Restituisce sempre un Set (mai null/undefined). In caso di errore restituisce
- * un Set vuoto: comportamento "prima sync", importa tutto quello che trova.
- *
- * Ordinato per sentAt desc (le notifiche più recenti hanno priorità nel Set):
- * tipicamente bastano gli ultimi 500 doc per coprire molte settimane di storia
- * e garantire che il sync incrementale non salti nulla.
+ * ID deterministico del documento push_history di una notifica GoodBarber.
+ * Lo slug normalizzato evita doppioni Locri/locri.
  */
-async function getRecentSyncedPushIds(appSlug, maxIds = 500) {
-    const seen = new Set();
+function pushDocId(appSlug, gbPushId) {
+    return `gb_${appSlug}_${gbPushId}`;
+}
+
+/**
+ * Quali notifiche di questa pagina sono GIÀ su Firestore?
+ *
+ * GoodBarber NON garantisce gbPushId crescenti (i template ricorrenti riusano
+ * l'ID originale), quindi non basta un "max id": serve sapere, notifica per
+ * notifica, se è già stata importata. Siccome l'ID del documento è
+ * deterministico, basta leggere i ~20 documenti della pagina con un solo
+ * getAll, invece di scaricare ogni volta le ultime 500 notifiche dell'app.
+ *
+ * In caso di errore ritorna un Set vuoto: comportamento "prima sync" (importa
+ * tutto quello che trova; il salvataggio è idempotente grazie a merge:true).
+ */
+async function knownPushIds(appSlug, notifs) {
+    const known = new Set();
+    const withId = notifs.filter(n => n && n.id !== undefined && n.id !== null);
+    if (withId.length === 0) return known;
     try {
-        const snapshot = await db.collection('push_history')
-            .where('appSlug', '==', appSlug)
-            .orderBy('sentAt', 'desc')
-            .limit(maxIds)
-            .get();
-        snapshot.forEach(doc => {
-            const gid = doc.data().gbPushId;
-            if (gid !== undefined && gid !== null) seen.add(gid);
-        });
-        return seen;
+        const refs = withId.map(n => db.collection('push_history').doc(pushDocId(appSlug, n.id)));
+        const snaps = await db.getAll(...refs);
+        snaps.forEach((snap, i) => { if (snap.exists) known.add(withId[i].id); });
     } catch (e) {
-        console.warn(`[sync] getRecentSyncedPushIds: indice mancante per ${appSlug}, uso fallback. ${e.message}`);
-        try {
-            // Fallback: scarica tutti i doc dell'app, ordina in memoria, prendi gli ultimi maxIds.
-            // Costoso ma affidabile; evita di perdere sync per mancanza di indice.
-            const snap = await db.collection('push_history')
-                .where('appSlug', '==', appSlug)
-                .get();
-            const all = [];
-            snap.forEach(doc => {
-                const data = doc.data();
-                all.push({
-                    id: data.gbPushId,
-                    ts: data.sentAt && data.sentAt.toDate ? data.sentAt.toDate().getTime() : 0
-                });
-            });
-            all.sort((a, b) => b.ts - a.ts);
-            for (let i = 0; i < Math.min(all.length, maxIds); i++) {
-                if (all[i].id !== undefined && all[i].id !== null) seen.add(all[i].id);
-            }
-            return seen;
-        } catch (e2) {
-            console.error(`[sync] getRecentSyncedPushIds fallback fallito per ${appSlug}:`, e2.message);
-            return seen; // Set vuoto → comportamento "prima sync"
-        }
+        console.warn(`[sync] knownPushIds fallito per ${appSlug}: ${e.message}`);
     }
+    return known;
 }
 
 /**
@@ -630,6 +642,7 @@ async function saveNotifications(notifications, appData) {
 
     let totalSaved = 0;
     let totalSkipped = 0;
+    let totalFuture = 0;   // push programmate: non sono un problema, verranno importate quando partono
     const skippedReasons = [];
 
     // Normalizza una sola volta
@@ -656,10 +669,7 @@ async function saveNotifications(notifications, appData) {
             // pushed_at futuro. Se succede è quasi sempre una push schedulata o un
             // evento calendar. Saltiamo per non sporcare lo storico.
             if (parsedDate > futureCutoff) {
-                totalSkipped++;
-                const reason = `notif id=${notif.id}: pushed_at futuro (${parsedDate.toISOString()}) — probabile push schedulata o evento calendar`;
-                skippedReasons.push(reason);
-                console.warn(`[sync] SKIP ${appData.comune} — ${reason}`);
+                totalFuture++;
                 continue;
             }
 
@@ -670,7 +680,7 @@ async function saveNotifications(notifications, appData) {
             // Usa un ID deterministico basato sul push_id di GoodBarber
             // per evitare duplicati. Includiamo lo slug normalizzato così
             // non si creano due doc diversi per Locri/locri.
-            const docId = `gb_${appSlugNorm || appData.appSlug}_${notif.id}`;
+            const docId = pushDocId(appSlugNorm || appData.appSlug, notif.id);
             const docRef = db.collection('push_history').doc(docId);
 
             batch.set(docRef, {
@@ -710,6 +720,7 @@ async function saveNotifications(notifications, appData) {
     return {
         saved: totalSaved,
         skipped: totalSkipped,
+        future: totalFuture,
         skippedReasons: skippedReasons
     };
 }
@@ -733,7 +744,7 @@ const STOP_AFTER_CONSECUTIVE_KNOWN = 30;
  * Sincronizza le notifiche per una singola app.
  *
  * Logica incrementale (non full sync): scorre le pagine GoodBarber e per ogni
- * notifica controlla se il suo gbPushId è già nel Set "seenIds". Si ferma quando
+ * notifica controlla se è già su Firestore (knownPushIds). Si ferma quando
  * trova STOP_AFTER_CONSECUTIVE_KNOWN notifiche consecutive già viste, oppure
  * quando raggiunge l'ultima pagina o il limite maxPages.
  *
@@ -744,15 +755,17 @@ const STOP_AFTER_CONSECUTIVE_KNOWN = 30;
  */
 async function syncApp(appData, fullSync = false) {
     const maxPages = fullSync ? MAX_PAGES_FULL_SYNC : MAX_PAGES_PER_SYNC;
-    const seenIds = fullSync ? new Set() : await getRecentSyncedPushIds(appData.appSlug);
+    // ID già visti in QUESTO giro (GB a volte ripete una notifica tra due pagine)
+    const seenIds = new Set();
     let allNewNotifications = [];
     let page = 1;
     let consecutiveKnown = 0;
+    let foundAnyKnown = false;   // l'app ha già uno storico su Firestore
     let convergedOnKnown = false;
     let reachedLastPage = false;
     let apiErrors = [];
 
-    console.log(`[sync] ${appData.comune} (${appData.appSlug}) — seenIds: ${seenIds.size}, fullSync: ${fullSync}`);
+    console.log(`[sync] ${appData.comune} (${appData.appSlug}) — fullSync: ${fullSync}`);
 
     while (page <= maxPages && !convergedOnKnown) {
         try {
@@ -763,22 +776,22 @@ async function syncApp(appData, fullSync = false) {
                 break; // Nessun'altra notifica
             }
 
+            const known = fullSync ? new Set() : await knownPushIds(appData.appSlug, data.result);
             for (const notif of data.result) {
-                if (!fullSync && seenIds.has(notif.id)) {
-                    // Notifica già vista: incrementa il contatore di consecutive note.
-                    // NON aggiunge alle nuove (sarebbe comunque idempotente grazie al
-                    // doc id deterministico + merge:true, ma evitiamo lavoro inutile).
+                if (seenIds.has(notif.id)) continue; // ripetuta da GB tra due pagine
+                seenIds.add(notif.id);
+                if (known.has(notif.id)) {
+                    // Già su Firestore: incrementa il contatore di consecutive note.
+                    // NON la rimette fra le nuove (sarebbe comunque idempotente grazie
+                    // al doc id deterministico + merge:true, ma evitiamo lavoro inutile).
+                    foundAnyKnown = true;
                     consecutiveKnown++;
                     if (consecutiveKnown >= STOP_AFTER_CONSECUTIVE_KNOWN) {
                         convergedOnKnown = true;
                         break;
                     }
                 } else {
-                    // Notifica nuova: reset del contatore e accodala.
-                    // Aggiungiamo subito al Set per evitare di accodarla due volte
-                    // se per qualche ragione GB la rimanda nella pagina successiva.
                     consecutiveKnown = 0;
-                    seenIds.add(notif.id);
                     allNewNotifications.push(notif);
                 }
             }
@@ -810,7 +823,7 @@ async function syncApp(appData, fullSync = false) {
         !convergedOnKnown &&
         !reachedLastPage &&
         page > maxPages &&
-        seenIds.size > 0
+        foundAnyKnown
     )
         ? `Limite pagine raggiunto (${maxPages}) senza convergere su notifiche già viste. Considera un full sync.`
         : null;
@@ -832,16 +845,23 @@ async function syncApp(appData, fullSync = false) {
         finalWarning = finalWarning ? `${finalWarning} | ${skipNote}` : skipNote;
     }
 
-    // Aggiorna il timestamp dell'ultima sincronizzazione + diagnostica
+    // Aggiorna il timestamp dell'ultima sincronizzazione + diagnostica.
+    // lastPushSyncErrorStreak conta i giri falliti DI FILA: un errore isolato di
+    // GoodBarber è "temporaneo", diventa critico solo se si ripete (vedi
+    // public/js/push-monitor-health.js).
+    const hasErrors = apiErrors.length > 0;
     const updateData = {
         lastPushSync: admin.firestore.FieldValue.serverTimestamp(),
         lastPushSyncCount: savedCount,
         lastPushSyncSkipped: skippedCount,
+        lastPushSyncFuture: saveResult.future || 0,
         lastPushSyncPagesScanned: page,
-        lastPushSyncStatus: apiErrors.length > 0 ? 'error' : (finalWarning ? 'warning' : 'ok'),
+        lastPushSyncStatus: hasErrors ? 'error' : (finalWarning ? 'warning' : 'ok'),
         lastPushSyncWarning: finalWarning || null,
-        lastPushSyncError: apiErrors.length > 0 ? apiErrors.join('; ') : null
+        lastPushSyncError: hasErrors ? apiErrors.join('; ') : null,
+        lastPushSyncErrorStreak: hasErrors ? (appData.errorStreak || 0) + 1 : 0
     };
+    if (!hasErrors) updateData.lastPushSyncOkAt = admin.firestore.FieldValue.serverTimestamp();
     try {
         await db.collection('app').doc(appData.id).update(updateData);
     } catch (e) {
@@ -866,70 +886,6 @@ async function syncApp(appData, fullSync = false) {
 }
 
 // ============================================================================
-// Autenticazione — accetta tre modalità (in ordine di priorità):
-//
-//   1. Vercel Cron: rilevato via User-Agent "vercel-cron/1.0" o header
-//      x-vercel-cron. Vercel chiama l'endpoint senza poter aggiungere
-//      header custom, quindi serve auto-detect.
-//
-//   2. Firebase ID Token: il CRM passa Authorization: Bearer <id_token>
-//      ottenuto da firebase.auth().currentUser.getIdToken(). Verifichiamo
-//      con admin.auth().verifyIdToken(). Questo copre il bottone
-//      "Sincronizza Ora" del CRM dove l'utente è già loggato.
-//
-//   3. SYNC_SECRET legacy: Authorization: Bearer <secret> oppure ?secret=...
-//      Mantenuto per retrocompatibilità (chiamate da terminale, test, ecc.)
-//
-// Se SYNC_SECRET non è impostato e nessun metodo matcha → si lascia passare
-// (comportamento storico pre-secret, utile in dev).
-// ============================================================================
-
-async function checkAuth(req) {
-    // 1) Vercel Cron auto-detect
-    const ua = (req.headers['user-agent'] || '').toLowerCase();
-    if (ua.includes('vercel-cron') || req.headers['x-vercel-cron']) {
-        return { ok: true, source: 'vercel-cron' };
-    }
-
-    const authHeader = req.headers['authorization'] || '';
-    const querySecret = req.query.secret || '';
-
-    // 2) SYNC_SECRET legacy (controllato prima di Firebase per restare veloce)
-    const syncSecret = process.env.SYNC_SECRET;
-    if (syncSecret) {
-        if (
-            authHeader === `Bearer ${syncSecret}` ||
-            authHeader === syncSecret ||
-            querySecret === syncSecret
-        ) {
-            return { ok: true, source: 'sync-secret' };
-        }
-    }
-
-    // 3) Firebase ID Token (verifica via admin SDK)
-    if (authHeader.startsWith('Bearer ')) {
-        const token = authHeader.substring(7).trim();
-        // Skip se sembra essere il SYNC_SECRET (già controllato sopra) — evita verifyIdToken inutile
-        if (token && token !== syncSecret) {
-            try {
-                const decoded = await admin.auth().verifyIdToken(token);
-                return { ok: true, source: 'firebase', uid: decoded.uid, email: decoded.email };
-            } catch (e) {
-                // Token non valido o non Firebase: cadiamo nel default sotto
-                console.warn('[sync-auth] Bearer token non valido come Firebase ID token:', e.message);
-            }
-        }
-    }
-
-    // Se SYNC_SECRET non è impostato, comportamento legacy: lasciamo passare.
-    if (!syncSecret) {
-        return { ok: true, source: 'no-secret-configured' };
-    }
-
-    return { ok: false };
-}
-
-// ============================================================================
 // Main Handler
 // ============================================================================
 
@@ -947,27 +903,33 @@ module.exports = async function handler(req, res) {
         return res.status(405).json({ error: 'Metodo non consentito. Usa GET.' });
     }
 
-    // Sicurezza multi-livello: cron Vercel | Firebase ID token | SYNC_SECRET
-    const auth = await checkAuth(req);
+    // Chi può chiamare: cron (CRON_SECRET / User-Agent), SYNC_SECRET, staff del
+    // CRM con ID token Firebase. Gli agenti ricevono 403. Vedi lib/staff-auth.js.
+    const auth = await verificaAccesso(req, admin);
     if (!auth.ok) {
-        return res.status(401).json({
-            error: 'Non autorizzato',
-            hint: 'Forniscire Authorization: Bearer <firebase-id-token | SYNC_SECRET>, oppure ?secret=<SYNC_SECRET>. Il cron Vercel viene rilevato automaticamente.'
-        });
+        return res.status(auth.status || 401).json({ success: false, error: auth.error || 'Non autorizzato' });
     }
+    // Il cron riconosciuto solo dall'User-Agent (imitabile) fa SOLO il giro standard.
+    const soloGiroStandard = auth.livello === 'cron';
     console.log(`[sync] Autenticazione OK (source: ${auth.source}${auth.uid ? `, uid: ${auth.uid}` : ''})`);
 
     try {
-        const { appSlug, full } = req.query;
-        const fullSync = full === 'true';
+        const q = soloGiroStandard ? {} : req.query;
+        const appSlug = q.appSlug || '';
+        const fullSync = q.full === 'true';
 
         // Recupera le app da sincronizzare
-        const apps = await getMonitoredApps(appSlug || null);
+        const { apps, enabled } = await getMonitoredApps(appSlug || null);
 
-        // Aggiorna lo specchio pubblico dei nomi Comune (app_public) usato dalle
-        // pagine pubbliche, così non devono leggere il documento 'app' completo
-        // (che contiene il goodbarberToken). Non-fatale.
-        await syncAppPublicMirror(apps);
+        // Specchio pubblico dei nomi Comune (app_public) usato dalle pagine
+        // pubbliche al posto del doc 'app' completo. Solo sui giri che vedono
+        // TUTTE le app (niente filtro, primo blocco) e al massimo una volta l'ora
+        // per il cron (sync manuale: subito). Non-fatale.
+        const giroCompleto = !appSlug && !(parseInt(q.chunk) > 0);
+        const isCron = auth.source === 'cron-secret' || auth.source === 'vercel-cron-ua';
+        if (giroCompleto && (!isCron || new Date().getUTCMinutes() < 15)) {
+            await syncAppPublicMirror(enabled);
+        }
 
         if (apps.length === 0) {
             return res.status(200).json({
@@ -978,8 +940,8 @@ module.exports = async function handler(req, res) {
         }
 
         // Supporto chunk: ?chunk=0&chunkSize=30 per processare a blocchi
-        const chunkIndex = parseInt(req.query.chunk) || 0;
-        const chunkSize = parseInt(req.query.chunkSize) || 0; // 0 = tutte
+        const chunkIndex = parseInt(q.chunk) || 0;
+        const chunkSize = Math.min(parseInt(q.chunkSize) || 0, 100); // 0 = tutte
 
         let appsToSync = apps;
         if (chunkSize > 0) {
@@ -1027,6 +989,10 @@ module.exports = async function handler(req, res) {
         }
 
         const totalNew = results.reduce((sum, r) => sum + (r.newNotifications || 0), 0);
+
+        if (soloGiroStandard) {
+            return res.status(200).json({ success: true, totalApps: appsToSync.length, totalNewNotifications: totalNew });
+        }
 
         return res.status(200).json({
             success: true,

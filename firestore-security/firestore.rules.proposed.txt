@@ -1,47 +1,39 @@
-rules_version = '2';
-
 // =============================================================================
-// FIRESTORE SECURITY RULES — FASE A (versione pubblicata 2026-05-01)
+// FIRESTORE SECURITY RULES — v3 DA PUBBLICARE (audit monitoraggio 2026-10-27)
 // =============================================================================
-// Pubblicate il 2026-05-01 dopo audit completo + 7 test passati nel Playground.
-// Backup delle vecchie rules in firestore.rules.current.txt (pre-audit).
+// Costruita sulle regole REALMENTE pubblicate (backup in
+// firestore.rules.current.txt, scaricato dall'API il 27/10/2026).
 //
-// Cosa cambia rispetto alle rules precedenti:
-//   1. 'app' e 'push_history' restano leggibili pubblicamente (webapp Comuni)
-//   2. 'utenti' protetto: un utente normale può aggiornare SOLO i campi tecnici
-//      (lastLogin, photoURL, dataAggiornamento, fcmTokens, fcmTokenUpdatedAt)
-//      del proprio doc. NESSUNO può cambiarsi ruolo o stato.
-//   3. 'audit_log' è APPEND-ONLY: chiunque attivo può aggiungere voci, ma
-//      nessuno può modificarle/cancellarle. Lettura solo admin.
-//   4. Le altre 29 collezioni CRM elencate esplicitamente in isCrmCollection.
-//      Tutto il resto bloccato dal catch-all.
-//   5. Tutto richiede stato != 'DISATTIVO' (un utente disattivato può loggarsi
-//      ma non legge/scrive niente).
-//   7. (2026-10-13) Aggiunte 'fornitori' e 'fornitori_valutazioni' a isCrmCollection
-//      (registro fornitori ISO 9001, CRM v10.8.0). PUBBLICATO in Console il 13/10/2026.
-//   6. (2026-07-08) Aggiunta 'app_public' (specchio pubblico nome/slug, write:false).
-//      FASE 2 (rendere 'app' read auth-only): risulta FATTA — verificata in
-//      produzione il 2026-09-18, vedi la nota sul match /app/.
+// Cosa cambia rispetto alla v2 in produzione:
+//   1. 'app': un utente attivo che NON è staff (cioè un AGENTE) può ancora
+//      leggere e aggiornare il doc (Report App salva le statistiche), ma NON può
+//      toccare i campi del monitoraggio (monitorFields: User ID fantasma, slug,
+//      Webzine ID, toggle, stato sync), né creare app col monitor né eliminarle.
+//   2. 'push_history': scrittura solo staff (prima: qualunque utente attivo).
+//   3. 'health_status': lettura solo staff, scrittura solo server (prima era
+//      nella whitelist generica: un agente poteva riscriverla).
+// Staff = SUPER_ADMIN, ADMIN, CTO, SVILUPPATORE, CONTENT_MANAGER, CONTABILE
+// (gli stessi ruoli che aprono Storico Push; stessa lista di lib/staff-auth.js).
 //
-// ⚠️ APERTO (audit 2026-09-18): 'push_history' è ancora leggibile da chiunque e i
-//    suoi documenti contengono campi interni — gbUrl (l'indirizzo del CMS, che
-//    per regola aziendale non deve mai essere pubblico), metadata.rootzine,
-//    sentBy/sentByName (nome dell'operatore che ha inviato), appId.
-//    Le regole Firestore NON possono nascondere singoli campi: per chiuderla
-//    serve uno specchio pubblico (es. 'push_public') con i soli campi che
-//    servono all'archivio, sulla falsariga di 'app_public'.
+// Collaudo 27/10/2026 con l'API firebaserules ":test" (nessuna pubblicazione):
+// 21/21 casi OK (agente bloccato su User ID, toggle, slug, creazione, delete,
+// push_history, health_status; staff e pagine pubbliche invariati). Gli stessi
+// casi sulla v2 in produzione: 9 falle.
 //
 // IMPORTANTE: in Firestore Rules tutti i match si valutano in OR (union).
-// NON sostituire la whitelist isCrmCollection con un /{document=**} permissivo,
-// altrimenti scavalca le rules specifiche di /utenti/ e /audit_log/.
+// NON sostituire la whitelist isCrmCollection con un /{document=**} permissivo.
+// ⚠️ APERTO: 'push_history' resta leggibile da chiunque con campi interni
+//    (gbUrl, sentBy...). Serve uno specchio 'push_public' (vedi audit 2026-09-18).
 // =============================================================================
 
+rules_version = '2';
+
+// FIRESTORE SECURITY RULES — FASE A (v3: monitoraggio notifiche solo staff)
+// v3 (audit 27/10/2026): gli AGENTI non possono più toccare il monitoraggio
+// notifiche (User ID fantasma, slug, toggle, stato sync) né lo storico push;
+// health_status lo scrive solo il server e lo legge solo lo staff.
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // ------------------------------------------------------------------------
-    // FUNZIONI HELPER
-    // ------------------------------------------------------------------------
 
     function isAuth() {
       return request.auth != null;
@@ -51,8 +43,6 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/utenti/$(request.auth.uid)).data;
     }
 
-    // Coerente con auth.js (riga 92): blocca SOLO chi ha stato == 'DISATTIVO'.
-    // Usa .get('stato', 'ATTIVO') così utenti legacy senza il campo passano.
     function isActive() {
       return isAuth()
         && exists(/databases/$(database)/documents/utenti/$(request.auth.uid))
@@ -66,9 +56,23 @@ service cloud.firestore {
     function isSuperAdmin() {
       return isActive() && userRole() == 'SUPER_ADMIN';
     }
-
     function isAdmin() {
       return isActive() && userRole() in ['SUPER_ADMIN', 'ADMIN'];
+    }
+
+    // Staff = chi può aprire Storico Push nel CRM (view_all_data o manage_apps
+    // in public/js/auth.js). NON l'AGENTE. Stessa lista di lib/staff-auth.js.
+    function isStaff() {
+      return isActive() && userDoc().get('ruolo', '') in
+        ['SUPER_ADMIN', 'ADMIN', 'CTO', 'SVILUPPATORE', 'CONTENT_MANAGER', 'CONTABILE'];
+    }
+
+    // Campi del doc 'app' che governano il monitoraggio notifiche.
+    function monitorFields() {
+      return ['pushMonitorEnabled', 'monitorPushUserId', 'appSlug', 'goodbarberWebzineId',
+              'lastPushSync', 'lastPushSyncStatus', 'lastPushSyncError', 'lastPushSyncWarning',
+              'lastPushSyncCount', 'lastPushSyncSkipped', 'lastPushSyncFuture',
+              'lastPushSyncPagesScanned', 'lastPushSyncErrorStreak', 'lastPushSyncOkAt'];
     }
 
     function isOwnDoc(userId) {
@@ -79,131 +83,83 @@ service cloud.firestore {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly(allowedFields);
     }
 
-    // Whitelist delle 29 collezioni CRM "standard" (oltre alle 4 specifiche
-    // sopra: app, push_history, utenti, audit_log).
-    // Quando si aggiunge una nuova collezione al codice del CRM, va aggiunta
-    // qui altrimenti viene bloccata dal catch-all in fondo.
+    // Whitelist delle 29 collezioni CRM "standard"
     function isCrmCollection(coll) {
       return coll in [
         'app_followers', 'chat_conversations', 'clienti', 'commenti', 'contatori',
         'contratti', 'discussioni_app', 'documenti', 'fatture', 'generatore-home-configs',
-        'health_status', 'impostazioni', 'messages', 'note_cliente', 'notifications',
-        'od_attivita', 'od_changelog', 'od_componenti', 'od_istanze_componenti', 'od_prodotti',
-        'presence', 'promemoria', 'push_broadcast_log', 'saleRiunioni', 'scadenzario',
-        'settings', 'tasks',
+        'impostazioni', 'messages', 'note_cliente', 'notifications',
+        'od_attivita', 'od_istanze_componenti', 'od_prodotti', 'presence', 'promemoria',
+        'push_broadcast_log', 'saleRiunioni', 'scadenzario', 'settings', 'tasks',
         'rss_feeds', 'rss_assignments', 'rss_classifications', 'rss_read',
-        // v10.8.0 — registro fornitori qualificati ISO 9001 (pagina solo admin)
+        'od_componenti', 'od_changelog',
         'fornitori', 'fornitori_valutazioni'
       ];
     }
 
 
-    // ------------------------------------------------------------------------
-    // COLLEZIONI PUBBLICHE — lette dalle webapp dei Comuni dentro GoodBarber
-    // ------------------------------------------------------------------------
+    // COLLEZIONI PUBBLICHE
 
-    // 'app_public' — specchio minimale (appSlug, comune, pushMonitorEnabled)
-    // scritto SOLO dal server (cron sync-push-history via Admin SDK, che bypassa
-    // le regole). Le pagine pubbliche (archivio notifiche, landing, archivio
-    // eventi) leggono QUI il nome del Comune, così NON serve esporre il doc 'app'
-    // completo (che contiene goodbarberToken e altri dati riservati).
+    // Specchio pubblico minimale (solo nome/slug), scritto solo dal server (Admin SDK)
     match /app_public/{document} {
       allow read: if true;
       allow write: if false;
     }
-
-    // FASE 2 — RISULTA GIÀ APPLICATA IN PRODUZIONE.
-    // Verificato il 2026-09-18 da una pagina pubblica non autenticata
-    // (notifiche.comune.digital): una query su 'app' risponde
-    // "Missing or insufficient permissions", mentre 'app_public' si legge.
-    // Quindi il goodbarberToken NON è più esposto. Il testo esatto pubblicato
-    // nella Console può differire da quello qui sotto: questo file è un backup
-    // scritto a mano, non un'esportazione.
+    // 'app': tutti gli utenti attivi leggono e aggiornano (es. Report App degli
+    // agenti salva le statistiche), ma i campi del monitoraggio li tocca solo lo staff.
     match /app/{document} {
-      allow read: if isActive();   // FASE 2 applicata (era: if true)
-      allow write: if isActive();
+      allow read: if isActive();
+      allow create: if isStaff()
+        || (isActive() && !request.resource.data.keys().hasAny(monitorFields()));
+      allow update: if isStaff()
+        || (isActive() && !request.resource.data.diff(resource.data).affectedKeys().hasAny(monitorFields()));
+      allow delete: if isStaff();
     }
-
+    // Storico notifiche: letto dalle pagine pubbliche, scritto dal server e dallo
+    // staff (Push Broadcast registra gli invii). Gli agenti non scrivono.
     match /push_history/{document} {
       allow read: if true;
-      allow write: if isActive();
+      allow write: if isStaff();
+    }
+    // Fotografia giornaliera della salute del monitoraggio: la scrive solo il
+    // cron daily-health-alert (Admin SDK), la legge solo lo staff (banner Dashboard).
+    match /health_status/{document} {
+      allow read: if isStaff();
+      allow write: if false;
     }
 
 
-    // ------------------------------------------------------------------------
-    // /utenti — protezione anti-escalation di privilegi
-    // ------------------------------------------------------------------------
-
+    // /utenti — anti-escalation
     match /utenti/{userId} {
-      // Read del proprio doc sempre (login flow, anche se DISATTIVO).
-      // Read degli altri solo se loggato attivo.
       allow read: if isOwnDoc(userId) || isActive();
-
-      // Create solo dagli Admin (settings.js)
       allow create: if isAdmin();
-
-      // Update: o Admin (qualsiasi campo) o proprio doc (solo campi tecnici).
-      // NESSUNO può modificare ruolo/stato/email/nome/cognome del proprio doc.
       allow update: if isAdmin()
         || (isOwnDoc(userId) && isActive() && onlyAffects([
-              'lastLogin',
-              'photoURL',
-              'dataAggiornamento',
-              'fcmTokens',
-              'fcmTokenUpdatedAt'
+              'lastLogin', 'photoURL', 'dataAggiornamento',
+              'fcmTokens', 'fcmTokenUpdatedAt'
            ]));
-
-      // Delete solo SuperAdmin
       allow delete: if isSuperAdmin();
     }
 
 
-    // ------------------------------------------------------------------------
-    // /audit_log — append-only, immutabile, lettura solo admin
-    // ------------------------------------------------------------------------
-
+    // /audit_log — append-only
     match /audit_log/{document} {
       allow read: if isAdmin();
       allow create: if isActive();
-      // I log NON possono mai essere modificati o cancellati, neanche dagli admin.
       allow update, delete: if false;
     }
 
 
-    // ------------------------------------------------------------------------
-    // ALTRE COLLEZIONI CRM (whitelist esplicita)
-    // ------------------------------------------------------------------------
-
+    // Altre collezioni CRM (whitelist)
     match /{collection}/{document} {
       allow read, write: if isCrmCollection(collection) && isActive();
     }
 
-    // ------------------------------------------------------------------------
-    // MESSAGGI CHAT — subcollection di chat_conversations (v10.2.0)
-    // Il match a singolo segmento sopra (/{collection}/{document}) copre SOLO i
-    // documenti di primo livello: NON copre chat_conversations/{id}/messages/{msgId},
-    // che senza questa regola cade nel catch-all deny → "Missing or insufficient
-    // permissions" quando la chat prova a leggere/scrivere i messaggi.
-    // Stesso livello di sicurezza del doc conversazione (isActive()).
-    // ------------------------------------------------------------------------
-
+    // Catch-all: tutto il resto e' bloccato
+    // Messaggi chat: subcollection non coperta dal match a segmento singolo (v10.2.0)
     match /chat_conversations/{convId}/messages/{msgId} {
       allow read, write: if isActive();
     }
-
-
-    // ------------------------------------------------------------------------
-    // COLLEZIONI SOLO-SERVER (NON vanno mai aggiunte a isCrmCollection)
-    //   'app_mcp_segreti' — lasciapassare MCP GoodBarber (v10.7.1): li usano solo
-    //   le function Vercel (Admin SDK) e gli script di Giancarlo. Bloccata dal
-    //   catch-all qui sotto: verificato l'11/10/2026 che un SUPER_ADMIN loggato
-    //   riceve permission-denied in lettura e scrittura.
-    //   'sistema' — riepiloghi dei cron (es. mcpKeepalive).
-    // ------------------------------------------------------------------------
-
-    // ------------------------------------------------------------------------
-    // CATCH-ALL: tutto ciò che non è stato matchato sopra è BLOCCATO
-    // ------------------------------------------------------------------------
 
     match /{path=**} {
       allow read, write: if false;

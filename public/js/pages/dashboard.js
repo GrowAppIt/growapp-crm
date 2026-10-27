@@ -372,18 +372,16 @@ const Dashboard = {
     // Banner Health Status: legge health_status/latest da Firestore
     // e mostra un avviso visibile se alcune app non ricevono più
     // notifiche (warn ≥3 giorni, error ≥7 giorni). Il documento viene
-    // aggiornato ogni mattina alle 09:00 dal cron /api/daily-health-alert.
+    // aggiornato ogni mattina alle 07:00 UTC dal cron /api/daily-health-alert.
     // ─────────────────────────────────────────────────────────────
     async loadAndRenderHealthBanner() {
         const container = document.getElementById('healthStatusBanner');
         if (!container) return;
 
-        // Visibile solo a chi ha permesso su app/push (admin, CTO, content manager)
-        const puoVedere = AuthService.hasPermission('view_all_data')
-            || AuthService.hasPermission('manage_apps')
-            || AuthService.hasPermission('view_apps')
-            || AuthService.hasPermission('manage_app_content');
-        if (!puoVedere) { container.innerHTML = ''; return; }
+        // Visibile solo a chi può aprire il Monitor (Storico Push). Prima bastava
+        // 'view_apps', che hanno anche gli AGENTI: vedevano il banner e i nomi dei
+        // Comuni in errore. Stessa regola della pagina = niente incoerenze.
+        if (!AuthService.canAccessPage('storico-push')) { container.innerHTML = ''; return; }
 
         let doc;
         try {
@@ -398,65 +396,71 @@ const Dashboard = {
         const data = doc.data() || {};
         const rawError = Array.isArray(data.errorApps) ? data.errorApps : [];
         const rawWarn = Array.isArray(data.warnApps) ? data.warnApps : [];
-        // App con MONITORAGGIO rotto (sync in errore/fermo/incompleto): il dato
-        // "giorni senza notifiche" NON è affidabile, quindi vanno mostrate con un
-        // messaggio diverso ("sync da sistemare"), non come "il Comune non invia".
-        const rawSync = Array.isArray(data.syncBrokenApps) ? data.syncBrokenApps : [];
 
         // ────────────────────────────────────────────────────────────────
-        // VALIDAZIONE LIVE — health_status/latest è una FOTOGRAFIA ricalcolata
-        // una sola volta al giorno (cron 07:00). Nel frattempo un'app può essere
-        // stata SPENTA nel configuratore, oppure aver RICEVUTO notifiche DOPO
-        // l'ultimo calcolo: in entrambi i casi il banner darebbe un FALSO ALLARME
-        // (es. Acri "in errore" pur avendo notifiche, o app non più monitorate).
-        // Prima di mostrare, rivalidiamo ogni app segnalata sui dati REALI di
-        // adesso. Poche query, solo sulle app segnalate, in background (questa
-        // funzione è già chiamata non-bloccante), quindi non rallenta la dashboard.
+        // health_status/latest è una FOTOGRAFIA ricalcolata una volta al giorno
+        // (cron 07:00 UTC). Fidarsi di quella dava FALSI "da sistemare": il
+        // 27/10/2026 Serravalle Pistoiese, Ravanusa e Scigliano risultavano da
+        // sistemare pur sincronizzando regolarmente da ore.
+        //
+        // Ora:
+        //  - "monitoraggio da sistemare" è calcolato LIVE dai doc app (stessa
+        //    regola della pagina Storico Push, PushMonitorHealth): 0 query extra,
+        //    le app sono già nella cache di DataService;
+        //  - "non riceve notifiche da N giorni" (snapshot) viene ricontrollato
+        //    sull'ultima notifica reale, e scartato se l'app è spenta, non più
+        //    ATTIVA, o se nel frattempo ha il sync rotto (allora il dato non vale).
         // ────────────────────────────────────────────────────────────────
         const WARN_DAYS = 3, ERROR_DAYS = 7, MS_DAY = 24 * 60 * 60 * 1000;
         const nowMs = Date.now();
 
+        let tutteLeApp = [];
+        try { tutteLeApp = await DataService.getApps(); } catch (e) { tutteLeApp = []; }
+        const appBySlug = {};
+        tutteLeApp.forEach(a => {
+            const s = ((a.appSlug || '') + '').toLowerCase().trim();
+            if (s && (!appBySlug[s] || a.pushMonitorEnabled)) appBySlug[s] = a;
+        });
+        // Solo le app monitorate e già in produzione: un'app IN_SVILUPPO con il
+        // monitor acceso non è un allarme per la dashboard (resta visibile nel
+        // pannello Storico Push).
+        const inProduzione = a => !!a && !!a.pushMonitorEnabled && (!a.statoApp || a.statoApp === 'ATTIVA');
+
+        const syncBrokenApps = tutteLeApp
+            .filter(inProduzione)
+            .map(a => ({ a, h: PushMonitorHealth.syncHealth(a, nowMs) }))
+            .filter(x => PushMonitorHealth.isSyncBroken(x.h))
+            .map(x => ({ appSlug: x.a.appSlug, appName: x.a.comune || x.a.nome || x.a.appSlug, reason: x.h.hint, _sev: 'sync' }));
+        const syncBrokenSlugs = new Set(syncBrokenApps.map(a => ((a.appSlug || '') + '').toLowerCase()));
+
         const validateOne = async (app, kind) => {
             const slug = ((app.appSlug || '') + '').toLowerCase().trim();
             if (!slug) return null;
-            let appData = null;
+            if (tutteLeApp.length > 0 && !inProduzione(appBySlug[slug])) return null; // spenta / non più attiva / sparita
+            if (syncBrokenSlugs.has(slug)) return null;          // già nella lista "da sistemare"
             try {
-                const s = await db.collection('app').where('appSlug', '==', slug).limit(1).get();
-                if (s.empty) return null;                       // app non più esistente
-                appData = s.docs[0].data() || {};
-            } catch (e) { return { ...app, _sev: kind }; }      // in dubbio, mantieni il dato dello snapshot
-            if (!appData.pushMonitorEnabled) return null;       // SPENTA nel configuratore → non è un errore
-
-            // Per error/warn ricalcola la freschezza reale dallo storico
-            // (per il sync-rotto lo storico è per definizione assente/vecchio).
-            if (kind !== 'sync') {
-                try {
-                    const ph = await db.collection('push_history')
-                        .where('appSlug', '==', slug).where('status', '==', 'sent')
-                        .orderBy('sentAt', 'desc').limit(1).get();
-                    if (!ph.empty) {
-                        const sv = ph.docs[0].data().sentAt;
-                        const ms = sv && sv.toDate ? sv.toDate().getTime() : (sv ? new Date(sv).getTime() : null);
-                        if (ms) {
-                            const days = Math.floor((nowMs - ms) / MS_DAY);
-                            if (days < WARN_DAYS) return null;  // ha ricevuto notifiche di recente (es. Acri) → non è un problema
-                            return { ...app, daysSinceLast: days, _sev: days >= ERROR_DAYS ? 'error' : 'warn' };
-                        }
+                const ph = await db.collection('push_history')
+                    .where('appSlug', '==', slug).where('status', '==', 'sent')
+                    .orderBy('sentAt', 'desc').limit(1).get();
+                if (!ph.empty) {
+                    const ms = PushMonitorHealth.toMs(ph.docs[0].data().sentAt);
+                    if (ms) {
+                        const days = Math.floor((nowMs - ms) / MS_DAY);
+                        if (days < WARN_DAYS) return null;      // ha ricevuto notifiche di recente → non è un problema
+                        return { ...app, daysSinceLast: days, _sev: days >= ERROR_DAYS ? 'error' : 'warn' };
                     }
-                } catch (e) { /* indice mancante: teniamo il dato dello snapshot */ }
-            }
+                }
+            } catch (e) { /* indice mancante: teniamo il dato dello snapshot */ }
             return { ...app, _sev: kind };
         };
 
         const validated = (await Promise.all([
             ...rawError.map(a => validateOne(a, 'error')),
-            ...rawWarn.map(a => validateOne(a, 'warn')),
-            ...rawSync.map(a => validateOne(a, 'sync'))
+            ...rawWarn.map(a => validateOne(a, 'warn'))
         ])).filter(Boolean);
 
         const errorApps = validated.filter(a => a._sev === 'error');
         const warnApps = validated.filter(a => a._sev === 'warn');
-        const syncBrokenApps = validated.filter(a => a._sev === 'sync');
 
         // Nessun problema (dopo la validazione live) → non mostriamo nulla
         if (errorApps.length === 0 && warnApps.length === 0 && syncBrokenApps.length === 0) {

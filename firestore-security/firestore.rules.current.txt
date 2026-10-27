@@ -1,28 +1,118 @@
 // =============================================================================
 // FIRESTORE SECURITY RULES — STATO ATTUALE IN PRODUZIONE
 // =============================================================================
-// Letto dalla Console Firebase il 2026-05-01.
-// Ultima modifica nella console: 2026-04-04 alle 12:04.
-// Progetto: crm-comunedigital
+// Scaricato dall'API Firebase Rules il 2026-10-27 (release cloud.firestore,
+// pubblicata il 2026-10-13). Progetto: crm-comunedigital.
 //
 // QUESTO FILE È UN BACKUP. NON viene applicato automaticamente.
-// Le modifiche vanno fatte manualmente nella Console Firebase
-// (Firestore -> Regole -> Pubblica).
+// La versione da pubblicare è firestore.rules.proposed.txt.
 // =============================================================================
 
 rules_version = '2';
+
+// FIRESTORE SECURITY RULES — FASE A (v2: fix wildcard override)
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /push_history/{document} {
+
+    function isAuth() {
+      return request.auth != null;
+    }
+
+    function userDoc() {
+      return get(/databases/$(database)/documents/utenti/$(request.auth.uid)).data;
+    }
+
+    function isActive() {
+      return isAuth()
+        && exists(/databases/$(database)/documents/utenti/$(request.auth.uid))
+        && userDoc().get('stato', 'ATTIVO') != 'DISATTIVO';
+    }
+
+    function userRole() {
+      return userDoc().ruolo;
+    }
+
+    function isSuperAdmin() {
+      return isActive() && userRole() == 'SUPER_ADMIN';
+    }
+    function isAdmin() {
+      return isActive() && userRole() in ['SUPER_ADMIN', 'ADMIN'];
+    }
+
+    function isOwnDoc(userId) {
+      return isAuth() && request.auth.uid == userId;
+    }
+
+    function onlyAffects(allowedFields) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(allowedFields);
+    }
+
+    // Whitelist delle 29 collezioni CRM "standard"
+    function isCrmCollection(coll) {
+      return coll in [
+        'app_followers', 'chat_conversations', 'clienti', 'commenti', 'contatori',
+        'contratti', 'discussioni_app', 'documenti', 'fatture', 'generatore-home-configs',
+        'health_status', 'impostazioni', 'messages', 'note_cliente', 'notifications',
+        'od_attivita', 'od_istanze_componenti', 'od_prodotti', 'presence', 'promemoria',
+        'push_broadcast_log', 'saleRiunioni', 'scadenzario', 'settings', 'tasks',
+        'rss_feeds', 'rss_assignments', 'rss_classifications', 'rss_read',
+        'od_componenti', 'od_changelog',
+        'fornitori', 'fornitori_valutazioni'
+      ];
+    }
+
+
+    // COLLEZIONI PUBBLICHE
+
+    // Specchio pubblico minimale (solo nome/slug), scritto solo dal server (Admin SDK)
+    match /app_public/{document} {
       allow read: if true;
-      allow write: if request.auth != null;
+      allow write: if false;
     }
     match /app/{document} {
-      allow read: if true;
-      allow write: if request.auth != null;
+      allow read: if isActive();
+      allow write: if isActive();
     }
-    match /{document=**} {
-      allow read, write: if request.auth != null;
+    match /push_history/{document} {
+      allow read: if true;
+      allow write: if isActive();
+    }
+
+
+    // /utenti — anti-escalation
+    match /utenti/{userId} {
+      allow read: if isOwnDoc(userId) || isActive();
+      allow create: if isAdmin();
+      allow update: if isAdmin()
+        || (isOwnDoc(userId) && isActive() && onlyAffects([
+              'lastLogin', 'photoURL', 'dataAggiornamento',
+              'fcmTokens', 'fcmTokenUpdatedAt'
+           ]));
+      allow delete: if isSuperAdmin();
+    }
+
+
+    // /audit_log — append-only
+    match /audit_log/{document} {
+      allow read: if isAdmin();
+      allow create: if isActive();
+      allow update, delete: if false;
+    }
+
+
+    // Altre collezioni CRM (whitelist)
+    match /{collection}/{document} {
+      allow read, write: if isCrmCollection(collection) && isActive();
+    }
+
+    // Catch-all: tutto il resto e' bloccato
+    // Messaggi chat: subcollection non coperta dal match a segmento singolo (v10.2.0)
+    match /chat_conversations/{convId}/messages/{msgId} {
+      allow read, write: if isActive();
+    }
+
+    match /{path=**} {
+      allow read, write: if false;
     }
   }
 }
