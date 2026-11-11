@@ -232,7 +232,7 @@ const DataService = {
             const clienti = await this.getClienti();
             const term = searchTerm.toLowerCase();
             return clienti.filter(c =>
-                c.ragioneSociale.toLowerCase().includes(term) ||
+                (c.ragioneSociale || '').toLowerCase().includes(term) ||
                 c.provincia?.toLowerCase().includes(term) ||
                 c.agente?.toLowerCase().includes(term)
             );
@@ -1688,6 +1688,10 @@ const DataService = {
     // CLIENTI
     async updateCliente(clienteId, data) {
         try {
+            // FIX (11/11/2026): se l'aggiornamento tocca la Ragione Sociale, non può svuotarla.
+            if ('ragioneSociale' in data && !String(data.ragioneSociale || '').trim()) {
+                throw new Error('La Ragione Sociale è obbligatoria');
+            }
             await db.collection('clienti').doc(clienteId).update({
                 ...data,
                 ...this._getAuditFields()
@@ -1703,6 +1707,11 @@ const DataService = {
 
     async createCliente(data) {
         try {
+            // FIX (11/11/2026): mai più clienti senza nome — un cliente con
+            // Ragione Sociale vuota bloccava "Modifica Fattura" e la ricerca clienti.
+            if (!String(data.ragioneSociale || '').trim()) {
+                throw new Error('La Ragione Sociale è obbligatoria');
+            }
             // Rimuovi statoContratto statico (viene calcolato dai contratti)
             delete data.statoContratto;
             const docRef = await db.collection('clienti').add({

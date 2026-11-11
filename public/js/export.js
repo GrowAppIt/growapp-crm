@@ -873,7 +873,7 @@ const ExportManager = {
                     // Cerca cliente esistente per ragione sociale
                     const esistenti = await DataService.getClienti();
                     const esistente = esistenti.find(c =>
-                        c.ragioneSociale.toLowerCase() === cliente.ragioneSociale.toLowerCase()
+                        (c.ragioneSociale || '').toLowerCase() === (cliente.ragioneSociale || '').toLowerCase()
                     );
 
                     if (esistente) {

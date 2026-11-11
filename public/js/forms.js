@@ -440,6 +440,9 @@ const FormsManager = {
             content,
             async () => {
                 const data = this.getFormData();
+                if (!String(data.ragioneSociale || '').trim()) {
+                    throw new Error('La Ragione Sociale è obbligatoria');
+                }
                 await DataService.updateCliente(cliente.id, data);
                 UI.showSuccess('Cliente aggiornato con successo!');
                 // Ricarica la pagina dettaglio
@@ -524,6 +527,9 @@ const FormsManager = {
             content,
             async () => {
                 const data = this.getFormData();
+                if (!String(data.ragioneSociale || '').trim()) {
+                    throw new Error('La Ragione Sociale è obbligatoria');
+                }
                 const newId = await DataService.createCliente(data);
                 UI.showSuccess('Cliente creato con successo!');
                 DettaglioCliente.render(newId);
@@ -606,9 +612,12 @@ const FormsManager = {
     async showModificaFattura(fattura) {
         // Carica tutti i clienti per il select
         const clientiSnapshot = await db.collection('clienti').get();
+        // FIX (11/11/2026): un cliente salvato senza Ragione Sociale (null) faceva
+        // fallire l'ordinamento e il form "Modifica Fattura" non si apriva più per
+        // NESSUNA fattura. Ora il nome mancante diventa "(senza ragione sociale)".
         const clienti = clientiSnapshot.docs.map(doc => ({
             id: doc.id,
-            ragioneSociale: doc.data().ragioneSociale,
+            ragioneSociale: String(doc.data().ragioneSociale || '').trim() || '(senza ragione sociale)',
             tipo: doc.data().tipo || 'PRIVATO'
         })).sort((a, b) => a.ragioneSociale.localeCompare(b.ragioneSociale));
 

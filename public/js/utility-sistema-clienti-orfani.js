@@ -48,7 +48,7 @@ const SistemaClientiOrfani = {
             Object.keys(perCliente).forEach(clienteId => {
                 const idParts = clienteId.toLowerCase().split('_').filter(p => p.length > 2);
                 const possibiliMatch = clienti.filter(c => {
-                    const nomeCliente = c.ragioneSociale.toLowerCase();
+                    const nomeCliente = (c.ragioneSociale || '').toLowerCase();
                     return idParts.some(part => nomeCliente.includes(part));
                 });
                 perCliente[clienteId].possibiliMatch = possibiliMatch;
@@ -239,7 +239,7 @@ const SistemaClientiOrfani = {
             <select id="clienteManuale" class="form-input">
                 <option value="">-- Seleziona cliente --</option>
                 ${clienti
-                    .sort((a, b) => a.ragioneSociale.localeCompare(b.ragioneSociale))
+                    .sort((a, b) => (a.ragioneSociale || '').localeCompare(b.ragioneSociale || ''))
                     .map(c => `
                         <option value="${c.id}">${c.ragioneSociale}</option>
                     `).join('')}

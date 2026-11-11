@@ -240,7 +240,7 @@ const Clienti = {
 
             if (this.filtri.search) {
                 filtrati = filtrati.filter(c =>
-                    c.ragioneSociale.toLowerCase().includes(this.filtri.search) ||
+                    (c.ragioneSociale || '').toLowerCase().includes(this.filtri.search) ||
                     c.provincia?.toLowerCase().includes(this.filtri.search) ||
                     c.agente?.toLowerCase().includes(this.filtri.search)
                 );
@@ -268,7 +268,7 @@ const Clienti = {
         }
         if (this.filtri.search) {
             filtrati = filtrati.filter(c =>
-                c.ragioneSociale.toLowerCase().includes(this.filtri.search) ||
+                (c.ragioneSociale || '').toLowerCase().includes(this.filtri.search) ||
                 c.provincia?.toLowerCase().includes(this.filtri.search) ||
                 c.agente?.toLowerCase().includes(this.filtri.search)
             );
