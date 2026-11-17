@@ -392,9 +392,8 @@ const ExportManager = {
                             numeroFatture: 0
                         };
                     }
-                    const isNC = f.tipoDocumento === 'NOTA_DI_CREDITO' || (f.numeroFatturaCompleto || '').startsWith('NC-');
-                    fatturatoPerCliente[f.clienteId].totale += isNC ? -Math.abs(f.importoTotale || 0) : (f.importoTotale || 0);
-                    fatturatoPerCliente[f.clienteId].numeroFatture++;
+                    fatturatoPerCliente[f.clienteId].totale += DataService.importoFatturaConSegno(f);
+                    if (!DataService.isNotaCredito(f) && !DataService.isFatturaAnnullata(f)) fatturatoPerCliente[f.clienteId].numeroFatture++;
                 }
             });
 

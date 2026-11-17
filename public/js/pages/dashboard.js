@@ -88,12 +88,8 @@ const Dashboard = {
             const fatturePerStato = {};
             fatture.forEach(f => { fatturePerStato[f.statoPagamento] = (fatturePerStato[f.statoPagamento] || 0) + 1; });
             const fatturatoTotale = fatture
-                .filter(f => f.statoPagamento === 'PAGATA' || f.tipoDocumento === 'NOTA_DI_CREDITO')
-                .reduce((sum, f) => {
-                    const importo = f.importoTotale || 0;
-                    const isNC = f.tipoDocumento === 'NOTA_DI_CREDITO' || (f.numeroFatturaCompleto || '').startsWith('NC-');
-                    return sum + (isNC ? -Math.abs(importo) : importo);
-                }, 0);
+                .filter(f => f.statoPagamento === 'PAGATA' || DataService.isNotaCredito(f))
+                .reduce((sum, f) => sum + DataService.importoFatturaConSegno(f), 0);
             const fattureNonPagateStats = fatture.filter(f => (f.statoPagamento === 'NON_PAGATA' || f.statoPagamento === 'PARZIALMENTE_PAGATA') && f.tipoDocumento !== 'NOTA_DI_CREDITO');
             const importoNonPagato = fattureNonPagateStats.reduce((sum, f) => {
                 // Per parzialmente pagate, calcola il saldo residuo
@@ -811,8 +807,7 @@ const Dashboard = {
                     id: cliente.id
                 };
             }
-            const isNC = f.tipoDocumento === 'NOTA_DI_CREDITO' || (f.numeroFatturaCompleto || '').startsWith('NC-');
-            fatturatoPerCliente[f.clienteId].totale += isNC ? -Math.abs(f.importoTotale || 0) : (f.importoTotale || 0);
+            fatturatoPerCliente[f.clienteId].totale += DataService.importoFatturaConSegno(f);
         });
 
         // Ordina e prendi top 5 (solo clienti validi)
@@ -1253,8 +1248,9 @@ const Dashboard = {
         };
 
         // Fatture escluse note di credito per calcoli emesso
-        const fattureReali = fatture.filter(f => f.tipoDocumento !== 'NOTA_DI_CREDITO');
-        const noteDiCredito = fatture.filter(f => f.tipoDocumento === 'NOTA_DI_CREDITO');
+        // v10.9.0: documenti annullati (rifiutati/stornati) fuori da entrambe le liste
+        const fattureReali = fatture.filter(f => !DataService.isNotaCredito(f) && !DataService.isFatturaAnnullata(f));
+        const noteDiCredito = fatture.filter(f => DataService.isNotaCredito(f) && !DataService.isFatturaAnnullata(f));
 
         // --- EMESSO NEL MESE (fatture emesse questo mese) ---
         // Emesso lordo: solo fatture reali (no NC)
@@ -1288,7 +1284,7 @@ const Dashboard = {
             let totale = 0;
             let numPagamenti = 0;
             listaFatture.forEach(f => {
-                if (f.tipoDocumento === 'NOTA_DI_CREDITO') return;
+                if (DataService.isNotaCredito(f) || DataService.isFatturaAnnullata(f)) return;
 
                 const haAcconti = f.acconti && f.acconti.length > 0;
                 let accontiNelPeriodo = 0;
@@ -2580,11 +2576,7 @@ const Dashboard = {
         });
 
         // Helper: calcola importo considerando note di credito (sottraggono)
-        const calcolaImportoFattura = (f) => {
-            const importo = f.importoTotale || 0;
-            const isNC = f.tipoDocumento === 'NOTA_DI_CREDITO' || (f.numeroFatturaCompleto || '').startsWith('NC-');
-            return isNC ? -Math.abs(importo) : importo;
-        };
+        const calcolaImportoFattura = (f) => DataService.importoFatturaConSegno(f);
 
         // Helper: parsing date robusto (supporta Firestore Timestamp, stringa ISO, Date)
         const parseData = (d) => {
@@ -2626,14 +2618,14 @@ const Dashboard = {
         // Fatturato INCASSATO (solo PAGATA) — per le sotto-etichette
         const fatturatoIncassatoAnno = fattureValide
             .filter(f => {
-                if (f.statoPagamento !== 'PAGATA' && f.tipoDocumento !== 'NOTA_DI_CREDITO') return false;
+                if (f.statoPagamento !== 'PAGATA' && !DataService.isNotaCredito(f)) return false;
                 const de = parseData(f.dataEmissione);
                 return de && de.getFullYear() === annoCorrente;
             })
             .reduce((sum, f) => sum + calcolaImportoFattura(f), 0);
 
         const fatturatoIncassatoTotale = fattureValide
-            .filter(f => f.statoPagamento === 'PAGATA' || f.tipoDocumento === 'NOTA_DI_CREDITO')
+            .filter(f => f.statoPagamento === 'PAGATA' || DataService.isNotaCredito(f))
             .reduce((sum, f) => sum + calcolaImportoFattura(f), 0);
 
         // Contratti in scadenza
@@ -3093,10 +3085,7 @@ const Dashboard = {
                 if (f.clienteRagioneSociale && f.clienteRagioneSociale.trim().toLowerCase() === nomeNorm) return true;
                 return false;
             });
-            const totale = fattCliente.reduce((sum, f) => {
-                const isNC = f.tipoDocumento === 'NOTA_DI_CREDITO' || (f.numeroFatturaCompleto || '').startsWith('NC-');
-                return sum + (isNC ? -Math.abs(f.importoTotale || 0) : (f.importoTotale || 0));
-            }, 0);
+            const totale = fattCliente.reduce((sum, f) => sum + DataService.importoFatturaConSegno(f), 0);
             return { ...c, fatturato: totale };
         }).sort((a, b) => b.fatturato - a.fatturato).slice(0, 5);
 

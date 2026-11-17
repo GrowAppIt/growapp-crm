@@ -1316,8 +1316,7 @@ const Report = {
         const ltvPerCliente = {};
         fatture.forEach(f => {
             if (!f.clienteId) return;
-            const isNC = f.tipoDocumento === 'NOTA_DI_CREDITO' || (f.numeroFatturaCompleto || '').startsWith('NC-');
-            const importo = isNC ? -Math.abs(f.importoTotale || 0) : (f.importoTotale || 0);
+            const importo = DataService.importoFatturaConSegno(f);
 
             if (!ltvPerCliente[f.clienteId]) {
                 const cliente = clienti.find(c => c.id === f.clienteId);
@@ -1596,11 +1595,9 @@ const Report = {
         }
 
         // Calcola statistiche (note di credito sottraggono dal fatturato)
-        const fatturatoTotale = fattureFiltrate.reduce((sum, f) => {
-            const isNC = f.tipoDocumento === 'NOTA_DI_CREDITO' || (f.numeroFatturaCompleto || '').startsWith('NC-');
-            return sum + (isNC ? -Math.abs(f.importoTotale || 0) : (f.importoTotale || 0));
-        }, 0);
-        const numeroFatture = fattureFiltrate.filter(f => f.tipoDocumento !== 'NOTA_DI_CREDITO' && !(f.numeroFatturaCompleto || '').startsWith('NC-')).length;
+        const fatturatoTotale = fattureFiltrate.reduce((sum, f) => sum + DataService.importoFatturaConSegno(f), 0);
+        // v10.9.0: nel conteggio entrano solo le fatture valide (no NC, no rifiutate/stornate)
+        const numeroFatture = fattureFiltrate.filter(f => !DataService.isNotaCredito(f) && !DataService.isFatturaAnnullata(f)).length;
         const ticketMedio = numeroFatture > 0 ? fatturatoTotale / numeroFatture : 0;
         const daIncassare = fattureFiltrate
             .filter(f => (f.statoPagamento === 'NON_PAGATA' || f.statoPagamento === 'PARZIALMENTE_PAGATA') && f.tipoDocumento !== 'NOTA_DI_CREDITO')
@@ -1631,7 +1628,7 @@ const Report = {
             }
             // FIX H9 (v10.1.8): NC sottratte e non conteggiate, coerente col fatturato di testata.
             fatturatoPerCliente[f.clienteId].fatturato += DataService.importoFatturaConSegno(f);
-            if (!DataService.isNotaCredito(f)) fatturatoPerCliente[f.clienteId].numeroFatture++;
+            if (!DataService.isNotaCredito(f) && !DataService.isFatturaAnnullata(f)) fatturatoPerCliente[f.clienteId].numeroFatture++;
         });
 
         const topClienti = Object.values(fatturatoPerCliente)

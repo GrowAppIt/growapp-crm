@@ -933,6 +933,9 @@ const DataService = {
             // 2. Crea il nuovo contratto ereditando i dati base dal vecchio
             const campiDaEreditare = [
                 'clienteId', 'clienteRagioneSociale', 'oggetto', 'tipo',
+                // v10.9.0: appId e tipologia NON venivano ereditati -> il contratto rinnovato
+                // restava scollegato dall'app (26 app attive col contratto corrente "orfano").
+                'appId', 'tipologia',
                 'gestione', 'periodicita', 'modalitaPagamento', 'agente',
                 'rinnovoAutomatico', 'giorniPreavvisoRinnovo'
             ];
@@ -1336,12 +1339,35 @@ const DataService = {
     // Una fattura è Nota di Credito se ha tipoDocumento NOTA_DI_CREDITO oppure
     // numeroFatturaCompleto che inizia con 'NC-'. Le NC vanno SEMPRE sottratte dal fatturato.
     // Usare SEMPRE questi due helper per evitare definizioni divergenti tra report/dashboard/export.
+    //
+    // v10.9.0 — AUDIT FATTURE (nov 2026). Due correzioni, nate dal caso Longobucco:
+    //  1) Riconoscimento NC più largo: molte NC storiche (migrate) non hanno tipoDocumento né
+    //     prefisso 'NC-', ma hanno tipo "NOTA CREDITO" e/o importo negativo.
+    //  2) Documenti ANNULLATI: statoPagamento RIFIUTATA oppure NOTA_CREDITO. Nell'uso reale lo
+    //     stato NOTA_CREDITO è messo SIA sulla fattura stornata SIA sulla nota di credito che la
+    //     storna; RIFIUTATA sulla fattura respinta dal Comune/SDI (e sulla NC fatta "per
+    //     contabilità"). In entrambi i casi la coppia vale ZERO: nessuno dei due documenti deve
+    //     pesare sul fatturato. Prima la NC veniva sottratta anche quando la fattura stornata non
+    //     era conteggiata (o non era proprio nel CRM) -> fatturato del cliente troppo basso o negativo.
+    //  Una NC che invece RIDUCE davvero il fatturato (storno parziale di una fattura valida) va
+    //  tenuta con stato PAGATA / NON_PAGATA: in quel caso viene sottratta.
     isNotaCredito(f) {
         if (!f) return false;
-        return f.tipoDocumento === 'NOTA_DI_CREDITO' || String(f.numeroFatturaCompleto || '').startsWith('NC-');
+        if (f.tipoDocumento === 'NOTA_DI_CREDITO') return true;
+        if (String(f.numeroFatturaCompleto || '').startsWith('NC-')) return true;
+        if (/^\s*NOTA/i.test(String(f.tipo || ''))) return true;
+        return (Number(f.importoTotale) || 0) < 0;
     },
+    // Documento annullato (rifiutato o stornato per intero): non conta nel fatturato.
+    isFatturaAnnullata(f) {
+        if (!f) return false;
+        return f.statoPagamento === 'RIFIUTATA' || f.statoPagamento === 'NOTA_CREDITO';
+    },
+    // Importo con cui il documento entra nel FATTURATO NETTO:
+    //   annullato -> 0 ; nota di credito valida -> negativo ; fattura -> positivo.
     importoFatturaConSegno(f) {
-        const importo = (f && f.importoTotale) ? f.importoTotale : 0;
+        if (!f || this.isFatturaAnnullata(f)) return 0;
+        const importo = Number(f.importoTotale) || 0;
         return this.isNotaCredito(f) ? -Math.abs(importo) : importo;
     },
 

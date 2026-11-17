@@ -505,12 +505,21 @@ const DettaglioCliente = {
         }
 
         // Calcola statistiche
-        const totale = fatture.reduce((sum, f) => sum + (f.importoTotale || 0), 0);
-        const pagate = fatture.filter(f => f.statoPagamento === 'PAGATA').length;
-        const nonPagate = fatture.filter(f => f.statoPagamento === 'NON_PAGATA').length;
+        // v10.9.0: fatturato NETTO. Prima era la somma grezza di tutti i documenti: le note di
+        // credito con importo negativo venivano sottratte anche quando stornavano una fattura
+        // rifiutata non conteggiata (caso Longobucco: 651 € al posto di 12.729 €), quelle con
+        // importo positivo venivano addirittura sommate. Regola unica in DataService.
+        const totale = fatture.reduce((sum, f) => sum + DataService.importoFatturaConSegno(f), 0);
+        const _valida = f => !DataService.isNotaCredito(f) && !DataService.isFatturaAnnullata(f);
+        const pagate = fatture.filter(f => f.statoPagamento === 'PAGATA' && _valida(f)).length;
+        const _aperta = f => (f.statoPagamento === 'NON_PAGATA' || f.statoPagamento === 'PARZIALMENTE_PAGATA') && _valida(f);
+        const nonPagate = fatture.filter(_aperta).length;
         const importoNonPagato = fatture
-            .filter(f => f.statoPagamento === 'NON_PAGATA')
-            .reduce((sum, f) => sum + (f.importoTotale || 0), 0);
+            .filter(_aperta)
+            .reduce((sum, f) => {
+                const acconti = Array.isArray(f.acconti) ? f.acconti.reduce((s, a) => s + (a.importo || 0), 0) : 0;
+                return sum + Math.max(0, (f.importoTotale || 0) - acconti);
+            }, 0);
 
         let html = `
             <div class="card fade-in">
@@ -533,7 +542,7 @@ const DettaglioCliente = {
                                 ${DataService.formatCurrency(totale)}
                             </div>
                             <div style="font-size: 0.75rem; color: var(--grigio-500); font-weight: 600;">
-                                TOTALE FATTURATO
+                                TOTALE FATTURATO (NETTO)
                             </div>
                         </div>
                         <div style="text-align: center;">
@@ -572,9 +581,9 @@ const DettaglioCliente = {
             html += UI.createListItem({
                 title: fattura.numeroFatturaCompleto,
                 subtitle: `${DataService.formatDate(fattura.dataEmissione)} • ${DataService.formatCurrency(fattura.importoTotale)}`,
-                badge: fattura.statoPagamento?.replace('_', ' '),
+                badge: (DataService.isNotaCredito(fattura) && !DataService.isFatturaAnnullata(fattura)) ? 'NOTA CREDITO' : fattura.statoPagamento?.replace('_', ' '),
                 badgeClass,
-                icon: 'file-invoice',
+                icon: DataService.isNotaCredito(fattura) ? 'file-invoice-dollar' : 'file-invoice',
                 onclick: `UI.showPage('dettaglio-fattura', '${fattura.id}')`
             });
         }
