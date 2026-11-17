@@ -47,6 +47,9 @@ const Fatture = {
                                 <i class="fas fa-file-excel"></i> Esporta
                             </button>
                             ${!AuthService.canViewOnlyOwnData() ? `
+                            <button class="btn btn-secondary" onclick="VerificaFatturazione.esegui()" title="Controlla tutte le app attive: mai fatturate, scoperte, fino a quando sono fatturate. Scarica un PDF.">
+                                <i class="fas fa-clipboard-check"></i> Verifica fatturazione
+                            </button>
                             <button class="btn btn-primary" onclick="FormsManager.showNuovaFattura()">
                                 <i class="fas fa-plus"></i> Nuova Fattura
                             </button>
